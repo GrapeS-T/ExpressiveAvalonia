@@ -55,10 +55,13 @@ internal sealed class CatalogWindow : Window
     {
         _theme = theme;
         Title = "ExpressiveAvalonia · Theme laboratory";
-        Width = 960;
-        Height = 720;
+        Width = 1200;
+        Height = 900;
         var panel = new StackPanel { Margin = new Thickness(32), Spacing = 20 };
-        Content = panel;
+        var tabs = new TabControl();
+        tabs.Items.Add(new TabItem { Header = "Theme", Content = new ScrollViewer { Content = panel } });
+        tabs.Items.Add(new TabItem { Header = "Standard controls", Content = StandardControlsGallery.Create(theme) });
+        Content = tabs;
         panel.Children.Add(new TextBlock { Text = "ExpressiveAvalonia", FontSize = 36, FontWeight = FontWeight.Bold });
         panel.Children.Add(new TextBlock { Text = "Лаборатория токенов · начальная тема, не полный MD3", FontSize = 18 });
         var actions = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12 };
@@ -128,21 +131,86 @@ internal sealed class CatalogWindow : Window
             _theme.Contrast = 1;
             if (Primary(_action) == normal) throw new InvalidOperationException("Contrast did not update resources.");
             if (_clicks != 1) throw new InvalidOperationException("State lost on theme update.");
+            // Visual acceptance uses baseline purple and standard contrast, not the contrast probe.
+            _theme.Contrast = 0;
+            _theme.SeedColor = Color.Parse("#6750A4");
             DispatcherTimer.RunOnce(() =>
             {
                 try
                 {
-                    using var bitmap = new RenderTargetBitmap(new PixelSize((int)Width, (int)Height));
-                    bitmap.Render(this);
-                    Directory.CreateDirectory("artifacts");
-                    bitmap.Save("artifacts/catalog-smoke.png", new PngBitmapEncoderOptions());
-                    Console.WriteLine("SMOKE PASS: click, disabled, light/dark, local scope, seed, contrast, retained state; artifacts/catalog-smoke.png");
-                    Close();
+                    Capture("theme");
+                    var root = (TabControl)Content!;
+                    root.SelectedIndex = 1;
+                    var gallery = (TabControl)((TabItem)root.Items[1]!).Content!;
+                    SmokePage(gallery, 0);
                 }
                 catch (Exception exception) { Fail(exception); }
             }, TimeSpan.FromMilliseconds(250));
         }
         catch (Exception exception) { Fail(exception); }
+    }
+
+    private void Capture(string name)
+    {
+        UpdateLayout();
+        using var bitmap = new RenderTargetBitmap(new PixelSize((int)Width, (int)Height));
+        bitmap.Render(this);
+        Directory.CreateDirectory("artifacts");
+        bitmap.Save($"artifacts/catalog-{name}.png", new PngBitmapEncoderOptions());
+    }
+
+    private void SmokePage(TabControl gallery, int index)
+    {
+        if (index >= gallery.ItemCount)
+        {
+            if (ActualThemeVariant == ThemeVariant.Light)
+            {
+                RequestedThemeVariant = ThemeVariant.Dark;
+                SmokePage(gallery, 0);
+            }
+            else SmokePopup();
+            return;
+        }
+        gallery.SelectedIndex = index;
+        DispatcherTimer.RunOnce(() =>
+        {
+            try
+            {
+                Capture($"{(ActualThemeVariant == ThemeVariant.Dark ? "dark" : "light")}-page-{index}");
+                Console.WriteLine($"Rendered page {index}: {((TabItem)gallery.Items[index]!).Header}");
+                SmokePage(gallery, index + 1);
+            }
+            catch (Exception exception) { Fail(exception); }
+        }, TimeSpan.FromMilliseconds(index == 3 ? 15000 : 300));
+    }
+
+    private void SmokePopup()
+    {
+        var owner = new Button { Content = "Rich tooltip owner", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        var action = new Button { Content = "Закрыть" };
+        var rich = new ExpressiveAvalonia.Controls.RichTooltip { Title = "Проверка popup", Content = "Реальный desktop flyout", Actions = action };
+        Content = owner;
+        DispatcherTimer.RunOnce(() =>
+        {
+            try
+            {
+                owner.Focus(); rich.ShowAt(owner);
+                DispatcherTimer.RunOnce(() =>
+                {
+                    try
+                    {
+                        if (!rich.IsOpen) throw new InvalidOperationException("Rich tooltip did not open.");
+                        action.Focus();
+                        action.RaiseEvent(new Avalonia.Input.KeyEventArgs { RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent, Key = Avalonia.Input.Key.Escape });
+                        if (rich.IsOpen) throw new InvalidOperationException("Rich tooltip Escape did not dismiss.");
+                        Console.WriteLine("SMOKE PASS: theme transitions, six pages in light/dark at contrast 0, desktop rich tooltip open/Escape.");
+                        Close();
+                    }
+                    catch (Exception exception) { rich.Hide(); Fail(exception); }
+                }, TimeSpan.FromMilliseconds(300));
+            }
+            catch (Exception exception) { Fail(exception); }
+        }, TimeSpan.FromMilliseconds(100));
     }
 
     private void Fail(Exception exception)
