@@ -38,13 +38,17 @@ public sealed class MaterialTheme : Styles
         set => SetValue(ContrastProperty, value);
     }
 
+    private readonly ResourceDictionary _tokens;
+    private bool _reduced;
+
     public MaterialTheme()
     {
         AvaloniaXamlLoader.Load(this);
-        Resources.MergedDictionaries.Add(MaterialTokens.CreateResources());
+        _tokens = MaterialTokens.CreateResources();
+        Resources.MergedDictionaries.Add(_tokens);
         UpdateColors();
         Resources["MaterialFontFamily"] = FontFamily;
-        Resources["MaterialReducedMotion"] = Motion == MaterialMotionMode.Reduced;
+        UpdateMotion();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -52,7 +56,7 @@ public sealed class MaterialTheme : Styles
         base.OnPropertyChanged(change);
         if (change.Property == SeedColorProperty || change.Property == ContrastProperty)
             UpdateColors();
-        if (change.Property == MotionProperty) Resources["MaterialReducedMotion"] = Motion == MaterialMotionMode.Reduced;
+        if (change.Property == MotionProperty) UpdateMotion();
         if (change.Property == FontFamilyProperty) Resources["MaterialFontFamily"] = FontFamily;
     }
 
@@ -60,6 +64,15 @@ public sealed class MaterialTheme : Styles
     {
         UpdateVariant(ThemeVariant.Light, false);
         UpdateVariant(ThemeVariant.Dark, true);
+    }
+
+    // Reduced motion zeroes every duration token, which collapses the state transitions that
+    // bind Duration to those keys. Springs and indeterminate loops stop on their own.
+    private void UpdateMotion()
+    {
+        _reduced = Motion == MaterialMotionMode.Reduced;
+        Resources["MaterialReducedMotion"] = _reduced;
+        MaterialDurationTokens.Apply(_tokens, _reduced);
     }
 
     private void UpdateVariant(ThemeVariant variant, bool dark)
@@ -82,6 +95,11 @@ public sealed class MaterialTheme : Styles
         // Generate translucent roles alongside their source colors in each variant dictionary.
         void Translucent(string key, string role, double opacity) =>
             dictionary[key] = new SolidColorBrush((Color)dictionary[role + "Color"]!, opacity);
+        // Generic disabled roles. Compose composites these over the container; it never dims
+        // the complete control, which would stack two translucent layers.
+        Translucent("MaterialDisabledContainerBrush", "MaterialOnSurface", .04);
+        Translucent("MaterialDisabledContentBrush", "MaterialOnSurface", .38);
+        Translucent("MaterialDisabledOutlineBrush", "MaterialOnSurface", .12);
         Translucent("MaterialSelectionDisabledOnSurfaceBrush", "MaterialOnSurface", .38);
         Translucent("MaterialSwitchDisabledTrackBrush", "MaterialOnSurface", .12);
         Translucent("MaterialSwitchDisabledOffTrackBrush", "MaterialSurfaceContainerHighest", .12);

@@ -9,11 +9,11 @@ Avalonia 12.1.4, библиотека `net8.0`, desktop-каталог и тес
 - `MaterialTheme`: динамические `SeedColor`, `Contrast` (-1…1), `FontFamily`, `Motion` (Expressive/Reduced); light/dark и локальный ThemeVariantScope.
 - HCT Tonal Spot / Spec2021: 49 цветовых ролей и brushes; эталонные проверки Google для HCT, gamut mapping, light/dark, fixed roles и surface tint при разных контрастах.
 - 15 типографических ролей с line height/tracking и emphasized-вариантами; применяются через `MaterialTypography.Style` и `Emphasized`. По умолчанию встроенный Roboto (SIL OFL 1.1), шрифт заменяемый.
-- Shape, state opacity, elevation distances и двухслойные тени уровней 0…5, durations.
-- Прерываемые springs с сохранением скорости при retarget и shape morph кнопок; без произвольного press scale. Reduced motion немедленно завершает spatial animation; индикаторы прекращают циклическое движение. На Windows учитывается настройка анимаций ОС; на других ОС доступен явный reduced mode.
-- Button/ToggleButton: filled, tonal, outlined, elevated, text; icon mode; пять Expressive-размеров; round/square shape; focus/disabled/state layers.
+- Shape, state opacity, elevation distances и двухслойные тени уровней 0…5, durations, `md.sys.motion.easing`-токены и шесть AndroidX Expressive springs.
+- Прерываемые springs с сохранением скорости при retarget и shape morph кнопок; без произвольного press scale. State layers, hover-elevation, индикаторы табов, поля и списки меняют состояние через `Transitions` с easing/duration-токенами. Reduced motion немедленно завершает spatial animation; индикаторы прекращают циклическое движение. На Windows учитывается настройка анимаций ОС; на других ОС доступен явный reduced mode.
+- Button/ToggleButton: standard, filled, tonal, outlined, elevated, text; icon mode; пять Expressive-размеров; round/square shape; focus/disabled/state layers. `Standard` — значение по умолчанию: у labeled-кнопки filled-контейнер, у icon-only контейнера нет.
 - TextBox: filled/outlined, floating label, prefix/suffix, leading/trailing content, supporting/validation text, opt-in password reveal с сокрытием при уходе фокуса. Нативные editing/selection/IME/clipboard APIs сохраняются.
-- CheckBox, RadioButton, ToggleSwitch; switch использует OnContent/OffContent для необязательных иконок.
+- CheckBox (включая `:error` и indeterminate), RadioButton, ToggleSwitch; switch использует OnContent/OffContent для необязательных иконок.
 - Slider: horizontal/vertical, ticks, snapping, value labels, expressive handle. MaterialRangeSlider: два endpoints, клавиатура/drag/RTL, clamp при пересечении, snapping и отдельные automation providers.
 - ProgressBar и CircularProgressIndicator: determinate/indeterminate; остановка таймеров при detach, скрытии и reduced motion.
 - ListBox/ListBoxItem с виртуализацией и опциональной anatomy через `MaterialList`; primary/secondary tabs, fixed/scrollable headers и стрелки/Home/End.
@@ -38,7 +38,7 @@ Desktop smoke проверяет смену темы/seed/контраста и 
 
 Страница Ranges остаётся открытой по 15 секунд в каждой теме для проверки indeterminate-анимации через desktop compositor. Дуги CircularProgressIndicator после передачи renderer’у не изменяются: повторное открытие опубликованной StreamGeometry приводило к конкурентному изменению native SKPath и падению Skia `GetFillPath` (`0xC0000005`). Короткая отрисовка и headless-тесты не заменяют эту проверку.
 
-Проверено на Windows: 55 автоматических проверок и desktop smoke (12 отрисовок: шесть страниц × две темы). Проверена отрисовка полей, selection controls, slider/progress, lists/tabs и размерных вариантов кнопок. Headless-проверки отправляют события клавиатуры в input pipeline; smoke rich tooltip использует routed Escape. Все сочетания hover/press/focus, физические устройства ввода, скринридеры, mobile, Linux/macOS пока не проверены. Это не сертификат доступности или полного соответствия MD3.
+Проверено на Windows: 67 автоматических проверок и desktop smoke (12 отрисовок: шесть страниц × две темы). Проверена отрисовка полей, selection controls, slider/progress, lists/tabs и размерных вариантов кнопок. Headless-проверки отправляют события клавиатуры в input pipeline; smoke rich tooltip использует routed Escape. Все сочетания hover/press/focus, физические устройства ввода, скринридеры, mobile, Linux/macOS пока не проверены. Это не сертификат доступности или полного соответствия MD3.
 
 ## Подключение
 
@@ -73,7 +73,7 @@ Desktop smoke проверяет смену темы/seed/контраста и 
            md:MaterialTypography.Emphasized="True" />
 ```
 
-Icon-only button: `MaterialAssist.IsIconButton="True"`, Content — geometry/icon пользователя, `AutomationProperties.Name` обязателен. ToggleButton использует тот же API.
+Icon-only button: `MaterialAssist.IsIconButton="True"`, Content — geometry/icon пользователя, `AutomationProperties.Name` обязателен. ToggleButton использует тот же API. Без `ButtonVariant` действует `Standard`: у icon-only кнопки нет контейнера (иконка OnSurfaceVariant), у labeled-кнопки — filled-контейнер. У icon-only кнопок `Filled`, `Tonal` и `Outlined` дают соответствующие *IconButtonTokens; `ButtonShape` меняет силуэт только у icon-only toggle при `IsChecked`, как в AndroidX.
 
 MaterialTextField дополнительно: `Prefix`, `Suffix`, `LeadingContent`, `TrailingContent`, `ShowPasswordReveal`. Нативный DataValidationErrors остаётся источником ошибок; пользовательские AutomationProperties могут переопределить доступное имя/описание.
 
@@ -109,6 +109,9 @@ Range slider горизонтальный. LowerValue не может превы
 - `Material{Hover|Focus|Pressed|Dragged}StateLayerOpacity`.
 - `MaterialElevationLevel0` … `5` и `MaterialElevationLevel0Shadow` … `5Shadow`.
 - `MaterialDuration{Short|Medium|Long|ExtraLong}{1|2|3|4}` типа TimeSpan.
+- `MaterialEasing{Standard|StandardAccelerate|StandardDecelerate|Emphasized|EmphasizedAccelerate|EmphasizedDecelerate|Legacy|LegacyAccelerate|LegacyDecelerate|Linear}` — `IEasing` для `Transitions` и кода.
+- `MaterialSpring{Spatial|Effects}{Default|Fast|Slow}{Stiffness|Damping}` — параметры AndroidX ExpressiveMotionTokens.
+- Строки шаблонов: `MaterialTextInput{Cut|Copy|Paste|SelectAll}Text`, `MaterialPassword{Show|Hide}Text`, `MaterialRange{Lower|Upper}ValueText`, `MaterialScroll{Left|Right|Up|Down}Text`, `MaterialPage{Left|Right|Up|Down}Text`, `MaterialScrollPositionText`. Переопределите эти ключи в ресурсах приложения, чтобы локализовать встроенные automation names, tooltips и контекстное меню.
 
 Используйте DynamicResource. В прямом FindResource укажите ActualThemeVariant. Визуальная вертикальная линия: Separator Classes="vertical".
 
@@ -119,6 +122,8 @@ Range slider горизонтальный. LowerValue не может превы
 Дополнительные семейства (FAB, chips, cards, dialogs/sheets/snackbar, navigation, carousel, date/time pickers и другие) остаются в [матрице покрытия](docs/architecture.md). Визуальный Calendar инфраструктуры не заменяет полноценный Material date picker. Expressive wavy progress tracks не заявлены; реализованы rounded/gapped tracks и stop marker.
 
 Сверка стандартных контролов выполнена по [генерируемым AndroidX Material3-токенам](https://github.com/androidx/androidx/tree/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens) и соответствующим реализациям layout/motion: исправлены touch targets/shape кнопок, outlined cutout и affix visibility полей, disabled color roles, switch handle geometry, slider gaps/ticks, progress trajectories, list anatomy и tab indicators. Меню используют baseline MenuTokens, а не новый Expressive StandardMenuTokens. Непроверенные интерактивные состояния не объявляются визуально принятыми.
+
+`MaterialMotion.Animate` по умолчанию использует Material Web `md.sys.motion.spring.fast.spatial` (stiffness 1400, damping 0.9); AndroidX `ExpressiveMotionTokens` дают для fast spatial 800/0.6. Оба набора доступны: перегрузка с `MaterialSpring` берёт значения AndroidX. Компоненты библиотеки используют web-пару, поэтому смешивать их с Compose-значениями в одном UI не следует.
 
 ## Упаковка и лицензии
 

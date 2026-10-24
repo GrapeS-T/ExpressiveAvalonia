@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Collections;
@@ -18,7 +19,8 @@ public sealed class MaterialSlider : AvaloniaObject
     public static void SetIsOwnerFocused(Thumb thumb, bool value) => thumb.SetValue(IsOwnerFocusedProperty, value);
 }
 
-/// <summary>A native slider thumb that exposes dragging to the track presenter.</summary>
+/// <summary>Template part of the slider themes; not part of the consumer API.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class MaterialSliderThumb : Thumb
 {
     public static readonly StyledProperty<bool> IsDraggingProperty =
@@ -37,7 +39,8 @@ public sealed class MaterialSliderThumb : Thumb
     }
 }
 
-/// <summary>Draws the shared MD3 track independently of the 48-DIP thumb hit targets.</summary>
+/// <summary>Template part of the slider themes; not part of the consumer API.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class MaterialSliderTrack : Control
 {
     public static readonly StyledProperty<Control?> OwnerProperty =
@@ -149,12 +152,12 @@ public sealed class MaterialSliderTrack : Control
         if (range is not null && lower > lowerGap + 8)
         {
             Segment(context, 0, lower - lowerGap, 8, 2, false, enabled, vertical, reversed, length);
-            Dot(context, 8, true, enabled, vertical, reversed, length);
+            Dot(context, 8, false, enabled, vertical, reversed, length);
         }
         if (upper < length - upperGap - 8)
         {
             Segment(context, upper + upperGap, length, 2, 8, false, enabled, vertical, reversed, length);
-            Dot(context, length - 8, true, enabled, vertical, reversed, length);
+            Dot(context, length - 8, false, enabled, vertical, reversed, length);
         }
         var activeStart = range is null ? 0 : lower + lowerGap;
         var activeEnd = upper - upperGap;
@@ -171,8 +174,7 @@ public sealed class MaterialSliderTrack : Control
             {
                 var value = _ticks[i];
                 if (value >= minimum && value <= maximum)
-                    Tick(context, Fraction(value, minimum, maximum), lower, upper, lowerGap, upperGap,
-                        activeStart, activeEnd, range is not null, enabled, vertical, reversed, length);
+                    Tick(context, Fraction(value, minimum, maximum), lower, upper, lowerGap, upperGap, range is not null, enabled, vertical, reversed, length);
             }
         }
         else
@@ -185,8 +187,7 @@ public sealed class MaterialSliderTrack : Control
             // allocating a potentially unbounded list for very small frequencies.
             var stride = Math.Max(1, Math.Ceiling(steps / Math.Max(1, length / 4)));
             for (double index = 0; index < steps && double.IsFinite(steps); index += stride)
-                Tick(context, index / steps, lower, upper, lowerGap, upperGap,
-                    activeStart, activeEnd, range is not null, enabled, vertical, reversed, length);
+                Tick(context, index / steps, lower, upper, lowerGap, upperGap, range is not null, enabled, vertical, reversed, length);
         }
     }
 
@@ -194,7 +195,7 @@ public sealed class MaterialSliderTrack : Control
         ? Math.Clamp((value / 2 - minimum / 2) / (maximum / 2 - minimum / 2), 0, 1) : 0;
 
     private void Tick(DrawingContext context, double fraction, double lower, double upper,
-        double lowerGap, double upperGap, double activeStart, double activeEnd, bool range,
+        double lowerGap, double upperGap, bool range,
         bool enabled, bool vertical, bool reversed, double length)
     {
         if (!double.IsFinite(fraction) || fraction >= 1 || range && fraction <= 0)
@@ -207,8 +208,9 @@ public sealed class MaterialSliderTrack : Control
             return;
         if (Math.Abs(position - upper) <= upperGap || range && Math.Abs(position - lower) <= lowerGap)
             return;
-        var active = position >= activeStart && position <= activeEnd;
-        Dot(context, position, !active, enabled, vertical, reversed, length);
+        // SliderTokens: StopIndicatorColor and StopIndicatorColorSelected are both
+        // SecondaryContainer, so ticks and stop indicators never use the active role.
+        Dot(context, position, false, enabled, vertical, reversed, length);
     }
 
     private void Segment(DrawingContext context, double start, double end, double startRadius,

@@ -25,7 +25,15 @@ public sealed class MaterialTypography : AvaloniaObject
     }
 
     public static MaterialTypeStyle GetStyle(Control control) => control.GetValue(StyleProperty);
-    public static void SetStyle(Control control, MaterialTypeStyle value) { control.SetValue(StyleProperty, value); Apply(control); }
+    /// <summary>Applies the type role. Safe to call repeatedly; existing bindings are reused.</summary>
+    public static void SetStyle(Control control, MaterialTypeStyle value)
+    {
+        control.SetValue(StyleProperty, value);
+        // Setting the default value raises no change notification, so a fresh control that
+        // keeps BodyLarge still needs its first binding set.
+        if (control.GetValue(BindingsProperty) is null)
+            Apply(control);
+    }
     public static bool GetEmphasized(Control control) => control.GetValue(EmphasizedProperty);
     public static void SetEmphasized(Control control, bool value) => control.SetValue(EmphasizedProperty, value);
 

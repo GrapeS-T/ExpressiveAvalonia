@@ -40,7 +40,9 @@
 
   <ControlTheme x:Key="{x:Type ListBoxItem}" TargetType="ListBoxItem">
     <Setter Property="MinHeight" Value="56" />
-    <Setter Property="Padding" Value="16,10" />
+    <!-- ListItemVerticalPadding = 8, ListItemThreeLineVerticalPadding = 12,
+         ListItemStartPadding/EndPadding = 16, LeadingContentEndPadding = 16. -->
+    <Setter Property="Padding" Value="16,8" />
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
@@ -57,7 +59,7 @@
           <Grid Name="ItemContent" ColumnDefinitions="Auto,*,Auto" Margin="{TemplateBinding Padding}">
             <ContentPresenter Name="LeadingContent" Content="{TemplateBinding (md:MaterialList.LeadingContent)}"
                               IsVisible="{Binding (md:MaterialList.LeadingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
-                              Margin="0,0,12,0" VerticalAlignment="Center"
+                              Margin="0,0,16,0" VerticalAlignment="Center"
                               TextElement.Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
             <StackPanel Name="TextContent" Grid.Column="1" VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
               <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
@@ -82,7 +84,7 @@
             </StackPanel>
             <ContentPresenter Name="TrailingContent" Grid.Column="2" Content="{TemplateBinding (md:MaterialList.TrailingContent)}"
                               IsVisible="{Binding (md:MaterialList.TrailingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
-                              Margin="12,0,0,0" VerticalAlignment="Center"
+                              Margin="16,0,0,0" VerticalAlignment="Center"
                               TextElement.FontSize="{DynamicResource MaterialLabelSmallFontSize}"
                               TextElement.FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
                               TextElement.Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
@@ -101,7 +103,24 @@
     <Style Selector="^[(md|MaterialList.LineCount)=2]"><Setter Property="MinHeight" Value="72" /></Style>
     <Style Selector="^[(md|MaterialList.LineCount)=3]">
       <Setter Property="MinHeight" Value="88" />
+      <Setter Property="Padding" Value="16,12" />
       <Setter Property="VerticalContentAlignment" Value="Top" />
+    </Style>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#Surface">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
     </Style>
     <Style Selector="^[(md|MaterialList.LineCount)=3] /template/ TextBlock#SupportingText"><Setter Property="MaxLines" Value="2" /></Style>
     <Style Selector="^[(md|MaterialList.LineCount)=3] /template/ ContentPresenter#LeadingContent, ^[(md|MaterialList.LineCount)=3] /template/ ContentPresenter#TrailingContent"><Setter Property="VerticalAlignment" Value="Top" /></Style>
@@ -134,9 +153,6 @@
               <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
             </ScrollViewer>
             <Panel ClipToBounds="True">
-              <ContentPresenter Name="PART_SelectedContentHost2" IsVisible="False" Margin="{TemplateBinding Padding}"
-                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
               <ContentPresenter Name="PART_SelectedContentHost" Margin="{TemplateBinding Padding}"
                                 HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                                 VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
@@ -194,7 +210,8 @@
                               VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
           </StackPanel>
           <Border Name="StateLayer" Background="{DynamicResource MaterialPrimaryBrush}" Opacity="0" IsHitTestVisible="False" />
-          <Border Name="Divider" Height="1" VerticalAlignment="Bottom" Background="{DynamicResource MaterialSurfaceVariantBrush}" IsHitTestVisible="False" />
+          <!-- The divider belongs to SecondaryNavigationTabTokens only; primary tabs have none. -->
+          <Border Name="Divider" Height="1" VerticalAlignment="Bottom" Background="{DynamicResource MaterialSurfaceVariantBrush}" IsVisible="False" IsHitTestVisible="False" />
           <Border Name="Indicator" Height="3" Width="24" CornerRadius="3" VerticalAlignment="Bottom"
                   HorizontalAlignment="Center" Background="{DynamicResource MaterialPrimaryBrush}" IsVisible="False" IsHitTestVisible="False" />
           <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2"
@@ -202,6 +219,21 @@
         </Grid>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#Indicator">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Width" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.05,0.7,0.1,1" />
+          <DoubleTransition Property="Height" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.05,0.7,0.1,1" />
+        </Transitions>
+      </Setter>
+    </Style>
     <Style Selector="^:pointerover, ^:focus-visible, ^:pressed"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" /></Style>
     <Style Selector="^:selected"><Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" /></Style>
     <Style Selector="^[(md|MaterialTabs.HasIconAndHeader)=True]"><Setter Property="MinHeight" Value="64" /></Style>
@@ -213,8 +245,12 @@
     <Style Selector="^[(md|MaterialTabs.Variant)=Secondary] /template/ Border#StateLayer"><Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" /></Style>
     <Style Selector="^:selected /template/ Border#Indicator"><Setter Property="IsVisible" Value="True" /></Style>
     <Style Selector="^[(md|MaterialTabs.Variant)=Secondary] /template/ Border#Indicator">
-      <Setter Property="Width" Value="NaN" /><Setter Property="Height" Value="2" />
+      <!-- SecondaryIndicator: height = PrimaryNavigationTabTokens.ActiveIndicatorHeight = 3. -->
+      <Setter Property="Width" Value="NaN" /><Setter Property="Height" Value="3" />
       <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="^[(md|MaterialTabs.Variant)=Secondary] /template/ Border#Divider">
+      <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^[TabStripPlacement=Bottom] /template/ Border#Indicator, ^[TabStripPlacement=Bottom] /template/ Border#Divider">
       <Setter Property="VerticalAlignment" Value="Top" />

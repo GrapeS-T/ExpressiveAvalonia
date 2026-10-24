@@ -16,7 +16,9 @@
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Styles.Resources>
-  <Style Selector=":is(Control)">
+  <!-- Keyboard activation is attached only to interactive controls that can carry a tooltip;
+       a blanket :is(Control) selector would subscribe every Border and presenter. -->
+  <Style Selector=":is(Button), :is(ToggleButton), :is(CheckBox), :is(RadioButton), :is(ToggleSwitch), :is(TextBox), :is(ComboBox), :is(ComboBoxItem), :is(ListBoxItem), :is(MenuItem), :is(TabItem), :is(Slider)">
     <Setter Property="theming:MaterialToolTip.KeyboardEnabled" Value="True" />
   </Style>
   <Style Selector="Window">

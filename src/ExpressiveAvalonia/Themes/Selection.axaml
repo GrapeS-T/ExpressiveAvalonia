@@ -38,10 +38,39 @@
         </Grid>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#Box">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
     <Style Selector="^:checked /template/ Border#Box, ^:indeterminate /template/ Border#Box">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <!-- CheckboxTokens: SelectedErrorContainerColor = Error, UnselectedErrorOutlineColor = Error. -->
+    <Style Selector="^:error:not(:disabled):not(:checked):not(:indeterminate) /template/ Border#Box">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialErrorBrush}" />
+    </Style>
+    <Style Selector="^:error:not(:disabled):checked /template/ Border#Box, ^:error:not(:disabled):indeterminate /template/ Border#Box">
+      <Setter Property="Background" Value="{DynamicResource MaterialErrorBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialErrorBrush}" />
+    </Style>
+    <Style Selector="^:error:not(:disabled) /template/ Path#Check">
+      <Setter Property="Stroke" Value="{DynamicResource MaterialOnErrorBrush}" />
+    </Style>
+    <Style Selector="^:error:not(:disabled) /template/ Border#Mixed">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnErrorBrush}" />
     </Style>
     <Style Selector="^:checked /template/ Path#Check"><Setter Property="IsVisible" Value="True" /></Style>
     <Style Selector="^:indeterminate /template/ Border#Mixed"><Setter Property="IsVisible" Value="True" /></Style>
@@ -179,6 +208,29 @@
         </Grid>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^ /template/ Border#ThumbStateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#ThumbFill">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#Track">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
+          <ThicknessTransition Property="BorderThickness" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
     <Style Selector="^:checked /template/ Border#Track">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="BorderThickness" Value="0" />

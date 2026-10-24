@@ -7,13 +7,13 @@
   <StreamGeometry x:Key="MaterialTextFieldConcealGeometry">M 3,2 L 22,21 L 20,23 L 1,4 Z M 8,6 C 13,3 20,7 23,12 L 20,16 L 17,13 A 5,5 0 0 0 11,7 Z M 1,12 L 4,8 L 7,11 A 5,5 0 0 0 13,17 L 16,20 C 10,22 4,18 1,12 Z</StreamGeometry>
 
   <MenuFlyout x:Key="MaterialTextFieldContextFlyout">
-    <MenuItem Header="Cut" Command="{Binding $parent[TextBox].Cut}"
+    <MenuItem Header="{DynamicResource MaterialTextInputCutText}" Command="{Binding $parent[TextBox].Cut}"
               IsEnabled="{Binding $parent[TextBox].CanCut}" InputGesture="{x:Static TextBox.CutGesture}" />
-    <MenuItem Header="Copy" Command="{Binding $parent[TextBox].Copy}"
+    <MenuItem Header="{DynamicResource MaterialTextInputCopyText}" Command="{Binding $parent[TextBox].Copy}"
               IsEnabled="{Binding $parent[TextBox].CanCopy}" InputGesture="{x:Static TextBox.CopyGesture}" />
-    <MenuItem Header="Paste" Command="{Binding $parent[TextBox].Paste}"
+    <MenuItem Header="{DynamicResource MaterialTextInputPasteText}" Command="{Binding $parent[TextBox].Paste}"
               IsEnabled="{Binding $parent[TextBox].CanPaste}" InputGesture="{x:Static TextBox.PasteGesture}" />
-    <MenuItem Header="Select all" Command="{Binding $parent[TextBox].SelectAll}" />
+    <MenuItem Header="{DynamicResource MaterialTextInputSelectAllText}" Command="{Binding $parent[TextBox].SelectAll}" />
   </MenuFlyout>
 
   <ControlTheme x:Key="MaterialTextFieldRevealButtonTheme" TargetType="ToggleButton">
@@ -42,6 +42,13 @@
         </Panel>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^ /template/ Border#RevealStateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
     <Style Selector="^:pointerover /template/ Border#RevealStateLayer">
       <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
     </Style>
@@ -202,7 +209,8 @@
                               Theme="{StaticResource MaterialTextFieldRevealButtonTheme}"
                               IsVisible="{TemplateBinding (theming:MaterialTextField.IsRevealAvailable)}"
                               IsChecked="{Binding RevealPassword, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                              AutomationProperties.Name="Show password" ToolTip.Tip="Show password" />
+                              AutomationProperties.Name="{DynamicResource MaterialPasswordShowText}"
+                              ToolTip.Tip="{DynamicResource MaterialPasswordShowText}" />
               </StackPanel>
             </Grid>
           </Panel>
@@ -225,6 +233,16 @@
       </ControlTemplate>
     </Setter>
 
+    <!-- Focus indicator growth and color follow the text-field motion tokens: the indicator
+         thickness changes over short3 (150 ms) and the color over short4 (200 ms). -->
+    <Style Selector="^ /template/ Border#PART_BorderElement">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <ThicknessTransition Property="BorderThickness" Duration="{DynamicResource MaterialDurationShort3}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
     <Style Selector="^[(theming|MaterialTextField.HasLabel)=True]">
       <Setter Property="Padding" Value="16,24,16,8" />
     </Style>
@@ -267,6 +285,8 @@
     <Style Selector="^:pointerover:not(:disabled)">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     </Style>
+    <!-- FilledTextFieldTokens.HoverLabelColor = OnSurfaceVariant (the resting label color),
+         OutlinedTextFieldTokens.HoverLabelColor = OnSurface. -->
     <Style Selector="^[(theming|MaterialTextField.Variant)=Outlined]:pointerover:not(:disabled) /template/ TextBlock#FloatingLabel">
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     </Style>
@@ -318,8 +338,8 @@
       <Setter Property="Foreground" Value="{DynamicResource MaterialTextFieldDisabledAffixBrush}" />
     </Style>
     <Style Selector="^ /template/ ToggleButton#PasswordReveal:checked">
-      <Setter Property="AutomationProperties.Name" Value="Hide password" />
-      <Setter Property="ToolTip.Tip" Value="Hide password" />
+      <Setter Property="AutomationProperties.Name" Value="{DynamicResource MaterialPasswordHideText}" />
+      <Setter Property="ToolTip.Tip" Value="{DynamicResource MaterialPasswordHideText}" />
     </Style>
   </ControlTheme>
 </ResourceDictionary>

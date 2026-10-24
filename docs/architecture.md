@@ -14,19 +14,21 @@
 
 ```text
 src/ExpressiveAvalonia/
-  Theming/                 MaterialTheme, параметры темы, генерация ресурсов
-  Tokens/                  роли цвета, типографики, формы, elevation и motion
-  Themes/                  AXAML, ControlTheme, компонентные ресурсы
+  Theming/                 MaterialTheme, attached-property API, motion, тематизация стандартных контролов
+  Tokens/                  роли цвета, генератор схемы, типографика, форма, elevation и motion-токены
+  Themes/                  AXAML: ControlTheme стандартных контролов и служебные шаблоны
   Controls/                только недостающие Material-компоненты
-  Primitives/              внутренние панели, presenters, state layers
-  Automation/              peers нестандартных контролов
 samples/ExpressiveAvalonia.Catalog/
-  Pages/                   интерактивная страница на семейство компонентов
-  ViewModels/              примеры привязок и команд
+  Program.cs               окно-лаборатория темы
+  StandardControlsGallery.cs  страницы на семейство контролов
 tests/ExpressiveAvalonia.Tests/
+  ColorReferenceTests.cs   эталонные HCT-векторы
+  ControlBehaviorTests.cs  поведение контролов
+  MotionBehaviorTests.cs   springs и reduced motion
+  GuidelineConformanceTests.cs  соответствие компонентным токенам
 ```
 
-Выпускается один NuGet-пакет `ExpressiveAvalonia`. Каталог и тесты в него не входят. Пространства имён: `ExpressiveAvalonia.Theming`, `ExpressiveAvalonia.Controls`. Внутренние primitives не становятся публичным API без самостоятельного пользовательского сценария.
+Выпускается один NuGet-пакет `ExpressiveAvalonia`. Каталог и тесты в него не входят. Пространства имён: `ExpressiveAvalonia.Theming`, `ExpressiveAvalonia.Tokens`, `ExpressiveAvalonia.Controls`. Внутренние template parts не становятся публичным API без самостоятельного пользовательского сценария; служебные свойства помечены `[EditorBrowsable(EditorBrowsableState.Never)]`.
 
 База реализации: Avalonia 12.1.4, библиотека net8.0, каталог и тесты net10.0. Restore/build и desktop smoke выполнены на Windows. Avalonia 11 — отдельное решение по поддержке, не неявная совместимость.
 

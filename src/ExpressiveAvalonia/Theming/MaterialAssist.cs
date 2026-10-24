@@ -7,7 +7,13 @@ using Avalonia.VisualTree;
 namespace ExpressiveAvalonia.Theming;
 
 /// <summary>The Material color treatment of a button.</summary>
-public enum MaterialButtonVariant { Filled, Tonal, Outlined, Elevated, Text }
+/// <remarks>
+/// <see cref="Standard"/> is the default: a filled container for labeled buttons and a
+/// container-less icon button (icon on OnSurfaceVariant) for icon buttons, matching
+/// AndroidX StandardIconButtonTokens. The other members apply the matching
+/// *ButtonTokens/*IconButtonTokens color set.
+/// </remarks>
+public enum MaterialButtonVariant { Standard, Filled, Tonal, Outlined, Elevated, Text }
 
 /// <summary>The five Material Expressive control sizes.</summary>
 public enum MaterialControlSize { ExtraSmall, Small, Medium, Large, ExtraLarge }
@@ -22,7 +28,7 @@ public sealed class MaterialAssist : AvaloniaObject
 
     public static readonly AttachedProperty<MaterialButtonVariant> ButtonVariantProperty =
         AvaloniaProperty.RegisterAttached<MaterialAssist, Control, MaterialButtonVariant>(
-            "ButtonVariant", MaterialButtonVariant.Filled);
+            "ButtonVariant", MaterialButtonVariant.Standard);
 
     public static readonly AttachedProperty<MaterialControlSize> ControlSizeProperty =
         AvaloniaProperty.RegisterAttached<MaterialAssist, Control, MaterialControlSize>(
@@ -65,8 +71,16 @@ public sealed class MaterialAssist : AvaloniaObject
             {
                 button.GetValue(ShapeAnimationProperty)?.Dispose();
                 button.ClearValue(ShapeAnimationProperty);
-                button.ClearValue(AnimatedCornerRadiusProperty);
+                // The template renders AnimatedCornerRadius, so it must mirror the consumer's
+                // CornerRadius when the morph is off instead of falling back to 0.
+                button.SetCurrentValue(AnimatedCornerRadiusProperty, button.CornerRadius);
             }
+        });
+
+        Button.CornerRadiusProperty.Changed.AddClassHandler<Button>((button, _) =>
+        {
+            if (button.GetValue(ShapeAnimationProperty) is null)
+                button.SetCurrentValue(AnimatedCornerRadiusProperty, button.CornerRadius);
         });
     }
 
@@ -147,7 +161,12 @@ public sealed class MaterialAssist : AvaloniaObject
                     MaterialControlSize.Medium => 12d,
                     _ => 16d,
                 };
-            else if (_button is ToggleButton { IsChecked: true })
+            // Only icon buttons swap their silhouette when selected: AndroidX
+            // XSmall/Small/Medium/Large/XLargeIconButtonTokens define
+            // SelectedContainerShapeRound = CornerMedium|Large|ExtraLarge and
+            // SelectedContainerShapeSquare = CornerFull, while the labeled *ButtonTokens
+            // repeat the unselected shapes. `square` above is SelectedContainerShapeRound.
+            else if (GetIsIconButton(_button) && _button is ToggleButton { IsChecked: true })
                 targetRadius = GetButtonShape(_button) == MaterialButtonShape.Round ? square : limit;
             var target = Math.Min(targetRadius, limit) - Math.Min(_button.CornerRadius.TopLeft, limit);
             if (!animate || !_button.IsAttachedToVisualTree() || MaterialMotion.GetIsReduced(_button))

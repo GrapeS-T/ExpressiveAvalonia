@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Theming;
 
@@ -14,19 +15,27 @@ public sealed class MaterialMotion : AvaloniaObject
 {
     public static readonly AttachedProperty<bool> IsReducedProperty = AvaloniaProperty.RegisterAttached<MaterialMotion, StyledElement, bool>("IsReduced", inherits: true);
     private static readonly List<WeakReference<SpringAnimation>> Active = [];
-    private static readonly DispatcherTimer SettingsTimer;
+    private static DispatcherTimer? _settingsTimer;
     private static bool _systemReduced = ReadSystemReducedMotion();
-    public static event EventHandler? ReducedMotionChanged;
+    private static EventHandler? _reducedMotionChanged;
 
-    static MaterialMotion()
+    /// <summary>Raised when the platform reduced-motion preference changes.</summary>
+    public static event EventHandler? ReducedMotionChanged
     {
-        SettingsTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => RefreshAccessibility());
-        SettingsTimer.Start();
+        add
+        {
+            _reducedMotionChanged += value;
+            EnsureSettingsTimer();
+        }
+        remove
+        {
+            _reducedMotionChanged -= value;
+            StopSettingsTimerIfIdle();
+        }
     }
 
     public static bool GetIsReduced(AvaloniaObject value) => value.GetValue(IsReducedProperty) || _systemReduced;
     public static void SetIsReduced(AvaloniaObject value, bool reduced) => value.SetValue(IsReducedProperty, reduced);
-
 
     // Avalonia 12 exposes no cross-platform reduced-motion setting. Honor Windows' live
     // animation preference; other platforms can explicitly set the inherited IsReduced flag.
@@ -35,19 +44,37 @@ public sealed class MaterialMotion : AvaloniaObject
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SystemParametersInfo(uint action, uint parameter, [MarshalAs(UnmanagedType.Bool)] out bool value, uint flags);
 
+    /// <summary>
+    /// Starts the one-second accessibility poll only while animations or listeners need it,
+    /// so merely touching this class no longer keeps a timer alive for the process lifetime.
+    /// </summary>
+    private static void EnsureSettingsTimer()
+    {
+        _settingsTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => RefreshAccessibility());
+        if (!_settingsTimer.IsEnabled)
+            _settingsTimer.Start();
+    }
+
+    private static void StopSettingsTimerIfIdle()
+    {
+        if (_settingsTimer is { IsEnabled: true } && Active.Count == 0 && _reducedMotionChanged is null)
+            _settingsTimer.Stop();
+    }
+
     private static void RefreshAccessibility()
     {
         var reduced = ReadSystemReducedMotion();
         if (_systemReduced != reduced)
         {
             _systemReduced = reduced;
-            ReducedMotionChanged?.Invoke(null, EventArgs.Empty);
+            _reducedMotionChanged?.Invoke(null, EventArgs.Empty);
         }
         for (var i = Active.Count - 1; i >= 0; i--)
         {
             if (!Active[i].TryGetTarget(out var animation)) Active.RemoveAt(i);
             else if (GetIsReduced(animation.Owner)) animation.Finish();
         }
+        StopSettingsTimerIfIdle();
     }
 
     /// <summary>Creates a spring using Material Expressive fast spatial parameters (1400, 0.9).</summary>
@@ -56,8 +83,16 @@ public sealed class MaterialMotion : AvaloniaObject
     {
         var animation = new SpringAnimation(owner, from, to, apply, stiffness, dampingRatio);
         Active.Add(new WeakReference<SpringAnimation>(animation));
+        EnsureSettingsTimer();
         animation.Retarget(to);
         return animation;
+    }
+
+    /// <summary>Creates a spring from the AndroidX ExpressiveMotionTokens set.</summary>
+    public static SpringAnimation Animate(Control owner, double from, double to, Action<double> apply, MaterialSpring spring)
+    {
+        var (stiffness, damping) = MaterialSpringTokens.Get(spring);
+        return Animate(owner, from, to, apply, stiffness, damping);
     }
 
     public sealed class SpringAnimation : IDisposable
@@ -115,12 +150,16 @@ public sealed class MaterialMotion : AvaloniaObject
             if (e.Property == IsReducedProperty || e.Property == Visual.IsVisibleProperty)
                 if (GetIsReduced(Owner) || !Owner.IsEffectivelyVisible) Finish();
         }
+
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true; _timer.Stop();
             Owner.DetachedFromVisualTree -= Detached; Owner.PropertyChanged -= OwnerChanged;
+            for (var i = Active.Count - 1; i >= 0; i--)
+                if (!Active[i].TryGetTarget(out var candidate) || ReferenceEquals(candidate, this))
+                    Active.RemoveAt(i);
+            StopSettingsTimerIfIdle();
         }
     }
-
 }

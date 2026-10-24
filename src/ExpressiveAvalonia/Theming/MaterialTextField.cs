@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
@@ -39,26 +40,38 @@ public sealed class MaterialTextField : AvaloniaObject
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, bool>("ShowPasswordReveal");
 
     // Theme state is separate from the public options so it never changes native TextBox properties.
+    // These members are template plumbing, not consumer API.
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<bool> IsEnabledProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, bool>("IsEnabled");
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<string?> EffectiveLabelProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, string?>("EffectiveLabel");
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<bool> HasLabelProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, bool>("HasLabel");
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<bool> IsLabelFloatingProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, bool>("IsLabelFloating");
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<bool> IsPlaceholderAllowedProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, bool>("IsPlaceholderAllowed", true);
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<bool> IsRevealAvailableProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, bool>("IsRevealAvailable");
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<string?> ValidationMessageProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, string?>("ValidationMessage");
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<string?> AccessibleDescriptionProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, string?>("AccessibleDescription");
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<Thickness> InputMarginProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, Thickness>("InputMargin");
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<Thickness> PrefixMarginProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, Thickness>("PrefixMargin");
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<Thickness> SuffixMarginProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, Thickness>("SuffixMargin");
     private static readonly AttachedProperty<FieldState?> StateProperty =
@@ -125,7 +138,6 @@ public sealed class MaterialTextField : AvaloniaObject
             box.PropertyChanged += OnPropertyChanged;
             box.TemplateApplied += OnTemplateApplied;
             box.DetachedFromVisualTree += OnDetached;
-            box.LayoutUpdated += OnLayoutUpdated;
             UpdateLabel();
             UpdateReveal();
             UpdateValidation();
@@ -134,13 +146,41 @@ public sealed class MaterialTextField : AvaloniaObject
 
         private void OnTemplateApplied(object? sender, TemplateAppliedEventArgs args)
         {
+            DetachParts();
             _outline = args.NameScope.Find<Border>("PART_BorderElement");
             _label = args.NameScope.Find<Border>("LabelContainer");
             _cutout = null;
+            if (_outline is not null)
+                _outline.PropertyChanged += OnPartChanged;
+            if (_label is not null)
+                _label.PropertyChanged += OnPartChanged;
             SetPresenter(args.NameScope.Find<TextPresenter>("PART_TextPresenter"));
+            UpdateCutout();
         }
 
-        private void OnLayoutUpdated(object? sender, EventArgs args)
+        // The cutout depends on the outline size and on the label's position, both of which
+        // arrive as Bounds changes. Subscribing to LayoutUpdated would recompute on every
+        // layout pass of the whole window.
+        private void OnPartChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
+        {
+            if (args.Property == Visual.BoundsProperty)
+                UpdateCutout();
+        }
+
+        private void DetachParts()
+        {
+            if (_outline is not null)
+            {
+                _outline.PropertyChanged -= OnPartChanged;
+                _outline.Clip = null;
+            }
+            if (_label is not null)
+                _label.PropertyChanged -= OnPartChanged;
+            _outline = null;
+            _label = null;
+        }
+
+        private void UpdateCutout()
         {
             if (_outline is null)
                 return;
@@ -236,6 +276,10 @@ public sealed class MaterialTextField : AvaloniaObject
                 ConcealPassword();
             if (property == DataValidationErrors.ErrorsProperty || property == SupportingTextProperty)
                 UpdateValidation();
+
+            // Variant and label visibility change which part of the outline is cut out.
+            if (property == VariantProperty || property == HasLabelProperty || property == IsLabelFloatingProperty)
+                UpdateCutout();
         }
 
         private void UpdateLabel()
@@ -298,11 +342,7 @@ public sealed class MaterialTextField : AvaloniaObject
             _box.PropertyChanged -= OnPropertyChanged;
             _box.TemplateApplied -= OnTemplateApplied;
             _box.DetachedFromVisualTree -= OnDetached;
-            _box.LayoutUpdated -= OnLayoutUpdated;
-            if (_outline is not null)
-                _outline.Clip = null;
-            _outline = null;
-            _label = null;
+            DetachParts();
             SetPresenter(null);
             ConcealPassword();
         }

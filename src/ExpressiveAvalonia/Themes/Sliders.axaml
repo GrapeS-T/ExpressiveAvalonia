@@ -39,6 +39,14 @@
         </Grid>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^ /template/ Border#Handle">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Width" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Height" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
     <Style Selector="^:pointerover /template/ Border#ValueLabel, ^:pressed /template/ Border#ValueLabel">
       <Setter Property="IsVisible" Value="True" />
     </Style>
@@ -157,10 +165,10 @@
           <Canvas Name="PART_TrackCanvas" Height="48">
             <controls:MaterialRangeThumb Name="PART_LowerThumb" Canvas.Top="0"
                      Theme="{StaticResource MaterialSliderThumbTheme}"
-                     Tag="{TemplateBinding LowerValue}" AutomationProperties.Name="Lower value" />
+                     Tag="{TemplateBinding LowerValue}" AutomationProperties.Name="{DynamicResource MaterialRangeLowerValueText}" />
             <controls:MaterialRangeThumb Name="PART_UpperThumb" Canvas.Top="0"
                      Theme="{StaticResource MaterialSliderThumbTheme}"
-                     Tag="{TemplateBinding UpperValue}" AutomationProperties.Name="Upper value" />
+                     Tag="{TemplateBinding UpperValue}" AutomationProperties.Name="{DynamicResource MaterialRangeUpperValueText}" />
           </Canvas>
         </Grid>
       </ControlTemplate>

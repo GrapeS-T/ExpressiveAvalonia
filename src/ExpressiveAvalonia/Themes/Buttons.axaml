@@ -3,6 +3,12 @@
                     xmlns:theming="using:ExpressiveAvalonia.Theming">
   <!-- AndroidX Button*Tokens and *IconButtonTokens: visual containers are distinct from touch targets. -->
   <!-- Standard Avalonia buttons retain command, keyboard, access-key and toggle behavior. -->
+  <!-- Transitions: state-layer and elevation changes use md.sys.motion duration tokens through
+       DynamicResource (short4 = 200 ms, short2 = 100 ms, short3 = 150 ms, medium2 = 300 ms).
+       MaterialTheme zeroes those tokens under Motion="Reduced", which collapses every transition.
+       The curve is inlined because TransitionBase.Easing is a direct property that does not
+       resolve DynamicResource; the MaterialEasing* resources carry the same md.sys.motion.easing
+       values for code and for consumer styles. -->
   <ControlTheme x:Key="MaterialButtonBase" TargetType="Button">
     <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
@@ -54,6 +60,23 @@
       </ControlTemplate>
     </Setter>
 
+    <Style Selector="^ /template/ Border#Surface">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Filled]">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
@@ -86,15 +109,17 @@
         <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel2Shadow}" />
       </Style>
     </Style>
+    <!-- TextButtonTokens: LabelColor and IconColor are OnSurfaceVariant, not Primary. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     </Style>
 
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
       <Setter Property="MinHeight" Value="48" />
       <Setter Property="theming:MaterialAssist.ContainerInset" Value="0,8" />
-      <Setter Property="Padding" Value="12,6" />
+      <!-- ButtonXSmallTokens.LeadingSpace/TrailingSpace = 16. -->
+      <Setter Property="Padding" Value="16,6" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=Small]">
       <Setter Property="MinHeight" Value="48" />
@@ -190,6 +215,11 @@
       <Setter Property="MinWidth" Value="48" />
       <Setter Property="theming:MaterialAssist.ContainerInset" Value="4" />
       <Setter Property="FontSize" Value="24" />
+      <!-- StandardIconButtonTokens: no container, icon uses OnSurfaceVariant. -->
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard], ^[(theming|MaterialAssist.ButtonVariant)=Text]">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True] /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="LineHeight" Value="NaN" />
@@ -246,13 +276,13 @@
     <Style Selector="^:pressed /template/ Border#StateLayer">
       <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
     </Style>
+    <!-- Disabled: container OnSurface at the token opacity, label OnSurfaceVariant at 0.38. -->
     <Style Selector="^:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
       <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
-      <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
@@ -262,14 +292,21 @@
       <Setter Property="Opacity" Value="0.10" />
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
     </Style>
+    <!-- FilledTonalButtonTokens.DisabledContainerOpacity = 0.12. -->
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled /template/ Border#Surface">
+      <Setter Property="Opacity" Value="0.12" />
+    </Style>
     <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Surface">
-      <Setter Property="Opacity" Value="1" />
-    </Style>
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <!-- Standard and text icon buttons have no container in any state. -->
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
+        <Setter Property="Background" Value="Transparent" />
+      </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
       <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]">
@@ -292,7 +329,7 @@
   <ControlTheme x:Key="{x:Type ToggleButton}" TargetType="ToggleButton" BasedOn="{StaticResource MaterialButtonBase}">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Filled]:not(:checked):not(:disabled)">
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:not(:checked):not(:disabled), ^[(theming|MaterialAssist.ButtonVariant)=Filled]:not(:checked):not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     </Style>
@@ -310,10 +347,12 @@
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:not(:checked):not(:disabled)">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     </Style>
+    <!-- A standard icon toggle has no container until it is selected. -->
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:not(:checked):not(:disabled)">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:not(:checked):not(:disabled), ^[(theming|MaterialAssist.ButtonVariant)=Text]:not(:checked):not(:disabled)">
+        <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
       </Style>
     </Style>
@@ -334,9 +373,17 @@
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
     </Style>
+    <!-- TextButtonTokens define no selected container, so a checked text toggle keeps
+         the text-button colors instead of becoming a filled button. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:checked:not(:disabled)">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:checked:not(:disabled)">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      </Style>
     </Style>
     <Style Selector="^:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
@@ -344,7 +391,6 @@
       <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
-      <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
@@ -352,6 +398,11 @@
     </Style>
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
+        <Setter Property="Background" Value="Transparent" />
+      </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:checked:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />

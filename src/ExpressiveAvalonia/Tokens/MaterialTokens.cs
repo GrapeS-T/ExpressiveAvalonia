@@ -1,5 +1,6 @@
 using System;
 using Avalonia;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Media;
 
@@ -10,19 +11,22 @@ public static class MaterialTokens
 {
     /// <summary>
     /// Creates an independent dictionary of baseline typography, shape, state, elevation,
-    /// and duration tokens. Sizes, line heights, corner radii, and elevation distances
-    /// are expressed in Avalonia device-independent units; durations are <see cref="TimeSpan"/>.
+    /// motion, and localized-string tokens. Sizes, line heights, corner radii, and elevation
+    /// distances are expressed in Avalonia device-independent units; durations are
+    /// <see cref="TimeSpan"/>.
     /// </summary>
     /// <remarks>
     /// Values follow Google's Material Web v0.192 system tokens:
     /// https://github.com/material-components/material-web/tree/main/tokens/versions/v0_192
     /// (md-sys-typescale, md-ref-typeface, md-sys-shape, md-sys-state,
-    /// md-sys-elevation, and md-sys-motion).
+    /// md-sys-elevation, md-sys-motion, and md-sys-easing).
     /// The Web type scale is converted from rem at its baseline of 16 pixels.
     /// MaterialFontFamily uses bundled Roboto (SIL OFL 1.1); applications can override it.
     /// Tracking/emphasis and state opacity follow AndroidX Material3 generated tokens.
-    /// Elevation includes distances and corresponding two-layer BoxShadows. Durations
-    /// are baseline timings; spring animation parameters are provided by MaterialMotion.
+    /// Elevation includes distances and corresponding two-layer BoxShadows. Spring parameters
+    /// are exposed as separate stiffness/damping tokens; <see cref="Theming.MaterialMotion"/>
+    /// consumes them. Text strings are resources, never literals inside templates, so an
+    /// application can localize them by overriding the key in its own resource dictionary.
     /// </remarks>
     public static ResourceDictionary CreateResources()
     {
@@ -47,23 +51,57 @@ public static class MaterialTokens
             ["MaterialElevationLevel3"] = 6d,
             ["MaterialElevationLevel4"] = 8d,
             ["MaterialElevationLevel5"] = 12d,
-            ["MaterialDurationShort1"] = TimeSpan.FromMilliseconds(50),
-            ["MaterialDurationShort2"] = TimeSpan.FromMilliseconds(100),
-            ["MaterialDurationShort3"] = TimeSpan.FromMilliseconds(150),
-            ["MaterialDurationShort4"] = TimeSpan.FromMilliseconds(200),
-            ["MaterialDurationMedium1"] = TimeSpan.FromMilliseconds(250),
-            ["MaterialDurationMedium2"] = TimeSpan.FromMilliseconds(300),
-            ["MaterialDurationMedium3"] = TimeSpan.FromMilliseconds(350),
-            ["MaterialDurationMedium4"] = TimeSpan.FromMilliseconds(400),
-            ["MaterialDurationLong1"] = TimeSpan.FromMilliseconds(450),
-            ["MaterialDurationLong2"] = TimeSpan.FromMilliseconds(500),
-            ["MaterialDurationLong3"] = TimeSpan.FromMilliseconds(550),
-            ["MaterialDurationLong4"] = TimeSpan.FromMilliseconds(600),
-            ["MaterialDurationExtraLong1"] = TimeSpan.FromMilliseconds(700),
-            ["MaterialDurationExtraLong2"] = TimeSpan.FromMilliseconds(800),
-            ["MaterialDurationExtraLong3"] = TimeSpan.FromMilliseconds(900),
-            ["MaterialDurationExtraLong4"] = TimeSpan.FromMilliseconds(1000),
+
+            // md.sys.motion.easing. Templates inline the same curves so transitions do not
+            // depend on resource lookup inside a Transitions collection.
+            ["MaterialEasingStandard"] = new SplineEasing(0.2, 0, 0, 1),
+            ["MaterialEasingStandardAccelerate"] = new SplineEasing(0.3, 0, 1, 1),
+            ["MaterialEasingStandardDecelerate"] = new SplineEasing(0, 0, 0, 1),
+            ["MaterialEasingEmphasized"] = new SplineEasing(0.2, 0, 0, 1),
+            ["MaterialEasingEmphasizedAccelerate"] = new SplineEasing(0.3, 0, 0.8, 0.15),
+            ["MaterialEasingEmphasizedDecelerate"] = new SplineEasing(0.05, 0.7, 0.1, 1),
+            ["MaterialEasingLegacy"] = new SplineEasing(0.4, 0, 0.2, 1),
+            ["MaterialEasingLegacyAccelerate"] = new SplineEasing(0.4, 0, 1, 1),
+            ["MaterialEasingLegacyDecelerate"] = new SplineEasing(0, 0, 0.2, 1),
+            ["MaterialEasingLinear"] = new SplineEasing(0, 0, 1, 1),
+
+            // AndroidX Material3 ExpressiveMotionTokens: spatial and effects springs.
+            // The table is the single source of truth shared with MaterialMotion.
+            ["MaterialSpringSpatialDefaultStiffness"] = MaterialSpringTokens.Get(MaterialSpring.SpatialDefault).Stiffness,
+            ["MaterialSpringSpatialDefaultDamping"] = MaterialSpringTokens.Get(MaterialSpring.SpatialDefault).DampingRatio,
+            ["MaterialSpringSpatialFastStiffness"] = MaterialSpringTokens.Get(MaterialSpring.SpatialFast).Stiffness,
+            ["MaterialSpringSpatialFastDamping"] = MaterialSpringTokens.Get(MaterialSpring.SpatialFast).DampingRatio,
+            ["MaterialSpringSpatialSlowStiffness"] = MaterialSpringTokens.Get(MaterialSpring.SpatialSlow).Stiffness,
+            ["MaterialSpringSpatialSlowDamping"] = MaterialSpringTokens.Get(MaterialSpring.SpatialSlow).DampingRatio,
+            ["MaterialSpringEffectsDefaultStiffness"] = MaterialSpringTokens.Get(MaterialSpring.EffectsDefault).Stiffness,
+            ["MaterialSpringEffectsDefaultDamping"] = MaterialSpringTokens.Get(MaterialSpring.EffectsDefault).DampingRatio,
+            ["MaterialSpringEffectsFastStiffness"] = MaterialSpringTokens.Get(MaterialSpring.EffectsFast).Stiffness,
+            ["MaterialSpringEffectsFastDamping"] = MaterialSpringTokens.Get(MaterialSpring.EffectsFast).DampingRatio,
+            ["MaterialSpringEffectsSlowStiffness"] = MaterialSpringTokens.Get(MaterialSpring.EffectsSlow).Stiffness,
+            ["MaterialSpringEffectsSlowDamping"] = MaterialSpringTokens.Get(MaterialSpring.EffectsSlow).DampingRatio,
+
+            // Template strings. Override these keys to localize built-in automation names,
+            // tooltips, and context-menu commands.
+            ["MaterialTextInputCutText"] = "Cut",
+            ["MaterialTextInputCopyText"] = "Copy",
+            ["MaterialTextInputPasteText"] = "Paste",
+            ["MaterialTextInputSelectAllText"] = "Select all",
+            ["MaterialPasswordShowText"] = "Show password",
+            ["MaterialPasswordHideText"] = "Hide password",
+            ["MaterialRangeLowerValueText"] = "Lower value",
+            ["MaterialRangeUpperValueText"] = "Upper value",
+            ["MaterialScrollLeftText"] = "Scroll left",
+            ["MaterialScrollRightText"] = "Scroll right",
+            ["MaterialScrollUpText"] = "Scroll up",
+            ["MaterialScrollDownText"] = "Scroll down",
+            ["MaterialPageLeftText"] = "Page left",
+            ["MaterialPageRightText"] = "Page right",
+            ["MaterialPageUpText"] = "Page up",
+            ["MaterialPageDownText"] = "Page down",
+            ["MaterialScrollPositionText"] = "Scroll position",
         };
+
+        MaterialDurationTokens.Apply(resources, reduced: false);
 
         AddTypography(resources, "DisplayLarge", 57, 64, FontWeight.Normal);
         AddTypography(resources, "DisplayMedium", 45, 52, FontWeight.Normal);

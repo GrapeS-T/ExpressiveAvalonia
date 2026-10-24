@@ -152,7 +152,7 @@ public sealed class CircularProgressIndicator : RangeBase
 }
 
 /// <summary>Drawing surface used by the native ProgressBar template; range and automation belong to its templated parent.</summary>
-public sealed class LinearProgressPresenter : Control
+internal sealed class LinearProgressPresenter : Control
 {
     public static readonly StyledProperty<double> MinimumProperty =
         AvaloniaProperty.Register<LinearProgressPresenter, double>(nameof(Minimum));
@@ -272,14 +272,17 @@ public sealed class LinearProgressPresenter : Control
     }
 }
 
-// One lazy timer per active indicator; global accessibility notification is subscribed only while attached.
+// One frame timer shared by every animating indicator; global accessibility notification is
+// subscribed only while attached. The timer exists only while at least one indicator animates.
 internal sealed class ProgressAnimationClock
 {
+    private static readonly List<ProgressAnimationClock> Running = new();
+    private static DispatcherTimer? _timer;
     private readonly Control _owner;
     private readonly Func<bool> _isIndeterminate;
-    private DispatcherTimer? _timer;
     private readonly List<Visual> _visibilityAncestors = new();
     private bool _attached;
+    private bool _running;
     private long _started;
     public double ElapsedMilliseconds { get; private set; }
 
@@ -328,35 +331,52 @@ internal sealed class ProgressAnimationClock
     {
         var animate = _attached && _owner.IsEffectivelyVisible && _isIndeterminate() && !MaterialMotion.GetIsReduced(_owner);
         if (animate)
-        {
-            _timer ??= CreateTimer();
-            if (!_timer.IsEnabled)
-            {
-                _started = Stopwatch.GetTimestamp();
-                _timer.Start();
-            }
-        }
+            Start();
         else
-        {
-            _timer?.Stop();
-            ElapsedMilliseconds = 0;
-        }
+            Stop();
         _owner.InvalidateVisual();
     }
 
-    private DispatcherTimer CreateTimer()
+    private void Start()
     {
-        var timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(1d / 60) };
-        timer.Tick += (_, _) =>
+        if (_running)
+            return;
+        _running = true;
+        _started = Stopwatch.GetTimestamp();
+        Running.Add(this);
+        if (_timer is null)
         {
-            if (!_owner.IsEffectivelyVisible || MaterialMotion.GetIsReduced(_owner))
+            _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(1d / 60) };
+            _timer.Tick += OnTick;
+        }
+        if (!_timer.IsEnabled)
+            _timer.Start();
+    }
+
+    private void Stop()
+    {
+        ElapsedMilliseconds = 0;
+        if (!_running)
+            return;
+        _running = false;
+        Running.Remove(this);
+        if (Running.Count == 0)
+            _timer?.Stop();
+    }
+
+    private static void OnTick(object? sender, EventArgs e)
+    {
+        // Walk backwards so a clock that stops itself during the frame cannot shift the index.
+        for (var i = Running.Count - 1; i >= 0; i--)
+        {
+            var clock = Running[i];
+            if (!clock._owner.IsEffectivelyVisible || MaterialMotion.GetIsReduced(clock._owner))
             {
-                Update();
-                return;
+                clock.Update();
+                continue;
             }
-            ElapsedMilliseconds = Stopwatch.GetElapsedTime(_started).TotalMilliseconds;
-            _owner.InvalidateVisual();
-        };
-        return timer;
+            clock.ElapsedMilliseconds = Stopwatch.GetElapsedTime(clock._started).TotalMilliseconds;
+            clock._owner.InvalidateVisual();
+        }
     }
 }
