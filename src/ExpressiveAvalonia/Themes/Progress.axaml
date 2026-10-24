@@ -1,0 +1,70 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:converters="using:Avalonia.Controls.Converters">
+  <converters:StringFormatConverter x:Key="MaterialProgressTextConverter" />
+
+  <!-- Standard (non-wavy) MD3 progress: ProgressIndicatorTokens supplies Primary and
+       SecondaryContainer; AndroidX ProgressIndicatorDefaults makes only the circular
+       indeterminate track transparent. Thickness/gap/stop are 4 dp; circular size is 40 dp. -->
+  <ControlTheme x:Key="{x:Type ProgressBar}" TargetType="ProgressBar">
+    <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelMediumFontSize}" />
+    <Setter Property="LetterSpacing" Value="{DynamicResource MaterialLabelMediumLetterSpacing}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid RowDefinitions="*,Auto">
+          <Panel Name="Track" MinHeight="4">
+            <!-- Native ProgressBar owns this part to calculate Percentage and preserve its range API.
+                 Drawing is separate so the remaining track has a genuine gap and rounded stop. -->
+            <Border Name="PART_Indicator" Opacity="0" IsHitTestVisible="False" HorizontalAlignment="Left" />
+            <controls:LinearProgressPresenter Minimum="{TemplateBinding Minimum}"
+                                              Maximum="{TemplateBinding Maximum}" Value="{TemplateBinding Value}"
+                                              IsIndeterminate="{TemplateBinding IsIndeterminate}"
+                                              Orientation="{TemplateBinding Orientation}"
+                                              IndicatorBrush="{TemplateBinding Foreground}"
+                                              TrackBrush="{TemplateBinding Background}"
+                                              IsHitTestVisible="False" />
+          </Panel>
+          <TextBlock Grid.Row="1" Name="ProgressText" Margin="0,4,0,0"
+                     Foreground="{DynamicResource MaterialOnSurfaceBrush}"
+                     LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
+                     LetterSpacing="{TemplateBinding LetterSpacing}"
+                     HorizontalAlignment="Center" IsVisible="{TemplateBinding ShowProgressText}">
+            <TextBlock.Text>
+              <MultiBinding Converter="{StaticResource MaterialProgressTextConverter}">
+                <TemplateBinding Property="ProgressTextFormat" />
+                <TemplateBinding Property="Value" />
+                <TemplateBinding Property="Percentage" />
+                <TemplateBinding Property="Minimum" />
+                <TemplateBinding Property="Maximum" />
+              </MultiBinding>
+            </TextBlock.Text>
+          </TextBlock>
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:horizontal">
+      <Setter Property="MinWidth" Value="240" /><Setter Property="MinHeight" Value="4" />
+    </Style>
+    <Style Selector="^:vertical">
+      <Setter Property="MinWidth" Value="4" /><Setter Property="MinHeight" Value="240" />
+    </Style>
+    <Style Selector="^:vertical /template/ Border#PART_Indicator">
+      <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="VerticalAlignment" Value="Bottom" />
+    </Style>
+    <Style Selector="^:indeterminate /template/ TextBlock#ProgressText"><Setter Property="IsVisible" Value="False" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:CircularProgressIndicator}" TargetType="controls:CircularProgressIndicator">
+    <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="TrackBrush" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+    <Setter Property="StrokeThickness" Value="4" />
+    <Setter Property="GapSize" Value="4" />
+    <Setter Property="MinWidth" Value="40" /><Setter Property="MinHeight" Value="40" />
+    <Setter Property="Template"><ControlTemplate><Panel /></ControlTemplate></Setter>
+    <Style Selector="^[IsIndeterminate=True]"><Setter Property="TrackBrush" Value="Transparent" /></Style>
+  </ControlTheme>
+</ResourceDictionary>

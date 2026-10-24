@@ -1,0 +1,249 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:md="using:ExpressiveAvalonia.Theming"
+                    xmlns:conv="using:Avalonia.Data.Converters">
+  <ControlTheme x:Key="{x:Type ItemsControl}" TargetType="ItemsControl">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type ListBox}" TargetType="ListBox">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="Padding" Value="0,8" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+          <ScrollViewer Name="PART_ScrollViewer"
+                        AllowAutoHide="{TemplateBinding (ScrollViewer.AllowAutoHide)}"
+                        BringIntoViewOnFocusChange="{TemplateBinding (ScrollViewer.BringIntoViewOnFocusChange)}"
+                        HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                        VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                        IsScrollChainingEnabled="{TemplateBinding (ScrollViewer.IsScrollChainingEnabled)}"
+                        IsDeferredScrollingEnabled="{TemplateBinding (ScrollViewer.IsDeferredScrollingEnabled)}"
+                        HorizontalSnapPointsType="{TemplateBinding (ScrollViewer.HorizontalSnapPointsType)}"
+                        VerticalSnapPointsType="{TemplateBinding (ScrollViewer.VerticalSnapPointsType)}">
+            <!-- Keep ListBox's native VirtualizingStackPanel and selection model. -->
+            <ItemsPresenter Name="PART_ItemsPresenter" Margin="{TemplateBinding Padding}"
+                            ItemsPanel="{TemplateBinding ItemsPanel}" />
+          </ScrollViewer>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type ListBoxItem}" TargetType="ListBoxItem">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="Padding" Value="16,10" />
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid>
+          <Border Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <Grid Name="ItemContent" ColumnDefinitions="Auto,*,Auto" Margin="{TemplateBinding Padding}">
+            <ContentPresenter Name="LeadingContent" Content="{TemplateBinding (md:MaterialList.LeadingContent)}"
+                              IsVisible="{Binding (md:MaterialList.LeadingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
+                              Margin="0,0,12,0" VerticalAlignment="Center"
+                              TextElement.Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+            <StackPanel Name="TextContent" Grid.Column="1" VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+              <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                TextBlock.LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                                TextBlock.LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}"
+                                IsVisible="{Binding (md:MaterialList.Headline), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+              <TextBlock Name="Headline" Text="{TemplateBinding (md:MaterialList.Headline)}" LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}"
+                         MaxLines="1" TextTrimming="CharacterEllipsis"
+                         IsVisible="{Binding (md:MaterialList.Headline), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+              <Border Name="SupportingContent">
+              <TextBlock Name="SupportingText" Text="{TemplateBinding (md:MaterialList.SupportingText)}"
+                         FontSize="{DynamicResource MaterialBodyMediumFontSize}" FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
+                         Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
+                         MaxLines="1" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                         IsVisible="{Binding (md:MaterialList.SupportingText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+              </Border>
+            </StackPanel>
+            <ContentPresenter Name="TrailingContent" Grid.Column="2" Content="{TemplateBinding (md:MaterialList.TrailingContent)}"
+                              IsVisible="{Binding (md:MaterialList.TrailingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
+                              Margin="12,0,0,0" VerticalAlignment="Center"
+                              TextElement.FontSize="{DynamicResource MaterialLabelSmallFontSize}"
+                              TextElement.FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
+                              TextElement.Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+          </Grid>
+          <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="2"
+                  CornerRadius="{TemplateBinding CornerRadius}" IsVisible="False" IsHitTestVisible="False" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+      <Setter Property="CornerRadius" Value="16" />
+    </Style>
+    <Style Selector="^[(md|MaterialList.LineCount)=1] /template/ Border#SupportingContent"><Setter Property="IsVisible" Value="False" /></Style>
+    <Style Selector="^[(md|MaterialList.LineCount)=2]"><Setter Property="MinHeight" Value="72" /></Style>
+    <Style Selector="^[(md|MaterialList.LineCount)=3]">
+      <Setter Property="MinHeight" Value="88" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+    </Style>
+    <Style Selector="^[(md|MaterialList.LineCount)=3] /template/ TextBlock#SupportingText"><Setter Property="MaxLines" Value="2" /></Style>
+    <Style Selector="^[(md|MaterialList.LineCount)=3] /template/ ContentPresenter#LeadingContent, ^[(md|MaterialList.LineCount)=3] /template/ ContentPresenter#TrailingContent"><Setter Property="VerticalAlignment" Value="Top" /></Style>
+    <Style Selector="^:selected /template/ TextBlock#SupportingText, ^:selected /template/ ContentPresenter#LeadingContent, ^:selected /template/ ContentPresenter#TrailingContent"><Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" /></Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" /></Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:disabled"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" /></Style>
+    <Style Selector="^:disabled /template/ Grid#ItemContent"><Setter Property="Opacity" Value="0.38" /></Style>
+    <Style Selector="^:disabled /template/ TextBlock#SupportingText, ^:disabled /template/ ContentPresenter#LeadingContent, ^:disabled /template/ ContentPresenter#TrailingContent"><Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" /></Style>
+    <Style Selector="^:selected:disabled /template/ Border#Surface"><Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" /><Setter Property="Opacity" Value="0.38" /></Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer"><Setter Property="Opacity" Value="0" /></Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing"><Setter Property="IsVisible" Value="False" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type TabControl}" TargetType="TabControl">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="ItemsPanel"><ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate></Setter>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+          <DockPanel>
+            <ScrollViewer Name="HeaderScroller" DockPanel.Dock="Top" HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Disabled" BringIntoViewOnFocusChange="True">
+              <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+            </ScrollViewer>
+            <Panel ClipToBounds="True">
+              <ContentPresenter Name="PART_SelectedContentHost2" IsVisible="False" Margin="{TemplateBinding Padding}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+              <ContentPresenter Name="PART_SelectedContentHost" Margin="{TemplateBinding Padding}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Panel>
+          </DockPanel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^[TabStripPlacement=Bottom] /template/ ScrollViewer#HeaderScroller"><Setter Property="DockPanel.Dock" Value="Bottom" /></Style>
+    <Style Selector="^[TabStripPlacement=Left] /template/ ScrollViewer#HeaderScroller"><Setter Property="DockPanel.Dock" Value="Left" /></Style>
+    <Style Selector="^[TabStripPlacement=Right] /template/ ScrollViewer#HeaderScroller"><Setter Property="DockPanel.Dock" Value="Right" /></Style>
+    <Style Selector="^[TabStripPlacement=Left], ^[TabStripPlacement=Right]">
+      <Setter Property="ItemsPanel"><ItemsPanelTemplate><UniformGrid Columns="1" /></ItemsPanelTemplate></Setter>
+    </Style>
+    <Style Selector="^[(md|MaterialTabs.IsScrollable)=True]">
+      <Setter Property="ItemsPanel"><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></Setter>
+    </Style>
+    <Style Selector="^[(md|MaterialTabs.IsScrollable)=True] /template/ ScrollViewer#HeaderScroller">
+      <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
+    </Style>
+    <Style Selector="^[(md|MaterialTabs.IsScrollable)=True]">
+      <Style Selector="^[TabStripPlacement=Left], ^[TabStripPlacement=Right]">
+        <Setter Property="ItemsPanel"><ItemsPanelTemplate><StackPanel Orientation="Vertical" /></ItemsPanelTemplate></Setter>
+      </Style>
+      <Style Selector="^[TabStripPlacement=Left] /template/ ScrollViewer#HeaderScroller, ^[TabStripPlacement=Right] /template/ ScrollViewer#HeaderScroller">
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+      </Style>
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type TabItem}" TargetType="TabItem">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="Padding" Value="16,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialTitleSmallFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleSmallFontWeight}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid Background="{TemplateBinding Background}">
+          <StackPanel Name="HeaderContent" Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Spacing="2">
+            <ContentPresenter Name="IconPresenter" Content="{TemplateBinding Icon}" ContentTemplate="{TemplateBinding IconTemplate}"
+                              Width="24" Height="24" HorizontalAlignment="Center"
+                              IsVisible="{Binding Icon, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
+                              ContentTemplate="{TemplateBinding HeaderTemplate}" RecognizesAccessKey="True"
+                              IsVisible="{Binding Header, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
+                              TextBlock.LineHeight="20"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+          </StackPanel>
+          <Border Name="StateLayer" Background="{DynamicResource MaterialPrimaryBrush}" Opacity="0" IsHitTestVisible="False" />
+          <Border Name="Divider" Height="1" VerticalAlignment="Bottom" Background="{DynamicResource MaterialSurfaceVariantBrush}" IsHitTestVisible="False" />
+          <Border Name="Indicator" Height="3" Width="24" CornerRadius="3" VerticalAlignment="Bottom"
+                  HorizontalAlignment="Center" Background="{DynamicResource MaterialPrimaryBrush}" IsVisible="False" IsHitTestVisible="False" />
+          <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2"
+                  CornerRadius="4" Margin="2" IsVisible="False" IsHitTestVisible="False" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover, ^:focus-visible, ^:pressed"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" /></Style>
+    <Style Selector="^:selected"><Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" /></Style>
+    <Style Selector="^[(md|MaterialTabs.HasIconAndHeader)=True]"><Setter Property="MinHeight" Value="64" /></Style>
+    <Style Selector="^[(md|MaterialTabs.Variant)=Secondary]">
+      <Setter Property="MinHeight" Value="48" />
+      <Style Selector="^:selected"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" /></Style>
+    </Style>
+    <Style Selector="^[(md|MaterialTabs.Variant)=Secondary] /template/ StackPanel#HeaderContent"><Setter Property="Orientation" Value="Horizontal" /><Setter Property="Spacing" Value="8" /></Style>
+    <Style Selector="^[(md|MaterialTabs.Variant)=Secondary] /template/ Border#StateLayer"><Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" /></Style>
+    <Style Selector="^:selected /template/ Border#Indicator"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^[(md|MaterialTabs.Variant)=Secondary] /template/ Border#Indicator">
+      <Setter Property="Width" Value="NaN" /><Setter Property="Height" Value="2" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Bottom] /template/ Border#Indicator, ^[TabStripPlacement=Bottom] /template/ Border#Divider">
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Left] /template/ Border#Indicator">
+      <Setter Property="Width" Value="3" /><Setter Property="Height" Value="24" />
+      <Setter Property="HorizontalAlignment" Value="Right" /><Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="CornerRadius" Value="3,0,0,3" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Right] /template/ Border#Indicator">
+      <Setter Property="Width" Value="3" /><Setter Property="Height" Value="24" />
+      <Setter Property="HorizontalAlignment" Value="Left" /><Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="CornerRadius" Value="0,3,3,0" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Left] /template/ Border#Divider, ^[TabStripPlacement=Right] /template/ Border#Divider"><Setter Property="IsVisible" Value="False" /></Style>
+    <Style Selector="^[(md|MaterialTabs.Variant)=Secondary]">
+      <Style Selector="^[TabStripPlacement=Left] /template/ Border#Indicator, ^[TabStripPlacement=Right] /template/ Border#Indicator">
+        <Setter Property="Width" Value="2" /><Setter Property="Height" Value="NaN" />
+        <Setter Property="VerticalAlignment" Value="Stretch" /><Setter Property="CornerRadius" Value="0" />
+      </Style>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" /></Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:disabled"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" /></Style>
+    <Style Selector="^:disabled /template/ StackPanel#HeaderContent"><Setter Property="Opacity" Value="0.38" /></Style>
+    <Style Selector="^:disabled /template/ Border#Indicator"><Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" /><Setter Property="Opacity" Value="0.38" /></Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer"><Setter Property="Opacity" Value="0" /></Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing"><Setter Property="IsVisible" Value="False" /></Style>
+  </ControlTheme>
+</ResourceDictionary>

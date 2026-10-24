@@ -1,0 +1,488 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Popup, Track and presenters retain their native layout and input implementations. -->
+  <!-- Native contracts verified against AvaloniaUI/Avalonia tag 12.1.4:
+       src/Avalonia.Controls and src/Avalonia.Themes.Simple/Controls. No stock theme is loaded. -->
+  <ControlTheme x:Key="{x:Type Window}" TargetType="Window">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel>
+          <Border Name="PART_TransparencyFallback" IsHitTestVisible="False" />
+          <Border Background="{TemplateBinding Background}" IsHitTestVisible="False" />
+          <Panel Margin="{TemplateBinding WindowDecorationMargin}" Background="Transparent" />
+          <VisualLayerManager Name="PART_VisualLayerManager">
+            <ContentPresenter Name="PART_ContentPresenter" Margin="{TemplateBinding Padding}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" />
+          </VisualLayerManager>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+  <ControlTheme x:Key="{x:Type ContentControl}" TargetType="ContentControl">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ContentPresenter Name="PART_ContentPresenter"
+                          Background="{TemplateBinding Background}" BackgroundSizing="{TemplateBinding BackgroundSizing}"
+                          BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                          CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"
+                          Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type RepeatButton}" TargetType="RepeatButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ContentPresenter Name="PART_ContentPresenter" Background="{TemplateBinding Background}"
+                          BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                          CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"
+                          Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True" />
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover"><Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" /></Style>
+    <Style Selector="^:pressed"><Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" /></Style>
+    <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.38" /></Style>
+    <Style Selector="^:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type Thumb}" TargetType="Thumb">
+    <Setter Property="Background" Value="{DynamicResource MaterialOutlineBrush}" />
+    <Setter Property="CornerRadius" Value="999" />
+    <Setter Property="Template"><ControlTemplate>
+      <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" />
+    </ControlTemplate></Setter>
+    <Style Selector="^:pointerover"><Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" /></Style>
+    <Style Selector="^:pressed"><Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" /></Style>
+    <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.38" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="MaterialScrollTrackButton" TargetType="RepeatButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template"><ControlTemplate><Border Background="{TemplateBinding Background}" /></ControlTemplate></Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type ScrollBar}" TargetType="ScrollBar">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="Cursor" Value="Arrow" />
+    <Style Selector="^:horizontal">
+      <Setter Property="Height" Value="12" />
+      <Setter Property="Template"><ControlTemplate>
+        <Border Background="{TemplateBinding Background}">
+          <Grid ColumnDefinitions="12,*,12">
+            <RepeatButton Name="PART_LineUpButton" Focusable="False" AutomationProperties.Name="Scroll left">
+              <Path Data="M 4 0 L 0 4 L 4 8" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" StrokeThickness="1.5" />
+            </RepeatButton>
+            <Track Grid.Column="1" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                   Orientation="Horizontal" ViewportSize="{TemplateBinding ViewportSize}"
+                   DeferThumbDrag="{TemplateBinding ScrollViewer.IsDeferredScrollingEnabled}" Value="{TemplateBinding Value, Mode=TwoWay}">
+              <Track.DecreaseButton><RepeatButton Name="PART_PageUpButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="Page left" /></Track.DecreaseButton>
+              <Track.IncreaseButton><RepeatButton Name="PART_PageDownButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="Page right" /></Track.IncreaseButton>
+              <Thumb MinWidth="18" Height="6" Margin="0,3" AutomationProperties.Name="Scroll position" />
+            </Track>
+            <RepeatButton Name="PART_LineDownButton" Grid.Column="2" Focusable="False" AutomationProperties.Name="Scroll right">
+              <Path Data="M 0 0 L 4 4 L 0 8" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" StrokeThickness="1.5" />
+            </RepeatButton>
+          </Grid>
+        </Border>
+      </ControlTemplate></Setter>
+    </Style>
+    <Style Selector="^:vertical">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Template"><ControlTemplate>
+        <Border Background="{TemplateBinding Background}">
+          <Grid RowDefinitions="12,*,12">
+            <RepeatButton Name="PART_LineUpButton" Focusable="False" AutomationProperties.Name="Scroll up">
+              <Path Data="M 0 4 L 4 0 L 8 4" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" StrokeThickness="1.5" />
+            </RepeatButton>
+            <Track Grid.Row="1" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                   Orientation="Vertical" IsDirectionReversed="True" ViewportSize="{TemplateBinding ViewportSize}"
+                   DeferThumbDrag="{TemplateBinding ScrollViewer.IsDeferredScrollingEnabled}" Value="{TemplateBinding Value, Mode=TwoWay}">
+              <Track.DecreaseButton><RepeatButton Name="PART_PageUpButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="Page up" /></Track.DecreaseButton>
+              <Track.IncreaseButton><RepeatButton Name="PART_PageDownButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="Page down" /></Track.IncreaseButton>
+              <Thumb MinHeight="18" Width="6" Margin="3,0" AutomationProperties.Name="Scroll position" />
+            </Track>
+            <RepeatButton Name="PART_LineDownButton" Grid.Row="2" Focusable="False" AutomationProperties.Name="Scroll down">
+              <Path Data="M 0 0 L 4 4 L 8 0" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" StrokeThickness="1.5" />
+            </RepeatButton>
+          </Grid>
+        </Border>
+      </ControlTemplate></Setter>
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type ScrollViewer}" TargetType="ScrollViewer">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Template"><ControlTemplate>
+      <Grid ColumnDefinitions="*,Auto" RowDefinitions="*,Auto">
+        <ScrollContentPresenter Name="PART_ContentPresenter" Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                HorizontalSnapPointsType="{TemplateBinding HorizontalSnapPointsType}"
+                                VerticalSnapPointsType="{TemplateBinding VerticalSnapPointsType}"
+                                HorizontalSnapPointsAlignment="{TemplateBinding HorizontalSnapPointsAlignment}"
+                                VerticalSnapPointsAlignment="{TemplateBinding VerticalSnapPointsAlignment}"
+                                ScrollViewer.IsScrollInertiaEnabled="{TemplateBinding IsScrollInertiaEnabled}">
+          <ScrollContentPresenter.GestureRecognizers>
+            <ScrollGestureRecognizer CanHorizontallyScroll="{Binding CanHorizontallyScroll, ElementName=PART_ContentPresenter}"
+                                     CanVerticallyScroll="{Binding CanVerticallyScroll, ElementName=PART_ContentPresenter}"
+                                     IsScrollInertiaEnabled="{Binding (ScrollViewer.IsScrollInertiaEnabled), ElementName=PART_ContentPresenter}"
+                                     Offset="{Binding Offset, ElementName=PART_ContentPresenter}"
+                                     Viewport="{Binding Viewport, ElementName=PART_ContentPresenter}"
+                                     Extent="{Binding Extent, ElementName=PART_ContentPresenter}" />
+          </ScrollContentPresenter.GestureRecognizers>
+        </ScrollContentPresenter>
+        <ScrollBar Name="PART_HorizontalScrollBar" Grid.Row="1" Orientation="Horizontal" />
+        <ScrollBar Name="PART_VerticalScrollBar" Grid.Column="1" Orientation="Vertical" />
+        <Panel Grid.Row="1" Grid.Column="1" Background="{DynamicResource MaterialSurfaceContainerBrush}" />
+      </Grid>
+    </ControlTemplate></Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type Separator}" TargetType="Separator">
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Background" Value="{DynamicResource MaterialOutlineVariantBrush}" />
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="0,8" />
+    <Setter Property="Template"><ControlTemplate><Border Background="{TemplateBinding Background}" /></ControlTemplate></Setter>
+    <!-- Avalonia Separator has no Orientation property. -->
+    <Style Selector="^.vertical">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Height" Value="NaN" />
+      <Setter Property="Margin" Value="8,0" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Native Popup is not a TemplatedControl. Its two hosts need templates. -->
+  <ControlTheme x:Key="{x:Type PopupRoot}" TargetType="PopupRoot">
+    <Setter Property="Background" Value="{x:Null}" />
+    <Setter Property="TransparencyLevelHint" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="Template"><ControlTemplate>
+      <LayoutTransformControl LayoutTransform="{TemplateBinding Transform}">
+        <Panel>
+          <Border Name="PART_TransparencyFallback" IsHitTestVisible="False" />
+          <VisualLayerManager Name="PART_VisualLayerManager">
+            <ContentPresenter Name="PART_ContentPresenter" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}"
+                              Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" />
+          </VisualLayerManager>
+        </Panel>
+      </LayoutTransformControl>
+    </ControlTemplate></Setter>
+  </ControlTheme>
+  <ControlTheme x:Key="{x:Type OverlayPopupHost}" TargetType="OverlayPopupHost">
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="Template"><ControlTemplate>
+      <LayoutTransformControl LayoutTransform="{TemplateBinding Transform}">
+        <VisualLayerManager Name="PART_VisualLayerManager">
+          <ContentPresenter Name="PART_ContentPresenter" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}"
+                            Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" />
+        </VisualLayerManager>
+      </LayoutTransformControl>
+    </ControlTemplate></Setter>
+  </ControlTheme>
+
+  <!-- Explicit editor theme avoids activating the standalone floating-label TextBox behavior. -->
+  <ControlTheme x:Key="MaterialComboBoxEditor" TargetType="TextBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CaretBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    <Setter Property="SelectionForegroundBrush" Value="{DynamicResource MaterialOnPrimaryContainerBrush}" />
+    <Setter Property="Template"><ControlTemplate>
+      <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}">
+        <ScrollViewer Name="PART_ScrollViewer"
+                      HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                      VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                      BringIntoViewOnFocusChange="{TemplateBinding (ScrollViewer.BringIntoViewOnFocusChange)}"
+                      IsScrollChainingEnabled="{TemplateBinding (ScrollViewer.IsScrollChainingEnabled)}"
+                      AllowAutoHide="{TemplateBinding (ScrollViewer.AllowAutoHide)}">
+          <Panel>
+            <TextBlock Text="{TemplateBinding PlaceholderText}" Foreground="{TemplateBinding PlaceholderForeground}"
+                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+              <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                  <Binding Path="Text" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static StringConverters.IsNullOrEmpty}" />
+                  <Binding Path="PreeditText" ElementName="PART_TextPresenter" Converter="{x:Static StringConverters.IsNullOrEmpty}" />
+                </MultiBinding>
+              </TextBlock.IsVisible>
+            </TextBlock>
+            <TextPresenter Name="PART_TextPresenter" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                           CaretBlinkInterval="{TemplateBinding CaretBlinkInterval}" CaretBrush="{TemplateBinding CaretBrush}"
+                           CaretIndex="{TemplateBinding CaretIndex}" LineHeight="{TemplateBinding LineHeight}"
+                           LetterSpacing="{TemplateBinding LetterSpacing}" PasswordChar="{TemplateBinding PasswordChar}"
+                           RevealPassword="{TemplateBinding RevealPassword}" SelectionBrush="{TemplateBinding SelectionBrush}"
+                           SelectionEnd="{TemplateBinding SelectionEnd}" SelectionForegroundBrush="{TemplateBinding SelectionForegroundBrush}"
+                           SelectionStart="{TemplateBinding SelectionStart}" Text="{TemplateBinding Text, Mode=TwoWay}"
+                           TextAlignment="{TemplateBinding TextAlignment}" TextWrapping="{TemplateBinding TextWrapping}" />
+          </Panel>
+        </ScrollViewer>
+      </Border>
+    </ControlTemplate></Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="MaterialInfrastructureButton" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Template"><ControlTemplate>
+      <Panel>
+        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                          ContentTemplate="{TemplateBinding ContentTemplate}" Background="{TemplateBinding Background}"
+                          BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                          CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"
+                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        <Border Name="StateLayer" Background="{TemplateBinding Foreground}" CornerRadius="{TemplateBinding CornerRadius}"
+                Opacity="0" IsHitTestVisible="False" />
+        <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2"
+                CornerRadius="{TemplateBinding CornerRadius}" IsVisible="False" IsHitTestVisible="False" />
+      </Panel>
+    </ControlTemplate></Setter>
+    <Style Selector="^:pointerover /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.38" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="MaterialComboBoxToggle" TargetType="ToggleButton" BasedOn="{StaticResource MaterialInfrastructureButton}">
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Width" Value="48" />
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type ComboBox}" TargetType="ComboBox">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="PlaceholderForeground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="CornerRadius" Value="4,4,0,0" />
+    <Setter Property="Padding" Value="16,12" />
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="MinWidth" Value="120" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="MaxDropDownHeight" Value="320" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    <Setter Property="Template"><ControlTemplate>
+      <Border Name="FieldBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Margin="{TemplateBinding Padding}" Text="{TemplateBinding PlaceholderText}"
+                     Foreground="{TemplateBinding PlaceholderForeground}"
+                     HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                     VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+            <TextBlock.IsVisible><MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="SelectionBoxItem" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNull}" />
+              <Binding Path="!IsEditable" RelativeSource="{RelativeSource TemplatedParent}" />
+            </MultiBinding></TextBlock.IsVisible>
+          </TextBlock>
+          <ContentControl Margin="{TemplateBinding Padding}" Content="{TemplateBinding SelectionBoxItem}"
+                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                          IsVisible="{TemplateBinding IsEditable, Converter={x:Static BoolConverters.Not}}" />
+          <TextBox Name="PART_EditableTextBox" Theme="{StaticResource MaterialComboBoxEditor}"
+                   Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
+                   PlaceholderText="{TemplateBinding PlaceholderText}" PlaceholderForeground="{TemplateBinding PlaceholderForeground}"
+                   VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                   HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                   Text="{TemplateBinding Text, Mode=TwoWay}" IsVisible="{TemplateBinding IsEditable}" />
+          <ToggleButton Grid.Column="1" Theme="{StaticResource MaterialComboBoxToggle}" ClickMode="Press"
+                        IsChecked="{TemplateBinding IsDropDownOpen, Mode=TwoWay}">
+            <Path Width="12" Height="6" Stretch="Uniform" Data="M 0,0 L 6,6 L 12,0 Z" Fill="{TemplateBinding Foreground}" />
+          </ToggleButton>
+          <Popup Name="PART_Popup" PlacementTarget="{TemplateBinding}" Placement="BottomEdgeAlignedLeft"
+                 MinWidth="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}}"
+                 MaxHeight="{TemplateBinding MaxDropDownHeight}" IsLightDismissEnabled="True"
+                 IsOpen="{TemplateBinding IsDropDownOpen, Mode=TwoWay}" InheritsTransform="True">
+            <Border Background="{DynamicResource MaterialSurfaceContainerBrush}" Padding="0,8"
+                    CornerRadius="{DynamicResource MaterialShapeExtraSmallCornerRadius}"
+                    BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
+              <ScrollViewer Name="PART_ScrollViewer" IsScrollChainingEnabled="False"
+                            HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                            VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                            IsDeferredScrollingEnabled="{TemplateBinding (ScrollViewer.IsDeferredScrollingEnabled)}">
+                <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+              </ScrollViewer>
+            </Border>
+          </Popup>
+        </Grid>
+      </Border>
+    </ControlTemplate></Setter>
+    <Style Selector="^:pointerover /template/ Border#FieldBorder"><Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" /></Style>
+    <Style Selector="^:focus-within /template/ Border#FieldBorder">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,2" />
+    </Style>
+    <Style Selector="^:error /template/ Border#FieldBorder"><Setter Property="BorderBrush" Value="{DynamicResource MaterialErrorBrush}" /></Style>
+    <Style Selector="^:disabled /template/ Border#FieldBorder"><Setter Property="Opacity" Value="0.38" /></Style>
+    <Style Selector="^[IsEditable=true]">
+      <Setter Property="IsTabStop" Value="False" />
+      <Setter Property="KeyboardNavigation.TabNavigation" Value="Local" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type ComboBoxItem}" TargetType="ComboBoxItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="Padding" Value="16,8" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template"><ControlTemplate>
+      <Panel>
+        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                          ContentTemplate="{TemplateBinding ContentTemplate}" Background="{TemplateBinding Background}"
+                          BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                          CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"
+                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        <Border Name="StateLayer" Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
+        <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2" IsVisible="False" IsHitTestVisible="False" />
+      </Panel>
+    </ControlTemplate></Setter>
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.38" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type Calendar}" TargetType="Calendar">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="HeaderBackground" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraLargeCornerRadius}" />
+    <Setter Property="Template"><ControlTemplate>
+      <StackPanel Name="PART_Root" HorizontalAlignment="Center" ClipToBounds="True">
+        <CalendarItem Name="PART_CalendarItem" Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                      CornerRadius="{TemplateBinding CornerRadius}" HeaderBackground="{TemplateBinding HeaderBackground}" />
+      </StackPanel>
+    </ControlTemplate></Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="MaterialCalendarNavigationButton" TargetType="Button" BasedOn="{StaticResource MaterialInfrastructureButton}">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    <Setter Property="Padding" Value="8" />
+  </ControlTheme>
+  <!-- Content stays unset so CalendarItem supplies its native accessibility helper text. -->
+  <ControlTheme x:Key="MaterialCalendarPreviousButton" TargetType="Button" BasedOn="{StaticResource MaterialCalendarNavigationButton}">
+    <Setter Property="ContentTemplate"><DataTemplate>
+      <Path Width="8" Height="12" Data="M 8,0 L 0,6 L 8,12" StrokeThickness="2" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" Stretch="Uniform" />
+    </DataTemplate></Setter>
+  </ControlTheme>
+  <ControlTheme x:Key="MaterialCalendarNextButton" TargetType="Button" BasedOn="{StaticResource MaterialCalendarNavigationButton}">
+    <Setter Property="ContentTemplate"><DataTemplate>
+      <Path Width="8" Height="12" Data="M 0,0 L 8,6 L 0,12" StrokeThickness="2" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" Stretch="Uniform" />
+    </DataTemplate></Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type CalendarItem}" TargetType="CalendarItem">
+    <Setter Property="DayTitleTemplate"><Template x:DataType="x:String">
+      <TextBlock Text="{Binding}" MinWidth="48" Height="40" TextAlignment="Center" VerticalAlignment="Center"
+                 FontSize="{DynamicResource MaterialBodyMediumFontSize}" Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Template></Setter>
+    <Setter Property="Template"><ControlTemplate>
+      <Border Name="CalendarSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" Padding="12">
+        <Grid RowDefinitions="Auto,*" ColumnDefinitions="Auto,*,Auto">
+          <Border Grid.ColumnSpan="3" Background="{TemplateBinding HeaderBackground}" />
+          <Button Name="PART_PreviousButton" Theme="{StaticResource MaterialCalendarPreviousButton}" />
+          <Button Name="PART_HeaderButton" Grid.Column="1" Theme="{StaticResource MaterialCalendarNavigationButton}" />
+          <Button Name="PART_NextButton" Grid.Column="2" Theme="{StaticResource MaterialCalendarNextButton}" />
+          <!-- CalendarItem populates seven title cells and six weeks, or twelve month/year cells. -->
+          <Grid Name="PART_MonthView" Grid.Row="1" Grid.ColumnSpan="3" IsVisible="False"
+                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" />
+          <Grid Name="PART_YearView" Grid.Row="1" Grid.ColumnSpan="3" IsVisible="False"
+                RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,*,*,*" />
+        </Grid>
+      </Border>
+    </ControlTemplate></Setter>
+    <Style Selector="^:calendardisabled /template/ Border#CalendarSurface"><Setter Property="Opacity" Value="0.38" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="MaterialCalendarCell" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="Template"><ControlTemplate>
+      <Panel Background="Transparent">
+        <Border Margin="4" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" />
+        <Border Name="TodayRing" Margin="4" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="1"
+                CornerRadius="{TemplateBinding CornerRadius}" IsVisible="False" />
+        <Border Name="StateLayer" Margin="4" Background="{TemplateBinding Foreground}" CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                          Margin="8" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        <Border Name="FocusRing" Margin="1" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2"
+                CornerRadius="{TemplateBinding CornerRadius}" IsVisible="False" IsHitTestVisible="False" />
+        <Path Name="BlackoutVisual" Width="24" Height="24" Data="M 0,24 L 24,0" Stroke="{TemplateBinding Foreground}"
+              StrokeThickness="1" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+      </Panel>
+    </ControlTemplate></Setter>
+    <Style Selector="^:pointerover /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
+    <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.38" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type CalendarButton}" TargetType="CalendarButton" BasedOn="{StaticResource MaterialCalendarCell}">
+    <Setter Property="MinWidth" Value="80" />
+    <Style Selector="^:inactive"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" /></Style>
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:btnfocused /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type CalendarDayButton}" TargetType="CalendarDayButton" BasedOn="{StaticResource MaterialCalendarCell}">
+    <Style Selector="^:inactive"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" /></Style>
+    <Style Selector="^:today"><Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" /></Style>
+    <Style Selector="^:today /template/ Border#TodayRing"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:dayfocused /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:blackout /template/ Path#BlackoutVisual"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:blackout /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Opacity" Value="0.38" /></Style>
+  </ControlTheme>
+</ResourceDictionary>

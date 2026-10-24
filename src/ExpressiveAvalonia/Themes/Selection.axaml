@@ -1,0 +1,230 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- AndroidX CheckboxTokens (14_1_0), RadioButtonTokens (v0_117), SwitchTokens (v0_210).
+       Opacity belongs to each disabled color role, never the complete control. -->
+  <!-- Native controls retain toggle automation, access keys, tri-state cycling and radio groups. -->
+  <ControlTheme x:Key="{x:Type CheckBox}" TargetType="CheckBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodyLargeLetterSpacing}" />
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid ColumnDefinitions="48,*" Background="{TemplateBinding Background}">
+          <Panel Width="40" Height="40" VerticalAlignment="Center">
+            <Border Name="StateLayer" CornerRadius="20" Background="{DynamicResource MaterialOnSurfaceBrush}" Opacity="0" />
+            <Border Name="Box" Width="18" Height="18" CornerRadius="2" BorderThickness="2"
+                    BorderBrush="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+            <Path Name="Check" Data="M 3.5,9 L 7,12.5 L 14.5,5" Width="18" Height="18"
+                  Stroke="{DynamicResource MaterialOnPrimaryBrush}" StrokeThickness="2"
+                  StrokeLineCap="Square" StrokeJoin="Round" IsVisible="False" />
+            <Border Name="Mixed" Width="10" Height="2" CornerRadius="1"
+                    Background="{DynamicResource MaterialOnPrimaryBrush}" IsVisible="False" />
+            <Border Name="FocusRing" Margin="-3" CornerRadius="23" BorderThickness="3"
+                    BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsVisible="False" />
+          </Panel>
+          <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1" Margin="0,8,8,8"
+                            Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                            LetterSpacing="{TemplateBinding LetterSpacing}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            RecognizesAccessKey="True" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:checked /template/ Border#Box, ^:indeterminate /template/ Border#Box">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="^:checked /template/ Path#Check"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:indeterminate /template/ Border#Mixed"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:checked /template/ Border#StateLayer, ^:indeterminate /template/ Border#StateLayer">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:not(:checked):not(:indeterminate):pointerover /template/ Border#Box, ^:not(:checked):not(:indeterminate):focus /template/ Border#Box, ^:not(:checked):not(:indeterminate):pressed /template/ Border#Box">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" /></Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:disabled"><Setter Property="Foreground" Value="{DynamicResource MaterialSelectionDisabledOnSurfaceBrush}" /></Style>
+    <Style Selector="^:disabled /template/ Border#Box"><Setter Property="BorderBrush" Value="{DynamicResource MaterialSelectionDisabledOnSurfaceBrush}" /></Style>
+    <Style Selector="^:disabled:checked /template/ Border#Box, ^:disabled:indeterminate /template/ Border#Box">
+      <Setter Property="Background" Value="{DynamicResource MaterialSelectionDisabledOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Path#Check"><Setter Property="Stroke" Value="{DynamicResource MaterialSurfaceBrush}" /></Style>
+    <Style Selector="^:disabled /template/ Border#Mixed"><Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" /></Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer"><Setter Property="Opacity" Value="0" /></Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing"><Setter Property="IsVisible" Value="False" /></Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type RadioButton}" TargetType="RadioButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodyLargeLetterSpacing}" />
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid ColumnDefinitions="48,*" Background="{TemplateBinding Background}">
+          <Panel Width="40" Height="40" VerticalAlignment="Center">
+            <Border Name="StateLayer" CornerRadius="20" Background="{DynamicResource MaterialOnSurfaceBrush}" Opacity="0" />
+            <Ellipse Name="Ring" Width="20" Height="20" StrokeThickness="2" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+            <Ellipse Name="Dot" Width="10" Height="10" Fill="{DynamicResource MaterialPrimaryBrush}" IsVisible="False" />
+            <Border Name="FocusRing" Margin="-3" CornerRadius="23" BorderThickness="3"
+                    BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsVisible="False" />
+          </Panel>
+          <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1" Margin="0,8,8,8"
+                            Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                            LetterSpacing="{TemplateBinding LetterSpacing}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            RecognizesAccessKey="True" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:checked /template/ Ellipse#Ring"><Setter Property="Stroke" Value="{DynamicResource MaterialPrimaryBrush}" /></Style>
+    <Style Selector="^:checked /template/ Ellipse#Dot"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:checked /template/ Border#StateLayer"><Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" /></Style>
+    <Style Selector="^:not(:checked):pointerover /template/ Ellipse#Ring, ^:not(:checked):focus /template/ Ellipse#Ring, ^:not(:checked):pressed /template/ Ellipse#Ring">
+      <Setter Property="Stroke" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" /></Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:disabled"><Setter Property="Foreground" Value="{DynamicResource MaterialSelectionDisabledOnSurfaceBrush}" /></Style>
+    <Style Selector="^:disabled /template/ Ellipse#Ring"><Setter Property="Stroke" Value="{DynamicResource MaterialSelectionDisabledOnSurfaceBrush}" /></Style>
+    <Style Selector="^:disabled /template/ Ellipse#Dot"><Setter Property="Fill" Value="{DynamicResource MaterialSelectionDisabledOnSurfaceBrush}" /></Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer"><Setter Property="Opacity" Value="0" /></Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing"><Setter Property="IsVisible" Value="False" /></Style>
+  </ControlTheme>
+
+  <!-- OnContent/OffContent and their native templates are optional icons inside the thumb. -->
+  <ControlTheme x:Key="{x:Type ToggleSwitch}" TargetType="ToggleSwitch">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodyLargeLetterSpacing}" />
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinWidth" Value="52" />
+    <Setter Property="OnContent" Value="{x:Null}" />
+    <Setter Property="OffContent" Value="{x:Null}" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid ColumnDefinitions="52,*" Background="{TemplateBinding Background}">
+          <Panel Height="48" Width="52" VerticalAlignment="Center">
+            <!-- Disabled colors are composited over Surface, not over one another. -->
+            <Border Name="DisabledTrackSurface" Height="32" VerticalAlignment="Center" CornerRadius="16"
+                    Background="{DynamicResource MaterialSurfaceBrush}" IsVisible="False" />
+            <Border Name="Track" Height="32" VerticalAlignment="Center" CornerRadius="16" BorderThickness="2"
+                    BorderBrush="{DynamicResource MaterialOutlineBrush}" Background="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+            <!-- Native drag travel is PART_SwitchKnob.Width, not the handle diameter.
+                 A fixed 32-unit carrier keeps centers at 16/36 as the handle grows:
+                 off 16: inset 8; icon 24: inset 4; pressed 28: inset 2. -->
+            <Canvas Name="PART_SwitchKnob" Width="20" Height="48" HorizontalAlignment="Left">
+              <Grid Name="PART_MovingKnobs" Width="32" Height="48" Background="Transparent">
+                <Border Name="ThumbStateLayer" Width="40" Height="40" Margin="-4,0" CornerRadius="20"
+                        Background="{DynamicResource MaterialOnSurfaceBrush}" Opacity="0" IsHitTestVisible="False" />
+                <Border Name="Thumb" MinWidth="16" MinHeight="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        CornerRadius="14" Background="{DynamicResource MaterialSurfaceBrush}">
+                  <Border Name="ThumbFill" CornerRadius="14" Background="{DynamicResource MaterialOutlineBrush}">
+                  <Panel MinWidth="16" MinHeight="16">
+                    <!-- The 16-unit icon plus 4-unit insets makes an icon-bearing handle 24. -->
+                    <ContentPresenter Name="PART_OffContentPresenter" Width="16" Height="16" Margin="4"
+                                      Content="{TemplateBinding OffContent}" ContentTemplate="{TemplateBinding OffContentTemplate}"
+                                      TextElement.FontSize="16" TextElement.Foreground="{DynamicResource MaterialSurfaceContainerHighestBrush}"
+                                      HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                      <ContentPresenter.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                          <Binding Path="OffContent" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                          <Binding Path="OffContentTemplate" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                        </MultiBinding>
+                      </ContentPresenter.IsVisible>
+                    </ContentPresenter>
+                    <ContentPresenter Name="PART_OnContentPresenter" Width="16" Height="16" Margin="4"
+                                      Content="{TemplateBinding OnContent}" ContentTemplate="{TemplateBinding OnContentTemplate}"
+                                      TextElement.Foreground="{DynamicResource MaterialOnPrimaryContainerBrush}" IsVisible="False"
+                                      TextElement.FontSize="16" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+                  </Panel>
+                  </Border>
+                </Border>
+              </Grid>
+            </Canvas>
+            <Border Name="FocusRing" Height="40" VerticalAlignment="Center" Margin="-4,0" CornerRadius="20" BorderThickness="3"
+                    BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsVisible="False" IsHitTestVisible="False" />
+          </Panel>
+          <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1" Margin="12,8,0,8"
+                            Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                            LetterSpacing="{TemplateBinding LetterSpacing}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:checked /template/ Border#Track">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="^:checked /template/ Border#ThumbFill">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:checked /template/ Border#Thumb">
+      <Setter Property="Width" Value="24" /><Setter Property="Height" Value="24" />
+    </Style>
+    <Style Selector="^:checked /template/ Border#ThumbStateLayer"><Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" /></Style>
+    <Style Selector="^:checked /template/ ContentPresenter#PART_OffContentPresenter"><Setter Property="IsVisible" Value="False" /></Style>
+    <Style Selector="^:checked /template/ ContentPresenter#PART_OnContentPresenter"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:not(:checked):pointerover /template/ Border#ThumbFill, ^:not(:checked):focus /template/ Border#ThumbFill, ^:not(:checked):pressed /template/ Border#ThumbFill, ^:not(:checked):dragging /template/ Border#ThumbFill">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+    <Style Selector="^:checked:pointerover /template/ Border#ThumbFill, ^:checked:focus /template/ Border#ThumbFill, ^:checked:pressed /template/ Border#ThumbFill, ^:checked:dragging /template/ Border#ThumbFill">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#ThumbStateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#ThumbStateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" /></Style>
+    <Style Selector="^:pressed /template/ Border#ThumbStateLayer, ^:dragging /template/ Border#ThumbStateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
+    <Style Selector="^:pressed /template/ Border#Thumb, ^:dragging /template/ Border#Thumb"><Setter Property="Width" Value="28" /><Setter Property="Height" Value="28" /></Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:disabled"><Setter Property="Foreground" Value="{DynamicResource MaterialSelectionDisabledOnSurfaceBrush}" /></Style>
+    <Style Selector="^:disabled /template/ Border#DisabledTrackSurface"><Setter Property="IsVisible" Value="True" /></Style>
+    <Style Selector="^:disabled /template/ Border#Track">
+      <Setter Property="Background" Value="{DynamicResource MaterialSwitchDisabledOffTrackBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialSwitchDisabledTrackBrush}" />
+    </Style>
+    <Style Selector="^:disabled:checked /template/ Border#Track">
+      <Setter Property="Background" Value="{DynamicResource MaterialSwitchDisabledTrackBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#ThumbFill">
+      <Setter Property="Background" Value="{DynamicResource MaterialSelectionDisabledOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled:checked /template/ Border#ThumbFill">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ ContentPresenter#PART_OffContentPresenter">
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialSwitchDisabledOffIconBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ ContentPresenter#PART_OnContentPresenter">
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialSelectionDisabledOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#ThumbStateLayer"><Setter Property="Opacity" Value="0" /></Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing"><Setter Property="IsVisible" Value="False" /></Style>
+  </ControlTheme>
+</ResourceDictionary>
