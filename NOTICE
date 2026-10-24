@@ -1,0 +1,24 @@
+ExpressiveAvalonia
+Copyright (c) 2026 GrapeS-T
+
+Material Design token values and reference vectors are derived from Google's
+Material Web, AndroidX Material3 and Material Color Utilities sources.
+Those sources are Copyright Google LLC / The Android Open Source Project,
+licensed under Apache License, Version 2.0:
+https://www.apache.org/licenses/LICENSE-2.0
+
+Source references:
+https://github.com/material-components/material-web
+https://github.com/androidx/androidx
+https://github.com/material-foundation/material-color-utilities
+
+Avalonia template contracts and structural template patterns are based on
+Avalonia 12.1.4 sources, Copyright AvaloniaUI contributors, MIT:
+https://github.com/AvaloniaUI/Avalonia/blob/12.1.4/licence.md
+
+Bundled Roboto font: Copyright 2011 The Roboto Project Authors.
+Licensed under SIL Open Font License 1.1, see licenses/Roboto-OFL.txt.
+Source: https://github.com/google/fonts/tree/main/ofl/roboto
+
+Dependencies retain their own licenses. This notice does not assert affiliation
+with or endorsement by Google or AvaloniaUI.

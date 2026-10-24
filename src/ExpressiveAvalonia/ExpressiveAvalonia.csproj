@@ -13,6 +13,9 @@
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.4" />
     <PackageReference Include="Shirasagi0012.MaterialColorUtilities" Version="0.2.0" />
+    <AvaloniaResource Include="Assets/Fonts/*.ttf" />
     <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../NOTICE" Pack="true" PackagePath="/" />
+    <None Include="../../licenses/*.txt" Pack="true" PackagePath="licenses/" />
   </ItemGroup>
 </Project>
