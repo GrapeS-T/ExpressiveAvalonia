@@ -5,4 +5,7 @@
   <Folder Name="/src/">
     <Project Path="src/ExpressiveAvalonia/ExpressiveAvalonia.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ExpressiveAvalonia.Tests/ExpressiveAvalonia.Tests.csproj" />
+  </Folder>
 </Solution>
