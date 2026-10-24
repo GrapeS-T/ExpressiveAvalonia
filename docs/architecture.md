@@ -1,12 +1,12 @@
 # ExpressiveAvalonia: архитектура и матрица покрытия
 
-Статус: архитектура и план полного покрытия, 2026-10-24. Начата реализация токенов, MaterialTheme и начального filled Button; актуальные возможности и ограничения перечислены в README.md.
+Статус: реализованы основа темы и стандартные семейства контролов, 2026-10-24. Актуальные API, проверенные сценарии и ограничения перечислены в README.md. Полный каталог MD3 ещё не закрыт.
 
 ## Цель и границы
 
 Библиотека Material Design 3 + Material 3 Expressive для Avalonia: тема стандартных контролов и отдельные контролы там, где стандартный контракт не выражает поведение Material. Конечная цель — весь каталог ниже, а не только изменение цветов Fluent.
 
-После согласования архитектуры начат первый этап реализации. Предлагаемые API ниже остаются целевым контрактом: Motion и MaterialAssist пока не реализованы. Реализованные API: MaterialTheme.SeedColor, MaterialTheme.Contrast и переключение ThemeVariant.
+Реализованы токены, MaterialTheme (SeedColor/Contrast/FontFamily/Motion), MaterialAssist, MaterialTypography, стандартные шаблоны и специализированные MaterialRangeSlider/CircularProgressIndicator/RichTooltip. Дополнительные компоненты ниже остаются целевым контрактом до их реализации.
 
 Нативные Android/iOS оболочки, XR и маршрутизатор приложения не входят в библиотеку компонентов. Это не исключает поддержку ввода touch, адаптивных размеров, RTL и экранных дикторов на поддерживаемых Avalonia платформах. Поддержка каждой платформы заявляется только после проверки на ней.
 
@@ -28,13 +28,13 @@ tests/ExpressiveAvalonia.Tests/
 
 Выпускается один NuGet-пакет `ExpressiveAvalonia`. Каталог и тесты в него не входят. Пространства имён: `ExpressiveAvalonia.Theming`, `ExpressiveAvalonia.Controls`. Внутренние primitives не становятся публичным API без самостоятельного пользовательского сценария.
 
-Предлагаемая база первой реализации: Avalonia 12.1.4, библиотека `net8.0`, каталог и тесты `net10.0`. Наличие версии Avalonia проверено по NuGet; совместимость выбранного TFM нужно подтвердить восстановлением пакетов до написания компонентов. Avalonia 11 — отдельное решение по поддержке, а не неявная совместимость.
+База реализации: Avalonia 12.1.4, библиотека net8.0, каталог и тесты net10.0. Restore/build и desktop smoke выполнены на Windows. Avalonia 11 — отдельное решение по поддержке, не неявная совместимость.
 
 Не зависеть от FluentTheme или SimpleTheme: иначе отсутствующие шаблоны скрывают пробелы Material и создают две системы токенов. Использовать стандартные контролы и инфраструктуру Avalonia, собственные ControlTheme и необходимые служебные шаблоны. Отдельный MVVM-фреймворк библиотеке не нужен.
 
 ## Контракт темы
 
-Предлагаемый пользовательский синтаксис, ещё не реализованный API:
+Реализованный пользовательский синтаксис:
 
 ```xml
 <Application xmlns="https://github.com/avaloniaui"
@@ -71,7 +71,11 @@ tests/ExpressiveAvalonia.Tests/
 
 ## Матрица покрытия
 
-Все семейства пока не завершены. Buttons: **реализуется**, есть начальный filled-шаблон со state layers, focus ring и disabled; варианты и Expressive shape/motion не завершены. Остальные строки: **не реализовано**. Имена новых контролов ниже — проектируемый API, не существующие классы. Готовность оценивается по вариантам, состояниям и поведению, а не наличию класса.
+Статус **реализовано, не сертификат визуального соответствия**: Buttons, Icon buttons, Checkbox, Radio buttons, Switch, Text fields, Sliders, Progress, Lists, Tabs, Menus, Tooltips, Dividers. Наличие шаблона, успешная сборка и поведенческие проверки сами по себе не подтверждают соответствие MD3. Приёмка платформ ограничена Windows; физический touch и скринридер не проверены. Progress реализует стандартный rounded/gapped вариант, не wavy. Lists используют нативный ListBoxItem с опциональной anatomy MaterialList (headline/supporting/leading/trailing, 1–3 строки). Остальные строки: **не реализовано**; названия соответствующих классов — проектируемый API. Calendar — инфраструктура, не завершённый date picker.
+
+Проверка основы: HCT-векторы Google закреплены в ColorReferenceTests (официальный commit bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3); typography tracking/emphasis — AndroidX TypeScaleTokens v0_103; тени — Material Web key/ambient geometry. Motion поддерживает retarget с сохранением скорости, остановку/завершение при detach/reduced motion. Автоматический reduced motion доступен Windows; на других платформах задаётся явно.
+
+Доступные служебные шаблоны: Window с VisualLayerManager, ScrollViewer/ScrollBar, Thumb/RepeatButton, ContentControl/presenters, Separator, ComboBox и Calendar primitives, PopupRoot/OverlayPopupHost. FluentTheme и SimpleTheme не подключаются.
 
 | Семейство | Варианты в объёме | База Avalonia / предлагаемый API | Условия готовности сверх визуала |
 | --- | --- | --- | --- |

@@ -1,75 +1,129 @@
 # ExpressiveAvalonia
 
-Библиотека Material Design 3 + Material 3 Expressive для Avalonia. **В разработке; полного покрытия компонентов пока нет.**
+Material Design 3 + Material 3 Expressive для Avalonia. Библиотека развивается; весь каталог MD3 пока не покрыт.
 
-## Текущее состояние
+## Реализовано
 
-- Avalonia 12.1.4; библиотека `net8.0`, desktop-каталог `net10.0`.
-- `MaterialTheme`: `SeedColor`, `Contrast` от -1 до 1, light/dark и локальный `ThemeVariantScope`.
-- HCT Tonal Spot / Spec2021: 49 цветовых ролей и соответствующие brushes. Это классическая схема MD3, не Expressive Spec2025.
-- Базовые токены: 15 типографических стилей, shape, state-layer opacity, elevation distances и durations.
-- Начальный filled Button: state layers, focus ring, disabled. Остальные варианты и Expressive shape/motion ещё не реализованы.
-- Каталог с переключением темы, seed и контраста. Нет зависимости от FluentTheme/SimpleTheme.
+Avalonia 12.1.4, библиотека `net8.0`, desktop-каталог и тесты `net10.0`. Нет зависимости от FluentTheme/SimpleTheme.
 
-## Запуск из репозитория
+- `MaterialTheme`: динамические `SeedColor`, `Contrast` (-1…1), `FontFamily`, `Motion` (Expressive/Reduced); light/dark и локальный ThemeVariantScope.
+- HCT Tonal Spot / Spec2021: 49 цветовых ролей и brushes; эталонные проверки Google для HCT, gamut mapping, light/dark, fixed roles и surface tint при разных контрастах.
+- 15 типографических ролей с line height/tracking и emphasized-вариантами; применяются через `MaterialTypography.Style` и `Emphasized`. По умолчанию встроенный Roboto (SIL OFL 1.1), шрифт заменяемый.
+- Shape, state opacity, elevation distances и двухслойные тени уровней 0…5, durations.
+- Прерываемые springs с сохранением скорости при retarget и shape morph кнопок; без произвольного press scale. Reduced motion немедленно завершает spatial animation; индикаторы прекращают циклическое движение. На Windows учитывается настройка анимаций ОС; на других ОС доступен явный reduced mode.
+- Button/ToggleButton: filled, tonal, outlined, elevated, text; icon mode; пять Expressive-размеров; round/square shape; focus/disabled/state layers.
+- TextBox: filled/outlined, floating label, prefix/suffix, leading/trailing content, supporting/validation text, opt-in password reveal с сокрытием при уходе фокуса. Нативные editing/selection/IME/clipboard APIs сохраняются.
+- CheckBox, RadioButton, ToggleSwitch; switch использует OnContent/OffContent для необязательных иконок.
+- Slider: horizontal/vertical, ticks, snapping, value labels, expressive handle. MaterialRangeSlider: два endpoints, клавиатура/drag/RTL, clamp при пересечении, snapping и отдельные automation providers.
+- ProgressBar и CircularProgressIndicator: determinate/indeterminate; остановка таймеров при detach, скрытии и reduced motion.
+- ListBox/ListBoxItem с виртуализацией и опциональной anatomy через `MaterialList`; primary/secondary tabs, fixed/scrollable headers и стрелки/Home/End.
+- Menu/MenuItem, ContextMenu, MenuFlyout; plain tooltip на hover/focus с Escape; RichTooltip с действиями и возвратом фокуса.
+- Служебные шаблоны Window/visual layers, ScrollViewer/ScrollBar, Thumb, RepeatButton, ContentControl, presenters, Separator, ComboBox, Calendar и popup hosts.
+
+## Запуск и проверки
 
 Нужен .NET SDK 10.
 
 ```sh
 dotnet build ExpressiveAvalonia.slnx
+dotnet test tests/ExpressiveAvalonia.Tests/ExpressiveAvalonia.Tests.csproj
 dotnet run --project samples/ExpressiveAvalonia.Catalog
 ```
-
-Runtime smoke открывает настоящее desktop-окно, проверяет вызов обработчика действия, disabled state, light/dark, локальную тёмную тему, смену seed/контраста и сохранение счётчика. Выводит результат в консоль и сохраняет `artifacts/catalog-smoke.png`:
 
 ```sh
 dotnet run --project samples/ExpressiveAvalonia.Catalog -- --smoke
 ```
 
-Это не проверка физических нажатий мыши/клавиатуры или скринридера. Выполнена на Windows; другие платформы не проверены.
+Desktop smoke проверяет смену темы/seed/контраста и сохранение состояния, затем отрисовывает шесть страниц в light/dark с seed `#6750A4` и `Contrast=0`; открывает/закрывает rich tooltip. Снимки — `artifacts/catalog-light-page-0.png` … `catalog-light-page-5.png` и соответствующие `catalog-dark-page-*.png`.
 
-## Подключение темы
+Страница Ranges остаётся открытой по 15 секунд в каждой теме для проверки indeterminate-анимации через desktop compositor. Дуги CircularProgressIndicator после передачи renderer’у не изменяются: повторное открытие опубликованной StreamGeometry приводило к конкурентному изменению native SKPath и падению Skia `GetFillPath` (`0xC0000005`). Короткая отрисовка и headless-тесты не заменяют эту проверку.
 
-Добавьте ссылку на проект библиотеки или локально собранный пакет. Публикация пакета в NuGet не выполнена.
+Проверено на Windows: 55 автоматических проверок и desktop smoke (12 отрисовок: шесть страниц × две темы). Проверена отрисовка полей, selection controls, slider/progress, lists/tabs и размерных вариантов кнопок. Headless-проверки отправляют события клавиатуры в input pipeline; smoke rich tooltip использует routed Escape. Все сочетания hover/press/focus, физические устройства ввода, скринридеры, mobile, Linux/macOS пока не проверены. Это не сертификат доступности или полного соответствия MD3.
+
+## Подключение
+
+Добавьте ProjectReference или локально собранный NuGet-пакет. Публикация в NuGet не выполнена.
 
 ```xml
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:md="clr-namespace:ExpressiveAvalonia.Theming;assembly=ExpressiveAvalonia"
-             x:Class="Example.App"
-             RequestedThemeVariant="Default">
+             x:Class="Example.App" RequestedThemeVariant="Default">
   <Application.Styles>
-    <md:MaterialTheme SeedColor="#6750A4" Contrast="0" />
+    <md:MaterialTheme SeedColor="#6750A4" Contrast="0" Motion="Expressive" />
   </Application.Styles>
 </Application>
 ```
 
-Не подключайте FluentTheme как скрытую подмену отсутствующих Material-шаблонов. На текущем этапе полноценно оформлен только начальный Button; приложение с другими контролами не получит полную тему.
+Не подключайте FluentTheme для скрытой подмены отсутствующих Material-компонентов.
+
+### Кнопки и текстовые поля
+
+В файле с контролами объявите `xmlns:md="clr-namespace:ExpressiveAvalonia.Theming;assembly=ExpressiveAvalonia"`:
+
+```xml
+<Button Content="Продолжить"
+        md:MaterialAssist.ButtonVariant="Tonal"
+        md:MaterialAssist.ControlSize="Medium"
+        md:MaterialAssist.ButtonShape="Round" />
+<TextBox md:MaterialTextField.Variant="Outlined"
+         md:MaterialTextField.Label="Имя"
+         md:MaterialTextField.SupportingText="Как к вам обращаться?" />
+<TextBlock Text="Заголовок" md:MaterialTypography.Style="HeadlineLarge"
+           md:MaterialTypography.Emphasized="True" />
+```
+
+Icon-only button: `MaterialAssist.IsIconButton="True"`, Content — geometry/icon пользователя, `AutomationProperties.Name` обязателен. ToggleButton использует тот же API.
+
+MaterialTextField дополнительно: `Prefix`, `Suffix`, `LeadingContent`, `TrailingContent`, `ShowPasswordReveal`. Нативный DataValidationErrors остаётся источником ошибок; пользовательские AutomationProperties могут переопределить доступное имя/описание.
+
+### Диапазон и progress
+
+```xml
+<!-- xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls;assembly=ExpressiveAvalonia" -->
+<controls:MaterialRangeSlider Minimum="0" Maximum="100"
+                             LowerValue="20" UpperValue="80"
+                             TickFrequency="10" IsSnapToTickEnabled="True" />
+<controls:CircularProgressIndicator Value="65" Width="48" Height="48" />
+```
+
+Range slider горизонтальный. LowerValue не может превышать UpperValue; endpoints не меняются местами. SmallChange/LargeChange задают шаг клавиатуры. Имена endpoints можно локализовать через шаблон.
+
+### Lists
+
+На нативном `ListBoxItem` доступны `MaterialList.Headline`, `SupportingText`, `LeadingContent`, `TrailingContent`, `LineCount` (1/2/3). Минимальная высота — 56/72/88 dp соответственно. Без `Headline` сохраняются обычные `Content`/`ContentTemplate`. Leading/trailing content принимает пользовательские иконки, аватары или контролы.
+
+### Tabs, rich tooltip и motion
+
+- `MaterialTabs.Variant="Primary|Secondary"`, `MaterialTabs.IsScrollable="True"` на TabControl.
+- `RichTooltip : Flyout`: `Title`, `Content`, `Actions`, `ActionsTemplate`. Назначьте Button.Flyout или вызовите ShowAt(owner); Hide закрывает. Открывается явно, а не hover-таймером, чтобы не красть фокус. Escape/light dismiss используют native flyout lifecycle.
+- `MaterialMotion.IsReduced="True"` наследуется поддеревом. Системный Windows reduced mode имеет приоритет.
+- `MaterialMotion.Animate(owner, from, to, apply, stiffness, dampingRatio)` возвращает IDisposable SpringAnimation; `Retarget(target)` сохраняет текущую скорость. Dispose останавливает и снимает подписки. Отсоединение завершает к целевому значению. Параметры по умолчанию: stiffness 1400, damping ratio 0.9.
 
 ## Ресурсы
 
-- Все цветовые ключи перечислены в `Tokens/MaterialColorScheme.cs`: `Material{Role}Color`. Тема добавляет каждому `Material{Role}Brush`; пример — `MaterialPrimaryBrush`, `MaterialOnPrimaryBrush`, `MaterialSurfaceContainerBrush`.
-- Типографика: `Material{Display|Headline|Title|Body|Label}{Large|Medium|Small}{FontSize|LineHeight|FontWeight}`.
-- Шрифт: `MaterialFontFamily`, по умолчанию системный; Roboto не вложен.
-- Формы: `MaterialShape{None|ExtraSmall|Small|Medium|Large|ExtraLarge|Full}CornerRadius`.
-- State layers: `Material{Hover|Focus|Pressed|Dragged}StateLayerOpacity`.
-- Elevation: `MaterialElevationLevel0` … `MaterialElevationLevel5`, расстояния, не готовые тени.
-- Durations: `MaterialDuration{Short|Medium|Long|ExtraLong}{1|2|3|4}`, значения `TimeSpan`, не физическая модель движения.
+- Цвет: `Material{Role}Color` / `Material{Role}Brush`; полный перечень в `Tokens/MaterialColorScheme.cs`.
+- Типографика: `Material{Display|Headline|Title|Body|Label}{Large|Medium|Small}{FontSize|LineHeight|FontWeight|LetterSpacing}`. Emphasis вставляет `Emphasized` перед последним суффиксом.
+- `MaterialFontFamily`; Roboto не вложен и не загружается по сети.
+- `MaterialShape{None|ExtraSmall|Small|Medium|Large|ExtraLarge|Full}CornerRadius`.
+- `Material{Hover|Focus|Pressed|Dragged}StateLayerOpacity`.
+- `MaterialElevationLevel0` … `5` и `MaterialElevationLevel0Shadow` … `5Shadow`.
+- `MaterialDuration{Short|Medium|Long|ExtraLong}{1|2|3|4}` типа TimeSpan.
 
-Динамические ресурсы применяются через `{DynamicResource MaterialPrimaryBrush}`. Для прямого поиска ресурсов Avalonia передавайте `ActualThemeVariant` в `FindResource`.
+Используйте DynamicResource. В прямом FindResource укажите ActualThemeVariant. Визуальная вертикальная линия: Separator Classes="vertical".
 
-## Ограничения зависимостей
+## Ограничения
 
-Генератор цветов использует `Shirasagi0012.MaterialColorUtilities` 0.2.0 (Apache-2.0). Автор порта помечает его work-in-progress / not production ready. Наличие полного набора ролей не доказывает численное соответствие всем эталонным векторам Google. До production-релиза требуется независимая проверка алгоритма и зависимостей.
+Генератор использует `Shirasagi0012.MaterialColorUtilities` 0.2.0 (Apache-2.0); автор помечает порт WIP. Независимые reference tests проверяют конкретные эталоны, а не весь алгоритм. Scheme — классический Tonal Spot Spec2021/phone, не Spec2025. Seed alpha игнорируется.
 
-Seed alpha игнорируется; цветовые роли непрозрачны. Motion API, Expressive spring animations, enhanced typography, автоматическое reduced motion, MaterialAssist и дополнительные компоненты пока отсутствуют.
+Дополнительные семейства (FAB, chips, cards, dialogs/sheets/snackbar, navigation, carousel, date/time pickers и другие) остаются в [матрице покрытия](docs/architecture.md). Визуальный Calendar инфраструктуры не заменяет полноценный Material date picker. Expressive wavy progress tracks не заявлены; реализованы rounded/gapped tracks и stop marker.
 
-Архитектура, полная матрица и критерии готовности: [docs/architecture.md](docs/architecture.md).
+Сверка стандартных контролов выполнена по [генерируемым AndroidX Material3-токенам](https://github.com/androidx/androidx/tree/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens) и соответствующим реализациям layout/motion: исправлены touch targets/shape кнопок, outlined cutout и affix visibility полей, disabled color roles, switch handle geometry, slider gaps/ticks, progress trajectories, list anatomy и tab indicators. Меню используют baseline MenuTokens, а не новый Expressive StandardMenuTokens. Непроверенные интерактивные состояния не объявляются визуально принятыми.
 
-## Упаковка
+## Упаковка и лицензии
 
 ```sh
 dotnet pack src/ExpressiveAvalonia/ExpressiveAvalonia.csproj -o artifacts/packages
 ```
 
-Лицензия библиотеки — MIT, см. `LICENSE`. Лицензии зависимостей сохраняют самостоятельное действие.
+MIT — `LICENSE`; происхождение токенов и шаблонных паттернов — `NOTICE`, тексты сторонних лицензий — `licenses/`. Лицензии зависимостей самостоятельны.
