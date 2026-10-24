@@ -17,6 +17,14 @@ public sealed class MaterialTheme : Styles
         AvaloniaProperty.Register<MaterialTheme, double>(nameof(Contrast), 0,
             validate: value => double.IsFinite(value) && value >= -1 && value <= 1);
 
+    public static readonly StyledProperty<MaterialMotionMode> MotionProperty =
+        AvaloniaProperty.Register<MaterialTheme, MaterialMotionMode>(nameof(Motion), MaterialMotionMode.Expressive);
+    public static readonly StyledProperty<FontFamily> FontFamilyProperty =
+        AvaloniaProperty.Register<MaterialTheme, FontFamily>(nameof(FontFamily), new FontFamily("avares://ExpressiveAvalonia/Assets/Fonts#Roboto"));
+
+    public MaterialMotionMode Motion { get => GetValue(MotionProperty); set => SetValue(MotionProperty, value); }
+    public FontFamily FontFamily { get => GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
+
     public Color SeedColor
     {
         get => GetValue(SeedColorProperty);
@@ -35,6 +43,8 @@ public sealed class MaterialTheme : Styles
         AvaloniaXamlLoader.Load(this);
         Resources.MergedDictionaries.Add(MaterialTokens.CreateResources());
         UpdateColors();
+        Resources["MaterialFontFamily"] = FontFamily;
+        Resources["MaterialReducedMotion"] = Motion == MaterialMotionMode.Reduced;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -42,6 +52,8 @@ public sealed class MaterialTheme : Styles
         base.OnPropertyChanged(change);
         if (change.Property == SeedColorProperty || change.Property == ContrastProperty)
             UpdateColors();
+        if (change.Property == MotionProperty) Resources["MaterialReducedMotion"] = Motion == MaterialMotionMode.Reduced;
+        if (change.Property == FontFamilyProperty) Resources["MaterialFontFamily"] = FontFamily;
     }
 
     private void UpdateColors()
@@ -66,5 +78,17 @@ public sealed class MaterialTheme : Styles
             var brushKey = key[..^"Color".Length] + "Brush";
             dictionary[brushKey] = new SolidColorBrush(color);
         }
+        // Brushes in detached template dictionaries cannot resolve a control's local variant.
+        // Generate translucent roles alongside their source colors in each variant dictionary.
+        void Translucent(string key, string role, double opacity) =>
+            dictionary[key] = new SolidColorBrush((Color)dictionary[role + "Color"]!, opacity);
+        Translucent("MaterialSelectionDisabledOnSurfaceBrush", "MaterialOnSurface", .38);
+        Translucent("MaterialSwitchDisabledTrackBrush", "MaterialOnSurface", .12);
+        Translucent("MaterialSwitchDisabledOffTrackBrush", "MaterialSurfaceContainerHighest", .12);
+        Translucent("MaterialSwitchDisabledOffIconBrush", "MaterialSurfaceContainerHighest", .38);
+        Translucent("MaterialTextFieldDisabledContentBrush", "MaterialOnSurface", .38);
+        Translucent("MaterialTextFieldDisabledAffixBrush", "MaterialOnSurfaceVariant", .38);
+        Translucent("MaterialTextFieldDisabledOutlineBrush", "MaterialOnSurface", .12);
+        Translucent("MaterialTextFieldDisabledContainerBrush", "MaterialOnSurface", .04);
     }
 }

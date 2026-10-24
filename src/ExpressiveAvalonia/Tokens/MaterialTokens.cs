@@ -19,16 +19,16 @@ public static class MaterialTokens
     /// (md-sys-typescale, md-ref-typeface, md-sys-shape, md-sys-state,
     /// md-sys-elevation, and md-sys-motion).
     /// The Web type scale is converted from rem at its baseline of 16 pixels.
-    /// MaterialFontFamily intentionally uses the platform default, not bundled Roboto;
-    /// applications can override it with an installed or application-provided font.
-    /// Elevation tokens are distances, not shadow definitions. Duration tokens are
-    /// baseline MD3 timing values, not Expressive spring or physics parameters.
+    /// MaterialFontFamily uses bundled Roboto (SIL OFL 1.1); applications can override it.
+    /// Tracking/emphasis and state opacity follow AndroidX Material3 generated tokens.
+    /// Elevation includes distances and corresponding two-layer BoxShadows. Durations
+    /// are baseline timings; spring animation parameters are provided by MaterialMotion.
     /// </remarks>
     public static ResourceDictionary CreateResources()
     {
         var resources = new ResourceDictionary
         {
-            ["MaterialFontFamily"] = FontFamily.Default,
+            ["MaterialFontFamily"] = new FontFamily("avares://ExpressiveAvalonia/Assets/Fonts#Roboto"),
             ["MaterialShapeNoneCornerRadius"] = new CornerRadius(0),
             ["MaterialShapeExtraSmallCornerRadius"] = new CornerRadius(4),
             ["MaterialShapeSmallCornerRadius"] = new CornerRadius(8),
@@ -38,8 +38,8 @@ public static class MaterialTokens
             // Material's full corner uses an oversized radius, clamped by the renderer.
             ["MaterialShapeFullCornerRadius"] = new CornerRadius(9999),
             ["MaterialHoverStateLayerOpacity"] = 0.08d,
-            ["MaterialFocusStateLayerOpacity"] = 0.12d,
-            ["MaterialPressedStateLayerOpacity"] = 0.12d,
+            ["MaterialFocusStateLayerOpacity"] = 0.1d,
+            ["MaterialPressedStateLayerOpacity"] = 0.1d,
             ["MaterialDraggedStateLayerOpacity"] = 0.16d,
             ["MaterialElevationLevel0"] = 0d,
             ["MaterialElevationLevel1"] = 1d,
@@ -81,6 +81,26 @@ public static class MaterialTokens
         AddTypography(resources, "LabelMedium", 12, 16, FontWeight.Medium);
         AddTypography(resources, "LabelSmall", 11, 16, FontWeight.Medium);
 
+        // Tracking and emphasized weights follow AndroidX Material3 TypeScaleTokens v0_103.
+        string[] roles = ["DisplayLarge", "DisplayMedium", "DisplaySmall", "HeadlineLarge", "HeadlineMedium", "HeadlineSmall", "TitleLarge", "TitleMedium", "TitleSmall", "BodyLarge", "BodyMedium", "BodySmall", "LabelLarge", "LabelMedium", "LabelSmall"];
+        double[] tracking = [-0.2, 0, 0, 0, 0, 0, 0, 0.2, 0.1, 0.5, 0.2, 0.4, 0.1, 0.5, 0.5];
+        double[] emphasizedTracking = [0, 0, 0, 0, 0, 0, 0, 0.15, 0.1, 0.15, 0.25, 0.4, 0.1, 0.5, 0.5];
+        for (var i = 0; i < roles.Length; i++)
+        {
+            var prefix = $"Material{roles[i]}";
+            resources[$"{prefix}LetterSpacing"] = tracking[i];
+            resources[$"{prefix}EmphasizedFontSize"] = resources[$"{prefix}FontSize"];
+            resources[$"{prefix}EmphasizedLineHeight"] = resources[$"{prefix}LineHeight"];
+            resources[$"{prefix}EmphasizedLetterSpacing"] = emphasizedTracking[i];
+            resources[$"{prefix}EmphasizedFontWeight"] = roles[i].StartsWith("Label", StringComparison.Ordinal) || roles[i] is "TitleMedium" or "TitleSmall" ? FontWeight.Bold : FontWeight.Medium;
+        }
+        // Two-layer ambient/key shadows. Geometry follows Material Web elevation tokens.
+        resources["MaterialElevationLevel0Shadow"] = BoxShadows.Parse("0 0 0 0 #00000000");
+        resources["MaterialElevationLevel1Shadow"] = BoxShadows.Parse("0 1 2 0 #4D000000, 0 1 3 1 #26000000");
+        resources["MaterialElevationLevel2Shadow"] = BoxShadows.Parse("0 1 2 0 #4D000000, 0 2 6 2 #26000000");
+        resources["MaterialElevationLevel3Shadow"] = BoxShadows.Parse("0 1 3 0 #4D000000, 0 4 8 3 #26000000");
+        resources["MaterialElevationLevel4Shadow"] = BoxShadows.Parse("0 2 3 0 #4D000000, 0 6 10 4 #26000000");
+        resources["MaterialElevationLevel5Shadow"] = BoxShadows.Parse("0 4 4 0 #4D000000, 0 8 12 6 #26000000");
         return resources;
     }
 
