@@ -28,11 +28,11 @@ internal static class StandardControlsGallery
     private static Control Buttons()
     {
         var panel = Panel();
-        foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
+        foreach (var variant in Enum.GetValues<MaterialButtonVariant>().Where(value => value != MaterialButtonVariant.Standard))
         {
             panel.Children.Add(new TextBlock { Text = variant.ToString(), FontSize = 20 });
             var row = new WrapPanel { ItemSpacing = 16, LineSpacing = 16 };
-            foreach (var size in Enum.GetValues<MaterialControlSize>())
+            foreach (var size in new[] { MaterialControlSize.Small })
             {
                 var button = new Button { Content = "Label", VerticalAlignment = VerticalAlignment.Center };
                 MaterialAssist.SetButtonVariant(button, variant);
