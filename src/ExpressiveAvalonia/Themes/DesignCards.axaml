@@ -260,11 +260,13 @@
     <!-- Container visuals and their transitions. -->
     <Style Selector="^ /template/ Border#PART_Card">
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
       <Setter Property="Transitions">
         <Transitions>
           <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
           <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
           <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
         </Transitions>
       </Setter>
     </Style>
@@ -304,8 +306,14 @@
       <Style Selector="^:pressed /template/ Border#StateLayer">
         <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
       </Style>
+      <Style Selector="^:pressed /template/ Border#PART_Card">
+        <Setter Property="RenderTransform" Value="scale(0.99)" />
+      </Style>
       <Style Selector="^:dragged /template/ Border#StateLayer">
         <Setter Property="Opacity" Value="{DynamicResource MaterialDraggedStateLayerOpacity}" />
+      </Style>
+      <Style Selector="^:dragged /template/ Border#PART_Card">
+        <Setter Property="RenderTransform" Value="scale(1.01)" />
       </Style>
       <Style Selector="^:focus-visible /template/ Border#FocusRing">
         <Setter Property="IsVisible" Value="True" />

@@ -411,8 +411,16 @@
                   Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
           <Path Name="AccordionChevron" Width="10" Height="6" Stretch="Uniform"
                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                RenderTransform="rotate(0deg)"
+                RenderTransformOrigin="50%,50%"
                 Data="M 0,0 L 5,6 L 10,0"
-                Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" />
+                Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5">
+            <Path.Transitions>
+              <Transitions>
+                <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort3}" Easing="0.2,0,0,1" />
+              </Transitions>
+            </Path.Transitions>
+          </Path>
           <Border Name="FocusRing" Width="36" Height="36" CornerRadius="9999" Margin="-2"
                   HorizontalAlignment="Center" VerticalAlignment="Center"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="2"
@@ -427,7 +435,7 @@
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
     </Style>
     <Style Selector="^:checked /template/ Path#AccordionChevron">
-      <Setter Property="Data" Value="M 0,6 L 5,0 L 10,6" />
+      <Setter Property="RenderTransform" Value="rotate(180deg)" />
     </Style>
     <Style Selector="^ /template/ Border#StateLayer">
       <Setter Property="Transitions">

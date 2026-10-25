@@ -2,6 +2,8 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 
@@ -413,6 +415,102 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
     }
 
     private Size _arrangedSize;
+    private Point? _origin;
+    private double _progress;
+    private MaterialMotion.SpringAnimation? _spring;
+    private InputElement? _host;
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        DetachHost();
+        _host = this.FindAncestorOfType<Button>() as InputElement ?? this.FindAncestorOfType<InputElement>();
+        if (_host != null)
+        {
+            _host.AddHandler(InputElement.PointerPressedEvent, OnHostPointerPressed, RoutingStrategies.Bubble | RoutingStrategies.Tunnel);
+            _host.AddHandler(InputElement.PointerReleasedEvent, OnHostPointerReleased, RoutingStrategies.Bubble | RoutingStrategies.Tunnel);
+            _host.AddHandler(InputElement.PointerCaptureLostEvent, OnHostPointerReleased, RoutingStrategies.Bubble | RoutingStrategies.Tunnel);
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        DetachHost();
+        _spring?.Dispose();
+        _spring = null;
+    }
+
+    private void DetachHost()
+    {
+        if (_host != null)
+        {
+            _host.RemoveHandler(InputElement.PointerPressedEvent, OnHostPointerPressed);
+            _host.RemoveHandler(InputElement.PointerReleasedEvent, OnHostPointerReleased);
+            _host.RemoveHandler(InputElement.PointerCaptureLostEvent, OnHostPointerReleased);
+            _host = null;
+        }
+    }
+
+    private void OnHostPointerPressed(object? sender, PointerEventArgs e)
+    {
+        _origin = e.GetPosition(this);
+        StartRipple();
+    }
+
+    private void OnHostPointerReleased(object? sender, PointerEventArgs e)
+    {
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == OpacityProperty)
+        {
+            var oldOp = change.GetOldValue<double>();
+            var newOp = change.GetNewValue<double>();
+            if (newOp > 0.001 && oldOp <= 0.001)
+            {
+                StartRipple();
+            }
+            else if (newOp <= 0.001)
+            {
+                _spring?.Dispose();
+                _spring = null;
+                _progress = 0;
+                _origin = null;
+                InvalidateVisual();
+            }
+        }
+    }
+
+    private void StartRipple()
+    {
+        var size = Bounds.Size;
+        if (!(size.Width > 0) || !(size.Height > 0))
+            return;
+
+        _origin ??= new Point(size.Width / 2, size.Height / 2);
+        if (MaterialMotion.GetIsReduced(this))
+        {
+            _progress = 1.0;
+            InvalidateVisual();
+            return;
+        }
+
+        _spring?.Dispose();
+        _spring = MaterialMotion.Animate(
+            this,
+            _progress > 0 ? _progress : 0.0,
+            1.0,
+            p =>
+            {
+                _progress = p;
+                InvalidateVisual();
+            },
+            stiffness: 3200,
+            dampingRatio: 0.95);
+    }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
@@ -434,9 +532,8 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
         var width = RippleWidth;
         var height = RippleHeight;
         var size = Bounds.Size;
-        var geometry = Data ?? Shape;
 
-        if (fill is null || !(width > 0) || !(height > 0) || !(size.Width > 0) || !(size.Height > 0))
+        if (fill is null || !(size.Width > 0) || !(size.Height > 0))
             return;
 
         var limit = Math.Min(size.Width, size.Height) / 2;
@@ -446,14 +543,28 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
             Clamp(corners.TopLeft), Clamp(corners.TopRight),
             Clamp(corners.BottomRight), Clamp(corners.BottomLeft));
 
-        // Right- and bottom-anchored, as in every source variant; overflow is clipped.
-        var ripple = new Rect(size.Width - width, size.Height - height, width, height);
-
         using (context.PushClip(new RoundedRect(new Rect(size), radii)))
-        using (context.PushTransform(Matrix.CreateTranslation(ripple.X, ripple.Y)))
-        using (context.PushTransform(Matrix.CreateScale(ripple.Width, ripple.Height)))
         {
-            context.DrawGeometry(fill, null, geometry);
+            if (Data is not null)
+            {
+                var w = width > 0 ? width : size.Width;
+                var h = height > 0 ? height : size.Height;
+                var ripple = new Rect(size.Width - w, size.Height - h, w, h);
+                using (context.PushTransform(Matrix.CreateTranslation(ripple.X, ripple.Y)))
+                using (context.PushTransform(Matrix.CreateScale(ripple.Width, ripple.Height)))
+                {
+                    context.DrawGeometry(fill, null, Data);
+                }
+            }
+            else
+            {
+                var p = _origin ?? new Point(size.Width / 2, size.Height / 2);
+                var dx = Math.Max(p.X, size.Width - p.X);
+                var dy = Math.Max(p.Y, size.Height - p.Y);
+                var maxRadius = Math.Sqrt(dx * dx + dy * dy);
+                var r = Math.Max(1.0, maxRadius * Math.Max(0.08, _progress));
+                context.DrawEllipse(fill, null, p, r, r);
+            }
         }
     }
 }

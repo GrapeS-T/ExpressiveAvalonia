@@ -100,9 +100,12 @@
     <Style Selector="^ /template/ Path#Check, ^ /template/ Path#Mixed">
       <Setter Property="Fill" Value="{DynamicResource MaterialOnPrimaryBrush}" />
       <Setter Property="Opacity" Value="0" />
+      <Setter Property="RenderTransform" Value="scale(0.7)" />
+      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
       <Setter Property="Transitions">
         <Transitions>
           <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort3}" Easing="0.2,0,0,1" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort3}" Easing="0.05,0.7,0.1,1" />
           <BrushTransition Property="Fill" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
         </Transitions>
       </Setter>
@@ -129,8 +132,14 @@
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="BorderThickness" Value="0" />
     </Style>
-    <Style Selector="^:checked /template/ Path#Check"><Setter Property="Opacity" Value="1" /></Style>
-    <Style Selector="^:indeterminate /template/ Path#Mixed"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="^:checked /template/ Path#Check">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+    </Style>
+    <Style Selector="^:indeterminate /template/ Path#Mixed">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+    </Style>
     <Style Selector="^:checked /template/ Border#StateLayer, ^:indeterminate /template/ Border#StateLayer">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
@@ -250,9 +259,12 @@
     <Style Selector="^ /template/ Path#RadioChecked">
       <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Opacity" Value="0" />
+      <Setter Property="RenderTransform" Value="scale(0)" />
+      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
       <Setter Property="Transitions">
         <Transitions>
           <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort3}" Easing="0.2,0,0,1" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort3}" Easing="0.05,0.7,0.1,1" />
           <BrushTransition Property="Fill" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
         </Transitions>
       </Setter>
@@ -262,7 +274,10 @@
     </Style>
 
     <Style Selector="^:checked /template/ Path#RadioUnchecked"><Setter Property="Opacity" Value="0" /></Style>
-    <Style Selector="^:checked /template/ Path#RadioChecked"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="^:checked /template/ Path#RadioChecked">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+    </Style>
     <Style Selector="^:checked /template/ Border#StateLayer">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>

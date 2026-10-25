@@ -197,6 +197,12 @@
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Elevated] /template/ Border#Surface">
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
     </Style>
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Elevated]:pointerover:not(:disabled) /template/ Border#Surface">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel2Shadow}" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Elevated]:pressed:not(:disabled) /template/ Border#Surface">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+    </Style>
     <!-- TextButtonTokens: label and icon are Primary and the state layer is Primary. The
          container stays transparent in every enabled state. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]">

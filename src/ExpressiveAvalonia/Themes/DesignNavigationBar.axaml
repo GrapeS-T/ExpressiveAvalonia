@@ -57,7 +57,7 @@
         <Border Name="PART_Pill" MinHeight="40" CornerRadius="20" Background="Transparent">
           <Panel>
             <Border Name="PART_Indicator" CornerRadius="20"
-                    Background="{DynamicResource MaterialSecondaryContainerBrush}" IsVisible="False" />
+                    Background="{DynamicResource MaterialSecondaryContainerBrush}" />
             <Border Name="PART_StateLayer" CornerRadius="20"
                     Background="{DynamicResource MaterialOnSurfaceBrush}" Opacity="0" />
             <StackPanel Orientation="Horizontal" Spacing="4" Margin="16,8" VerticalAlignment="Center">
@@ -67,7 +67,7 @@
                       HorizontalAlignment="Center" VerticalAlignment="Center" />
                 <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Width="20" Height="20"
                       Stretch="Uniform" Fill="{DynamicResource MaterialOnSecondaryContainerBrush}"
-                      HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" />
+                      HorizontalAlignment="Center" VerticalAlignment="Center" />
                 <controls:MaterialBadge Name="PART_BadgeSmall" Size="Small" IsVisible="False"
                                         HorizontalAlignment="Right" VerticalAlignment="Top" />
                 <controls:MaterialBadge Name="PART_BadgeLarge" Size="Large" Text="{TemplateBinding BadgeText}"
@@ -110,7 +110,7 @@
             HorizontalAlignment="Center" VerticalAlignment="Center">
         <Grid Name="PART_IconHost" Grid.Row="0" Width="56" Height="32" HorizontalAlignment="Center">
           <Border Name="PART_Indicator" CornerRadius="16"
-                  Background="{DynamicResource MaterialSecondaryContainerBrush}" IsVisible="False" />
+                  Background="{DynamicResource MaterialSecondaryContainerBrush}" />
           <Border Name="PART_StateLayer" CornerRadius="16"
                   Background="{DynamicResource MaterialOnSurfaceBrush}" Opacity="0" />
           <Path Name="PART_Icon" Data="{TemplateBinding Icon}" Width="20" Height="20" Stretch="Uniform"
@@ -118,7 +118,7 @@
                 HorizontalAlignment="Center" VerticalAlignment="Center" />
           <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Width="20" Height="20"
                 Stretch="Uniform" Fill="{DynamicResource MaterialOnSecondaryContainerBrush}"
-                HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" />
+                HorizontalAlignment="Center" VerticalAlignment="Center" />
           <controls:MaterialBadge Name="PART_BadgeSmall" Size="Small" IsVisible="False"
                                   HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,16,0" />
           <controls:MaterialBadge Name="PART_BadgeLarge" Size="Large" Text="{TemplateBinding BadgeText}"
@@ -174,6 +174,17 @@
       <Setter Property="Template" Value="{StaticResource MaterialNavigationBarItemVerticalTemplate}" />
     </Style>
 
+    <Style Selector="^ /template/ Border#PART_Indicator">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="RenderTransform" Value="scale(0.5, 1)" />
+      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort3}" Easing="0.2,0,0,1" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.05,0.7,0.1,1" />
+        </Transitions>
+      </Setter>
+    </Style>
     <Style Selector="^ /template/ Border#PART_StateLayer">
       <Setter Property="Transitions">
         <Transitions>
@@ -190,28 +201,33 @@
       </Setter>
     </Style>
     <Style Selector="^ /template/ Path#PART_Icon">
+      <Setter Property="Opacity" Value="1" />
       <Setter Property="Transitions">
         <Transitions>
           <BrushTransition Property="Fill" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
         </Transitions>
       </Setter>
     </Style>
     <Style Selector="^ /template/ Path#PART_SelectedIcon">
+      <Setter Property="Opacity" Value="0" />
       <Setter Property="Transitions">
         <Transitions>
           <BrushTransition Property="Fill" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
         </Transitions>
       </Setter>
     </Style>
 
     <Style Selector="^:selected /template/ Border#PART_Indicator">
-      <Setter Property="IsVisible" Value="True" />
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="scale(1, 1)" />
     </Style>
     <Style Selector="^:selected /template/ Path#PART_Icon">
-      <Setter Property="IsVisible" Value="False" />
+      <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:selected /template/ Path#PART_SelectedIcon">
-      <Setter Property="IsVisible" Value="True" />
+      <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="^:vertical:selected /template/ TextBlock#PART_Label">
       <Setter Property="Foreground" Value="{DynamicResource MaterialSecondaryBrush}" />

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -111,6 +112,8 @@ public sealed class MaterialStateLayer : Control
     private MaterialStateLayerState _effectiveState = MaterialStateLayerState.Enabled;
     private bool _pointerOver;
     private bool _pressed;
+    private double _currentOpacity;
+    private MaterialMotion.SpringAnimation? _opacitySpring;
 
     static MaterialStateLayer()
     {
@@ -210,7 +213,7 @@ public sealed class MaterialStateLayer : Control
     {
         base.Render(context);
         var state = _effectiveState;
-        if (state == MaterialStateLayerState.Enabled)
+        if (state == MaterialStateLayerState.Enabled && _currentOpacity <= 0.001)
         {
             // An interactive layer must be hit-testable while resting, otherwise hover can
             // never start. A Control that paints nothing receives no pointer input.
@@ -223,18 +226,14 @@ public sealed class MaterialStateLayer : Control
         if (state == MaterialStateLayerState.Dragged && SurfaceFill is not null)
             context.DrawRectangle(SurfaceFill, null, rounded, Shadow);
 
-        var opacity = state switch
+        if (_currentOpacity <= 0.001 || Background is null)
         {
-            MaterialStateLayerState.Hovered => HoverOpacity,
-            MaterialStateLayerState.Focused => FocusOpacity,
-            MaterialStateLayerState.Pressed => PressedOpacity,
-            MaterialStateLayerState.Dragged => DraggedOpacity,
-            _ => 0,
-        };
-        if (opacity <= 0 || Background is null)
+            if (IsInteractive)
+                context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
             return;
+        }
 
-        using (context.PushOpacity(opacity))
+        using (context.PushOpacity(_currentOpacity))
             context.DrawRectangle(Background, null, rounded);
     }
 
@@ -301,6 +300,14 @@ public sealed class MaterialStateLayer : Control
         UpdateEffectiveState();
     }
 
+    /// <inheritdoc />
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _opacitySpring?.Dispose();
+        _opacitySpring = null;
+    }
+
     private void UpdateEffectiveState()
     {
         var state = ResolveState();
@@ -310,7 +317,38 @@ public sealed class MaterialStateLayer : Control
         var old = _effectiveState;
         _effectiveState = state;
         RaisePropertyChanged(EffectiveStateProperty, old, state);
-        InvalidateVisual();
+
+        var targetOpacity = state switch
+        {
+            MaterialStateLayerState.Hovered => HoverOpacity,
+            MaterialStateLayerState.Focused => FocusOpacity,
+            MaterialStateLayerState.Pressed => PressedOpacity,
+            MaterialStateLayerState.Dragged => DraggedOpacity,
+            _ => 0.0,
+        };
+
+        if (!IsInteractive || MaterialMotion.GetIsReduced(this))
+        {
+            _opacitySpring?.Dispose();
+            _opacitySpring = null;
+            _currentOpacity = targetOpacity;
+            InvalidateVisual();
+        }
+        else
+        {
+            _opacitySpring?.Dispose();
+            _opacitySpring = MaterialMotion.Animate(
+                this,
+                _currentOpacity,
+                targetOpacity,
+                val =>
+                {
+                    _currentOpacity = val;
+                    InvalidateVisual();
+                },
+                stiffness: targetOpacity > _currentOpacity ? 2800 : 1800,
+                dampingRatio: 1.0);
+        }
     }
 
     private MaterialStateLayerState ResolveState()
