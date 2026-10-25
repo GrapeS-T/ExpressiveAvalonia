@@ -18,6 +18,7 @@ internal static class StandardControlsGallery
         pages.Items.Add(new TabItem { Header = "Ranges", Content = new DeferredGallery(Ranges) });
         pages.Items.Add(new TabItem { Header = "Collections", Content = new DeferredGallery(Collections) });
         pages.Items.Add(new TabItem { Header = "Tabs", Content = new DeferredGallery(TabsGallery.CreateClassic) });
+        pages.Items.Add(new TabItem { Header = "Search", Content = new DeferredGallery(SearchGallery.CreateClassic) });
         pages.Items.Add(new TabItem { Header = "Typography", Content = new DeferredGallery(() => Typography(theme)) });
         return pages;
     }

@@ -102,6 +102,8 @@ internal sealed class CatalogInspector : ScrollViewer
             _pageSettings.Children.Add(fields.Settings);
         if (descendants.OfType<TabsPlayground>().FirstOrDefault() is { } tabs)
             _pageSettings.Children.Add(tabs.Settings);
+        if (descendants.OfType<SearchPlayground>().FirstOrDefault() is { } search)
+            _pageSettings.Children.Add(search.Settings);
         _menus = descendants.OfType<MaterialFabMenu>().ToArray();
         if (_menus.Length > 0) BuildMenus();
         var hasButtons = descendants.OfType<Button>().Any(b => b is not MaterialFabBase) || descendants.OfType<ViewportGallery>().Any();
