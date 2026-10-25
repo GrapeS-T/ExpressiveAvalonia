@@ -61,13 +61,13 @@ public static class FabGallery
         });
         panel.Children.Add(status);
         panel.Children.Add(Heading("FAB — 56 / 80 / 96, six roles"));
-        panel.Children.Add(FabGrid());
+        panel.Children.Add(new ViewportGallery(FabGrid, 280));
 
         panel.Children.Add(Heading("Extended FAB — Small / Medium / Large, six roles"));
-        panel.Children.Add(ExtendedGrid());
+        panel.Children.Add(new ViewportGallery(ExtendedGrid, 280));
 
         panel.Children.Add(Heading("Extended FAB — expand and collapse"));
-        panel.Children.Add(ExtendedCollapseDemo());
+        panel.Children.Add(new ViewportGallery(ExtendedCollapseDemo, 80));
 
 
         return new ScrollViewer

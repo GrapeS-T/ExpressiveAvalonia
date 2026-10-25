@@ -97,6 +97,7 @@ internal sealed partial class CatalogWindow
         body.Children.Add(Inspector);
         Content = body;
         ChangeSection(true);
+        Opened += (_, _) => { if (CurrentPage is { } page) Inspector.SetPage(page, _isExpressive); };
     }
 
     private Border Surface(Control child, string brush, double radius)
@@ -118,7 +119,7 @@ internal sealed partial class CatalogWindow
             _navigation.Items.Add(new MaterialNavigationRailItem { Content = item.Header, Icon = NavigationIcon(item.Header?.ToString()), ShowLabel = true });
         _navigation.SelectedIndex = 0;
         _changingSection = false;
-        SelectPage(expressive, 0);
+        if (pages.ItemCount > 0) SelectPage(expressive, 0);
     }
 
     private static Geometry NavigationIcon(string? page) => Geometry.Parse(page switch
@@ -139,14 +140,25 @@ internal sealed partial class CatalogWindow
     {
         if (_isExpressive != expressive)
         {
-            ChangeSection(expressive);
+            _isExpressive = expressive;
+            _changingSection = true;
+            _edition.IsChecked = expressive;
+            _edition.Content = expressive ? "MD3E" : "MD3";
+            var destinations = expressive ? ExpressivePages : ClassicPages;
+            _navigation.Items.Clear();
+            foreach (var destination in destinations.Items.Cast<TabItem>())
+                _navigation.Items.Add(new MaterialNavigationRailItem { Content = destination.Header, Icon = NavigationIcon(destination.Header?.ToString()), ShowLabel = true });
+            _changingSection = false;
         }
         var pages = expressive ? ExpressivePages : ClassicPages;
         var item = (TabItem)pages.Items[index]!;
         if (_selectedItem != item)
         {
             var previous = CurrentPage;
-            if (previous is not null) previous.PropertyChanged -= PreviewSizeChanged;
+            if (previous is not null)
+            {
+                previous.PropertyChanged -= PreviewSizeChanged;
+            }
             SetPreviewContent(null);
             if (_selectedItem is not null) _selectedItem.Content = previous;
             var page = (Control)item.Content!;
@@ -164,6 +176,7 @@ internal sealed partial class CatalogWindow
         _sectionLabel.Text = expressive ? "MD3 EXPRESSIVE / РАСШИРЕННЫЕ КОМПОНЕНТЫ" : "MD3 CLASSIC / БАЗОВЫЕ КОНТРОЛЫ";
         _pageTitle.Text = item.Header?.ToString();
     }
+
 
     private void PreviewSizeChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {

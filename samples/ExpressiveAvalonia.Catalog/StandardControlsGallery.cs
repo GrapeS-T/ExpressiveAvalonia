@@ -12,12 +12,12 @@ internal static class StandardControlsGallery
     public static Control Create(MaterialTheme theme)
     {
         var pages = new TabControl();
-        pages.Items.Add(new TabItem { Header = "Buttons", Content = Buttons() });
-        pages.Items.Add(new TabItem { Header = "Input", Content = Input() });
-        pages.Items.Add(new TabItem { Header = "Selection", Content = Selection() });
-        pages.Items.Add(new TabItem { Header = "Ranges", Content = Ranges() });
-        pages.Items.Add(new TabItem { Header = "Collections", Content = Collections() });
-        pages.Items.Add(new TabItem { Header = "Typography", Content = Typography(theme) });
+        pages.Items.Add(new TabItem { Header = "Buttons", Content = new DeferredGallery(Buttons) });
+        pages.Items.Add(new TabItem { Header = "Input", Content = new DeferredGallery(Input) });
+        pages.Items.Add(new TabItem { Header = "Selection", Content = new DeferredGallery(Selection) });
+        pages.Items.Add(new TabItem { Header = "Ranges", Content = new DeferredGallery(Ranges) });
+        pages.Items.Add(new TabItem { Header = "Collections", Content = new DeferredGallery(Collections) });
+        pages.Items.Add(new TabItem { Header = "Typography", Content = new DeferredGallery(() => Typography(theme)) });
         return pages;
     }
 

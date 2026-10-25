@@ -23,8 +23,8 @@ public static class AssetsGallery
     public static Control Create()
     {
         var tabs = new TabControl();
-        tabs.Items.Add(new TabItem { Header = "Icons", Content = IconsPage() });
-        tabs.Items.Add(new TabItem { Header = "Tonal palettes", Content = PalettePage() });
+        tabs.Items.Add(new TabItem { Header = "Icons", Content = new DeferredGallery(() => IconsPage()) });
+        tabs.Items.Add(new TabItem { Header = "Tonal palettes", Content = new DeferredGallery(() => PalettePage()) });
         return tabs;
     }
 
@@ -68,7 +68,7 @@ public static class AssetsGallery
 
             grid.Children.Clear();
             foreach (var icon in matches)
-                grid.Children.Add(Tile(icon, status));
+                grid.Children.Add(new ViewportGallery(() => Tile(icon, status), 72) { Width = 120 });
 
             var duplicates = MaterialIcons.All
                 .GroupBy(icon => icon.Name, StringComparer.Ordinal)

@@ -59,6 +59,8 @@ internal sealed class CatalogInspector : ScrollViewer
         return panel;
     }
 
+    private sealed record OriginalButtonSize(MaterialControlSize Size);
+
     internal void SetPage(Control page, bool expressive)
     {
         _restorePage?.Invoke();
@@ -117,20 +119,26 @@ internal sealed class CatalogInspector : ScrollViewer
         var rtl = new ToggleSwitch { Content = "Справа налево (RTL)" };
         rtl.IsCheckedChanged += (_, _) => page.FlowDirection = rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
         states.Children.Add(rtl);
-        var buttons = descendants.OfType<Button>().Where(b => b is not MaterialFabBase).ToArray();
-        if (buttons.Length > 0 && _menus.Length == 0)
+        var hasButtons = descendants.OfType<Button>().Any(b => b is not MaterialFabBase) || descendants.OfType<ViewportGallery>().Any();
+        if (hasButtons && _menus.Length == 0)
         {
             var sizes = Section("Размер кнопок", true);
             var size = new ComboBox { ItemsSource = new[] { "Как в примере", "ExtraSmall", "Small", "Medium", "Large", "ExtraLarge" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-            var originals = buttons.Select(MaterialAssist.GetControlSize).ToArray();
-            _restorePage = () =>
+            var originals = new System.Runtime.CompilerServices.ConditionalWeakTable<Button, OriginalButtonSize>();
+            void ApplySize()
             {
-                for (var i = 0; i < buttons.Length; i++) MaterialAssist.SetControlSize(buttons[i], originals[i]);
-            };
+                var selected = size.SelectedIndex <= 0 ? (MaterialControlSize?)null : Enum.Parse<MaterialControlSize>((string)size.SelectedItem!);
+                page.SetValue(ViewportGallery.SizeOverrideProperty, selected);
+                foreach (var button in page.GetLogicalDescendants().OfType<Button>().Where(b => b is not MaterialFabBase))
+                {
+                    var original = originals.GetValue(button, b => new OriginalButtonSize(MaterialAssist.GetControlSize(b)));
+                    MaterialAssist.SetControlSize(button, selected ?? original.Size);
+                }
+            }
+            _restorePage = () => page.ClearValue(ViewportGallery.SizeOverrideProperty);
             size.SelectionChanged += (_, _) =>
             {
-                for (var i = 0; i < buttons.Length; i++)
-                    MaterialAssist.SetControlSize(buttons[i], size.SelectedIndex <= 0 ? originals[i] : Enum.Parse<MaterialControlSize>((string)size.SelectedItem!));
+                ApplySize();
             };
             sizes.Children.Add(size);
         }

@@ -17,11 +17,11 @@ public static class ShapesGallery
     public static Control Create()
     {
         var pages = new TabControl();
-        pages.Items.Add(new TabItem { Header = "Shapes", Content = Shapes() });
-        pages.Items.Add(new TabItem { Header = "Dividers", Content = Dividers() });
-        pages.Items.Add(new TabItem { Header = "Scrim", Content = Scrim() });
-        pages.Items.Add(new TabItem { Header = "Focus indicator", Content = FocusIndicator() });
-        pages.Items.Add(new TabItem { Header = "State layers", Content = StateLayers() });
+        pages.Items.Add(new TabItem { Header = "Shapes", Content = new DeferredGallery(() => Shapes()) });
+        pages.Items.Add(new TabItem { Header = "Dividers", Content = new DeferredGallery(() => Dividers()) });
+        pages.Items.Add(new TabItem { Header = "Scrim", Content = new DeferredGallery(() => Scrim()) });
+        pages.Items.Add(new TabItem { Header = "Focus indicator", Content = new DeferredGallery(() => FocusIndicator()) });
+        pages.Items.Add(new TabItem { Header = "State layers", Content = new DeferredGallery(() => StateLayers()) });
         return pages;
     }
 

@@ -14,10 +14,10 @@ public static class SlidersGallery
     public static Control Create()
     {
         var pages = new TabControl();
-        pages.Items.Add(new TabItem { Header = "Sizes", Content = Scroll(Sizes()) });
-        pages.Items.Add(new TabItem { Header = "Centered", Content = Scroll(Centered()) });
-        pages.Items.Add(new TabItem { Header = "Range", Content = Scroll(Ranges()) });
-        pages.Items.Add(new TabItem { Header = "States", Content = Scroll(States()) });
+        pages.Items.Add(new TabItem { Header = "Sizes", Content = new DeferredGallery(() => Scroll(Sizes())) });
+        pages.Items.Add(new TabItem { Header = "Centered", Content = new DeferredGallery(() => Scroll(Centered())) });
+        pages.Items.Add(new TabItem { Header = "Range", Content = new DeferredGallery(() => Scroll(Ranges())) });
+        pages.Items.Add(new TabItem { Header = "States", Content = new DeferredGallery(() => Scroll(States())) });
         return pages;
     }
 

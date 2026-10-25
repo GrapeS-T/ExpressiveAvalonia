@@ -49,6 +49,8 @@ public static class ButtonsGallery
         panel.Children.Add(Caption("Labeled buttons - variants x sizes (press to see the source ripple)"));
         foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
         {
+            panel.Children.Add(new ViewportGallery(() =>
+            {
             var row = Row();
             row.Children.Add(new TextBlock
             {
@@ -62,7 +64,8 @@ public static class ButtonsGallery
                 button.Click += (_, _) => Count();
                 row.Children.Add(button);
             }
-            panel.Children.Add(row);
+                return row;
+            }, 136));
         }
 
         // Shape axis: Round and Square at every size for a filled and an outlined button.
@@ -71,6 +74,8 @@ public static class ButtonsGallery
         {
             foreach (var shape in Enum.GetValues<MaterialButtonShape>())
             {
+                panel.Children.Add(new ViewportGallery(() =>
+                {
                 var row = Row();
                 row.Children.Add(new TextBlock
                 {
@@ -82,7 +87,8 @@ public static class ButtonsGallery
                 {
                     row.Children.Add(Labeled("Label", variant, size, shape));
                 }
-                panel.Children.Add(row);
+                    return row;
+                }, 136));
             }
         }
 
@@ -90,6 +96,8 @@ public static class ButtonsGallery
         panel.Children.Add(Caption("Icon buttons - widths per size (Filled)"));
         foreach (var size in Enum.GetValues<MaterialControlSize>())
         {
+            panel.Children.Add(new ViewportGallery(() =>
+            {
             var row = Row();
             row.Children.Add(new TextBlock
             {
@@ -103,7 +111,8 @@ public static class ButtonsGallery
                 button.Click += (_, _) => Count();
                 row.Children.Add(button);
             }
-            panel.Children.Add(row);
+                return row;
+            }, 136));
         }
 
         panel.Children.Add(Caption("Icon buttons - variants (Medium, Default width)"));
@@ -120,6 +129,8 @@ public static class ButtonsGallery
         panel.Children.Add(Caption("Labeled toggle buttons - selected / unselected"));
         foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
         {
+            panel.Children.Add(new ViewportGallery(() =>
+            {
             var row = Row();
             row.Children.Add(new TextBlock
             {
@@ -132,13 +143,16 @@ public static class ButtonsGallery
                 row.Children.Add(LabeledToggle("Label", variant, shape, false));
                 row.Children.Add(LabeledToggle("Label", variant, shape, true));
             }
-            panel.Children.Add(row);
+                return row;
+            }, 48));
         }
 
         // Icon toggles: the selected glyph is swapped through MaterialAssist.SelectedIcon.
         panel.Children.Add(Caption("Icon toggle buttons - glyph swap"));
         foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
         {
+            panel.Children.Add(new ViewportGallery(() =>
+            {
             var row = Row();
             row.Children.Add(new TextBlock
             {
@@ -151,7 +165,8 @@ public static class ButtonsGallery
                 row.Children.Add(IconToggle(variant, shape, false));
                 row.Children.Add(IconToggle(variant, shape, true));
             }
-            panel.Children.Add(row);
+                return row;
+            }, 48));
         }
 
         // Disabled states keep the container treatment and drop the state layer.
