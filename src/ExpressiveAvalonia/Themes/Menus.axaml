@@ -42,7 +42,7 @@
     <Setter Property="md:MaterialMenu.PopupScrollBarVisibility" Value="Hidden" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Name="Root" BorderBrush="{TemplateBinding BorderBrush}"
+        <Border Name="Root" Background="Transparent" BorderBrush="{TemplateBinding BorderBrush}"
                 BorderThickness="{TemplateBinding BorderThickness}"
                 CornerRadius="{TemplateBinding CornerRadius}"
                 Padding="{TemplateBinding Padding}">
@@ -666,7 +666,7 @@
           <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
                   CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
           <StackPanel Orientation="Horizontal" Spacing="8" Margin="{TemplateBinding Padding}"
-                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                      HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
             <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                               ContentTemplate="{TemplateBinding ContentTemplate}" RecognizesAccessKey="True"
                               VerticalAlignment="Center"

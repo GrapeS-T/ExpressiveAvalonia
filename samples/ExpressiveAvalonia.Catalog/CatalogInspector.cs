@@ -12,8 +12,16 @@ namespace ExpressiveAvalonia.Catalog;
 
 internal sealed class CatalogInspector : ScrollViewer
 {
+    protected override Type StyleKeyOverride => typeof(ScrollViewer);
+
     private readonly StackPanel _settings = new() { Spacing = 16, Margin = new Thickness(20) };
     private readonly StackPanel _pageSettings = new() { Spacing = 16 };
+    internal StackPanel StudioSettings { get; } = new() { Spacing = 16, Margin = new Thickness(24) };
+    private readonly StackPanel _shared = new() { Spacing = 16 };
+    private bool _previewEnabled = true;
+    private FlowDirection _previewFlow;
+    private double _previewWidth = double.NaN;
+    private double _previewHeight;
     private Control? _page;
     private MaterialFabMenu[] _menus = [];
     private readonly Dictionary<MaterialFabMenu, object[]> _originalItems = new();
@@ -29,9 +37,14 @@ internal sealed class CatalogInspector : ScrollViewer
     {
         Content = _settings;
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+        AllowAutoHide = false;
         _settings.Children.Add(new TextBlock { Text = "Настройка примера", FontSize = 22, FontWeight = FontWeight.Bold });
         _settings.Children.Add(new TextBlock { Text = "Параметры применяются только к области слева.", TextWrapping = TextWrapping.Wrap, FontSize = 13 });
         var global = Section("Оформление студии");
+        _settings.Children.Remove(global);
+        StudioSettings.Children.Add(global);
+        StudioSettings.Children.Add(_shared);
         var dark = new ToggleSwitch { Content = "Тёмная тема", IsChecked = window.ActualThemeVariant == ThemeVariant.Dark };
         var syncingTheme = false;
         dark.IsCheckedChanged += (_, _) =>
@@ -49,6 +62,7 @@ internal sealed class CatalogInspector : ScrollViewer
         reduced.IsCheckedChanged += (_, _) => theme.Motion = reduced.IsChecked == true ? MaterialMotionMode.Reduced : MaterialMotionMode.Expressive;
         global.Children.Add(reduced);
         _settings.Children.Add(_pageSettings);
+        BuildSharedSettings();
     }
 
     private StackPanel Section(string title, bool page = false)
@@ -66,13 +80,6 @@ internal sealed class CatalogInspector : ScrollViewer
         _restorePage?.Invoke();
         _restorePage = null;
         _exerciseCards = null;
-        if (_page is not null)
-        {
-            _page.ClearValue(WidthProperty);
-            _page.ClearValue(MinHeightProperty);
-            _page.ClearValue(IsEnabledProperty);
-            _page.ClearValue(FlowDirectionProperty);
-        }
         foreach (var menu in _menus)
             if (_originalItems.Remove(menu, out var items))
             {
@@ -83,42 +90,16 @@ internal sealed class CatalogInspector : ScrollViewer
         _page = page;
         _pageSettings.Children.Clear();
         _count = null;
+        Offset = default;
+        page.Width = _previewWidth;
+        page.MinHeight = _previewHeight;
+        page.IsEnabled = _previewEnabled;
+        page.FlowDirection = _previewFlow;
         var descendants = page.GetLogicalDescendants().OfType<Control>().Prepend(page).ToArray();
+        if (descendants.OfType<SliderPlayground>().FirstOrDefault() is { } sliders)
+            _pageSettings.Children.Add(sliders.Settings);
         _menus = descendants.OfType<MaterialFabMenu>().ToArray();
         if (_menus.Length > 0) BuildMenus();
-        var layout = Section("Область примера", true);
-        _autoWidth = new CheckBox { Content = "Автоширина", IsChecked = true };
-        _width = new Slider { Minimum = 360, Maximum = 1440, Value = 840, TickFrequency = 40, IsSnapToTickEnabled = true, IsEnabled = false };
-        var widthLabel = new TextBlock { Text = "Ширина: автоматически" };
-        void ApplyWidth()
-        {
-            var auto = _autoWidth.IsChecked == true;
-            _width.IsEnabled = !auto;
-            page.Width = auto ? double.NaN : _width.Value;
-            widthLabel.Text = auto ? "Ширина: автоматически" : $"Ширина: {_width.Value:0} dp";
-        }
-        _autoWidth.IsCheckedChanged += (_, _) => ApplyWidth();
-        _width.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) ApplyWidth(); };
-        layout.Children.Add(_autoWidth);
-        layout.Children.Add(widthLabel);
-        layout.Children.Add(_width);
-        var heightLabel = new TextBlock { Text = "Мин. высота: 0 dp" };
-        var height = new Slider { Minimum = 0, Maximum = 1000, Value = 0, TickFrequency = 50, IsSnapToTickEnabled = true };
-        height.PropertyChanged += (_, e) =>
-        {
-            if (e.Property != RangeBase.ValueProperty) return;
-            page.MinHeight = height.Value;
-            heightLabel.Text = $"Мин. высота: {height.Value:0} dp";
-        };
-        layout.Children.Add(heightLabel);
-        layout.Children.Add(height);
-        var states = Section("Состояние", true);
-        var enabled = new ToggleSwitch { Content = "Элементы доступны", IsChecked = true };
-        enabled.IsCheckedChanged += (_, _) => page.IsEnabled = enabled.IsChecked == true;
-        states.Children.Add(enabled);
-        var rtl = new ToggleSwitch { Content = "Справа налево (RTL)" };
-        rtl.IsCheckedChanged += (_, _) => page.FlowDirection = rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
-        states.Children.Add(rtl);
         var hasButtons = descendants.OfType<Button>().Any(b => b is not MaterialFabBase) || descendants.OfType<ViewportGallery>().Any();
         if (hasButtons && _menus.Length == 0)
         {
@@ -186,6 +167,53 @@ internal sealed class CatalogInspector : ScrollViewer
                 Console.WriteLine("INSPECTOR PASS: card blocks resized to 400 × 360 dp.");
             };
         }
+    }
+    private void BuildSharedSettings()
+    {
+        var layout = new StackPanel { Spacing = 16 };
+        layout.Children.Add(new TextBlock { Text = "Область примера", FontSize = 16, FontWeight = FontWeight.Bold });
+        _shared.Children.Add(layout);
+        _autoWidth = new CheckBox { Content = "Автоширина", IsChecked = true };
+        _width = new Slider { Minimum = 360, Maximum = 1440, Value = 840, TickFrequency = 40, IsSnapToTickEnabled = true, IsEnabled = false };
+        var widthLabel = new TextBlock { Text = "Ширина: автоматически" };
+        void ApplyWidth()
+        {
+            var auto = _autoWidth.IsChecked == true;
+            _width.IsEnabled = !auto;
+            _previewWidth = auto ? double.NaN : _width.Value;
+            if (_page is not null) _page.Width = _previewWidth;
+            widthLabel.Text = auto ? "Ширина: автоматически" : $"Ширина: {_width.Value:0} dp";
+        }
+        _autoWidth.IsCheckedChanged += (_, _) => ApplyWidth();
+        _width.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) ApplyWidth(); };
+        layout.Children.Add(_autoWidth);
+        layout.Children.Add(widthLabel);
+        layout.Children.Add(_width);
+        var heightLabel = new TextBlock { Text = "Мин. высота: 0 dp" };
+        var height = new Slider { Minimum = 0, Maximum = 1000, TickFrequency = 50, IsSnapToTickEnabled = true };
+        height.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != RangeBase.ValueProperty) return;
+            _previewHeight = height.Value;
+            if (_page is not null) _page.MinHeight = _previewHeight;
+            heightLabel.Text = $"Мин. высота: {height.Value:0} dp";
+        };
+        layout.Children.Add(heightLabel);
+        layout.Children.Add(height);
+        var enabled = new ToggleSwitch { Content = "Примеры доступны", IsChecked = true };
+        enabled.IsCheckedChanged += (_, _) =>
+        {
+            _previewEnabled = enabled.IsChecked == true;
+            if (_page is not null) _page.IsEnabled = _previewEnabled;
+        };
+        layout.Children.Add(enabled);
+        var rtl = new ToggleSwitch { Content = "Справа налево (RTL)" };
+        rtl.IsCheckedChanged += (_, _) =>
+        {
+            _previewFlow = rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+            if (_page is not null) _page.FlowDirection = _previewFlow;
+        };
+        layout.Children.Add(rtl);
     }
 
     private void BuildMenus()

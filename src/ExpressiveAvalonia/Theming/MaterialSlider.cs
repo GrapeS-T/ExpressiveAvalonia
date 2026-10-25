@@ -30,8 +30,8 @@ public sealed class MaterialSlider : AvaloniaObject
         AvaloniaProperty.RegisterAttached<MaterialSlider, Control, bool>("ShowValueIndicator", true);
 
     /// <summary>
-    /// Whether the track draws the source's eleven stop indicators (0, 10, ... 100%).
-    /// Ticks from <see cref="Slider.TickFrequency"/> are independent of this flag.
+    /// Shows stop indicators at the values selected by TickFrequency.
+    /// Enable snapping with the same frequency so every indicator is selectable.
     /// </summary>
     public static readonly AttachedProperty<bool> ShowStopsProperty =
         AvaloniaProperty.RegisterAttached<MaterialSlider, Control, bool>("ShowStops");
@@ -43,13 +43,13 @@ public sealed class MaterialSlider : AvaloniaObject
     public static readonly AttachedProperty<bool> IsCenteredProperty =
         AvaloniaProperty.RegisterAttached<MaterialSlider, Control, bool>("IsCentered");
 
-    /// <summary>Whether the leading icon slot is painted at the minimum end of the track.</summary>
+    /// <summary>Shows an inset icon on standard sliders of size Medium, Large or ExtraLarge.</summary>
     public static readonly AttachedProperty<bool> ShowIconProperty =
         AvaloniaProperty.RegisterAttached<MaterialSlider, Control, bool>("ShowIcon");
 
     /// <summary>
     /// Geometry for the leading icon. When unset the source's default icon (volume_up, 24 DIP)
-    /// is used. The glyph is painted on the primary fill, like the source's leading icon.
+    /// is used. The glyph moves to the inactive track when the active track is too short.
     /// </summary>
     public static readonly AttachedProperty<Geometry?> IconProperty =
         AvaloniaProperty.RegisterAttached<MaterialSlider, Control, Geometry?>("Icon");
@@ -371,19 +371,17 @@ public sealed class MaterialSliderTrack : Control
         if (!(maximum > minimum))
             return;
 
-        void Segment(double start, double end, double startRadius, double endRadius, bool active)
+        void Segment(double start, double end, bool active)
         {
             var extent = end - start;
             if (!(extent > 0.01))
                 return;
-            startRadius = Math.Min(startRadius, extent / 2);
-            endRadius = Math.Min(endRadius, extent / 2);
+            // Keep both ends rounded, including the ends facing a handle.
+            var radius = Math.Min(outerRadius, extent / 2);
             var rect = vertical
                 ? new Rect(crossCenter - thickness / 2, start, thickness, extent)
                 : new Rect(start, crossCenter - thickness / 2, extent, thickness);
-            var rounded = vertical
-                ? new RoundedRect(rect, startRadius, startRadius, endRadius, endRadius)
-                : new RoundedRect(rect, startRadius, endRadius, endRadius, startRadius);
+            var rounded = new RoundedRect(rect, radius);
             var brush = enabled ? active ? ActiveBrush : InactiveBrush : DisabledBrush;
             if (brush is null)
                 return;
@@ -436,49 +434,51 @@ public sealed class MaterialSliderTrack : Control
         {
             if (IndicatorBackground is null || IndicatorForeground is null)
                 return;
-            const double width = 48, height = 44;
-            var x = vertical ? crossCenter - handleLength / 2 - 4 - width : position - width / 2;
-            var y = vertical ? position - height / 2 : crossCenter - handleLength / 2 - 4 - height;
-            var rect = new Rect(x, y, width, height);
-            context.DrawRectangle(IndicatorBackground, null, new RoundedRect(rect, height / 2));
             var typeface = new Typeface((owner as TemplatedControl)?.FontFamily ?? FontFamily.Default,
                 FontStyle.Normal, FontWeight.Medium);
             var textLayout = new FormattedText(text, CultureInfo.CurrentCulture,
                 FlowDirection.LeftToRight, typeface, 14, IndicatorForeground);
+            const double height = 44;
+            var width = Math.Max(48, textLayout.Width + 24);
+            var x = vertical ? crossCenter - handleLength / 2 - 4 - width : position - width / 2;
+            var y = vertical ? position - height / 2 : crossCenter - handleLength / 2 - 4 - height;
+            var rect = new Rect(x, y, width, height);
+            context.DrawRectangle(IndicatorBackground, null, new RoundedRect(rect, height / 2));
             context.DrawText(textLayout,
                 new Point(x + (width - textLayout.Width) / 2, y + (height - textLayout.Height) / 2));
         }
 
         void Icon()
         {
-            if (!MaterialSlider.GetShowIcon(owner) || IconBrush is null)
+            if (!MaterialSlider.GetShowIcon(owner) || IconBrush is null || slider is null || centered ||
+                size is MaterialControlSize.ExtraSmall or MaterialControlSize.Small)
                 return;
             var glyph = MaterialSlider.GetDisplayedIcon(owner);
             var iconSize = size == MaterialControlSize.ExtraLarge ? 32.0 : 24.0;
             var inset = 8.0;
-            var x = vertical
-                ? crossCenter - iconSize / 2
-                : reversed ? length - inset - iconSize : inset;
-            var y = vertical
-                ? reversed ? inset : length - inset - iconSize
-                : crossCenter - iconSize / 2;
+            var position = MaterialSlider.Position(MaterialSlider.Fraction(slider.Value, minimum, maximum),
+                length, vertical ? Orientation.Vertical : Orientation.Horizontal, reversed);
+            var minimumAtStart = vertical ? reversed : !reversed;
+            var activeLength = minimumAtStart ? position - 8 : length - position - 8;
+            var onActive = activeLength >= iconSize + inset * 2;
+            var start = onActive ? minimumAtStart : !minimumAtStart;
+            var along = start ? inset : length - inset - iconSize;
+            var x = vertical ? crossCenter - iconSize / 2 : along;
+            var y = vertical ? along : crossCenter - iconSize / 2;
+            var brush = onActive ? IconBrush : ActiveBrush;
             var scale = iconSize / 24;
             using (context.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(x, y)))
-                context.DrawGeometry(IconBrush, null, glyph);
+                context.DrawGeometry(brush, null, glyph);
         }
 
-        // Tick generation is shared by stops, TickFrequency and the source's eleven stops.
-        void Ticks(double handleA, double handleB, Func<double, bool> selected)
+        // Stop indicators and snapping share the same value grid.
+        void Ticks(double handleA, double handleB)
         {
             var showStops = MaterialSlider.GetShowStops(owner);
             var frequency = slider?.TickFrequency ?? range!.TickFrequency;
-            var showFrequency = slider is null
-                ? frequency > 0
-                : frequency > 0 && (slider.TickPlacement != TickPlacement.None || slider.IsSnapToTickEnabled);
+            var showFrequency = showStops || (slider is not null && slider.TickPlacement != TickPlacement.None);
             var step = 0.0;
-            if (showStops)
-                step = 0.1;
-            else if (showFrequency)
+            if (showFrequency && frequency > 0)
             {
                 var steps = (maximum / 2 - minimum / 2) / (frequency / 2);
                 if (!double.IsFinite(steps) || steps <= 0)
@@ -492,27 +492,25 @@ public sealed class MaterialSliderTrack : Control
             for (var fraction = 0.0; fraction <= 1.0001; fraction += step)
             {
                 var position = MaterialSlider.Position(fraction, length, vertical ? Orientation.Vertical : Orientation.Horizontal, reversed);
-                if (Math.Abs(position - handleA) < 4 || Math.Abs(position - handleB) < 4)
+                if (Math.Abs(position - handleA) < 10 || Math.Abs(position - handleB) < 10)
                     continue;
                 if (position < 8 || position > length - 8)
                     continue;
-                Dot(position, selected(position), enabled ? 1 : 0.144);
+                Dot(position, true, enabled ? 1 : 0.144);
             }
         }
 
         if (range is not null)
         {
             var (lower, upper, coincident) = range.GetVisualPositions(length);
-            Segment(0, lower - 8, outerRadius, 2, false);
+            Segment(0, lower - 8, false);
             if (!coincident)
-                Segment(lower, upper, 2, 2, true);
-            Segment(upper + 8, length, 2, outerRadius, false);
+                Segment(lower + 8, upper - 8, true);
+            Segment(upper + 8, length, false);
             if (lower - 8 > 10)
                 Dot(6, true, enabled ? 1 : 0.144);
             if (upper + 8 < length - 10)
                 Dot(length - 6, true, enabled ? 1 : 0.144);
-            if (coincident)
-                Dot((lower + upper) / 2, true, enabled ? 1 : 0.144);
 
             var lowerThumb = range.LowerThumb;
             var upperThumb = range.UpperThumb;
@@ -526,7 +524,7 @@ public sealed class MaterialSliderTrack : Control
                 Indicator(upperActive ? upper : lower,
                     MaterialSlider.FormatValue(upperActive ? range.UpperValue : range.LowerValue, owner));
 
-            Ticks(lower, upper, position => position >= lower && position <= upper);
+            Ticks(lower, upper);
             Icon();
             return;
         }
@@ -546,44 +544,42 @@ public sealed class MaterialSliderTrack : Control
             var center = length / 2;
             if (Math.Abs(handlePosition - center) < 0.5)
             {
-                Segment(0, center - gap, outerRadius, 2, false);
-                Segment(center + gap, length, 2, outerRadius, false);
+                Segment(0, center - gap, false);
+                Segment(center + gap, length, false);
             }
             else if (handlePosition < center)
             {
-                Segment(0, handlePosition - gap, outerRadius, 2, false);
-                Segment(handlePosition + gap, center - 2, 2, 2, true);
-                Segment(center + 2, length, 2, outerRadius, false);
+                Segment(0, handlePosition - gap, false);
+                Segment(handlePosition + gap, center - 2, true);
+                Segment(center + 2, length, false);
             }
             else
             {
-                Segment(0, center - 2, outerRadius, 2, false);
-                Segment(center + 2, handlePosition - gap, 2, 2, true);
-                Segment(handlePosition + gap, length, 2, outerRadius, false);
+                Segment(0, center - 2, false);
+                Segment(center + 2, handlePosition - gap, true);
+                Segment(handlePosition + gap, length, false);
             }
             Dot(6, true, enabled ? 1 : 0.144);
             Dot(length - 6, true, enabled ? 1 : 0.144);
-            Ticks(handlePosition, handlePosition,
-                position => position >= Math.Min(handlePosition, center) && position <= Math.Max(handlePosition, center));
+            Ticks(handlePosition, handlePosition);
         }
         else
         {
             if (activeTowardStart)
             {
-                Segment(0, handlePosition - gap, outerRadius, 2, true);
-                Segment(handlePosition + gap, length, 2, outerRadius, false);
+                Segment(0, handlePosition - gap, true);
+                Segment(handlePosition + gap, length, false);
                 if (handlePosition + gap < length - 10)
                     Dot(length - 6, true, enabled ? 1 : 0.144);
             }
             else
             {
-                Segment(0, handlePosition - gap, outerRadius, 2, false);
-                Segment(handlePosition + gap, length, 2, outerRadius, true);
+                Segment(0, handlePosition - gap, false);
+                Segment(handlePosition + gap, length, true);
                 if (handlePosition - gap > 10)
                     Dot(6, true, enabled ? 1 : 0.144);
             }
-            Ticks(handlePosition, handlePosition,
-                position => activeTowardStart ? position <= handlePosition : position >= handlePosition);
+            Ticks(handlePosition, handlePosition);
         }
 
         Handle(handlePosition, thumb?.IsPointerOver == true, pressed, focusVisible);

@@ -29,7 +29,7 @@ internal sealed partial class CatalogWindow
         ExpressivePages = DesignSystemGallery.Create();
         Inspector = new CatalogInspector(_theme, this);
         var body = new Grid { ColumnDefinitions = new ColumnDefinitions("220,*,380"), ColumnSpacing = 16, Margin = new Thickness(12) };
-        var nav = new Grid { RowDefinitions = new RowDefinitions("56,56,*"), RowSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
+        var nav = new Grid { RowDefinitions = new RowDefinitions("56,56,*,Auto"), RowSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         var collapseIcon = new PathIcon
         {
             Data = Geometry.Parse("M3,6 L15,6 L15,8 L3,8 Z M3,11 L12,11 L12,13 L3,13 Z M3,16 L15,16 L15,18 L3,18 Z M20,7 L22,9 L19,12 L22,15 L20,17 L15,12 Z"),
@@ -73,6 +73,28 @@ internal sealed partial class CatalogWindow
         var railScroll = new ScrollViewer { Content = _navigation, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         Grid.SetRow(railScroll, 2);
         nav.Children.Add(railScroll);
+        var settings = new Button { Content = "Настройки", HorizontalAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(8, 0), Height = 56 };
+        ToolTip.SetTip(settings, "Настройки студии");
+        Avalonia.Automation.AutomationProperties.SetName(settings, "Настройки студии");
+        Window? settingsWindow = null;
+        settings.Click += (_, _) =>
+        {
+            if (settingsWindow is not null) { settingsWindow.Activate(); return; }
+            settingsWindow = new Window
+            {
+                Title = "Настройки студии", Width = 440, Height = 720, MinWidth = 360, MinHeight = 400,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new ScrollViewer { Content = Inspector.StudioSettings, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }
+            };
+            settingsWindow.Closed += (_, _) =>
+            {
+                ((ScrollViewer)settingsWindow.Content!).Content = null;
+                settingsWindow = null;
+            };
+            settingsWindow.Show(this);
+        };
+        Grid.SetRow(settings, 3);
+        nav.Children.Add(settings);
         body.Children.Add(nav);
 
         var stage = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 20, Margin = new Thickness(24) };

@@ -146,7 +146,7 @@ public sealed class MaterialRangeSlider : TemplatedControl
 
     /// <summary>
     /// Handle centers in track coordinates. Coincident endpoints are separated by ten DIP so
-    /// both can be grabbed, and the source's centered stop dot marks the shared position.
+    /// both can be grabbed; no active track is drawn between coincident endpoints.
     /// </summary>
     internal (double Lower, double Upper, bool Coincident) GetVisualPositions(double length)
     {
