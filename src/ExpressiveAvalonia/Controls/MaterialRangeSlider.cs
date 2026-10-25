@@ -134,7 +134,9 @@ public sealed class MaterialRangeSlider : TemplatedControl
             change.Property == FlowDirectionProperty || change.Property == TickFrequencyProperty ||
             change.Property == MaterialAssist.ControlSizeProperty)
             UpdatePositions();
-        if (change.Property == IsEnabledProperty && !IsEffectivelyEnabled)
+        // A drag must stop when the slider or any ancestor is disabled, not only when the
+        // slider's own IsEnabled changes.
+        if (change.Property == InputElement.IsEffectivelyEnabledProperty && !IsEffectivelyEnabled)
             _capturedPointer?.Capture(null);
         (_lowerThumb as MaterialRangeThumb)?.NotifyRangeChanged(change);
         (_upperThumb as MaterialRangeThumb)?.NotifyRangeChanged(change);
@@ -146,7 +148,8 @@ public sealed class MaterialRangeSlider : TemplatedControl
 
     /// <summary>
     /// Handle centers in track coordinates. Coincident endpoints are separated by ten DIP so
-    /// both can be grabbed; no active track is drawn between coincident endpoints.
+    /// both can be grabbed; no active track is drawn between coincident endpoints. The pair is
+    /// kept between the track ends, so neither handle overhangs the rounded track at an extreme.
     /// </summary>
     internal (double Lower, double Upper, bool Coincident) GetVisualPositions(double length)
     {
@@ -165,7 +168,8 @@ public sealed class MaterialRangeSlider : TemplatedControl
         if (Math.Abs(upper - lower) < 10)
         {
             var middle = (lower + upper) / 2;
-            return (middle - 5, middle + 5, coincident);
+            var start = Math.Clamp(middle - 5, 6, Math.Max(6, length - 16));
+            return (start, start + 10, coincident);
         }
         return (lower, upper, coincident);
     }
@@ -180,8 +184,10 @@ public sealed class MaterialRangeSlider : TemplatedControl
         var (lower, upper, _) = GetVisualPositions(_canvas.Bounds.Width);
         // The thumb keeps at least the 48-DIP accessibility target; larger sizes use the
         // source's cross size so the painted handle is centered on a matching target.
-        var target = Math.Max(48, Bounds.Height);
-        var top = Math.Max(0, (_canvas.Bounds.Height - target) / 2);
+        var target = Math.Max(48, _canvas.Bounds.Height);
+        // Center even when the target is taller than the control: clamping the offset to zero
+        // would push the 48-DIP target below the painted handle at the 44-DIP XS and S sizes.
+        var top = (_canvas.Bounds.Height - target) / 2;
         if (_lowerThumb is not null)
         {
             _lowerThumb.Width = target;
@@ -219,7 +225,12 @@ public sealed class MaterialRangeSlider : TemplatedControl
         if (_activeThumb is null)
             return;
         var center = useUpper ? upper : lower;
-        _grabOffset = Math.Abs(point.X - center) <= 24 ? point.X - center : 0;
+        // Pressing anywhere inside the thumb's accessibility target grabs the handle without
+        // jumping; the target is the source cross size, so the radius is not always 24 DIP.
+        var grabRadius = double.IsFinite(_activeThumb.Width) && _activeThumb.Width > 0
+            ? _activeThumb.Width / 2
+            : 24;
+        _grabOffset = Math.Abs(point.X - center) <= grabRadius ? point.X - center : 0;
         _activeThumb.Focus(NavigationMethod.Pointer);
         (_activeThumb as MaterialRangeThumb)?.SetDragging(true);
         _capturedPointer = e.Pointer;
@@ -264,7 +275,7 @@ public sealed class MaterialRangeSlider : TemplatedControl
 
     private void SetFromPoint(double x)
     {
-        if (Travel <= 0)
+        if (Travel <= 0 || !IsEffectivelyEnabled)
             return;
         var fraction = Math.Clamp((x - 6 - _grabOffset) / Travel, 0, 1);
         SetEndpoint(_activeThumb == _upperThumb, Minimum * (1 - fraction) + Maximum * fraction);
@@ -339,7 +350,7 @@ internal sealed class MaterialRangeThumb : Thumb
     protected override void OnGotFocus(FocusChangedEventArgs e)
     {
         base.OnGotFocus(e);
-        IsFocusVisible = e.NavigationMethod != NavigationMethod.Pointer;
+        IsFocusVisible = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional;
         _slider?.InvalidateTrack();
     }
 
