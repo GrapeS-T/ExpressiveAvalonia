@@ -28,12 +28,12 @@ public static class ExamplesGallery
     public static Control Create()
     {
         var tabs = new TabControl();
-        tabs.Items.Add(new TabItem { Header = "Screens", Content = ScreensPage() });
-        tabs.Items.Add(new TabItem { Header = "Layout grid", Content = LayoutPage() });
-        tabs.Items.Add(new TabItem { Header = "Keyboard", Content = KeyboardPage() });
-        tabs.Items.Add(new TabItem { Header = "Building blocks", Content = BlocksPage() });
-        tabs.Items.Add(new TabItem { Header = "Device chrome", Content = ChromePage() });
-        tabs.Items.Add(new TabItem { Header = "Color schematic", Content = SchematicPage() });
+        tabs.Items.Add(new TabItem { Header = "Screens", Content = new DeferredGallery(() => ScreensPage()) });
+        tabs.Items.Add(new TabItem { Header = "Layout grid", Content = new DeferredGallery(() => LayoutPage()) });
+        tabs.Items.Add(new TabItem { Header = "Keyboard", Content = new DeferredGallery(() => KeyboardPage()) });
+        tabs.Items.Add(new TabItem { Header = "Building blocks", Content = new DeferredGallery(() => BlocksPage()) });
+        tabs.Items.Add(new TabItem { Header = "Device chrome", Content = new DeferredGallery(() => ChromePage()) });
+        tabs.Items.Add(new TabItem { Header = "Color schematic", Content = new DeferredGallery(() => SchematicPage()) });
         return tabs;
     }
 
@@ -67,8 +67,8 @@ public static class ExamplesGallery
     private static Control ScreensPage()
     {
         var tabs = new TabControl();
-        tabs.Items.Add(new TabItem { Header = "Phone", Content = PhoneScreens() });
-        tabs.Items.Add(new TabItem { Header = "Browser", Content = WebScreens() });
+        tabs.Items.Add(new TabItem { Header = "Phone", Content = new DeferredGallery(() => PhoneScreens()) });
+        tabs.Items.Add(new TabItem { Header = "Browser", Content = new DeferredGallery(() => WebScreens()) });
         return tabs;
     }
 
@@ -414,6 +414,8 @@ public static class ExamplesGallery
         var tabs = new TabControl();
         foreach (var configuration in Enum.GetValues<MaterialKeyboardConfiguration>())
         {
+            tabs.Items.Add(new TabItem { Header = configuration.ToString(), Content = new DeferredGallery(() =>
+            {
             var strip = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -452,7 +454,8 @@ public static class ExamplesGallery
                 Content = strip,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
             };
-            tabs.Items.Add(new TabItem { Header = configuration.ToString(), Content = scroll });
+                return scroll;
+            }) });
         }
         return tabs;
     }

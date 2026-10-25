@@ -50,15 +50,6 @@ public static class FabGallery
             TextWrapping = TextWrapping.Wrap
         });
 
-        panel.Children.Add(Heading("FAB — 56 / 80 / 96, six roles"));
-        panel.Children.Add(FabGrid());
-
-        panel.Children.Add(Heading("Extended FAB — Small / Medium / Large, six roles"));
-        panel.Children.Add(ExtendedGrid());
-
-        panel.Children.Add(Heading("Extended FAB — expand and collapse"));
-        panel.Children.Add(ExtendedCollapseDemo());
-
         panel.Children.Add(Heading("FAB menu — primary / secondary / tertiary containers"));
         panel.Children.Add(MenuRow(status));
 
@@ -69,6 +60,15 @@ public static class FabGallery
             TextWrapping = TextWrapping.Wrap
         });
         panel.Children.Add(status);
+        panel.Children.Add(Heading("FAB — 56 / 80 / 96, six roles"));
+        panel.Children.Add(new ViewportGallery(FabGrid, 280));
+
+        panel.Children.Add(Heading("Extended FAB — Small / Medium / Large, six roles"));
+        panel.Children.Add(new ViewportGallery(ExtendedGrid, 280));
+
+        panel.Children.Add(Heading("Extended FAB — expand and collapse"));
+        panel.Children.Add(new ViewportGallery(ExtendedCollapseDemo, 80));
+
 
         return new ScrollViewer
         {
@@ -173,7 +173,7 @@ public static class FabGallery
 
     private static Control MenuRow(TextBlock status)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 32, Height = 420 };
+        var row = new WrapPanel { ItemSpacing = 24, LineSpacing = 24 };
 
         row.Children.Add(Menu(MaterialFabMenuColorRole.PrimaryContainer, "Primary", status, 3));
         row.Children.Add(Menu(MaterialFabMenuColorRole.SecondaryContainer, "Secondary", status, 4));
@@ -206,11 +206,11 @@ public static class FabGallery
             Mode = BindingMode.TwoWay
         };
 
-        var menuHost = new Panel { Height = 380, Children = { menu } };
+        var menuHost = new Panel { Height = 480, Children = { menu } };
         var column = new StackPanel
         {
             Spacing = 8,
-            Width = 220,
+            Width = 180,
             Children = { open, menuHost }
         };
         return column;

@@ -18,34 +18,32 @@ internal static class PreviewExporter
     private static readonly List<string> Cards = new();
     private static int _images;
 
-    public static async Task Export(Window window)
+    public static async Task Export(CatalogWindow window)
     {
         System.IO.Directory.CreateDirectory(DirectoryPath);
-        var root = (TabControl)window.Content!;
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
             window.RequestedThemeVariant = theme;
-            foreach (var groupIndex in new[] { 1, 2 })
+            foreach (var expressive in new[] { false, true })
             {
-                root.SelectedIndex = groupIndex;
-                var group = (TabItem)root.Items[groupIndex]!;
-                var tabs = (TabControl)group.Content!;
+                var tabs = expressive ? window.ExpressivePages : window.ClassicPages;
                 for (var i = 0; i < tabs.ItemCount; i++)
                 {
-                    tabs.SelectedIndex = i;
+                    window.SelectPage(expressive, i);
                     var item = (TabItem)tabs.Items[i]!;
-                    var page = (Control)item.Content!;
-                    item.Content = null;
+                    var page = window.CurrentPage!;
+                    window.SetPreviewContent(null);
                     var original = window.Content;
                     window.Content = page;
                     try
                     {
-                        await CaptureVariants(window, page, $"{theme} / {group.Header} / {item.Header}");
+                        await CaptureVariants(window, page, $"{theme} / {(expressive ? "MD3 Expressive" : "MD3 Classic")} / {item.Header}");
                     }
                     finally
                     {
+                        window.Content = null;
                         window.Content = original;
-                        item.Content = page;
+                        window.SetPreviewContent(page);
                     }
                 }
             }

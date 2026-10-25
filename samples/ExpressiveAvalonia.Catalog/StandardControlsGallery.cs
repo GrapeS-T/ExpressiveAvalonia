@@ -12,12 +12,12 @@ internal static class StandardControlsGallery
     public static Control Create(MaterialTheme theme)
     {
         var pages = new TabControl();
-        pages.Items.Add(new TabItem { Header = "Buttons", Content = Buttons() });
-        pages.Items.Add(new TabItem { Header = "Input", Content = Input() });
-        pages.Items.Add(new TabItem { Header = "Selection", Content = Selection() });
-        pages.Items.Add(new TabItem { Header = "Ranges", Content = Ranges() });
-        pages.Items.Add(new TabItem { Header = "Collections", Content = Collections() });
-        pages.Items.Add(new TabItem { Header = "Typography", Content = Typography(theme) });
+        pages.Items.Add(new TabItem { Header = "Buttons", Content = new DeferredGallery(Buttons) });
+        pages.Items.Add(new TabItem { Header = "Input", Content = new DeferredGallery(Input) });
+        pages.Items.Add(new TabItem { Header = "Selection", Content = new DeferredGallery(Selection) });
+        pages.Items.Add(new TabItem { Header = "Ranges", Content = new DeferredGallery(Ranges) });
+        pages.Items.Add(new TabItem { Header = "Collections", Content = new DeferredGallery(Collections) });
+        pages.Items.Add(new TabItem { Header = "Typography", Content = new DeferredGallery(() => Typography(theme)) });
         return pages;
     }
 
@@ -28,11 +28,11 @@ internal static class StandardControlsGallery
     private static Control Buttons()
     {
         var panel = Panel();
-        foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
+        foreach (var variant in Enum.GetValues<MaterialButtonVariant>().Where(value => value != MaterialButtonVariant.Standard))
         {
             panel.Children.Add(new TextBlock { Text = variant.ToString(), FontSize = 20 });
             var row = new WrapPanel { ItemSpacing = 16, LineSpacing = 16 };
-            foreach (var size in Enum.GetValues<MaterialControlSize>())
+            foreach (var size in new[] { MaterialControlSize.Small })
             {
                 var button = new Button { Content = "Label", VerticalAlignment = VerticalAlignment.Center };
                 MaterialAssist.SetButtonVariant(button, variant);

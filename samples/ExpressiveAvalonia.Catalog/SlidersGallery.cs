@@ -2,201 +2,246 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
-using Avalonia.Media;
+using Avalonia.Styling;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>Source-family gallery for the standard, centered and range sliders.</summary>
+/// <summary>A single live slider with its variants exposed in the inspector.</summary>
 public static class SlidersGallery
 {
-    public static Control Create()
-    {
-        var pages = new TabControl();
-        pages.Items.Add(new TabItem { Header = "Sizes", Content = Scroll(Sizes()) });
-        pages.Items.Add(new TabItem { Header = "Centered", Content = Scroll(Centered()) });
-        pages.Items.Add(new TabItem { Header = "Range", Content = Scroll(Ranges()) });
-        pages.Items.Add(new TabItem { Header = "States", Content = Scroll(States()) });
-        return pages;
-    }
+    public static Control Create() => new SliderPlayground();
+}
 
-    private static StackPanel Panel() => new() { Spacing = 20, Margin = new Thickness(24) };
-    private static Control Scroll(Control content) => new ScrollViewer
-    {
-        Content = content,
-        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-    };
+internal sealed class SliderPlayground : Grid
+{
+    private readonly Border _host = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Slider _single = new() { Minimum = 0, Maximum = 100, Value = 50 };
+    private readonly MaterialRangeSlider _range = new() { Minimum = 0, Maximum = 100, LowerValue = 20, UpperValue = 80 };
+    private readonly InspectorMenuChoice _kind;
+    private readonly InspectorMenuChoice _size;
+    private readonly InspectorMenuChoice _orientation;
+    private readonly NumericUpDown _value;
+    private readonly NumericUpDown _lower;
+    private readonly NumericUpDown _upper;
+    private readonly NumericUpDown _length;
+    private readonly NumericUpDown _points;
+    private readonly TextBlock _readout = new() { HorizontalAlignment = HorizontalAlignment.Center, FontSize = 16 };
+    private readonly ToggleSwitch _stops;
+    private readonly ToggleSwitch _icon;
+    private readonly ToggleSwitch _indicator;
+    private readonly ToggleSwitch _snap;
+    private readonly ToggleSwitch _enabled;
+    private readonly ToggleSwitch _rtl;
+    private bool _syncing;
+    internal StackPanel Settings { get; } = new() { Spacing = 16 };
 
-    private static TextBlock Caption(string text, int size = 16) => new()
+    internal SliderPlayground()
     {
-        Text = text,
-        FontSize = size,
-        FontWeight = FontWeight.Medium,
-    };
-
-    private static Slider Standard(MaterialControlSize size, double value, double width = 320)
-    {
-        var slider = new Slider { Minimum = 0, Maximum = 100, Value = value, Width = width };
-        MaterialAssist.SetControlSize(slider, size);
-        return slider;
-    }
-
-    private static Slider CenteredSlider(MaterialControlSize size, double value, double width = 320)
-    {
-        var slider = new Slider { Minimum = -100, Maximum = 100, Value = value, Width = width };
-        MaterialAssist.SetControlSize(slider, size);
-        MaterialSlider.SetIsCentered(slider, true);
-        return slider;
-    }
-
-    private static MaterialRangeSlider Range(MaterialControlSize size, double lower, double upper, double width = 320)
-    {
-        var slider = new MaterialRangeSlider
+        RowDefinitions = new RowDefinitions("*,Auto");
+        Children.Add(_host);
+        Grid.SetRow(_readout, 1);
+        _readout.Margin = new Thickness(0, 24, 0, 24);
+        Children.Add(_readout);
+        _kind = Choice("Вид", new[] { "Обычный", "От центра", "Диапазон" }, 0);
+        _size = Choice("Размер", Enum.GetNames<MaterialControlSize>(), 2);
+        _orientation = Choice("Ориентация", new[] { "Горизонтальная", "Вертикальная" }, 0);
+        _length = Number("Длина, dp", 120, 1440, 320, 20);
+        _value = Number("Значение", 0, 100, 50, 1);
+        _lower = Number("Начало диапазона", 0, 100, 20, 1);
+        _upper = Number("Конец диапазона", 0, 100, 80, 1);
+        _points = Number("Количество точек (включая края)", 2, 51, 11, 1);
+        _points.FormatString = "0";
+        _stops = Toggle("Показывать дискретные метки", true);
+        _icon = Toggle("Иконка громкости", false);
+        _indicator = Toggle("Подсказка значения", true);
+        _snap = Toggle("Дискретные значения", false);
+        _enabled = Toggle("Слайдер доступен", true);
+        _rtl = Toggle("Справа налево (RTL)", false);
+        Settings.Children.Add(new TextBlock
         {
-            Minimum = 0,
-            Maximum = 100,
-            LowerValue = lower,
-            UpperValue = upper,
-            Width = width,
+            Text = "Количество точек включает оба конца шкалы; шаг привязки рассчитывается автоматически. Иконка внутри трека — только для обычного слайдера M, L и XL. Диапазон — только горизонтальный.",
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 13
+        });
+        _kind.SelectionChanged += (_, _) => Apply();
+        _size.SelectionChanged += (_, _) => Apply();
+        _orientation.SelectionChanged += (_, _) => Apply();
+        foreach (var number in new[] { _value, _lower, _upper, _length, _points })
+            number.ValueChanged += (_, _) => { if (!_syncing) Apply(); };
+        foreach (var toggle in new[] { _stops, _icon, _indicator, _snap, _enabled, _rtl })
+            toggle.IsCheckedChanged += (_, _) => Apply();
+        _single.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) SyncValues(); };
+        _range.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == MaterialRangeSlider.LowerValueProperty || e.Property == MaterialRangeSlider.UpperValueProperty) SyncValues();
         };
-        MaterialAssist.SetControlSize(slider, size);
-        return slider;
+        Apply();
     }
 
-    private static Control Sizes()
+    private InspectorMenuChoice Choice(string label, string[] items, int selected)
     {
-        var panel = Panel();
-        panel.Children.Add(Caption("Standard slider · five source sizes", 24));
-        foreach (var size in Enum.GetValues<MaterialControlSize>())
-        {
-            panel.Children.Add(Caption($"{size} · track {TrackThickness(size)} DIP", 14));
-            var row = new WrapPanel { ItemSpacing = 24, LineSpacing = 12 };
-            foreach (var value in new[] { 0d, 50d, 100d })
-                row.Children.Add(Standard(size, value));
-            panel.Children.Add(row);
-        }
-
-        panel.Children.Add(Caption("Vertical orientation", 20));
-        var vertical = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 28 };
-        foreach (var size in Enum.GetValues<MaterialControlSize>())
-        {
-            var slider = Standard(size, 60, 120);
-            slider.Orientation = Orientation.Vertical;
-            slider.Height = 200;
-            slider.Width = double.NaN;
-            vertical.Children.Add(slider);
-        }
-        panel.Children.Add(vertical);
-        return panel;
+        Settings.Children.Add(new TextBlock { Text = label });
+        var input = new InspectorMenuChoice(label, items, selected);
+        Settings.Children.Add(input);
+        return input;
     }
 
-    private static string TrackThickness(MaterialControlSize size) => size switch
+    private NumericUpDown Number(string label, decimal min, decimal max, decimal value, decimal increment)
     {
-        MaterialControlSize.ExtraSmall => "16",
-        MaterialControlSize.Small => "24",
-        MaterialControlSize.Medium => "40",
-        MaterialControlSize.Large => "56",
-        MaterialControlSize.ExtraLarge => "96",
-        _ => "40",
-    };
-
-    private static Control Centered()
-    {
-        var panel = Panel();
-        panel.Children.Add(Caption("Centered slider · fill grows from the zero point", 24));
-        foreach (var size in Enum.GetValues<MaterialControlSize>())
+        var group = new StackPanel { Spacing = 6 };
+        var input = new NumericUpDown { Minimum = min, Maximum = max, Value = value, Increment = increment, FormatString = "0.##", AllowSpin = true, HorizontalAlignment = HorizontalAlignment.Stretch };
+        // NumericUpDown has no implicit theme in this catalog; give its native parser a visible editor.
+        input.Template = new Avalonia.Controls.Templates.FuncControlTemplate<NumericUpDown>((owner, scope) =>
         {
-            panel.Children.Add(Caption($"{size} · values -50 / 0 / +50", 14));
-            var row = new WrapPanel { ItemSpacing = 24, LineSpacing = 12 };
-            foreach (var value in new[] { -50d, 0d, 50d })
-                row.Children.Add(CenteredSlider(size, value));
-            panel.Children.Add(row);
-        }
-
-        panel.Children.Add(Caption("Vertical centered", 20));
-        var vertical = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 28 };
-        foreach (var value in new[] { -50d, 0d, 50d })
-        {
-            var slider = CenteredSlider(MaterialControlSize.Medium, value, 120);
-            slider.Orientation = Orientation.Vertical;
-            slider.Height = 220;
-            slider.Width = double.NaN;
-            vertical.Children.Add(slider);
-        }
-        panel.Children.Add(vertical);
-        return panel;
+            var editor = new TextBox
+            {
+                Name = "PART_TextBox", MinHeight = 56,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Center
+            };
+            MaterialTextField.SetVariant(editor, MaterialTextFieldVariant.Outlined);
+            MaterialTextField.SetLabel(editor, label);
+            scope.Register("PART_TextBox", editor);
+            editor.Bind(TextBox.TextProperty, new Avalonia.Data.Binding(nameof(NumericUpDown.Text))
+            {
+                Source = owner, Mode = Avalonia.Data.BindingMode.TwoWay
+            });
+            Avalonia.Automation.AutomationProperties.SetName(editor, label);
+            return editor;
+        });
+        Avalonia.Automation.AutomationProperties.SetName(input, label);
+        group.Children.Add(input);
+        Settings.Children.Add(group);
+        return input;
     }
 
-    private static Control Ranges()
+    private ToggleSwitch Toggle(string label, bool value)
     {
-        var panel = Panel();
-        panel.Children.Add(Caption("Range slider · independent lower/upper handles", 24));
-        var live = new TextBlock { Text = "Drag either handle", FontSize = 14 };
-        foreach (var size in Enum.GetValues<MaterialControlSize>())
-        {
-            panel.Children.Add(Caption($"{size} · coincident, -50 and +50 snapshots", 14));
-            var row = new WrapPanel { ItemSpacing = 24, LineSpacing = 12 };
-            row.Children.Add(Range(size, 50, 50));
-            row.Children.Add(Range(size, 21.5, 50));
-            row.Children.Add(Range(size, 50, 77.4));
-            panel.Children.Add(row);
-        }
-
-        var interactive = Range(MaterialControlSize.Medium, 20, 80);
-        interactive.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == MaterialRangeSlider.LowerValueProperty ||
-                e.Property == MaterialRangeSlider.UpperValueProperty)
-                live.Text = $"Lower {interactive.LowerValue:0.##} · Upper {interactive.UpperValue:0.##}";
-        };
-        panel.Children.Add(Caption("Live values · keyboard: arrows, PageUp/PageDown, Home/End", 14));
-        panel.Children.Add(interactive);
-        panel.Children.Add(live);
-        return panel;
+        var input = new ToggleSwitch { Content = label, IsChecked = value };
+        Settings.Children.Add(input);
+        return input;
     }
 
-    private static Control States()
+    private void Apply()
     {
-        var panel = Panel();
-        panel.Children.Add(Caption("Stop indicators · source's eleven stops", 20));
-        var stops = Standard(MaterialControlSize.Medium, 40);
-        MaterialSlider.SetShowStops(stops, true);
-        panel.Children.Add(stops);
+        if (_syncing) return;
+        _syncing = true;
+        var range = _kind.SelectedIndex == 2;
+        var centered = _kind.SelectedIndex == 1;
+        _orientation.IsEnabled = !range;
+        var discrete = _snap.IsChecked == true;
+        _stops.IsEnabled = discrete;
+        _points.Parent!.SetValue(IsVisibleProperty, discrete);
+        _points.Value = decimal.Truncate(_points.Value ?? 11);
+        var frequency = (centered ? 200d : 100d) / ((double)(_points.Value ?? 11) - 1);
+        var allowIcon = !range && !centered && _size.SelectedIndex >= 2;
+        _icon.IsEnabled = allowIcon;
+        _value.Parent!.SetValue(IsVisibleProperty, !range);
+        _lower.Parent!.SetValue(IsVisibleProperty, range);
+        _upper.Parent!.SetValue(IsVisibleProperty, range);
+        _value.Minimum = centered ? -100 : 0;
+        var vertical = !range && _orientation.SelectedIndex == 1;
+        var control = range ? (Control)_range : _single;
+        _host.Child = control;
+        control.Width = vertical ? double.NaN : (double)(_length.Value ?? 320);
+        control.Height = vertical ? (double)(_length.Value ?? 320) : double.NaN;
+        control.IsEnabled = _enabled.IsChecked == true;
+        if (_rtl.IsChecked == true) control.FlowDirection = Avalonia.Media.FlowDirection.RightToLeft;
+        else control.ClearValue(FlowDirectionProperty);
+        MaterialAssist.SetControlSize(control, (MaterialControlSize)_size.SelectedIndex);
+        MaterialSlider.SetShowStops(control, discrete && _stops.IsChecked == true);
+        MaterialSlider.SetShowIcon(control, allowIcon && _icon.IsChecked == true);
+        MaterialSlider.SetShowValueIndicator(control, _indicator.IsChecked == true);
+        MaterialSlider.SetValueFormat(control, "0.##");
+        if (range)
+        {
+            _range.TickFrequency = discrete ? frequency : 0;
+            _range.IsSnapToTickEnabled = discrete;
+            _range.SmallChange = discrete ? _range.TickFrequency : 1;
+            _range.LargeChange = Math.Max(10, _range.SmallChange * 2);
+            // Expand first, then clamp the lower endpoint to the requested upper endpoint.
+            _range.UpperValue = Math.Max(_range.LowerValue, (double)(_upper.Value ?? 80));
+            _range.LowerValue = Math.Min((double)(_lower.Value ?? 20), (double)(_upper.Value ?? 80));
+            _range.UpperValue = (double)(_upper.Value ?? 80);
+        }
+        else
+        {
+            _single.Minimum = centered ? -100 : 0;
+            MaterialSlider.SetIsCentered(_single, centered);
+            _single.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
+            _single.IsDirectionReversed = false;
+            _single.TickFrequency = discrete ? frequency : 0;
+            _single.IsSnapToTickEnabled = discrete;
+            _single.SmallChange = discrete ? _single.TickFrequency : 1;
+            _single.LargeChange = Math.Max(10, _single.SmallChange * 2);
+            _single.Value = (double)(_value.Value ?? 50);
+        }
+        _syncing = false;
+        SyncValues();
+    }
 
-        var rangeStops = Range(MaterialControlSize.Medium, 20, 70);
-        MaterialSlider.SetShowStops(rangeStops, true);
-        panel.Children.Add(rangeStops);
+    private void SyncValues()
+    {
+        if (_syncing) return;
+        _syncing = true;
+        _value.Value = (decimal)_single.Value;
+        _lower.Value = (decimal)_range.LowerValue;
+        _upper.Value = (decimal)_range.UpperValue;
+        _readout.Text = _kind.SelectedIndex == 2
+            ? $"Диапазон: {_range.LowerValue:0.##} — {_range.UpperValue:0.##}"
+            : $"Значение: {_single.Value:0.##}";
+        _syncing = false;
+    }
 
-        panel.Children.Add(Caption("Leading icon slot · source default volume_up", 20));
-        var icon = Standard(MaterialControlSize.ExtraLarge, 50);
-        MaterialSlider.SetShowIcon(icon, true);
-        panel.Children.Add(icon);
+    private sealed class InspectorMenuChoice : MaterialSplitButton
+    {
+        protected override Type StyleKeyOverride => typeof(MaterialSplitButton);
+        internal int SelectedIndex { get; private set; }
+        internal event EventHandler? SelectionChanged;
 
-        panel.Children.Add(Caption("Disabled", 20));
-        var disabled = Standard(MaterialControlSize.Medium, 50);
-        disabled.IsEnabled = false;
-        panel.Children.Add(disabled);
-        var disabledRange = Range(MaterialControlSize.Medium, 20, 80);
-        disabledRange.IsEnabled = false;
-        panel.Children.Add(disabledRange);
-
-        panel.Children.Add(Caption("Reversed direction", 20));
-        var reversed = Standard(MaterialControlSize.Medium, 50);
-        reversed.IsDirectionReversed = true;
-        panel.Children.Add(reversed);
-
-        panel.Children.Add(Caption("Right-to-left flow", 20));
-        var rtl = Standard(MaterialControlSize.Medium, 30);
-        rtl.FlowDirection = FlowDirection.RightToLeft;
-        panel.Children.Add(rtl);
-
-        panel.Children.Add(Caption("Keyboard · Tab to focus, arrows/PageUp/PageDown/Home/End", 20));
-        var keyboard = Standard(MaterialControlSize.Large, 35);
-        MaterialSlider.SetShowStops(keyboard, true);
-        keyboard.TickFrequency = 10;
-        keyboard.IsSnapToTickEnabled = true;
-        panel.Children.Add(keyboard);
-        return panel;
+        internal InspectorMenuChoice(string label, string[] options, int selected)
+        {
+            SelectedIndex = selected;
+            HorizontalAlignment = HorizontalAlignment.Left;
+            ControlSize = MaterialControlSize.Small;
+            ButtonShape = MaterialButtonShape.Round;
+            Variant = MaterialButtonVariant.Filled;
+            var icon = Avalonia.Media.Geometry.Parse("M12,2 A10,10 0 1 1 11.99,2 Z M12,5 L10.2,9 L6,9.5 L9,12.5 L8.3,17 L12,14.8 L15.7,17 L15,12.5 L18,9.5 L13.8,9 Z");
+            var arrow = Avalonia.Media.Geometry.Parse("M9,6 L15,12 L9,18 Z");
+            Icon = new PathIcon { Data = icon, Width = 20, Height = 20 };
+            Content = options[selected];
+            Click += (_, _) => IsMenuOpen = true;
+            var flyout = new MenuFlyout
+            {
+                Placement = PlacementMode.BottomEdgeAlignedLeft,
+                FlyoutPresenterTheme = (ControlTheme)Application.Current!.FindResource("MaterialMenuFlyoutPresenterExpressive")!
+            };
+            var entries = new MenuItem[options.Length];
+            for (var i = 0; i < options.Length; i++)
+            {
+                var index = i;
+                var item = new MenuItem
+                {
+                    Header = options[i], MinWidth = 240, MinHeight = 56,
+                    Icon = new PathIcon { Data = icon, Width = 24, Height = 24 }
+                };
+                MaterialMenu.SetSurfaceStyle(item, MaterialMenuSurfaceStyle.Expressive);
+                MaterialMenu.SetTrailingIcon(item, new PathIcon { Data = arrow, Width = 18, Height = 18 });
+                MaterialMenu.SetIsActive(item, i == selected);
+                item.Click += (_, _) =>
+                {
+                    SelectedIndex = index;
+                    Content = options[index];
+                    Avalonia.Automation.AutomationProperties.SetName(this, $"{label}: {options[index]}");
+                    for (var n = 0; n < entries.Length; n++) MaterialMenu.SetIsActive(entries[n], n == index);
+                    SelectionChanged?.Invoke(this, EventArgs.Empty);
+                };
+                entries[i] = item;
+                flyout.Items.Add(item);
+            }
+            Flyout = flyout;
+            Avalonia.Automation.AutomationProperties.SetName(this, $"{label}: {options[selected]}");
+        }
     }
 }
