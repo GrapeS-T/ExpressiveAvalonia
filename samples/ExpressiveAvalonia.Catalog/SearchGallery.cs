@@ -48,7 +48,6 @@ internal sealed class SearchPlayground : Grid
         stage.Children.Add(_host);
         stage.Children.Add(_status);
         Children.Add(stage);
-        Settings.Children.Add(new TextBlock { Text = expressive ? "Search · MD3E · Contained" : "Search · MD3 · Divided", FontSize = 16, FontWeight = FontWeight.Bold });
         _kind = Choice("Представление", new[] { "Search bar", "Search view" });
         _mode = Choice("Расположение view", new[] { "Docked", "Full-screen" });
         var widthLabel = new TextBlock { Text = "Ширина: 480 dp" };

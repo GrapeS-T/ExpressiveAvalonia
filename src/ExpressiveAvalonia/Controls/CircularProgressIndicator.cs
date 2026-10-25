@@ -18,10 +18,16 @@ namespace ExpressiveAvalonia.Controls;
 
 /// <summary>A read-only, rounded circular progress indicator with native range coercion and automation.</summary>
 /// <remarks>
-/// Covers the source Circular-determinate (local-001278) and Circular-indeterminate (local-001303)
-/// axes: <see cref="IndicatorType"/> Flat/Wave, 4 dp or 8 dp <see cref="StrokeThickness"/> and the
-/// source "Show track" boolean. Indeterminate motion pauses off-tree, when effectively hidden,
-/// when reduced motion is requested, or when the owning theme disables animation.
+/// <para>Covers the source Circular-determinate (local-001278) and Circular-indeterminate
+/// (local-001303) axes: <see cref="IndicatorType"/> Flat/Wave, 4 dp or 8 dp
+/// <see cref="StrokeThickness"/> and the source "Show track" boolean. Indeterminate motion pauses
+/// off-tree, when effectively hidden, when reduced motion is requested, or when the owning theme
+/// disables animation.</para>
+/// <para>Motion follows the guideline videos and AndroidX <c>ProgressIndicator.kt</c>: the
+/// indeterminate arc rotates 1080° per 6000 ms with four 90° turns, grows to 82% and shrinks back,
+/// and the track is only the remainder of the ring around it. A determinate wave keeps travelling
+/// (one lobe per second) even when the value is static, and flattens out over the first and last
+/// tenths of the ring, exactly as the source amplitude function does.</para>
 /// </remarks>
 public sealed class CircularProgressIndicator : RangeBase
 {
@@ -37,9 +43,13 @@ public sealed class CircularProgressIndicator : RangeBase
             validate: value => double.IsFinite(value) && value >= 0);
     public static readonly StyledProperty<ProgressIndicatorType> IndicatorTypeProperty =
         AvaloniaProperty.Register<CircularProgressIndicator, ProgressIndicatorType>(nameof(IndicatorType));
-    /// <summary>Wave amplitude in source dp on the 48 dp artboard; source value is 1.5.</summary>
+    /// <summary>
+    /// Wave amplitude in source dp on the 48 dp artboard. The guideline video measures a
+    /// centreline of 20.4 ± 1.95 dp, so the crest sits on the 22 dp track centreline and the
+    /// trough 4 dp inside it; the default rounds that measurement to 2.
+    /// </summary>
     public static readonly StyledProperty<double> WaveAmplitudeProperty =
-        AvaloniaProperty.Register<CircularProgressIndicator, double>(nameof(WaveAmplitude), 1.5,
+        AvaloniaProperty.Register<CircularProgressIndicator, double>(nameof(WaveAmplitude), 2,
             validate: value => double.IsFinite(value) && value >= 0);
     /// <summary>Number of crests around the ring; source value is 9 (one crest every 40°).</summary>
     public static readonly StyledProperty<int> WaveLobesProperty =
@@ -49,9 +59,24 @@ public sealed class CircularProgressIndicator : RangeBase
     public static readonly StyledProperty<bool> ShowTrackProperty =
         AvaloniaProperty.Register<CircularProgressIndicator, bool>(nameof(ShowTrack), true);
 
+    // Standard (0.2, 0, 0, 1) and emphasized-decelerate (0.05, 0.7, 0.1, 1) motion curves.
     private static readonly SplineEasing ProgressEasing = new(0.2, 0, 0, 1);
-    // Standard motion and gap geometry follow AndroidX material3 ProgressIndicator.kt:
-    // https://github.com/androidx/androidx/blob/androidx-main/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/ProgressIndicator.kt
+    private static readonly SplineEasing TurnEasing = new(0.05, 0.7, 0.1, 1);
+
+    // AndroidX ProgressIndicator.kt indeterminate circular motion: three global turns plus four
+    // 90° turns per 6000 ms cycle, and a sweep that travels between 14% and 82% over 3000 ms
+    // halves. The guideline video eases the sweep in both halves and eases each 90° turn, so the
+    // easing is applied to the interval it visually belongs to (upstream's keyframe builder
+    // attaches it to the following interval, which would make the growth linear). The video's
+    // sweep range is measured from the arc minus its round caps (61°…307° visible, i.e. 50°…297°
+    // of path); upstream's 10%…87% tokens would leave only a 1° sliver of track at the peak,
+    // which the video does not show.
+    private const double CycleMilliseconds = 6000;
+    private const double TurnMilliseconds = 300;
+    private const double TurnIntervalMilliseconds = 1500;
+    private const double SweepHalfMilliseconds = 3000;
+    private const double MinSweep = 0.14;
+    private const double MaxSweep = 0.82;
 
     private readonly ProgressAnimationClock _clock;
     private readonly Pen _activePen = new() { LineCap = PenLineCap.Round };
@@ -65,7 +90,7 @@ public sealed class CircularProgressIndicator : RangeBase
             IndicatorTypeProperty, WaveAmplitudeProperty, WaveLobesProperty, ShowTrackProperty);
     }
 
-    public CircularProgressIndicator() => _clock = new ProgressAnimationClock(this, () => IsIndeterminate);
+    public CircularProgressIndicator() => _clock = new ProgressAnimationClock(this, ShouldAnimate);
 
     public bool IsIndeterminate { get => GetValue(IsIndeterminateProperty); set => SetValue(IsIndeterminateProperty, value); }
     public double StrokeThickness { get => GetValue(StrokeThicknessProperty); set => SetValue(StrokeThicknessProperty, value); }
@@ -80,9 +105,9 @@ public sealed class CircularProgressIndicator : RangeBase
     }
 
     /// <summary>
-    /// Wave amplitude in dp on the 48 dp source artboard (source value 1.5); the rendered
-    /// amplitude scales with the control's size. The crest then sits on the track centreline
-    /// and the trough is two amplitudes inside it, exactly as measured from the source.
+    /// Wave amplitude in dp on the 48 dp source artboard; the rendered amplitude scales with the
+    /// control's size. The crest then sits on the track centreline and the trough is two
+    /// amplitudes inside it, exactly as measured from the source.
     /// </summary>
     public double WaveAmplitude { get => GetValue(WaveAmplitudeProperty); set => SetValue(WaveAmplitudeProperty, value); }
 
@@ -95,6 +120,32 @@ public sealed class CircularProgressIndicator : RangeBase
     /// </summary>
     public bool ShowTrack { get => GetValue(ShowTrackProperty); set => SetValue(ShowTrackProperty, value); }
 
+    /// <summary>Clamped range fraction; also drives the determinate wave envelope.</summary>
+    private double Fraction => Maximum <= Minimum
+        ? 1
+        : Math.Clamp((Value - Minimum) / (Maximum - Minimum), 0, 1);
+
+    /// <summary>
+    /// Indeterminate motion always animates; a determinate wave animates while its phase has to
+    /// travel, so a static value still shows the source's moving wave.
+    /// </summary>
+    private bool ShouldAnimate() => IsIndeterminate || HasTravellingWave;
+
+    private bool HasTravellingWave =>
+        IndicatorType == ProgressIndicatorType.Wave && WaveAmplitude > 0 &&
+        ProgressWave.WaveEnvelope(Fraction) > 0;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        // The clock observes IsIndeterminate, visibility and reduced motion itself; everything
+        // else that can switch the travelling wave on or off is reported here.
+        if (change.Property == ValueProperty || change.Property == MinimumProperty ||
+            change.Property == MaximumProperty || change.Property == IndicatorTypeProperty ||
+            change.Property == WaveAmplitudeProperty || change.Property == WaveLobesProperty)
+            _clock?.Refresh();
+    }
+
     protected override Size MeasureOverride(Size availableSize) => new(40, 40);
 
     protected override AutomationPeer OnCreateAutomationPeer() => new CircularProgressAutomationPeer(this);
@@ -106,13 +157,14 @@ public sealed class CircularProgressIndicator : RangeBase
         var thickness = Math.Min(StrokeThickness, diameter / 2);
         // Track centreline, as in the source: (D − t)/2, so the track's outer edge is D/2.
         var radius = (diameter - thickness) / 2;
+        if (radius <= 0)
+            return;
+
+        var fraction = Fraction;
         var wavy = IndicatorType == ProgressIndicatorType.Wave;
         // Source measurement: the wavy arc's crests sit on the track centreline and its
         // centreline oscillates by the wave amplitude, so the base radius is one amplitude in.
         var amplitude = wavy ? Math.Min(ProgressWave.CircularAmplitude(diameter, WaveAmplitude), radius) : 0;
-        var waveRadius = radius - amplitude;
-        if (radius <= 0)
-            return;
 
         var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
         _activePen.Brush = Foreground;
@@ -120,7 +172,7 @@ public sealed class CircularProgressIndicator : RangeBase
         _trackPen.Brush = TrackBrush;
         _trackPen.Thickness = thickness;
 
-        var fraction = Maximum <= Minimum ? 1 : Math.Clamp((Value - Minimum) / (Maximum - Minimum), 0, 1);
+        var elapsed = _clock.ElapsedMilliseconds;
         var start = -Math.PI / 2;
         var sweep = fraction * Math.Tau;
         if (IsIndeterminate)
@@ -129,27 +181,32 @@ public sealed class CircularProgressIndicator : RangeBase
             {
                 // Reduced motion: a still three-quarter arc reads as "in progress" without
                 // implying a percentage, and keeps the same sweep geometry as the animation.
-                start = -Math.PI / 2;
                 sweep = Math.Tau * 0.75;
             }
             else
             {
-                // AndroidX standard motion: three global turns and four additional quarter-turns
-                // per 6000 ms, with the arc expanding to 87% and contracting to 10%.
-                var time = _clock.ElapsedMilliseconds % 6000;
-                // Additional-rotation keyframes interpolate the 300 ms turns linearly; their
-                // emphasized-decelerate easing belongs to the following constant-value holds.
-                var quarterTurn = Math.Floor(time / 1500);
-                var rotation = time / 6000 * 3 + (quarterTurn + Math.Min(time % 1500 / 300, 1)) / 4;
-                start = rotation * Math.Tau;
-                // Keyframes use linear interpolation up to 3000 ms; the easing on that keyframe
-                // applies to the following (contracting) interval, not the preceding one.
-                var progress = time < 3000
-                    ? 0.1 + 0.77 * (time / 3000)
-                    : 0.87 - 0.77 * ProgressEasing.Ease((time - 3000) / 3000);
-                sweep = progress * Math.Tau;
+                // Three global turns and four additional quarter-turns per cycle, with the arc
+                // growing from 14% to 82% of the ring and shrinking back.
+                var time = elapsed % CycleMilliseconds;
+                start = IndeterminateRotationTurns(time) * Math.Tau;
+                sweep = IndeterminateSweep(time) * Math.Tau;
             }
         }
+        else
+        {
+            // Source amplitude function: no wave below 10% or from 95% on, so the ring settles
+            // into a plain circle as it completes. The guideline video's ramps are reproduced as
+            // a progress envelope, which also keeps a static value stable.
+            amplitude *= ProgressWave.WaveEnvelope(fraction);
+        }
+
+        // The source slides the wave one wavelength (one lobe on the ring) per second towards the
+        // start of the stroke, and rotates the whole wavy path with the indicator, so the phase is
+        // measured from the arc's start and advances with the shared clock.
+        var wavePhase = elapsed / 1000 * Math.Tau;
+        // Base radius of the wave: one (enveloped) amplitude inside the track centreline, so the
+        // crest always lands on that centreline however far the wave has faded in or out.
+        var waveRadius = radius - amplitude;
 
         if (sweep <= 0)
         {
@@ -159,8 +216,8 @@ public sealed class CircularProgressIndicator : RangeBase
         }
         if (sweep >= Math.Tau - 0.0001)
         {
-            if (wavy)
-                DrawWavyArc(context, _activePen, center, waveRadius, start, Math.Tau, amplitude, WaveLobes);
+            if (wavy && amplitude > 0)
+                DrawWavyArc(context, _activePen, center, waveRadius, start, Math.Tau, amplitude, WaveLobes, wavePhase);
             else
                 context.DrawEllipse(null, _activePen, center, radius, radius);
             return;
@@ -171,22 +228,37 @@ public sealed class CircularProgressIndicator : RangeBase
         var gapAngle = Math.Min(sweep, (GapSize + thickness) * 2 / diameter);
         if (ShowTrack)
         {
-            if (IsIndeterminate)
-            {
-                // The source "Show track" ring is stationary; only the active arc travels.
-                context.DrawEllipse(null, _trackPen, center, radius, radius);
-            }
-            else
-            {
-                var remaining = Math.Tau - sweep - gapAngle * 2;
-                if (remaining > 0)
-                    DrawArc(context, _trackPen, center, radius, start + sweep + gapAngle, remaining);
-            }
+            // Only the remainder of the ring is painted, on both sides of the arc, in the same
+            // (possibly rotated) frame: an indeterminate indicator shows the track ahead of its
+            // arc rather than a full ring behind it.
+            var remaining = Math.Tau - sweep - gapAngle * 2;
+            if (remaining > 0)
+                DrawArc(context, _trackPen, center, radius, start + sweep + gapAngle, remaining);
         }
-        if (wavy)
-            DrawWavyArc(context, _activePen, center, waveRadius, start, sweep, amplitude, WaveLobes);
+        if (wavy && amplitude > 0)
+            DrawWavyArc(context, _activePen, center, waveRadius, start, sweep, amplitude, WaveLobes, wavePhase);
         else
             DrawArc(context, _activePen, center, radius, start, sweep);
+    }
+
+    /// <summary>Global rotation plus the four 90° turns of one indeterminate cycle, in turns.</summary>
+    private static double IndeterminateRotationTurns(double time)
+    {
+        var turn = Math.Floor(time / TurnIntervalMilliseconds);
+        var within = time - turn * TurnIntervalMilliseconds;
+        var eased = TurnEasing.Ease(Math.Min(within / TurnMilliseconds, 1));
+        return time / CycleMilliseconds * 3 + (turn + eased) / 4;
+    }
+
+    /// <summary>Sweep of one indeterminate cycle as a fraction of the ring.</summary>
+    private static double IndeterminateSweep(double time)
+    {
+        var growing = time < SweepHalfMilliseconds;
+        var within = growing ? time : time - SweepHalfMilliseconds;
+        var eased = ProgressEasing.Ease(Math.Clamp(within / SweepHalfMilliseconds, 0, 1));
+        return growing
+            ? MinSweep + (MaxSweep - MinSweep) * eased
+            : MaxSweep - (MaxSweep - MinSweep) * eased;
     }
 
     private static void DrawArc(DrawingContext context, Pen pen,
@@ -209,11 +281,12 @@ public sealed class CircularProgressIndicator : RangeBase
 
     /// <summary>
     /// Draws an arc whose stroke oscillates radially, as in the source "Type=Wave" variants.
-    /// The source wave starts on a crest at the arc start and repeats every 360°/lobes, so the
-    /// phase is the angle from the start and the profile is a cosine, not a sine.
+    /// The source wave is anchored at the arc start, repeats every 360°/lobes, and slides one lobe
+    /// per second towards that start, so <paramref name="phase"/> is added to the angle measured
+    /// from the start. The arc start rotates with the indicator, which carries the wave with it.
     /// </summary>
     private static void DrawWavyArc(DrawingContext context, Pen pen, Point center, double radius,
-        double start, double sweep, double amplitude, int lobes)
+        double start, double sweep, double amplitude, int lobes, double phase)
     {
         if (sweep <= 0 || radius <= 0)
             return;
@@ -225,16 +298,15 @@ public sealed class CircularProgressIndicator : RangeBase
 
         var closed = sweep >= Math.Tau - 0.0001;
         var lobeAngle = Math.Tau / lobes;
-        // Sample a twelfth of a lobe so crests and troughs keep their shape at any size.
-        var steps = Math.Clamp((int)Math.Ceiling(sweep / (lobeAngle / 12)), 8, 720);
+        // Sample a twenty-fourth of a lobe so crests and troughs keep their shape at any size.
+        var steps = Math.Clamp((int)Math.Ceiling(sweep / (lobeAngle / 24)), 12, 720);
         var geometry = new StreamGeometry();
         using (var path = geometry.Open())
         {
             for (var i = 0; i <= steps; i++)
             {
                 var angle = start + sweep * i / steps;
-                // Crest at the arc start, then every 360°/lobes — measured from the source.
-                var r = radius + amplitude * Math.Cos(lobes * (angle - start));
+                var r = radius + amplitude * Math.Cos(lobes * (angle - start) + phase);
                 var point = new Point(center.X + r * Math.Cos(angle), center.Y + r * Math.Sin(angle));
                 if (i == 0)
                     path.BeginFigure(point, false);
@@ -297,6 +369,7 @@ internal sealed class LinearProgressPresenter : Control
 
     private static readonly SplineEasing IndeterminateEasing = new(0.3, 0, 0.8, 0.15);
     private readonly Pen _segmentPen = new() { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+    private readonly Pen _trackSegmentPen = new() { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
     private readonly ProgressAnimationClock _clock;
 
     static LinearProgressPresenter()
@@ -308,7 +381,7 @@ internal sealed class LinearProgressPresenter : Control
             WaveHeightProperty, WavelengthProperty);
     }
 
-    public LinearProgressPresenter() => _clock = new ProgressAnimationClock(this, () => IsIndeterminate);
+    public LinearProgressPresenter() => _clock = new ProgressAnimationClock(this, ShouldAnimate);
 
     public double Minimum { get => GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
     public double Maximum { get => GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
@@ -321,6 +394,33 @@ internal sealed class LinearProgressPresenter : Control
     public double IndicatorThickness { get => GetValue(IndicatorThicknessProperty); set => SetValue(IndicatorThicknessProperty, value); }
     public double WaveHeight { get => GetValue(WaveHeightProperty); set => SetValue(WaveHeightProperty, value); }
     public double Wavelength { get => GetValue(WavelengthProperty); set => SetValue(WavelengthProperty, value); }
+
+    /// <summary>Clamped range fraction; also drives the determinate wave envelope.</summary>
+    private double Fraction => Maximum <= Minimum
+        ? 1
+        : Math.Clamp((Value - Minimum) / (Maximum - Minimum), 0, 1);
+
+    /// <summary>
+    /// Indeterminate motion always animates; a determinate wave animates while its phase has to
+    /// travel, so a static value still shows the source's moving wave.
+    /// </summary>
+    private bool ShouldAnimate() => IsIndeterminate || HasTravellingWave;
+
+    private bool HasTravellingWave =>
+        IndicatorType == ProgressIndicatorType.Wave && Wavelength > 0 && WaveHeight > 0 &&
+        ProgressWave.WaveEnvelope(Fraction) > 0;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        // The clock observes IsIndeterminate, visibility and reduced motion itself; everything
+        // else that can switch the travelling wave on or off is reported here.
+        if (change.Property == ValueProperty || change.Property == MinimumProperty ||
+            change.Property == MaximumProperty || change.Property == IndicatorTypeProperty ||
+            change.Property == IndicatorThicknessProperty || change.Property == WaveHeightProperty ||
+            change.Property == WavelengthProperty)
+            _clock?.Refresh();
+    }
 
     /// <summary>The wave needs its full band height, so the templated parent grows to fit it.</summary>
     protected override Size MeasureOverride(Size availableSize)
@@ -390,6 +490,9 @@ internal sealed class LinearProgressPresenter : Control
             ? Math.Min(ProgressWave.LinearAmplitude(WaveHeight, Wavelength),
                 Math.Max(0, (band - thickness) / 2))
             : 0;
+        // The source slides the wave one wavelength per second towards the start of the track;
+        // the same clock drives the ring's wave so both variants travel together.
+        var wavePhase = _clock.ElapsedMilliseconds / 1000 * Math.Tau;
 
         var gap = 4 + thickness;
         if (IsIndeterminate)
@@ -410,21 +513,23 @@ internal sealed class LinearProgressPresenter : Control
 
             if (firstHead < length - gap)
                 Segment(context, TrackBrush, firstHead > 0 ? firstHead + gap : 0, length, length, thickness, vertical);
-            Bar(context, IndicatorBrush, firstTail, firstHead, length, thickness, vertical, amplitude);
+            Bar(context, IndicatorBrush, firstTail, firstHead, length, thickness, vertical, amplitude, wavePhase);
             if (firstTail > gap)
                 Segment(context, TrackBrush, secondHead > 0 ? secondHead + gap : 0,
                     firstTail < length ? firstTail - gap : length, length, thickness, vertical);
-            Bar(context, IndicatorBrush, secondTail, secondHead, length, thickness, vertical, amplitude);
+            Bar(context, IndicatorBrush, secondTail, secondHead, length, thickness, vertical, amplitude, wavePhase);
             if (secondTail > gap)
                 Segment(context, TrackBrush, 0, secondTail < length ? secondTail - gap : length, length, thickness, vertical);
         }
         else
         {
-            var fraction = Maximum <= Minimum ? 1 : Math.Clamp((Value - Minimum) / (Maximum - Minimum), 0, 1);
+            var fraction = Fraction;
             var end = length * fraction;
             Segment(context, TrackBrush, end + Math.Min(end, gap), length, length, thickness, vertical);
-            // The source flattens the wave at 100%, where the segment merges with the stop.
-            Bar(context, IndicatorBrush, 0, end, length, thickness, vertical, fraction >= 1 ? 0 : amplitude);
+            // The source drops the wave below 10% and from 95% on, where the segment flattens
+            // into the stop indicator as the indicator completes.
+            Bar(context, IndicatorBrush, 0, end, length, thickness, vertical,
+                amplitude * ProgressWave.WaveEnvelope(fraction), wavePhase);
             // The 4 dp stop stays at the end of the track, merging into the active line at
             // completion. Source local-000699: a 4x4 dot bound to M3/sys/light/primary, which
             // is this presenter's IndicatorBrush (the ProgressBar foreground).
@@ -460,19 +565,24 @@ internal sealed class LinearProgressPresenter : Control
         var cap = thickness / 2;
         start = Math.Clamp(start, cap, length - cap);
         end = Math.Clamp(end, cap, length - cap);
-        _segmentPen.Brush = brush;
-        _segmentPen.Thickness = thickness;
+        var pen = ReferenceEquals(brush, TrackBrush) ? _trackSegmentPen : _segmentPen;
+        pen.Brush = brush;
+        pen.Thickness = thickness;
         var from = vertical ? new Point(Bounds.Width / 2, length - start) : new Point(start, Bounds.Height / 2);
         var to = vertical ? new Point(Bounds.Width / 2, length - end) : new Point(end, Bounds.Height / 2);
         if (start == end)
             context.DrawEllipse(brush, null, from, cap, cap);
         else
-            context.DrawLine(_segmentPen, from, to);
+            context.DrawLine(pen, from, to);
     }
 
-    /// <summary>Draws an indicator segment, following a sine wave when the wave axis is active.</summary>
+    /// <summary>
+    /// Draws an indicator segment, following a sine wave when the wave axis is active. The wave is
+    /// anchored at the start of the track and travels towards it, one wavelength per second, as in
+    /// the source and the guideline video.
+    /// </summary>
     private void Bar(DrawingContext context, IBrush? brush, double start, double end,
-        double length, double thickness, bool vertical, double amplitude)
+        double length, double thickness, bool vertical, double amplitude, double phase)
     {
         if (amplitude <= 0 || end - start <= 0.5)
         {
@@ -496,17 +606,17 @@ internal sealed class LinearProgressPresenter : Control
             return;
         }
 
-        // Sample a twelfth of a wavelength so the crests stay smooth at every thickness.
-        var steps = Math.Clamp((int)Math.Ceiling((to - from) / Math.Max(0.75, Wavelength / 12)), 2, 720);
+        // Sample a twenty-fourth of a wavelength so the crests stay smooth at every thickness.
+        var steps = Math.Clamp((int)Math.Ceiling((to - from) / Math.Max(0.75, Wavelength / 24)), 2, 720);
         var geometry = new StreamGeometry();
         using (var path = geometry.Open())
         {
             for (var i = 0; i <= steps; i++)
             {
                 var position = from + (to - from) * i / steps;
-                // Source wave: a crest sits at the start of the wave increment (measured at
-                // x = 0 of the building block), then every wavelength along the track.
-                var offset = -amplitude * Math.Cos(Math.Tau * position / Wavelength);
+                // The source path starts on the centreline and its first crest sits a quarter of
+                // a wavelength along the track; adding the phase slides the pattern backwards.
+                var offset = amplitude * Math.Sin(Math.Tau * position / Wavelength + phase);
                 var point = vertical
                     ? new Point(Bounds.Width / 2 + offset, length - position)
                     : new Point(position, Bounds.Height / 2 + offset);
@@ -524,7 +634,7 @@ internal sealed class LinearProgressPresenter : Control
 }
 
 /// <summary>
-/// Wave geometry measured from the local design export rather than approximated.
+/// Wave geometry measured from the design sources rather than approximated.
 /// </summary>
 /// <remarks>
 /// <para>Linear building blocks (local-000545/000551, 12 dp band, stroke 4 and 8): the drawn
@@ -532,11 +642,17 @@ internal sealed class LinearProgressPresenter : Control
 /// With the stroke centred, the wave centreline therefore oscillates 3.229…8.771
 /// (amplitude 2.7714) and 3.66…8.34 (amplitude 2.34). Both thicknesses measure the same
 /// centreline, so the amplitude depends on the wavelength only, and an 8 dp stroke overflows
-/// the 12 dp band exactly as the source's 13 dp tall export does.</para>
-/// <para>Circular (local-001278, 48 dp artboard): pairing the stroke's inner and outer contours
-/// at the frame centre gives a centreline of 20.55 with amplitude 1.50 for both 4 dp and 8 dp
-/// strokes; crests sit on the track centreline (22.0 = (48 − 4)/2) at 30° + 40°·k, i.e. nine
-/// lobes, and the progress arc starts on a crest.</para>
+/// the 12 dp band exactly as the source's 13 dp tall export does. The guideline video
+/// (Progress-Indicator-J, 240 dp × 4 dp track) measures a 38.3 dp wavelength and a 2.16 dp
+/// centreline amplitude, and the thicker Progress-Indicator-G variant measures 2.56 dp, so the
+/// export figures stay as the source of the band geometry.</para>
+/// <para>Circular (48 dp artboard): both guideline videos measure the same depth, a centreline of
+/// 20.4 ± 1.95 dp, so the crest sits on the track centreline (22.0 = (48 − 4)/2) and the trough
+/// 4 dp inside it. The determinate video resolves eight crests (45° apart), the indeterminate one
+/// nine (40°), which is also what the source token gives for a 15 dp wavelength over the 22 dp
+/// radius, so the crest count stays nine and the default amplitude rounds the measured 1.95 dp
+/// to 2 dp. The videos draw the wave as a rounded star; a cosine with the same count, depth and
+/// phase speed is used here.</para>
 /// </remarks>
 internal static class ProgressWave
 {
@@ -578,26 +694,53 @@ internal static class ProgressWave
     /// <summary>Centreline amplitude of the circular wave, scaled from the 48 dp artboard.</summary>
     public static double CircularAmplitude(double diameter, double sourceAmplitude) =>
         double.IsFinite(sourceAmplitude) && sourceAmplitude > 0 ? sourceAmplitude * diameter / CircularArtboard : 0;
+
+    /// <summary>
+    /// Relative wave amplitude of a determinate indicator. The source's <c>indicatorAmplitude</c>
+    /// drops the wave at 10% and below and from 95% on, so a completing indicator settles into a
+    /// plain line, and animates the change over 500 ms; the guideline video shows exactly that
+    /// envelope (flat up to ~6%, full by ~15%, flat again from ~95%). Expressing it as a function
+    /// of progress keeps a static value stable while reproducing the animated ramps.
+    /// </summary>
+    public static double WaveEnvelope(double fraction)
+    {
+        if (!double.IsFinite(fraction))
+            return 0;
+        if (fraction <= 0.05 || fraction >= 0.98)
+            return 0;
+        if (fraction < 0.15)
+            return SmoothStep((fraction - 0.05) / 0.10);
+        if (fraction > 0.95)
+            return 1 - SmoothStep((fraction - 0.95) / 0.03);
+        return 1;
+    }
+
+    private static double SmoothStep(double value)
+    {
+        var t = Math.Clamp(value, 0, 1);
+        return t * t * (3 - 2 * t);
+    }
 }
 
 // One frame timer shared by every animating indicator; global accessibility notification is
-// subscribed only while attached. The timer exists only while at least one indicator animates.
+// subscribed only while attached. The timer exists only while at least one indicator animates:
+// an indeterminate indicator, or a determinate one whose wave still has to travel.
 internal sealed class ProgressAnimationClock
 {
     private static readonly List<ProgressAnimationClock> Running = new();
     private static DispatcherTimer? _timer;
     private readonly Control _owner;
-    private readonly Func<bool> _isIndeterminate;
+    private readonly Func<bool> _shouldAnimate;
     private readonly List<Visual> _visibilityAncestors = new();
     private bool _attached;
     private bool _running;
     private long _started;
     public double ElapsedMilliseconds { get; private set; }
 
-    public ProgressAnimationClock(Control owner, Func<bool> isIndeterminate)
+    public ProgressAnimationClock(Control owner, Func<bool> shouldAnimate)
     {
         _owner = owner;
-        _isIndeterminate = isIndeterminate;
+        _shouldAnimate = shouldAnimate;
         owner.AttachedToVisualTree += (_, _) =>
         {
             _attached = true;
@@ -640,7 +783,7 @@ internal sealed class ProgressAnimationClock
 
     private void Update()
     {
-        var animate = _attached && _owner.IsEffectivelyVisible && _isIndeterminate() && !MaterialMotion.GetIsReduced(_owner);
+        var animate = _attached && _owner.IsEffectivelyVisible && _shouldAnimate() && !MaterialMotion.GetIsReduced(_owner);
         if (animate)
             Start();
         else

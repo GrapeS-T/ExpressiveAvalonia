@@ -42,7 +42,11 @@ public sealed class MaterialProgress : AvaloniaObject
         AvaloniaProperty.RegisterAttached<MaterialProgress, ProgressBar, double>("WaveHeight", 12,
             validate: value => double.IsFinite(value) && value >= 0);
 
-    /// <summary>Distance between two crests along the segment: 40 (source default) or 20.</summary>
+    /// <summary>
+    /// Distance between two crests along the segment: 40 (source determinate default) or 20 (the
+    /// source indeterminate default). One property drives both behaviours, so an indeterminate
+    /// wave that should match the guideline video needs 20 here.
+    /// </summary>
     public static readonly AttachedProperty<double> WavelengthProperty =
         AvaloniaProperty.RegisterAttached<MaterialProgress, ProgressBar, double>("Wavelength", 40,
             validate: value => double.IsFinite(value) && value > 0);

@@ -19,6 +19,7 @@ internal static class StandardControlsGallery
         pages.Items.Add(new TabItem { Header = "Collections", Content = new DeferredGallery(Collections) });
         pages.Items.Add(new TabItem { Header = "Tabs", Content = new DeferredGallery(TabsGallery.CreateClassic) });
         pages.Items.Add(new TabItem { Header = "Search", Content = new DeferredGallery(SearchGallery.CreateClassic) });
+        pages.Items.Add(new TabItem { Header = "Progress", Content = new DeferredGallery(ProgressGallery.CreateClassic) });
         pages.Items.Add(new TabItem { Header = "Typography", Content = new DeferredGallery(() => Typography(theme)) });
         return pages;
     }
@@ -76,12 +77,6 @@ internal static class StandardControlsGallery
         var panel = Panel();
         panel.Children.Add(new Slider { Minimum = 0, Maximum = 100, Value = 35, TickFrequency = 10, IsSnapToTickEnabled = true });
         panel.Children.Add(new MaterialRangeSlider { Minimum = 0, Maximum = 100, LowerValue = 20, UpperValue = 80, TickFrequency = 10, IsSnapToTickEnabled = true });
-        panel.Children.Add(new ProgressBar { Minimum = 0, Maximum = 100, Value = 65, ShowProgressText = true });
-        panel.Children.Add(new ProgressBar { IsIndeterminate = true });
-        var row = Row();
-        row.Children.Add(new CircularProgressIndicator { Value = 65 });
-        row.Children.Add(new CircularProgressIndicator { IsIndeterminate = true });
-        panel.Children.Add(row);
         var sliders = Row();
         sliders.Children.Add(new Slider { Orientation = Orientation.Vertical, Height = 150, Minimum = 0, Maximum = 100, Value = 60, TickFrequency = 20, IsSnapToTickEnabled = true });
         sliders.Children.Add(new Slider { Width = 240, Minimum = 0, Maximum = 100, Value = 60, IsEnabled = false });

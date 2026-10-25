@@ -1,16 +1,32 @@
+using System.Globalization;
+using Avalonia;
 using Avalonia.Media;
 
 namespace ExpressiveAvalonia.Controls;
 
 /// <summary>
 /// The seven source silhouettes of the Loading indicator (local-004296), transcribed verbatim
-/// from each variant design.json fillGeometry. They are kept as data rather than redrawn by
-/// formula so the rendered outline matches the design file exactly.
+/// from each variant design.json fillGeometry, and the morph data that interpolates between them.
+/// They are kept as data rather than redrawn by formula so the rendered outline matches the design
+/// file exactly.
 /// </summary>
+/// <remarks>
+/// Each outline is also sampled once into <see cref="Samples"/> points spaced evenly along its
+/// perimeter and centred on its own bounds, so consecutive silhouettes can be interpolated point
+/// for point. That is the same linear interpolation of matched curves Material's <c>Morph</c>
+/// performs, with an arc-length correspondence instead of its feature matcher; the source geometry
+/// itself is kept for the still frame.
+/// </remarks>
 internal static class LoadingIndicatorShapes
 {
     /// <summary>The source artboard is 48 × 48; the path data is already in artboard units.</summary>
     public const double Artboard = 48;
+
+    /// <summary>
+    /// Points per sampled outline. The outlines are ~110 units around, so 256 samples give chords
+    /// under half an artboard unit, and quantise the alignment search to 1.4° steps.
+    /// </summary>
+    public const int Samples = 256;
 
     private static readonly string[] Data =
     [
@@ -30,10 +46,305 @@ internal static class LoadingIndicatorShapes
         "M23.1309 23.1309C16.1705 30.0913 6.88765 32.0935 2.39707 27.6029C-2.09352 23.1123 -0.0913343 13.8295 6.86908 6.86908C13.8295 -0.0913329 23.1123 -2.09352 27.6029 2.39707C32.0935 6.88765 30.0913 16.1705 23.1309 23.1309Z",
     ];
 
-    private static readonly Geometry[] Cache = [.. Data.Select(Geometry.Parse)];
+    /// <summary>One sampled silhouette per step, built once from the source path data.</summary>
+    private static readonly Outline[] Outlines = [.. Data.Select(Build)];
 
-    public static int Count => Cache.Length;
+    /// <summary>
+    /// For each step, the index offset that turns the following outline to face this one. The morph
+    /// between two steps then twists the outline as little as the two shapes allow.
+    /// </summary>
+    private static readonly int[] Alignments = BuildAlignments();
 
-    /// <summary>Step numbers are one-based, as in the source property.</summary>
-    public static Geometry Get(int step) => Cache[Math.Clamp(step, 1, Cache.Length) - 1];
+    public static int Count => Outlines.Length;
+
+    /// <summary>
+    /// The source outline of one step, centred on its own bounds. Step numbers are one-based, as in
+    /// the source property.
+    /// </summary>
+    public static Geometry Get(int step) => Outlines[Math.Clamp(step, 1, Outlines.Length) - 1].Still;
+
+    /// <summary>
+    /// Builds the outline that lies <paramref name="progress"/> of the way from
+    /// <paramref name="step"/> to the following step. Progress is deliberately not clamped: the
+    /// morph spring runs slightly past one just before Compose ends it, and that overshoot is part
+    /// of the motion.
+    /// </summary>
+    public static StreamGeometry Morph(int step, double progress)
+    {
+        var fromIndex = Math.Clamp(step, 1, Outlines.Length) - 1;
+        var from = Outlines[fromIndex].Points;
+        var to = Outlines[(fromIndex + 1) % Outlines.Length].Points;
+        var shift = Alignments[fromIndex];
+
+        // The interpolated outline, closed with Catmull-Rom tangents: the same curve language as the
+        // source geometry, so the morph never reads as a polygon. Points are recomputed per segment
+        // instead of buffered, so a frame allocates nothing but its geometry.
+        Point At(int index)
+        {
+            var i = Mod(index, Samples);
+            return Lerp(from[i], to[Mod(i + shift, Samples)], progress);
+        }
+
+        // The geometry mutates its native path, so every frame gets its own instance; the render
+        // thread may still be reading the previous one.
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            context.SetFillRule(FillRule.NonZero);
+            context.BeginFigure(At(0), true);
+            for (var i = 0; i < Samples; i++)
+            {
+                var start = At(i);
+                var end = At(i + 1);
+                context.CubicBezierTo(
+                    start + (end - At(i - 1)) / 6,
+                    end - (At(i + 2) - start) / 6,
+                    end);
+            }
+            context.EndFigure(true);
+        }
+        return geometry;
+    }
+
+    private static Outline Build(string data)
+    {
+        var cubics = Parse(data);
+        // Centre on the control-point bounds, which are the bounds of the drawn path, so a lone step
+        // keeps exactly the placement it always had.
+        var center = ControlPointCenter(cubics);
+        return new Outline(Curves(cubics, center), Sample(cubics, center));
+    }
+
+    private static Point ControlPointCenter(List<Cubic> cubics)
+    {
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var cubic in cubics)
+        {
+            Include(cubic.Start);
+            Include(cubic.Control0);
+            Include(cubic.Control1);
+            Include(cubic.End);
+        }
+        return new Point((minX + maxX) / 2, (minY + maxY) / 2);
+
+        void Include(Point point)
+        {
+            minX = Math.Min(minX, point.X);
+            minY = Math.Min(minY, point.Y);
+            maxX = Math.Max(maxX, point.X);
+            maxY = Math.Max(maxY, point.Y);
+        }
+    }
+
+    /// <summary>Exact source curves, moved so the outline's bounds sit on the origin.</summary>
+    private static StreamGeometry Curves(List<Cubic> cubics, Point center)
+    {
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            context.SetFillRule(FillRule.NonZero);
+            context.BeginFigure(Shift(cubics[0].Start, center), true);
+            foreach (var cubic in cubics)
+                context.CubicBezierTo(Shift(cubic.Control0, center), Shift(cubic.Control1, center),
+                    Shift(cubic.End, center));
+            context.EndFigure(true);
+        }
+        return geometry;
+    }
+
+    /// <summary>
+    /// Flattens the source curves, walks the result at even arc length, and moves the samples into
+    /// the same centred frame the drawn geometry uses.
+    /// </summary>
+    private static Point[] Sample(List<Cubic> cubics, Point center)
+    {
+        var polyline = Flatten(cubics);
+        var lengths = new double[polyline.Count + 1];
+        for (var i = 1; i <= polyline.Count; i++)
+            lengths[i] = lengths[i - 1] + Distance(polyline[i - 1], polyline[i % polyline.Count]);
+
+        var total = lengths[^1];
+        var points = new Point[Samples];
+        var segment = 0;
+        for (var i = 0; i < Samples; i++)
+        {
+            var target = total * i / Samples;
+            while (segment < polyline.Count - 1 && lengths[segment + 1] < target)
+                segment++;
+            var span = lengths[segment + 1] - lengths[segment];
+            var part = span > 0 ? (target - lengths[segment]) / span : 0;
+            points[i] = Shift(Lerp(polyline[segment], polyline[(segment + 1) % polyline.Count], part), center);
+        }
+        return points;
+    }
+
+    private static List<Point> Flatten(List<Cubic> cubics)
+    {
+        var points = new List<Point>(cubics.Count * 16) { cubics[0].Start };
+        foreach (var cubic in cubics)
+        {
+            // A quarter unit is already well below a device pixel on the 48 dp artboard.
+            var length = Distance(cubic.Start, cubic.Control0) + Distance(cubic.Control0, cubic.Control1) +
+                         Distance(cubic.Control1, cubic.End);
+            var steps = Math.Clamp((int)Math.Ceiling(length / 0.25), 1, 256);
+            for (var step = 1; step <= steps; step++)
+                points.Add(PointOn(cubic, (double)step / steps));
+        }
+        return points;
+    }
+
+    private static Point PointOn(Cubic cubic, double t)
+    {
+        var inverse = 1 - t;
+        var a = inverse * inverse * inverse;
+        var b = 3 * inverse * inverse * t;
+        var c = 3 * inverse * t * t;
+        var d = t * t * t;
+        return new Point(
+            a * cubic.Start.X + b * cubic.Control0.X + c * cubic.Control1.X + d * cubic.End.X,
+            a * cubic.Start.Y + b * cubic.Control0.Y + c * cubic.Control1.Y + d * cubic.End.Y);
+    }
+
+    private static int[] BuildAlignments()
+    {
+        var alignments = new int[Outlines.Length];
+        for (var i = 0; i < Outlines.Length; i++)
+            alignments[i] = BestShift(Outlines[i].Points, Outlines[(i + 1) % Outlines.Length].Points);
+        return alignments;
+    }
+
+    /// <summary>
+    /// Finds the offset that lines the following outline up with this one: the smallest turn whose
+    /// point-for-point distance is within 2% of the best turn found. Every step is close to
+    /// symmetric, so this keeps neighbouring corners paired instead of spinning a whole arm.
+    /// </summary>
+    private static int BestShift(Point[] from, Point[] to)
+    {
+        var best = 0;
+        var bestCost = Cost(from, to, 0);
+        for (var distance = 1; distance <= Samples / 2; distance++)
+        {
+            // Prefer the nearest turn: a symmetric outline offers several equally good matches.
+            var forward = Cost(from, to, distance);
+            if (forward < bestCost * 0.98)
+            {
+                bestCost = forward;
+                best = distance;
+            }
+            var backward = Cost(from, to, Samples - distance);
+            if (backward < bestCost * 0.98)
+            {
+                bestCost = backward;
+                best = Samples - distance;
+            }
+        }
+        return best;
+    }
+
+    private static double Cost(Point[] from, Point[] to, int shift)
+    {
+        var cost = 0d;
+        for (var i = 0; i < Samples; i++)
+        {
+            var target = to[Mod(i + shift, Samples)];
+            var dx = from[i].X - target.X;
+            var dy = from[i].Y - target.Y;
+            cost += dx * dx + dy * dy;
+        }
+        return cost;
+    }
+
+    /// <summary>Parses the subset of path data the source outlines use: absolute M, L, C and Z.</summary>
+    private static List<Cubic> Parse(string data)
+    {
+        var cubics = new List<Cubic>();
+        var index = 0;
+        var current = default(Point);
+        var start = default(Point);
+        while (index < data.Length)
+        {
+            var command = data[index++];
+            switch (command)
+            {
+                case 'M':
+                    current = ReadPoint(data, ref index);
+                    start = current;
+                    break;
+                case 'L':
+                {
+                    var end = ReadPoint(data, ref index);
+                    var third = (end - current) / 3;
+                    cubics.Add(new Cubic(current, current + third, end - third, end));
+                    current = end;
+                    break;
+                }
+                case 'C':
+                {
+                    var control0 = ReadPoint(data, ref index);
+                    var control1 = ReadPoint(data, ref index);
+                    var end = ReadPoint(data, ref index);
+                    cubics.Add(new Cubic(current, control0, control1, end));
+                    current = end;
+                    break;
+                }
+                case 'Z' or 'z':
+                    current = start;
+                    break;
+                case ' ' or ',' or '\r' or '\n' or '\t':
+                    break;
+                default:
+                    throw new FormatException($"Unexpected '{command}' in the loading indicator path data.");
+            }
+        }
+        return cubics;
+    }
+
+    private static Point ReadPoint(string data, ref int index)
+    {
+        var x = ReadNumber(data, ref index);
+        var y = ReadNumber(data, ref index);
+        return new Point(x, y);
+    }
+
+    private static double ReadNumber(string data, ref int index)
+    {
+        while (index < data.Length && data[index] is ' ' or ',' or '\r' or '\n' or '\t')
+            index++;
+        var start = index;
+        if (index < data.Length && data[index] is '-' or '+')
+            index++;
+        while (index < data.Length && char.IsAsciiDigit(data[index]))
+            index++;
+        if (index < data.Length && data[index] == '.')
+        {
+            index++;
+            while (index < data.Length && char.IsAsciiDigit(data[index]))
+                index++;
+        }
+        if (index < data.Length && data[index] is 'e' or 'E')
+        {
+            index++;
+            if (index < data.Length && data[index] is '-' or '+')
+                index++;
+            while (index < data.Length && char.IsAsciiDigit(data[index]))
+                index++;
+        }
+        return double.Parse(data.AsSpan(start, index - start), CultureInfo.InvariantCulture);
+    }
+
+    private static Point Lerp(Point from, Point to, double progress) =>
+        new(from.X + (to.X - from.X) * progress, from.Y + (to.Y - from.Y) * progress);
+
+    private static Point Shift(Point point, Point center) => new(point.X - center.X, point.Y - center.Y);
+
+    private static double Distance(Point from, Point to) => Math.Sqrt(Square(from.X - to.X) + Square(from.Y - to.Y));
+
+    private static double Square(double value) => value * value;
+
+    private static int Mod(int value, int length) => ((value % length) + length) % length;
+
+    private readonly record struct Cubic(Point Start, Point Control0, Point Control1, Point End);
+
+    private sealed record Outline(StreamGeometry Still, Point[] Points);
 }

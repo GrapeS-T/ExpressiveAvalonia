@@ -39,7 +39,6 @@ internal sealed class TabsPlayground : Grid
         panel.Children.Add(_tabs);
         panel.Children.Add(_readout);
         Children.Add(panel);
-        Settings.Children.Add(new TextBlock { Text = expressive ? "Tabs · MD3E" : "Tabs · MD3", FontSize = 16, FontWeight = FontWeight.Bold });
         _variant = Choice("Вид", new[] { "Primary", "Secondary" }, 0);
         _layout = Choice("Содержимое", new[] { "Текст", "Иконка", "Оба" }, 0);
         _width = Number("Ширина", 240, 800, 480, 8, "dp");

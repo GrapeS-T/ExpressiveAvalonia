@@ -44,7 +44,6 @@ internal sealed class TextFieldPlayground : Grid
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(24)
         };
         Children.Add(host);
-        Settings.Children.Add(new TextBlock { Text = expressive ? "Text fields · MD3E" : "Text fields · MD3", FontSize = 16, FontWeight = FontWeight.Bold });
         Settings.Children.Add(new TextBlock { Text = "Вид" });
         _variant = new MaterialButtonGroup
         {
