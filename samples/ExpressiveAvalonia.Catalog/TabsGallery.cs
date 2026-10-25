@@ -4,154 +4,147 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>Shows every tab style, configuration, and header layout of the source family.</summary>
+/// <summary>A live tab strip with its configuration exposed in the inspector.</summary>
 public static class TabsGallery
 {
-    private static readonly string[] Headers =
-    [
-        "Overview", "Activity", "Library", "Settings", "Profile", "Explore",
-        "Downloads", "Favorites", "History", "Shared", "Trash", "More",
-        "Reports", "Insights", "Archive", "Shortcuts"
-    ];
+    public static Control Create() => new TabsPlayground(true);
+    public static Control CreateClassic() => new TabsPlayground(false);
+}
 
-    private static readonly Geometry[] Icons =
-    [
-        Geometry.Parse("M12,3 L4,10 L6,10 L6,20 L18,20 L18,10 L20,10 Z"),
-        Geometry.Parse("M12,3 L14.8,8.7 L21,9.6 L16.5,14 L17.6,20.2 L12,17.3 L6.4,20.2 L7.5,14 L3,9.6 L9.2,8.7 Z"),
-        Geometry.Parse("M4,4 L20,4 L20,18 L8,18 L4,22 Z M7,8 L17,8 L17,10 L7,10 Z M7,12 L15,12 L15,14 L7,14 Z"),
-        Geometry.Parse("M12,8 A4,4 0 1 1 12,16 A4,4 0 1 1 12,8 M12,2 L13.5,5 L17,5.5 L14.5,8 L15.2,11.5 L12,10 L8.8,11.5 L9.5,8 L7,5.5 L10.5,5 Z"),
-        Geometry.Parse("M12,4 A4,4 0 1 1 12,12 A4,4 0 1 1 12,4 M4,20 C4,16 8,14 12,14 C16,14 20,16 20,20 Z"),
-        Geometry.Parse("M12,2 A10,10 0 1 1 12,22 A10,10 0 1 1 12,2 M11,10 L13,10 L13,17 L11,17 Z M11,7 L13,7 L13,9 L11,9 Z")
-    ];
+internal sealed class TabsPlayground : Grid
+{
+    private static readonly Geometry Icon = Geometry.Parse("M12,3 L14.8,8.7 L21,9.6 L16.5,14 L17.6,20.2 L12,17.3 L6.4,20.2 L7.5,14 L3,9.6 L9.2,8.7 Z");
+    private readonly TabControl _tabs = new() { Width = 480, MinHeight = 220 };
+    private readonly MaterialButtonGroup _variant;
+    private readonly MaterialButtonGroup _layout;
+    private readonly Slider _count;
+    private readonly Slider _width;
+    private readonly ToggleSwitch _scrollable;
+    private readonly ToggleSwitch _badge;
+    private readonly ToggleSwitch _badgeText;
+    private readonly ToggleSwitch _disabled;
+    private readonly ToggleSwitch _enabled;
+    private readonly ToggleSwitch _rtl;
+    private readonly TextBlock _readout = new() { Text = "Выбрана вкладка: 1", HorizontalAlignment = HorizontalAlignment.Center };
+    internal StackPanel Settings { get; } = new() { Spacing = 16 };
 
-    public static Control Create()
+    internal TabsPlayground(bool expressive)
     {
-        var panel = new StackPanel { Spacing = 28, Margin = new Thickness(24) };
-
-        panel.Children.Add(Note(
-            "Primary and secondary tabs · fixed and scrollable headers · icon, label, and icon+label layouts. " +
-            "Arrow keys, Home, and End move the selection; Enter and Space select the focused header. " +
-            "Scrollable strips scroll with the wheel, focus, and selection changes."));
-
-        panel.Children.Add(Section(
-            "Primary · fixed · label only",
-            CreateTabs(MaterialTabVariant.Primary, scrollable: false, MaterialTabLayout.LabelOnly, 3)));
-
-        panel.Children.Add(Section(
-            "Primary · fixed · icon and label (64px header, dot and pill badges, disabled tab)",
-            CreateTabs(MaterialTabVariant.Primary, scrollable: false, MaterialTabLayout.IconAndLabel, 4,
-                badgeIndex: 1, badgeTextIndex: 2, disabledIndex: 3)));
-
-        panel.Children.Add(Section(
-            "Primary · fixed · icon only (Header keeps the accessible name)",
-            CreateTabs(MaterialTabVariant.Primary, scrollable: false, MaterialTabLayout.IconOnly, 4)));
-
-        panel.Children.Add(Section(
-            "Secondary · fixed · label only (full-width 2px indicator and strip divider)",
-            CreateTabs(MaterialTabVariant.Secondary, scrollable: false, MaterialTabLayout.LabelOnly, 3)));
-
-        panel.Children.Add(Section(
-            "Secondary · fixed · icon and label (horizontal header)",
-            CreateTabs(MaterialTabVariant.Secondary, scrollable: false, MaterialTabLayout.IconAndLabel, 4)));
-
-        panel.Children.Add(Section(
-            "Primary · scrollable · icon and label (90px headers, 16 items)",
-            CreateTabs(MaterialTabVariant.Primary, scrollable: true, MaterialTabLayout.IconAndLabel, 16,
-                badgeIndex: 0, badgeTextIndex: 4)));
-
-        panel.Children.Add(Section(
-            "Secondary · scrollable · label only (90px headers, 16 items)",
-            CreateTabs(MaterialTabVariant.Secondary, scrollable: true, MaterialTabLayout.LabelOnly, 16)));
-
-        return new ScrollViewer
+        var panel = new StackPanel { Spacing = 24, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(24) };
+        panel.Children.Add(_tabs);
+        panel.Children.Add(_readout);
+        Children.Add(panel);
+        Settings.Children.Add(new TextBlock { Text = expressive ? "Tabs · MD3E" : "Tabs · MD3", FontSize = 16, FontWeight = FontWeight.Bold });
+        _variant = Choice("Вид", new[] { "Primary", "Secondary" }, 0);
+        _layout = Choice("Содержимое", new[] { "Текст", "Иконка", "Оба" }, 0);
+        _width = Number("Ширина", 240, 800, 480, 8, "dp");
+        _count = Number("Количество вкладок", 2, 12, 3, 1, "");
+        _scrollable = Toggle("Прокручиваемая полоса", false);
+        _badge = Toggle("Badge на второй вкладке", false);
+        _badgeText = Toggle("Число в badge", false);
+        _disabled = Toggle("Последняя вкладка недоступна", false);
+        _enabled = Toggle("Вкладки доступны", true);
+        _rtl = Toggle("Справа налево (RTL)", false);
+        Settings.Children.Add(new TextBlock
         {
-            Content = panel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            Text = "Primary: заголовок 48 dp, с иконкой и текстом — 64 dp, индикатор 3 dp. Secondary: 48 dp, индикатор 2 dp на всю ширину вкладки. Иконки 24 dp, разделитель 1 dp. Стрелки и Home/End переключают вкладки; ввод в содержимом не меняет выбор.",
+            TextWrapping = TextWrapping.Wrap, FontSize = 13
+        });
+        _variant.SelectionChanged += (_, _) => Apply();
+        _layout.SelectionChanged += (_, _) => Apply();
+        _width.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) _tabs.Width = _width.Value; };
+        _count.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
+        foreach (var toggle in new[] { _scrollable, _badge, _badgeText, _disabled, _enabled, _rtl })
+            toggle.IsCheckedChanged += (_, _) => Apply();
+        _tabs.SelectionChanged += (_, e) =>
+        {
+            if (e.Source == _tabs) _readout.Text = $"Выбрана вкладка: {_tabs.SelectedIndex + 1}";
         };
+        Apply();
     }
 
-    private static TabControl CreateTabs(
-        MaterialTabVariant variant,
-        bool scrollable,
-        MaterialTabLayout layout,
-        int count,
-        int badgeIndex = -1,
-        int badgeTextIndex = -1,
-        int disabledIndex = -1)
+    private MaterialButtonGroup Choice(string label, string[] options, int selected)
     {
-        var tabs = new TabControl { MinHeight = 220 };
-        MaterialTabs.SetVariant(tabs, variant);
-        MaterialTabs.SetIsScrollable(tabs, scrollable);
-
-        for (var index = 0; index < count; index++)
+        Settings.Children.Add(new TextBlock { Text = label });
+        var group = new MaterialButtonGroup
         {
-            var header = Headers[index % Headers.Length];
-            var item = new TabItem
+            Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round,
+            ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true, SelectedIndex = selected
+        };
+        foreach (var option in options) group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        Settings.Children.Add(group);
+        return group;
+    }
+
+    private Slider Number(string label, double min, double max, double value, double step, string unit)
+    {
+        var caption = new TextBlock { Text = $"{label}: {value:0} {unit}" };
+        Settings.Children.Add(caption);
+        var slider = new Slider { Minimum = min, Maximum = max, Value = value, TickFrequency = step, IsSnapToTickEnabled = true };
+        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(slider, false);
+        AutomationProperties.SetName(slider, label);
+        slider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0} {unit}"; };
+        Settings.Children.Add(slider);
+        return slider;
+    }
+
+    private ToggleSwitch Toggle(string label, bool value)
+    {
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        Settings.Children.Add(toggle);
+        return toggle;
+    }
+
+    private void Apply()
+    {
+        var count = (int)_count.Value;
+        // Keep existing pages and their edited contents while changing header anatomy.
+        while (_tabs.Items.Count > count) _tabs.Items.RemoveAt(_tabs.Items.Count - 1);
+        while (_tabs.Items.Count < count)
+        {
+            var index = _tabs.Items.Count;
+            var editor = new TextBox { Text = $"Page {index + 1}" };
+            MaterialTextField.SetLabel(editor, "Содержимое вкладки");
+            MaterialTextField.SetVariant(editor, MaterialTextFieldVariant.Outlined);
+            _tabs.Items.Add(new TabItem
             {
-                Header = header,
-                Content = Page(header, index)
-            };
-
-            if (layout is MaterialTabLayout.IconOnly or MaterialTabLayout.IconAndLabel)
-                item.Icon = new PathIcon { Data = Icons[index % Icons.Length], Width = 24, Height = 24 };
-
-            MaterialTabs.SetLayout(item, layout);
-            if (layout == MaterialTabLayout.IconOnly)
-                AutomationProperties.SetName(item, header);
-            if (index == badgeIndex)
-                MaterialTabs.SetShowBadge(item, true);
-            if (index == badgeTextIndex)
-            {
-                MaterialTabs.SetShowBadge(item, true);
-                MaterialTabs.SetBadgeText(item, "3");
-            }
-            if (index == disabledIndex)
-                item.IsEnabled = false;
-
-            tabs.Items.Add(item);
+                Header = $"Tab {index + 1}",
+                Content = new StackPanel { Margin = new Thickness(16), Spacing = 12, Children =
+                {
+                    new TextBlock { Text = $"Содержимое вкладки {index + 1}", FontSize = 20 }, editor
+                } }
+            });
         }
-
-        return tabs;
+        MaterialTabs.SetVariant(_tabs, (MaterialTabVariant)_variant.SelectedIndex);
+        MaterialTabs.SetIsScrollable(_tabs, _scrollable.IsChecked == true);
+        _tabs.IsEnabled = _enabled.IsChecked == true;
+        _tabs.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        _badgeText.IsEnabled = _badge.IsChecked == true;
+        var layout = new[] { MaterialTabLayout.LabelOnly, MaterialTabLayout.IconOnly, MaterialTabLayout.IconAndLabel }[_layout.SelectedIndex];
+        for (var i = 0; i < count; i++)
+        {
+            var item = (TabItem)_tabs.Items[i]!;
+            item.IsEnabled = !(_disabled.IsChecked == true && i == count - 1);
+            if (layout != MaterialTabLayout.LabelOnly && item.Icon is null)
+            {
+                var icon = new Avalonia.Controls.Shapes.Path { Data = Icon, Width = 24, Height = 24, Stretch = Stretch.Uniform };
+                icon.Bind(Avalonia.Controls.Shapes.Shape.FillProperty, new Avalonia.Data.Binding(nameof(TabItem.Foreground)) { Source = item });
+                item.Icon = icon;
+            }
+            if (layout == MaterialTabLayout.LabelOnly) item.Icon = null;
+            MaterialTabs.SetLayout(item, layout);
+            AutomationProperties.SetName(item, $"Tab {i + 1}");
+            MaterialTabs.SetShowBadge(item, i == 1 && _badge.IsChecked == true);
+            MaterialTabs.SetBadgeText(item, _badgeText.IsChecked == true ? "3" : null);
+        }
+        if (_tabs.SelectedIndex < 0 || _tabs.SelectedIndex >= count || !((TabItem)_tabs.SelectedItem!).IsEnabled)
+            _tabs.SelectedIndex = 0;
     }
-
-    private static Control Page(string header, int index) =>
-        new StackPanel
-        {
-            Spacing = 8,
-            Margin = new Thickness(16),
-            Children =
-            {
-                new TextBlock { Text = $"{header} content", FontSize = 16, FontWeight = FontWeight.Medium },
-                new TextBlock
-                {
-                    Text = "Arrow keys typed here stay in the field; they never move the tab selection.",
-                    Opacity = 0.72
-                },
-                new TextBox
-                {
-                    Text = $"Page {index + 1}",
-                    Width = 240,
-                    HorizontalAlignment = HorizontalAlignment.Left
-                }
-            }
-        };
-
-    private static Control Section(string caption, Control content) =>
-        new StackPanel
-        {
-            Spacing = 8,
-            Children =
-            {
-                new TextBlock { Text = caption, FontSize = 16, FontWeight = FontWeight.Medium },
-                content
-            }
-        };
-
-    private static Control Note(string text) =>
-        new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Opacity = 0.8 };
 }

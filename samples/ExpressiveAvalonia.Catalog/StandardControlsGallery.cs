@@ -17,6 +17,7 @@ internal static class StandardControlsGallery
         pages.Items.Add(new TabItem { Header = "Selection", Content = new DeferredGallery(Selection) });
         pages.Items.Add(new TabItem { Header = "Ranges", Content = new DeferredGallery(Ranges) });
         pages.Items.Add(new TabItem { Header = "Collections", Content = new DeferredGallery(Collections) });
+        pages.Items.Add(new TabItem { Header = "Tabs", Content = new DeferredGallery(TabsGallery.CreateClassic) });
         pages.Items.Add(new TabItem { Header = "Typography", Content = new DeferredGallery(() => Typography(theme)) });
         return pages;
     }
@@ -104,11 +105,6 @@ internal static class StandardControlsGallery
             list.Items.Add(item);
         }
         panel.Children.Add(list);
-        var secondary = new TabControl { Height = 160 };
-        MaterialTabs.SetVariant(secondary, MaterialTabVariant.Secondary);
-        secondary.Items.Add(new TabItem { Header = "First", Content = "Первый раздел" });
-        secondary.Items.Add(new TabItem { Header = "Second", Content = "Второй раздел" });
-        panel.Children.Add(secondary);
         var menu = new Menu();
         var file = new MenuItem { Header = "_Файл" };
         file.Items.Add(new MenuItem { Header = "_Открыть", InputGesture = new Avalonia.Input.KeyGesture(Avalonia.Input.Key.O, Avalonia.Input.KeyModifiers.Control) });

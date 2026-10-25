@@ -133,6 +133,8 @@ Range slider горизонтальный. LowerValue не может превы
 ### Tabs, rich tooltip и motion
 
 - `MaterialTabs.Variant="Primary|Secondary"`, `MaterialTabs.IsScrollable="True"` на TabControl.
+- В каталоге MD3 и MD3E имеют отдельные страницы `Tabs` с одним живым примером. Справа — связанные кнопки Primary/Secondary и текст/иконка/оба, слайдеры ширины 240–800 dp и количества вкладок 2–12, прокрутка, badge, недоступная последняя вкладка, доступность и RTL. Изменение оформления сохраняет содержимое оставшихся страниц.
+- По [спецификации Tabs](https://m3.material.io/components/tabs/specs): заголовки 48 dp, Primary с иконкой и текстом — 64 dp; иконки 24 dp, разделитель 1 dp. Primary-индикатор высотой 3 dp имеет минимум 24 dp и верхние скругления; Secondary — 2 dp на всю ширину вкладки.
 - `RichTooltip : Flyout`: `Title`, `Content`, `Actions`, `ActionsTemplate`. Назначьте Button.Flyout или вызовите ShowAt(owner); Hide закрывает. Открывается явно, а не hover-таймером, чтобы не красть фокус. Escape/light dismiss используют native flyout lifecycle.
 - `MaterialMotion.IsReduced="True"` наследуется поддеревом. Системный Windows reduced mode имеет приоритет.
 - `MaterialMotion.Animate(owner, from, to, apply, stiffness, dampingRatio)` возвращает IDisposable SpringAnimation; `Retarget(target)` сохраняет текущую скорость. Dispose останавливает и снимает подписки. Отсоединение завершает к целевому значению. Параметры по умолчанию: stiffness 1400, damping ratio 0.9.
