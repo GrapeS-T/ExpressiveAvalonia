@@ -20,6 +20,16 @@ Avalonia 12.1.4, библиотека `net8.0`, desktop-каталог и тес
 - Menu/MenuItem, ContextMenu, MenuFlyout; plain tooltip на hover/focus с Escape; RichTooltip с действиями и возвратом фокуса.
 - Служебные шаблоны Window/visual layers, ScrollViewer/ScrollBar, Thumb, RepeatButton, ContentControl, presenters, Separator, ComboBox, Calendar и popup hosts.
 
+## Перенос локальной дизайн-системы
+
+Источник: `artifacts/design-system-anonymized/index.json`, 416 пакетов и 5599 вариантов. `specification.json` описывает варианты и свойства, соответствующий `design.json` — геометрию, анатомию и значения дизайна. Все 5599 файлов `design.json` доступны; в исходном наборе отсутствуют 444 SVG и один preview, поэтому изображения не являются единственным источником реализации.
+
+Ветка переноса добавляет специализированные семейства и страницы `Design system` в desktop-каталог. Они подключаются через ту же `MaterialTheme`, без дополнительной Fluent/Simple темы. Кнопки используют анатомию локального экспорта: `MaterialAssist.IconButtonWidth="Narrow|Default|Wide"`, `Icon`, `SelectedIcon`, `ShowIcon`; выбранные labeled-toggle также меняют round/square силуэт. `MaterialRipple` рисует исходную clipped-геометрию pressed-состояния. Встроенные glyphs доступны отдельно через семейство ресурсов иконок, пользовательский content остаётся допустимым.
+
+Selection controls сохраняют нативные `CheckBox`, `RadioButton`, `ToggleSwitch`; встроенные иконки switch включаются через `MaterialSelection.ShowSwitchIcons="True"`. Слайдеры используют пять `MaterialAssist.ControlSize`; `MaterialSlider.IsCentered`, `ShowStops`, `ShowIcon`, `Icon` и `ValueFormat` задают исходную анатомию. `MaterialProgress.IndicatorType="Wave"` и `Thickness` на `ProgressBar`, `CircularProgressIndicator.IndicatorType` и `LoadingIndicator` представляют expressive progress.
+
+Новые самостоятельные компоненты: `MaterialFab`, `MaterialExtendedFab`, `MaterialFabMenu`; `MaterialSheet`/`MaterialBottomSheet`/`MaterialSideSheet`; `MaterialSearchBar`/`MaterialSearchView`; `MaterialNavigationRail`/`MaterialNavigationRailExpanded`; `MaterialShape`, `MaterialDivider`, `MaterialScrim`, `MaterialFocusIndicator`, `MaterialStateLayer`. Их composition, реальные действия и варианты показаны на одноимённых страницах каталога. Модальные inline-компоненты следует размещать в panel, покрывающей блокируемую область; запросы/навигация приложения не реализуются библиотекой автоматически.
+
 ## Запуск и проверки
 
 Нужен .NET SDK 10.
@@ -34,11 +44,19 @@ dotnet run --project samples/ExpressiveAvalonia.Catalog
 dotnet run --project samples/ExpressiveAvalonia.Catalog -- --smoke
 ```
 
-Desktop smoke проверяет смену темы/seed/контраста и сохранение состояния, затем отрисовывает шесть страниц в light/dark с seed `#6750A4` и `Contrast=0`; открывает/закрывает rich tooltip. Снимки — `artifacts/catalog-light-page-0.png` … `catalog-light-page-5.png` и соответствующие `catalog-dark-page-*.png`.
+Полные превью страниц каталога (light/dark, вложенные вкладки, содержимое ниже первого экрана):
+
+```sh
+dotnet run --project samples/ExpressiveAvalonia.Catalog -- --preview
+```
+
+Откройте `artifacts/previews/index.html` напрямую в браузере: сервер не нужен. PNG-снимки реальных контролов находятся рядом; длинные страницы разбиты на плитки до 1600 пикселей. Поиск фильтрует страницы по семейству и теме. Это обзор элементов каталога, не перебор всех 5599 комбинаций состояний; popup и другие интерактивные состояния доступны в живом каталоге.
+
+Desktop smoke проверяет смену темы/seed/контраста и сохранение состояния, затем отрисовывает шесть стандартных страниц и 29 страниц `Design system` в light/dark с seed `#6750A4` и `Contrast=0`; открывает/закрывает rich tooltip. Снимки стандартных страниц — `artifacts/catalog-{light|dark}-page-{0..5}.png`, семейств переноса — `artifacts/catalog-design-{light|dark}-{0..28}.png`. Навигация семейств прокручивается, чтобы заголовки не сжимались до нечитаемых фрагментов.
 
 Страница Ranges остаётся открытой по 15 секунд в каждой теме для проверки indeterminate-анимации через desktop compositor. Дуги CircularProgressIndicator после передачи renderer’у не изменяются: повторное открытие опубликованной StreamGeometry приводило к конкурентному изменению native SKPath и падению Skia `GetFillPath` (`0xC0000005`). Короткая отрисовка и headless-тесты не заменяют эту проверку.
 
-Проверено на Windows: 67 автоматических проверок и desktop smoke (12 отрисовок: шесть страниц × две темы). Проверена отрисовка полей, selection controls, slider/progress, lists/tabs и размерных вариантов кнопок. Headless-проверки отправляют события клавиатуры в input pipeline; smoke rich tooltip использует routed Escape. Все сочетания hover/press/focus, физические устройства ввода, скринридеры, mobile, Linux/macOS пока не проверены. Это не сертификат доступности или полного соответствия MD3.
+Проверено на Windows: 59 автоматических проверок и desktop smoke (70 отрисовок: шесть стандартных страниц и 29 семейств × две темы), rich tooltip с routed Escape. Все 416 пакетов назначены и заявлены исполнителями; самоотчёт и успешная отрисовка страницы не подтверждают попиксельное соответствие всех 5599 вариантов. Все сочетания hover/press/focus, физические устройства ввода, скринридеры, mobile, Linux/macOS пока не проверены. Это не сертификат доступности или полного соответствия MD3.
 
 ## Подключение
 

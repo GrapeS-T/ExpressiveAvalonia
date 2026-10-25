@@ -14,10 +14,12 @@ namespace ExpressiveAvalonia.Catalog;
 internal static class Program
 {
     public static bool Smoke;
+    public static bool Preview;
     [STAThread]
     public static void Main(string[] args)
     {
         Smoke = args.Contains("--smoke");
+        Preview = args.Contains("--preview");
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
@@ -61,6 +63,7 @@ internal sealed class CatalogWindow : Window
         var tabs = new TabControl();
         tabs.Items.Add(new TabItem { Header = "Theme", Content = new ScrollViewer { Content = panel } });
         tabs.Items.Add(new TabItem { Header = "Standard controls", Content = StandardControlsGallery.Create(theme) });
+        tabs.Items.Add(new TabItem { Header = "Design system", Content = DesignSystemGallery.Create() });
         Content = tabs;
         panel.Children.Add(new TextBlock { Text = "ExpressiveAvalonia", FontSize = 36, FontWeight = FontWeight.Bold });
         panel.Children.Add(new TextBlock { Text = "Лаборатория токенов · начальная тема, не полный MD3", FontSize = 18 });
@@ -99,6 +102,12 @@ internal sealed class CatalogWindow : Window
         panel.Children.Add(_localDark);
         if (Program.Smoke)
             Opened += (_, _) => DispatcherTimer.RunOnce(RunSmoke, TimeSpan.FromSeconds(1));
+        if (Program.Preview)
+            Opened += async (_, _) =>
+            {
+                try { await PreviewExporter.Export(this); }
+                catch (Exception exception) { Fail(exception); }
+            };
     }
 
     private static Border Swatch(string role)
@@ -168,7 +177,7 @@ internal sealed class CatalogWindow : Window
                 RequestedThemeVariant = ThemeVariant.Dark;
                 SmokePage(gallery, 0);
             }
-            else SmokePopup();
+            else SmokeDesignPage(0);
             return;
         }
         gallery.SelectedIndex = index;
@@ -182,6 +191,35 @@ internal sealed class CatalogWindow : Window
             }
             catch (Exception exception) { Fail(exception); }
         }, TimeSpan.FromMilliseconds(index == 3 ? 15000 : 300));
+    }
+
+    private void SmokeDesignPage(int index)
+    {
+        var root = (TabControl)Content!;
+        if (root.ItemCount < 3 || ((TabItem)root.Items[2]!).Content is not TabControl gallery)
+            throw new InvalidOperationException("Design system gallery is missing.");
+        root.SelectedIndex = 2;
+        if (index >= gallery.ItemCount)
+        {
+            if (ActualThemeVariant == ThemeVariant.Dark)
+            {
+                RequestedThemeVariant = ThemeVariant.Light;
+                SmokeDesignPage(0);
+            }
+            else SmokePopup();
+            return;
+        }
+        gallery.SelectedIndex = index;
+        DispatcherTimer.RunOnce(() =>
+        {
+            try
+            {
+                Capture($"design-{(ActualThemeVariant == ThemeVariant.Dark ? "dark" : "light")}-{index}");
+                Console.WriteLine($"Rendered design family {index}: {((TabItem)gallery.Items[index]!).Header}");
+                SmokeDesignPage(index + 1);
+            }
+            catch (Exception exception) { Fail(exception); }
+        }, TimeSpan.FromMilliseconds(350));
     }
 
     private void SmokePopup()
@@ -203,7 +241,7 @@ internal sealed class CatalogWindow : Window
                         action.Focus();
                         action.RaiseEvent(new Avalonia.Input.KeyEventArgs { RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent, Key = Avalonia.Input.Key.Escape });
                         if (rich.IsOpen) throw new InvalidOperationException("Rich tooltip Escape did not dismiss.");
-                        Console.WriteLine("SMOKE PASS: theme transitions, six pages in light/dark at contrast 0, desktop rich tooltip open/Escape.");
+                        Console.WriteLine("SMOKE PASS: theme transitions, standard and design-family galleries in light/dark, desktop rich tooltip open/Escape.");
                         Close();
                     }
                     catch (Exception exception) { rich.Hide(); Fail(exception); }
