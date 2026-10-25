@@ -10,7 +10,7 @@
        Source anatomy: 48px header for label-only and icon-only, 64px for primary
        icon-and-label, 16px horizontal padding, 24px icon, 2px icon/label gap, 8px
        icon/label gap in the horizontal secondary header, title-small 14/20 medium label,
-       primary indicator 20x3 centered at the bottom, secondary indicator full width x 2,
+       primary indicator at least 24x3 centered at the bottom, secondary indicator full width x 2,
        one-pixel outline-variant divider under the strip, 6px error dot badge, and a
        3px secondary focus ring with a 12px radius. Scrollable headers use 90px tabs and
        clip/scroll instead of sharing the width. State layers: on-surface 8% hover and
@@ -59,7 +59,7 @@
                                     HorizontalContentAlignment="Center" VerticalAlignment="Center" />
                 </StackPanel>
                 <!-- Primary indicator: spans the header content minus the source's 2px inset. -->
-                <Border Grid.Column="0" Name="Indicator" Height="3" Margin="2,0" CornerRadius="0"
+                <Border Grid.Column="0" Name="Indicator" Height="3" MinWidth="24" Margin="2,0" CornerRadius="3,3,0,0"
                         Background="{DynamicResource MaterialPrimaryBrush}"
                         HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
                         IsVisible="False" IsHitTestVisible="False" />
@@ -140,9 +140,9 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
 
-    <!-- Indicator. The primary style spans the header content minus 2px on each side
-         (20px for a 24px icon, 33px for the source's 37px "Tab 1" label); the secondary
-         style spans the whole strip and is 2px high. The :primary/:secondary classes are
+    <!-- Primary indicator follows the header content with 2dp insets and a 24dp minimum;
+         secondary spans the whole tab width and is 2dp high.
+         The primary/secondary classes are
          mutually exclusive, so the two styles can never both match. Side placements reuse the
          edge-aligned IndicatorSecondary because the content-width bar is centered in the header
          and would otherwise float away from the strip edge. -->

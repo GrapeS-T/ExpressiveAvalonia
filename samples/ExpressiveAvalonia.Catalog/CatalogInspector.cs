@@ -39,8 +39,6 @@ internal sealed class CatalogInspector : ScrollViewer
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         AllowAutoHide = false;
-        _settings.Children.Add(new TextBlock { Text = "Настройка примера", FontSize = 22, FontWeight = FontWeight.Bold });
-        _settings.Children.Add(new TextBlock { Text = "Параметры применяются только к области слева.", TextWrapping = TextWrapping.Wrap, FontSize = 13 });
         var global = Section("Оформление студии");
         _settings.Children.Remove(global);
         StudioSettings.Children.Add(global);
@@ -98,6 +96,14 @@ internal sealed class CatalogInspector : ScrollViewer
         var descendants = page.GetLogicalDescendants().OfType<Control>().Prepend(page).ToArray();
         if (descendants.OfType<SliderPlayground>().FirstOrDefault() is { } sliders)
             _pageSettings.Children.Add(sliders.Settings);
+        if (descendants.OfType<TextFieldPlayground>().FirstOrDefault() is { } fields)
+            _pageSettings.Children.Add(fields.Settings);
+        if (descendants.OfType<TabsPlayground>().FirstOrDefault() is { } tabs)
+            _pageSettings.Children.Add(tabs.Settings);
+        if (descendants.OfType<SearchPlayground>().FirstOrDefault() is { } search)
+            _pageSettings.Children.Add(search.Settings);
+        if (descendants.OfType<ProgressPlayground>().FirstOrDefault() is { } progress)
+            _pageSettings.Children.Add(progress.Settings);
         _menus = descendants.OfType<MaterialFabMenu>().ToArray();
         if (_menus.Length > 0) BuildMenus();
         var hasButtons = descendants.OfType<Button>().Any(b => b is not MaterialFabBase) || descendants.OfType<ViewportGallery>().Any();

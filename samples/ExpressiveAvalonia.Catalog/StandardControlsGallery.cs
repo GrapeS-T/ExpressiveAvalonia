@@ -13,10 +13,13 @@ internal static class StandardControlsGallery
     {
         var pages = new TabControl();
         pages.Items.Add(new TabItem { Header = "Buttons", Content = new DeferredGallery(Buttons) });
-        pages.Items.Add(new TabItem { Header = "Input", Content = new DeferredGallery(Input) });
+        pages.Items.Add(new TabItem { Header = "Text fields", Content = new DeferredGallery(TextFieldsGallery.CreateClassic) });
         pages.Items.Add(new TabItem { Header = "Selection", Content = new DeferredGallery(Selection) });
         pages.Items.Add(new TabItem { Header = "Ranges", Content = new DeferredGallery(Ranges) });
         pages.Items.Add(new TabItem { Header = "Collections", Content = new DeferredGallery(Collections) });
+        pages.Items.Add(new TabItem { Header = "Tabs", Content = new DeferredGallery(TabsGallery.CreateClassic) });
+        pages.Items.Add(new TabItem { Header = "Search", Content = new DeferredGallery(SearchGallery.CreateClassic) });
+        pages.Items.Add(new TabItem { Header = "Progress", Content = new DeferredGallery(ProgressGallery.CreateClassic) });
         pages.Items.Add(new TabItem { Header = "Typography", Content = new DeferredGallery(() => Typography(theme)) });
         return pages;
     }
@@ -54,38 +57,6 @@ internal static class StandardControlsGallery
         return Scroll(panel);
     }
 
-    private static Control Input()
-    {
-        var panel = Panel();
-        foreach (var variant in Enum.GetValues<MaterialTextFieldVariant>())
-        {
-            var text = new TextBox { Width = 440, HorizontalAlignment = HorizontalAlignment.Left };
-            MaterialTextField.SetVariant(text, variant);
-            MaterialTextField.SetLabel(text, $"{variant}: имя");
-            MaterialTextField.SetSupportingText(text, "Введите текст; проверьте выделение и переключение темы");
-            MaterialTextField.SetPrefix(text, "@");
-            panel.Children.Add(text);
-            var populated = new TextBox { Text = "user@example.com", Width = 440, HorizontalAlignment = HorizontalAlignment.Left };
-            MaterialTextField.SetVariant(populated, variant);
-            MaterialTextField.SetLabel(populated, "Email");
-            MaterialTextField.SetSupportingText(populated, "Поддерживающий текст");
-            panel.Children.Add(populated);
-            var invalid = new TextBox { Text = "Неверный адрес", Width = 440, HorizontalAlignment = HorizontalAlignment.Left };
-            MaterialTextField.SetVariant(invalid, variant);
-            MaterialTextField.SetLabel(invalid, "Email");
-            DataValidationErrors.SetErrors(invalid, new object[] { "Введите корректный email" });
-            panel.Children.Add(invalid);
-            var disabled = new TextBox { Text = "Недоступное поле", IsEnabled = false, Width = 440, HorizontalAlignment = HorizontalAlignment.Left };
-            MaterialTextField.SetVariant(disabled, variant);
-            MaterialTextField.SetLabel(disabled, "Email");
-            panel.Children.Add(disabled);
-        }
-        var password = new TextBox { PasswordChar = '●', Width = 440, HorizontalAlignment = HorizontalAlignment.Left };
-        MaterialTextField.SetLabel(password, "Пароль");
-        MaterialTextField.SetShowPasswordReveal(password, true);
-        panel.Children.Add(password);
-        return Scroll(panel);
-    }
 
     private static Control Selection()
     {
@@ -106,12 +77,6 @@ internal static class StandardControlsGallery
         var panel = Panel();
         panel.Children.Add(new Slider { Minimum = 0, Maximum = 100, Value = 35, TickFrequency = 10, IsSnapToTickEnabled = true });
         panel.Children.Add(new MaterialRangeSlider { Minimum = 0, Maximum = 100, LowerValue = 20, UpperValue = 80, TickFrequency = 10, IsSnapToTickEnabled = true });
-        panel.Children.Add(new ProgressBar { Minimum = 0, Maximum = 100, Value = 65, ShowProgressText = true });
-        panel.Children.Add(new ProgressBar { IsIndeterminate = true });
-        var row = Row();
-        row.Children.Add(new CircularProgressIndicator { Value = 65 });
-        row.Children.Add(new CircularProgressIndicator { IsIndeterminate = true });
-        panel.Children.Add(row);
         var sliders = Row();
         sliders.Children.Add(new Slider { Orientation = Orientation.Vertical, Height = 150, Minimum = 0, Maximum = 100, Value = 60, TickFrequency = 20, IsSnapToTickEnabled = true });
         sliders.Children.Add(new Slider { Width = 240, Minimum = 0, Maximum = 100, Value = 60, IsEnabled = false });
@@ -136,11 +101,6 @@ internal static class StandardControlsGallery
             list.Items.Add(item);
         }
         panel.Children.Add(list);
-        var secondary = new TabControl { Height = 160 };
-        MaterialTabs.SetVariant(secondary, MaterialTabVariant.Secondary);
-        secondary.Items.Add(new TabItem { Header = "First", Content = "Первый раздел" });
-        secondary.Items.Add(new TabItem { Header = "Second", Content = "Второй раздел" });
-        panel.Children.Add(secondary);
         var menu = new Menu();
         var file = new MenuItem { Header = "_Файл" };
         file.Items.Add(new MenuItem { Header = "_Открыть", InputGesture = new Avalonia.Input.KeyGesture(Avalonia.Input.Key.O, Avalonia.Input.KeyModifiers.Control) });

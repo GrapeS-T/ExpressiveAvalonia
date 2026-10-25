@@ -244,7 +244,7 @@
                       AutomationProperties.Name="{TemplateBinding LeadingIconName}"
                       ToolTip.Tip="{TemplateBinding LeadingIconName}"
                       IsVisible="{TemplateBinding ShowLeadingIcon}">
-                <PathIcon Data="{TemplateBinding LeadingIcon}" />
+                <Path Data="{TemplateBinding LeadingIcon}" Width="24" Height="24" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
               </Button>
               <TextBox Name="PART_TextBox" Grid.Column="1"
                        Theme="{StaticResource MaterialSearchTextBox}"
@@ -258,7 +258,7 @@
                         theming:MaterialAssist.IsIconButton="True"
                         AutomationProperties.Name="{DynamicResource MaterialSearchClearText}"
                         ToolTip.Tip="{DynamicResource MaterialSearchClearText}">
-                  <PathIcon Data="{StaticResource MaterialSearchCloseIconGeometry}" />
+                  <Path Data="{StaticResource MaterialSearchCloseIconGeometry}" Width="24" Height="24" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                   <Button.IsVisible>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                       <Binding Path="ShowClearButton" RelativeSource="{RelativeSource TemplatedParent}" />
@@ -272,7 +272,7 @@
                         AutomationProperties.Name="{TemplateBinding TrailingIconName}"
                         ToolTip.Tip="{TemplateBinding TrailingIconName}"
                         IsVisible="{TemplateBinding ShowTrailingIcon}">
-                  <PathIcon Data="{TemplateBinding TrailingIcon}" />
+                  <Path Data="{TemplateBinding TrailingIcon}" Width="24" Height="24" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                 </Button>
                 <Button Name="PART_SecondaryButton"
                         theming:MaterialAssist.IsIconButton="True"
@@ -280,7 +280,7 @@
                         AutomationProperties.Name="{TemplateBinding SecondaryIconName}"
                         ToolTip.Tip="{TemplateBinding SecondaryIconName}"
                         IsVisible="{TemplateBinding ShowSecondaryIcon}">
-                  <PathIcon Data="{TemplateBinding SecondaryIcon}" />
+                  <Path Data="{TemplateBinding SecondaryIcon}" Width="24" Height="24" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                 </Button>
                 <Border Name="PART_AvatarTarget" Width="50" Height="48" Padding="8,8,12,8"
                         VerticalAlignment="Center" IsVisible="{TemplateBinding ShowAvatar}">
