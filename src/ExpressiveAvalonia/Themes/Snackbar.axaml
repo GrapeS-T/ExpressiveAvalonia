@@ -1,0 +1,278 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls">
+  <!-- Source: Snackbar (local-004643) and its two building blocks
+       .Building Blocks/Snackbar-action (local-000654) and
+       .Building Blocks/Snackbar-close-affordance (local-000659).
+
+       Anatomy from the exported design data (344 DIP wide, 4 DIP corner):
+         - container: M3/sys/light/inverse-surface, M3/Elevation Light/3 shadow
+         - text: body/medium 14/20, M3/sys/light/inverse-on-surface
+         - action: label/large 14/20 medium, M3/sys/light/inverse-primary,
+           12 DIP horizontal padding, 40 DIP high, full radius
+         - close affordance: 48 DIP target, 40 DIP circular state layer, 24 DIP close icon,
+           8 DIP inset, M3/sys/light/inverse-on-surface
+         - state layers: inversePrimary 8/10/10 % and inverseOnSurface 8/10/10 %
+         - focus indicator: 3 DIP M3/sys/light/secondary stroke, 2 DIP outside the visual
+       The four padding rows are the source's 10 configurations:
+         one line, no action, no close   16,16,14,14
+         one line, action, no close      16,8,4,4
+         one line, close                 16,0,0,0
+         two lines, no action, no close  16,16,14,14
+         two lines, action, no close     16,8,14,14
+         two lines, close                16,0,10,10
+         longer action (stacked)         0 with 16/8 row insets and a 14/10 row gap -->
+
+  <x:String x:Key="MaterialSnackbarDismissText">Dismiss</x:String>
+
+  <!-- Text button used for the snackbar action (source "Inverse-button"). -->
+  <ControlTheme x:Key="MaterialSnackbarActionButton" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialInversePrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="Padding" Value="12,10" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    <Setter Property="LetterSpacing" Value="{DynamicResource MaterialLabelLargeLetterSpacing}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="Surface" Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Padding="{TemplateBinding Padding}"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+          <!-- The indicator sits 2 DIP outside the container with a 3 DIP secondary stroke. -->
+          <Border Name="FocusRing" Margin="-2"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialInverseOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+  </ControlTheme>
+
+  <!-- 48 DIP target with the 40 DIP circular state layer and 24 DIP close icon. -->
+  <ControlTheme x:Key="MaterialSnackbarCloseButton" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialInverseOnSurfaceBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="Width" Value="48" />
+    <Setter Property="Height" Value="48" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="AutomationProperties.Name" Value="{DynamicResource MaterialSnackbarDismissText}" />
+    <Setter Property="ToolTip.Tip" Value="{DynamicResource MaterialSnackbarDismissText}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="Container" Width="40" Height="40"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}">
+            <Panel>
+              <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
+                      CornerRadius="{TemplateBinding CornerRadius}"
+                      Opacity="0" IsHitTestVisible="False" />
+              <!-- Source close glyph: the 14x14 vector from the design, centred in the 24 DIP icon box. -->
+              <Path Data="M1.4 14L0 12.6L5.6 7L0 1.4L1.4 0L7 5.6L12.6 0L14 1.4L8.4 7L14 12.6L12.6 14L7 8.4Z"
+                    Fill="{TemplateBinding Foreground}"
+                    Width="14" Height="14" Stretch="None"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Panel>
+          </Border>
+          <Border Name="FocusRing" Width="44" Height="44"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  CornerRadius="{DynamicResource MaterialShapeFullCornerRadius}"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialSnackbar}" TargetType="controls:MaterialSnackbar">
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialInverseOnSurfaceBrush}" />
+    <Setter Property="MinWidth" Value="344" />
+    <Setter Property="MaxWidth" Value="672" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel>
+          <Border Name="PART_Container"
+                  Background="{DynamicResource MaterialInverseSurfaceBrush}"
+                  CornerRadius="{DynamicResource MaterialShapeExtraSmallCornerRadius}"
+                  BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}"
+                  Padding="16,14,16,14"
+                  Opacity="0"
+                  RenderTransform="translateY(16px)">
+            <Border.Transitions>
+              <Transitions>
+                <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+                <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+              </Transitions>
+            </Border.Transitions>
+            <Grid Name="PART_Layout" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+              <TextBlock Name="PART_Text" Grid.Row="0" Grid.Column="0"
+                         Text="{TemplateBinding Text}"
+                         TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxLines="1"
+                         VerticalAlignment="Center"
+                         Foreground="{DynamicResource MaterialInverseOnSurfaceBrush}"
+                         FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                         LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
+                         AutomationProperties.LiveSetting="Polite" />
+              <StackPanel Name="PART_Actions" Grid.Row="0" Grid.Column="1"
+                          Orientation="Horizontal"
+                          HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Name="PART_Action" Theme="{StaticResource MaterialSnackbarActionButton}"
+                        IsVisible="False"
+                        VerticalAlignment="Center"
+                        Content="{TemplateBinding ActionContent}"
+                        ContentTemplate="{TemplateBinding ActionContentTemplate}"
+                        Command="{TemplateBinding ActionCommand}"
+                        CommandParameter="{TemplateBinding ActionCommandParameter}" />
+                <Button Name="PART_Close" Theme="{StaticResource MaterialSnackbarCloseButton}"
+                        IsVisible="{TemplateBinding IsCloseButtonVisible}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- Entrance/exit. The transition durations are the md.sys.motion tokens, so reduced motion
+         (which zeroes those resources) removes the fade and slide. -->
+    <Style Selector="^:open /template/ Border#PART_Container">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+
+    <Style Selector="^:two-line /template/ TextBlock#PART_Text">
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="MaxLines" Value="2" />
+      <!-- The source reserves both lines (40 DIP) even when the message happens to fit one. -->
+      <Setter Property="MinHeight" Value="40" />
+    </Style>
+
+    <!-- 4 DIP between the text column and the inline action; close-only keeps the source's
+         280 DIP text width by not reserving a gap. -->
+    <Style Selector="^:with-action /template/ StackPanel#PART_Actions">
+      <Setter Property="Margin" Value="4,0,0,0" />
+    </Style>
+
+    <!-- Padding matrix from the ten exported configurations. Thickness is
+         (left, top, right, bottom); the Figma export lists (left, right, top, bottom), so the
+         pairs are swapped. Each row reproduces the source's outer height: 48 DIP one line,
+         68 DIP two lines, 112 DIP for the stacked "longer action" configuration. -->
+    <Style Selector="^:with-action /template/ Border#PART_Container">
+      <Setter Property="Padding" Value="16,4,8,4" />
+    </Style>
+    <Style Selector="^:two-line:with-action /template/ Border#PART_Container">
+      <Setter Property="Padding" Value="16,14,8,14" />
+    </Style>
+    <Style Selector="^:with-close /template/ Border#PART_Container">
+      <Setter Property="Padding" Value="16,0,0,0" />
+    </Style>
+    <Style Selector="^:two-line:with-close /template/ Border#PART_Container">
+      <Setter Property="Padding" Value="16,10,0,10" />
+    </Style>
+    <Style Selector="^:with-action:with-close /template/ Border#PART_Container">
+      <Setter Property="Padding" Value="16,0,0,0" />
+    </Style>
+    <Style Selector="^:two-line:with-action:with-close /template/ Border#PART_Container">
+      <Setter Property="Padding" Value="16,10,0,10" />
+    </Style>
+
+    <!-- "Text & longer action": the action gets its own row under a full-width message.
+         Row 0 is 54 DIP (14 inset + 40 text), the 10 DIP gap, then the 48 DIP action row: 112 DIP. -->
+    <Style Selector="^:stacked-action /template/ Border#PART_Container">
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="^:stacked-action /template/ TextBlock#PART_Text">
+      <Setter Property="Grid.ColumnSpan" Value="2" />
+      <Setter Property="Margin" Value="16,14,16,0" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="^:stacked-action /template/ StackPanel#PART_Actions">
+      <Setter Property="Grid.Row" Value="1" />
+      <Setter Property="Grid.Column" Value="0" />
+      <Setter Property="Grid.ColumnSpan" Value="2" />
+      <Setter Property="Margin" Value="8,10,0,0" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Host: one snackbar at a time, 16 DIP from the bottom edge, bottom-centred. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialSnackbarHost}" TargetType="controls:MaterialSnackbarHost">
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <StackPanel Name="PART_Items"
+                    HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                    Margin="16" Spacing="8" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>

@@ -1,0 +1,441 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
+  <!-- Search family: the Material 3 search bar, the suggestion list and the docked/full-screen
+       search views. Source packages and the anatomy that was taken from them:
+
+       local-004528 "Search bar": 56-high pill, radius 28, SurfaceContainerHigh (#ece6f0),
+         4 padding, 4 gap; 48x48 icon buttons with a 40x40 visual; content 16/24 in
+         OnSurfaceVariant (#49454f); hover 8% OnSurface state layer (#1d1b20), pressed 10%;
+         optional 30x30 monogram avatar in a 50x48 target with 8 padding.
+       local-000258 "Flat search bar" / local-000527 "On-scroll search bar": same anatomy with
+         the container overridden to #f3edf7 (SurfaceContainer) or #e6e0e9 (SurfaceContainerHighest), and the
+         Alignment axis (Left aligned / Centered) applied to the query and hint text.
+       local-004535 / local-004538 "Search docked layout", local-004541 / local-004544
+         "Search full-screen layout": header (back arrow, query or hint, close, optional
+         microphone) plus a suggestion list; the expressive layout is two cards (bar radius 28,
+         list radius 12, 2 gap) and the baseline layout is one container (radius 28 docked /
+         0 full screen) with a 1-high #79747e divider and flush 72-high items.
+
+       Geometry is the source's exported path data. The pressed ripple is rendered as the
+       source's 10% pressed state layer rather than a continuous ripple animation; every other
+       state, transition and reduced-motion behavior uses the shared Material tokens, and the
+       state-layer transitions collapse when MaterialTheme.Motion is Reduced. -->
+
+  <StreamGeometry x:Key="MaterialSearchMenuIconGeometry">M3 18V16H21V18H3ZM3 13V11H21V13H3ZM3 8V6H21V8H3Z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialSearchGlyphGeometry">M19.6 21L13.3 14.7C12.8 15.1 12.225 15.4167 11.575 15.65C10.925 15.8833 10.2333 16 9.5 16C7.68333 16 6.14583 15.3708 4.8875 14.1125C3.62917 12.8542 3 11.3167 3 9.5C3 7.68333 3.62917 6.14583 4.8875 4.8875C6.14583 3.62917 7.68333 3 9.5 3C11.3167 3 12.8542 3.62917 14.1125 4.8875C15.3708 6.14583 16 7.68333 16 9.5C16 10.2333 15.8833 10.925 15.65 11.575C15.4167 12.225 15.1 12.8 14.7 13.3L21 19.6L19.6 21ZM9.5 14C10.75 14 11.8125 13.5625 12.6875 12.6875C13.5625 11.8125 14 10.75 14 9.5C14 8.25 13.5625 7.1875 12.6875 6.3125C11.8125 5.4375 10.75 5 9.5 5C8.25 5 7.1875 5.4375 6.3125 6.3125C5.4375 7.1875 5 8.25 5 9.5C5 10.75 5.4375 11.8125 6.3125 12.6875C7.1875 13.5625 8.25 14 9.5 14Z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialSearchCloseIconGeometry">M6.4 19L5 17.6L10.6 12L5 6.4L6.4 5L12 10.6L17.6 5L19 6.4L13.4 12L19 17.6L17.6 19L12 13.4L6.4 19Z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialSearchBackIconGeometry">M7.825 13L13.425 18.6L12 20L4 12L12 4L13.425 5.4L7.825 11H20V13H7.825Z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialSearchMicIconGeometry">M12 14C11.1667 14 10.4583 13.7083 9.875 13.125C9.29167 12.5417 9 11.8333 9 11V5C9 4.16667 9.29167 3.45833 9.875 2.875C10.4583 2.29167 11.1667 2 12 2C12.8333 2 13.5417 2.29167 14.125 2.875C14.7083 3.45833 15 4.16667 15 5V11C15 11.8333 14.7083 12.5417 14.125 13.125C13.5417 13.7083 12.8333 14 12 14ZM11 21V17.925C9.26667 17.6917 7.83333 16.9167 6.7 15.6C5.56667 14.2833 5 12.75 5 11H7C7 12.3833 7.4875 13.5625 8.4625 14.5375C9.4375 15.5125 10.6167 16 12 16C13.3833 16 14.5625 15.5125 15.5375 14.5375C16.5125 13.5625 17 12.3833 17 11H19C19 12.75 18.4333 14.2833 17.3 15.6C16.1667 16.9167 14.7333 17.6917 13 17.925V21H11Z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialSearchStarsIconGeometry">M8 18L12 14.95L16 18L14.5 13.05L18.5 10.2H13.6L12 5L10.4 10.2H5.5L9.5 13.05L8 18ZM12 22C10.6167 22 9.31667 21.7375 8.1 21.2125C6.88333 20.6875 5.825 19.975 4.925 19.075C4.025 18.175 3.3125 17.1167 2.7875 15.9C2.2625 14.6833 2 13.3833 2 12C2 10.6167 2.2625 9.31667 2.7875 8.1C3.3125 6.88333 4.025 5.825 4.925 4.925C5.825 4.025 6.88333 3.3125 8.1 2.7875C9.31667 2.2625 10.6167 2 12 2C13.3833 2 14.6833 2.2625 15.9 2.7875C17.1167 3.3125 18.175 4.025 19.075 4.925C19.975 5.825 20.6875 6.88333 21.2125 8.1C21.7375 9.31667 22 10.6167 22 12C22 13.3833 21.7375 14.6833 21.2125 15.9C20.6875 17.1167 19.975 18.175 19.075 19.075C18.175 19.975 17.1167 20.6875 15.9 21.2125C14.6833 21.7375 13.3833 22 12 22Z</StreamGeometry>
+
+  <!-- Localizable strings. Override these keys in an application dictionary to translate. -->
+  <x:String x:Key="MaterialSearchPlaceholderText">Hinted search text</x:String>
+  <x:String x:Key="MaterialSearchMenuText">Menu</x:String>
+  <x:String x:Key="MaterialSearchSubmitText">Search</x:String>
+  <x:String x:Key="MaterialSearchClearText">Clear search</x:String>
+  <x:String x:Key="MaterialSearchBackText">Back</x:String>
+  <x:String x:Key="MaterialSearchCloseText">Close search</x:String>
+  <x:String x:Key="MaterialSearchVoiceText">Voice search</x:String>
+  <x:String x:Key="MaterialSearchAssistText">Search tools</x:String>
+  <x:String x:Key="MaterialSearchSuggestionsText">Search suggestions</x:String>
+
+  <!-- The field inside a search bar: native single-line TextBox with no container of its own.
+       Editing, caret, selection, clipboard, undo and input methods stay native. -->
+  <ControlTheme x:Key="MaterialSearchTextBox" TargetType="TextBox">
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
+    <Setter Property="LineHeight" Value="{DynamicResource MaterialBodyLargeLineHeight}" />
+    <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodyLargeLetterSpacing}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="CaretBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="SelectionForegroundBrush" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    <Setter Property="PlaceholderForeground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="ClipToBounds" Value="False" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ScrollViewer Name="PART_ScrollViewer"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Disabled"
+                      AllowAutoHide="True">
+          <Panel>
+            <TextBlock Name="PART_Placeholder" IsHitTestVisible="False"
+                       Foreground="{TemplateBinding PlaceholderForeground}"
+                       Text="{TemplateBinding PlaceholderText}"
+                       TextAlignment="{TemplateBinding TextAlignment}"
+                       TextWrapping="NoWrap"
+                       LineHeight="{TemplateBinding LineHeight}"
+                       LetterSpacing="{TemplateBinding LetterSpacing}"
+                       HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+              <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                  <Binding Path="Text" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static StringConverters.IsNullOrEmpty}" />
+                  <Binding ElementName="PART_TextPresenter" Path="PreeditText" Converter="{x:Static StringConverters.IsNullOrEmpty}" />
+                </MultiBinding>
+              </TextBlock.IsVisible>
+            </TextBlock>
+            <TextPresenter Name="PART_TextPresenter"
+                           Text="{TemplateBinding Text, Mode=TwoWay}"
+                           CaretBlinkInterval="{TemplateBinding CaretBlinkInterval}"
+                           CaretIndex="{TemplateBinding CaretIndex}"
+                           SelectionStart="{TemplateBinding SelectionStart}"
+                           SelectionEnd="{TemplateBinding SelectionEnd}"
+                           TextAlignment="{TemplateBinding TextAlignment}"
+                           TextWrapping="NoWrap"
+                           LineHeight="{TemplateBinding LineHeight}"
+                           LetterSpacing="{TemplateBinding LetterSpacing}"
+                           SelectionBrush="{TemplateBinding SelectionBrush}"
+                           SelectionForegroundBrush="{TemplateBinding SelectionForegroundBrush}"
+                           CaretBrush="{TemplateBinding CaretBrush}"
+                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+          </Panel>
+          <ScrollViewer.Styles>
+            <Style Selector="ScrollContentPresenter#PART_ContentPresenter">
+              <Setter Property="Cursor" Value="IBeam" />
+            </Style>
+          </ScrollViewer.Styles>
+        </ScrollViewer>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <!-- Suggestion container. The expressive layout uses 64-high, 12-radius items; the baseline
+       layout uses flush 72-high items. Both keep the Material state layer and focus ring. -->
+  <ControlTheme x:Key="MaterialSearchSuggestionItemBase" TargetType="ListBoxItem">
+    <Setter Property="MinHeight" Value="64" />
+    <Setter Property="Padding" Value="16,10" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid>
+          <Border Name="Surface" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border Name="StateLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+          <Border Name="FocusRing" Margin="2" BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                  BorderThickness="2" CornerRadius="{TemplateBinding CornerRadius}"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer, ^:disabled /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="MaterialSearchSuggestionItem" TargetType="ListBoxItem"
+                BasedOn="{StaticResource MaterialSearchSuggestionItemBase}" />
+
+  <ControlTheme x:Key="MaterialSearchSuggestionItemBaseline" TargetType="ListBoxItem"
+                BasedOn="{StaticResource MaterialSearchSuggestionItemBase}">
+    <Setter Property="MinHeight" Value="72" />
+    <Setter Property="Padding" Value="16,8" />
+    <Setter Property="CornerRadius" Value="0" />
+  </ControlTheme>
+
+  <ControlTheme x:Key="MaterialSearchSuggestionList" TargetType="ListBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0" />
+    <!-- ListBox has no HorizontalContentAlignment; the item container themes above stretch their
+         content instead, so rows still fill the card width. -->
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ScrollViewer Name="PART_ScrollViewer"
+                      AllowAutoHide="{TemplateBinding (ScrollViewer.AllowAutoHide)}"
+                      BringIntoViewOnFocusChange="{TemplateBinding (ScrollViewer.BringIntoViewOnFocusChange)}"
+                      HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                      VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                      IsScrollChainingEnabled="{TemplateBinding (ScrollViewer.IsScrollChainingEnabled)}">
+          <ItemsPresenter Name="PART_ItemsPresenter" Margin="{TemplateBinding Padding}"
+                          ItemsPanel="{TemplateBinding ItemsPanel}" />
+        </ScrollViewer>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialSearchBar}" TargetType="controls:MaterialSearchBar">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraLargeCornerRadius}" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="MinWidth" Value="0" />
+    <!-- The source component caps its width at 720. -->
+    <Setter Property="MaxWidth" Value="720" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="PlaceholderText" Value="{DynamicResource MaterialSearchPlaceholderText}" />
+    <Setter Property="LeadingIcon" Value="{StaticResource MaterialSearchMenuIconGeometry}" />
+    <Setter Property="TrailingIcon" Value="{StaticResource MaterialSearchGlyphGeometry}" />
+    <Setter Property="SecondaryIcon" Value="{StaticResource MaterialSearchStarsIconGeometry}" />
+    <Setter Property="LeadingIconName" Value="{DynamicResource MaterialSearchMenuText}" />
+    <Setter Property="TrailingIconName" Value="{DynamicResource MaterialSearchSubmitText}" />
+    <Setter Property="SecondaryIconName" Value="{DynamicResource MaterialSearchAssistText}" />
+    <Setter Property="AvatarInitial" Value="A" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Container"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}"
+                ClipToBounds="True">
+          <Panel>
+            <Border Name="StateLayer" Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
+            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+              <Button Name="PART_LeadingButton"
+                      theming:MaterialAssist.IsIconButton="True"
+                      Command="{TemplateBinding LeadingIconCommand}"
+                      AutomationProperties.Name="{TemplateBinding LeadingIconName}"
+                      ToolTip.Tip="{TemplateBinding LeadingIconName}"
+                      IsVisible="{TemplateBinding ShowLeadingIcon}">
+                <PathIcon Data="{TemplateBinding LeadingIcon}" />
+              </Button>
+              <TextBox Name="PART_TextBox" Grid.Column="1"
+                       Theme="{StaticResource MaterialSearchTextBox}"
+                       Margin="4,0,8,0"
+                       MinHeight="48"
+                       Text="{TemplateBinding Text, Mode=TwoWay}"
+                       PlaceholderText="{TemplateBinding PlaceholderText}"
+                       AutomationProperties.Name="{TemplateBinding PlaceholderText}" />
+              <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Name="PART_ClearButton"
+                        theming:MaterialAssist.IsIconButton="True"
+                        AutomationProperties.Name="{DynamicResource MaterialSearchClearText}"
+                        ToolTip.Tip="{DynamicResource MaterialSearchClearText}">
+                  <PathIcon Data="{StaticResource MaterialSearchCloseIconGeometry}" />
+                  <Button.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="ShowClearButton" RelativeSource="{RelativeSource TemplatedParent}" />
+                      <Binding ElementName="PART_TextBox" Path="Text" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                    </MultiBinding>
+                  </Button.IsVisible>
+                </Button>
+                <Button Name="PART_TrailingButton"
+                        theming:MaterialAssist.IsIconButton="True"
+                        Command="{TemplateBinding TrailingIconCommand}"
+                        AutomationProperties.Name="{TemplateBinding TrailingIconName}"
+                        ToolTip.Tip="{TemplateBinding TrailingIconName}"
+                        IsVisible="{TemplateBinding ShowTrailingIcon}">
+                  <PathIcon Data="{TemplateBinding TrailingIcon}" />
+                </Button>
+                <Button Name="PART_SecondaryButton"
+                        theming:MaterialAssist.IsIconButton="True"
+                        Command="{TemplateBinding SecondaryIconCommand}"
+                        AutomationProperties.Name="{TemplateBinding SecondaryIconName}"
+                        ToolTip.Tip="{TemplateBinding SecondaryIconName}"
+                        IsVisible="{TemplateBinding ShowSecondaryIcon}">
+                  <PathIcon Data="{TemplateBinding SecondaryIcon}" />
+                </Button>
+                <Border Name="PART_AvatarTarget" Width="50" Height="48" Padding="8,8,12,8"
+                        VerticalAlignment="Center" IsVisible="{TemplateBinding ShowAvatar}">
+                  <Panel>
+                    <Border Width="30" Height="30" CornerRadius="15" HorizontalAlignment="Left"
+                            Background="{DynamicResource MaterialPrimaryBrush}"
+                            IsVisible="{Binding AvatarSource, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNull}}">
+                      <TextBlock Text="{TemplateBinding AvatarInitial}"
+                                 Foreground="{DynamicResource MaterialOnPrimaryBrush}"
+                                 FontSize="{DynamicResource MaterialBodyLargeFontSize}"
+                                 LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <Border Width="30" Height="30" CornerRadius="15" HorizontalAlignment="Left"
+                            ClipToBounds="True"
+                            IsVisible="{Binding AvatarSource, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}">
+                      <Image Source="{TemplateBinding AvatarSource}" Stretch="UniformToFill" />
+                    </Border>
+                  </Panel>
+                </Border>
+              </StackPanel>
+            </Grid>
+          </Panel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialDisabledContainerBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ TextBox#PART_TextBox">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <Setter Property="PlaceholderForeground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+    <!-- Centered building block: the query and its hint share the content area's center. -->
+    <Style Selector="^:centered /template/ TextBox#PART_TextBox">
+      <Setter Property="TextAlignment" Value="Center" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialSearchView}" TargetType="controls:MaterialSearchView">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="PlaceholderText" Value="{DynamicResource MaterialSearchPlaceholderText}" />
+    <Setter Property="FieldBackground" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+    <Setter Property="FieldCornerRadius" Value="{DynamicResource MaterialShapeExtraLargeCornerRadius}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Name="PART_ScrimHost">
+          <Border Name="PART_Scrim" Background="{DynamicResource MaterialScrimBrush}" Opacity="0.32" IsVisible="False" />
+          <Border Name="PART_Root" Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
+            <Grid RowDefinitions="Auto,Auto,*">
+              <Border Name="PART_Header" Padding="{TemplateBinding Padding}" Background="Transparent">
+                <controls:MaterialSearchBar Name="PART_SearchBar"
+                                            Background="{TemplateBinding FieldBackground}"
+                                            CornerRadius="{TemplateBinding FieldCornerRadius}"
+                                            AutoFocus="False"
+                                            Text="{TemplateBinding Text, Mode=TwoWay}"
+                                            PlaceholderText="{TemplateBinding PlaceholderText}"
+                                            LeadingIcon="{StaticResource MaterialSearchBackIconGeometry}"
+                                            LeadingIconName="{DynamicResource MaterialSearchBackText}"
+                                            ShowClearButton="False"
+                                            ShowTrailingIcon="True"
+                                            TrailingIcon="{StaticResource MaterialSearchCloseIconGeometry}"
+                                            TrailingIconName="{DynamicResource MaterialSearchCloseText}"
+                                            SecondaryIcon="{StaticResource MaterialSearchMicIconGeometry}"
+                                            SecondaryIconName="{DynamicResource MaterialSearchVoiceText}" />
+              </Border>
+              <Border Name="PART_Divider" Grid.Row="1" Height="1"
+                      Background="{DynamicResource MaterialOutlineBrush}" IsVisible="False" />
+              <Border Name="PART_SuggestionsHost" Grid.Row="2" Margin="0,2,0,0"
+                      Background="{DynamicResource MaterialSurfaceContainerHighBrush}"
+                      CornerRadius="{DynamicResource MaterialShapeMediumCornerRadius}"
+                      ClipToBounds="True">
+                <ListBox Name="PART_Suggestions"
+                         Theme="{StaticResource MaterialSearchSuggestionList}"
+                         ItemContainerTheme="{StaticResource MaterialSearchSuggestionItem}"
+                         ItemsSource="{TemplateBinding Suggestions}"
+                         ItemTemplate="{TemplateBinding ItemTemplate}"
+                         SelectedItem="{TemplateBinding SelectedSuggestion, Mode=TwoWay}"
+                         AutomationProperties.Name="{DynamicResource MaterialSearchSuggestionsText}" />
+              </Border>
+            </Grid>
+          </Border>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- Docked: a card, never wider than the search bar package's 720 maximum. -->
+    <Style Selector="^:docked">
+      <Setter Property="MaxWidth" Value="720" />
+    </Style>
+    <!-- Full screen: 12 DIP side inset around the field (the source header is exactly the field
+         height), clipped to the source's 16 radius. -->
+    <Style Selector="^:full-screen">
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+    </Style>
+    <!-- Baseline: one container; flat header, divider and flush list. The source header has no
+         field card, so the bar loses its pill radius and the container shows through. -->
+    <Style Selector="^:baseline">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="FieldBackground" Value="Transparent" />
+      <Setter Property="FieldCornerRadius" Value="0" />
+    </Style>
+    <Style Selector="^:baseline /template/ Border#PART_Divider">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:baseline /template/ Border#PART_SuggestionsHost">
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="^:baseline /template/ ListBox#PART_Suggestions">
+      <Setter Property="ItemContainerTheme" Value="{StaticResource MaterialSearchSuggestionItemBaseline}" />
+    </Style>
+    <Style Selector="^:docked:baseline">
+      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraLargeCornerRadius}" />
+    </Style>
+    <Style Selector="^:full-screen:baseline">
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="^:full-screen:baseline /template/ Border#PART_Header">
+      <Setter Property="MinHeight" Value="72" />
+    </Style>
+    <Style Selector="^:scrim /template/ Border#PART_Scrim">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:closed">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

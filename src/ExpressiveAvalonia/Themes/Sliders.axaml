@@ -2,9 +2,16 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:theming="using:ExpressiveAvalonia.Theming"
                     xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls">
-  <!-- SliderTokens v2_3_5 / AndroidX SliderDefaults: 16-DIP tracks,
-       4 x 44 handles, 6-DIP handle gaps, 2-DIP inside corners, 4-DIP dots.
-       PART_Track retains native dragging, keyboard, snapping and automation. -->
+  <!-- Source family: standard, centered and range sliders. Five sizes (XSmall .. XLarge),
+       horizontal and vertical orientation, enabled/hovered/pressed/disabled states, stop
+       indicators, the value indicator pill and the leading icon slot.
+       The native Track keeps pointer capture, dragging, keyboard (arrows/Page/Home/End),
+       snapping and automation; MaterialSliderTrack only paints the source anatomy.
+       Source metrics (track thickness / handle length / outer corner radius):
+       XSmall 16/44/8, Small 24/44/8, Medium 40/52/12, Large 56/68/16, XLarge 96/108/28.
+       The thumb is a transparent 48-DIP touch target; the 4-DIP handle is painted above it.
+       The Track is inset by 18 DIP so the handle center travels from 6 DIP to (length - 6 DIP),
+       matching the source's clear space around the handle. -->
   <ControlTheme x:Key="MaterialSliderTrackButtonTheme" TargetType="RepeatButton">
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Template">
@@ -15,96 +22,34 @@
   <ControlTheme x:Key="MaterialSliderThumbTheme" TargetType="Thumb">
     <Setter Property="Width" Value="48" />
     <Setter Property="Height" Value="48" />
-    <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
     <Setter Property="Template">
-      <ControlTemplate>
-        <Grid Background="Transparent">
-          <Border Name="FocusRing" Width="12" Height="52" CornerRadius="6"
-                  BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2"
-                  IsVisible="False" IsHitTestVisible="False" />
-          <Border Name="Handle" Width="4" Height="44" CornerRadius="2"
-                  Background="{TemplateBinding Background}" IsHitTestVisible="False" />
-          <Border Name="ValueLabel" IsVisible="False" IsHitTestVisible="False"
-                  HorizontalAlignment="Center" VerticalAlignment="Top"
-                  Margin="-48,-42,-48,0" MinWidth="40" Height="32" Padding="12,6" CornerRadius="16"
-                  Background="{DynamicResource MaterialInverseSurfaceBrush}">
-            <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, StringFormat={}{0:G4}}"
-                       Foreground="{DynamicResource MaterialInverseOnSurfaceBrush}"
-                       FontFamily="{DynamicResource MaterialFontFamily}"
-                       FontSize="{DynamicResource MaterialLabelLargeFontSize}"
-                       FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
-                       LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
-                       LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}" />
-          </Border>
-        </Grid>
-      </ControlTemplate>
+      <ControlTemplate><Border Background="Transparent" /></ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#Handle">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Width" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Height" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#ValueLabel, ^:pressed /template/ Border#ValueLabel">
-      <Setter Property="IsVisible" Value="True" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#ValueLabel, ^[(theming|MaterialSlider.IsOwnerFocused)=True] /template/ Border#ValueLabel">
-      <Setter Property="IsVisible" Value="True" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#FocusRing, ^[(theming|MaterialSlider.IsOwnerFocused)=True] /template/ Border#FocusRing">
-      <Setter Property="IsVisible" Value="True" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#Handle, ^:focus-visible /template/ Border#Handle, ^[(theming|MaterialSlider.IsOwnerFocused)=True] /template/ Border#Handle">
-      <Setter Property="Width" Value="2" />
-    </Style>
-    <Style Selector="^.vertical /template/ Border#Handle">
-      <Setter Property="Width" Value="44" />
-      <Setter Property="Height" Value="4" />
-    </Style>
-    <Style Selector="^.vertical /template/ Border#FocusRing">
-      <Setter Property="Width" Value="52" />
-      <Setter Property="Height" Value="12" />
-    </Style>
-    <Style Selector="^.vertical /template/ Border#ValueLabel">
-      <Setter Property="HorizontalAlignment" Value="Right" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-      <Setter Property="Margin" Value="-128,0,58,0" />
-    </Style>
-    <Style Selector="^.vertical:pressed /template/ Border#Handle, ^.vertical:focus-visible /template/ Border#Handle, ^.vertical[(theming|MaterialSlider.IsOwnerFocused)=True] /template/ Border#Handle">
-      <Setter Property="Width" Value="44" />
-      <Setter Property="Height" Value="2" />
-    </Style>
-    <Style Selector="^:disabled">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    </Style>
-    <Style Selector="^:disabled /template/ Border#Handle">
-      <Setter Property="Width" Value="4" />
-      <Setter Property="Opacity" Value="0.38" />
-    </Style>
-    <Style Selector="^.vertical:disabled /template/ Border#Handle">
-      <Setter Property="Width" Value="44" />
-      <Setter Property="Height" Value="4" />
-    </Style>
-    <Style Selector="^:disabled /template/ Border#ValueLabel, ^:disabled /template/ Border#FocusRing">
-      <Setter Property="IsVisible" Value="False" />
-    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type Slider}" TargetType="Slider">
     <Setter Property="MinWidth" Value="120" />
-    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinHeight" Value="44" />
     <Setter Property="Focusable" Value="True" />
+    <!-- The source's default Size is XSmall; callers can opt into the larger sizes. -->
+    <Setter Property="theming:MaterialAssist.ControlSize" Value="ExtraSmall" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Grid Name="SliderRoot" Height="48" Background="Transparent">
-          <theming:MaterialSliderTrack Owner="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+        <Grid Name="SliderRoot" Background="Transparent">
+          <theming:MaterialSliderTrack Name="PART_TrackVisual"
+              Owner="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+              Thumb="{Binding #PART_Handle}"
               IsDragging="{Binding #PART_Handle.IsDragging}"
               ActiveBrush="{DynamicResource MaterialPrimaryBrush}"
               InactiveBrush="{DynamicResource MaterialSecondaryContainerBrush}"
-              DisabledBrush="{DynamicResource MaterialOnSurfaceBrush}" IsHitTestVisible="False" />
-          <Track Name="PART_Track" Margin="-22,0" Orientation="Horizontal"
+              DisabledBrush="{DynamicResource MaterialOnSurfaceBrush}"
+              StopBrush="{DynamicResource MaterialSecondaryContainerBrush}"
+              SelectedStopBrush="{DynamicResource MaterialOnSecondaryContainerBrush}"
+              IndicatorBackground="{DynamicResource MaterialInverseSurfaceBrush}"
+              IndicatorForeground="{DynamicResource MaterialInverseOnSurfaceBrush}"
+              IconBrush="{DynamicResource MaterialOnPrimaryBrush}"
+              IsHitTestVisible="False" />
+          <Track Name="PART_Track" Margin="-18,0" Orientation="Horizontal"
                  Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
                  Value="{TemplateBinding Value, Mode=TwoWay}"
                  IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
@@ -114,23 +59,31 @@
             <Track.IncreaseButton>
               <RepeatButton Name="PART_IncreaseButton" Theme="{StaticResource MaterialSliderTrackButtonTheme}" />
             </Track.IncreaseButton>
-            <theming:MaterialSliderThumb Name="PART_Handle" Theme="{StaticResource MaterialSliderThumbTheme}" Tag="{TemplateBinding Value}" />
+            <theming:MaterialSliderThumb Name="PART_Handle" Theme="{StaticResource MaterialSliderThumbTheme}" />
           </Track>
         </Grid>
       </ControlTemplate>
     </Setter>
     <Style Selector="^:vertical">
-      <Setter Property="MinWidth" Value="48" />
+      <Setter Property="MinWidth" Value="44" />
       <Setter Property="MinHeight" Value="120" />
       <Setter Property="Template">
         <ControlTemplate>
-          <Grid Name="SliderRoot" Width="48" Background="Transparent">
-            <theming:MaterialSliderTrack Owner="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+          <Grid Name="SliderRoot" Background="Transparent">
+            <theming:MaterialSliderTrack Name="PART_TrackVisual"
+                Owner="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                Thumb="{Binding #PART_Handle}"
                 IsDragging="{Binding #PART_Handle.IsDragging}"
                 ActiveBrush="{DynamicResource MaterialPrimaryBrush}"
                 InactiveBrush="{DynamicResource MaterialSecondaryContainerBrush}"
-                DisabledBrush="{DynamicResource MaterialOnSurfaceBrush}" IsHitTestVisible="False" />
-            <Track Name="PART_Track" Margin="0,-22" Orientation="Vertical"
+                DisabledBrush="{DynamicResource MaterialOnSurfaceBrush}"
+                StopBrush="{DynamicResource MaterialSecondaryContainerBrush}"
+                SelectedStopBrush="{DynamicResource MaterialOnSecondaryContainerBrush}"
+                IndicatorBackground="{DynamicResource MaterialInverseSurfaceBrush}"
+                IndicatorForeground="{DynamicResource MaterialInverseOnSurfaceBrush}"
+                IconBrush="{DynamicResource MaterialOnPrimaryBrush}"
+                IsHitTestVisible="False" />
+            <Track Name="PART_Track" Margin="0,-18" Orientation="Vertical"
                    Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
                    Value="{TemplateBinding Value, Mode=TwoWay}"
                    IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
@@ -140,38 +93,76 @@
               <Track.IncreaseButton>
                 <RepeatButton Name="PART_IncreaseButton" Theme="{StaticResource MaterialSliderTrackButtonTheme}" />
               </Track.IncreaseButton>
-              <theming:MaterialSliderThumb Name="PART_Handle" Classes="vertical" Theme="{StaticResource MaterialSliderThumbTheme}" Tag="{TemplateBinding Value}" />
+              <theming:MaterialSliderThumb Name="PART_Handle" Theme="{StaticResource MaterialSliderThumbTheme}" />
             </Track>
           </Grid>
         </ControlTemplate>
       </Setter>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
+        <Setter Property="MinWidth" Value="52" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
+        <Setter Property="MinWidth" Value="68" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
+        <Setter Property="MinWidth" Value="108" />
+      </Style>
     </Style>
-    <Style Selector="^:focus-visible /template/ Thumb">
-      <Setter Property="theming:MaterialSlider.IsOwnerFocused" Value="True" />
+    <!-- Size changes the cross axis only; the length axis keeps its 120-DIP minimum.
+         Nested selectors keep the orientation and size conditions in one style tree. -->
+    <Style Selector="^:horizontal">
+      <Setter Property="MinWidth" Value="120" />
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
+        <Setter Property="MinHeight" Value="52" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
+        <Setter Property="MinHeight" Value="68" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
+        <Setter Property="MinHeight" Value="108" />
+      </Style>
     </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type controls:MaterialRangeSlider}" TargetType="controls:MaterialRangeSlider">
     <Setter Property="MinWidth" Value="144" />
-    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="theming:MaterialAssist.ControlSize" Value="ExtraSmall" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Grid Name="RangeRoot" Height="48" Background="Transparent">
+        <Grid Name="RangeRoot" Background="Transparent">
           <theming:MaterialSliderTrack Name="PART_TrackVisual"
               Owner="{Binding RelativeSource={RelativeSource TemplatedParent}}"
               ActiveBrush="{DynamicResource MaterialPrimaryBrush}"
               InactiveBrush="{DynamicResource MaterialSecondaryContainerBrush}"
-              DisabledBrush="{DynamicResource MaterialOnSurfaceBrush}" IsHitTestVisible="False" />
-          <Canvas Name="PART_TrackCanvas" Height="48">
-            <controls:MaterialRangeThumb Name="PART_LowerThumb" Canvas.Top="0"
-                     Theme="{StaticResource MaterialSliderThumbTheme}"
-                     Tag="{TemplateBinding LowerValue}" AutomationProperties.Name="{DynamicResource MaterialRangeLowerValueText}" />
-            <controls:MaterialRangeThumb Name="PART_UpperThumb" Canvas.Top="0"
-                     Theme="{StaticResource MaterialSliderThumbTheme}"
-                     Tag="{TemplateBinding UpperValue}" AutomationProperties.Name="{DynamicResource MaterialRangeUpperValueText}" />
+              DisabledBrush="{DynamicResource MaterialOnSurfaceBrush}"
+              StopBrush="{DynamicResource MaterialSecondaryContainerBrush}"
+              SelectedStopBrush="{DynamicResource MaterialOnSecondaryContainerBrush}"
+              IndicatorBackground="{DynamicResource MaterialInverseSurfaceBrush}"
+              IndicatorForeground="{DynamicResource MaterialInverseOnSurfaceBrush}"
+              IconBrush="{DynamicResource MaterialOnPrimaryBrush}"
+              IsHitTestVisible="False" />
+          <Canvas Name="PART_TrackCanvas" Background="Transparent">
+            <controls:MaterialRangeThumb Name="PART_LowerThumb"
+                Theme="{StaticResource MaterialSliderThumbTheme}"
+                AutomationProperties.Name="{DynamicResource MaterialRangeLowerValueText}" />
+            <controls:MaterialRangeThumb Name="PART_UpperThumb"
+                Theme="{StaticResource MaterialSliderThumbTheme}"
+                AutomationProperties.Name="{DynamicResource MaterialRangeUpperValueText}" />
           </Canvas>
         </Grid>
       </ControlTemplate>
     </Setter>
+    <!-- The range slider is horizontal-only in the source; height is the cross axis and the
+         thumb target size is applied programmatically so the two endpoints stay in sync. -->
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
+      <Setter Property="MinHeight" Value="52" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
+      <Setter Property="MinHeight" Value="68" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
+      <Setter Property="MinHeight" Value="108" />
+    </Style>
   </ControlTheme>
 </ResourceDictionary>

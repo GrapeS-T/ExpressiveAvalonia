@@ -13,6 +13,27 @@
         <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/Progress.axaml" />
         <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/Collections.axaml" />
         <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/Menus.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/AppBars.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/NavigationDrawer.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignNavigationRail.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignDialogs.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignTabs.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignSheets.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/ButtonGroups.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/Snackbar.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignXR.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignFab.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/Search.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignShapes.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignDatePickers.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignNavigationBar.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignAvatars.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/Chips.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignTooltips.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignCards.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignAssets.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignCarousel.axaml" />
+        <ResourceInclude Source="avares://ExpressiveAvalonia/Themes/DesignTimePickers.axaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Styles.Resources>

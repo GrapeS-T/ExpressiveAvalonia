@@ -1,0 +1,224 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls">
+  <!-- Navigation drawer family. Geometry follows the source components:
+       drawer 360 DIP, radius 16, 12 DIP padding, surface-container-low;
+       item 56 DIP, full radius, 16/24 DIP padding, 12 DIP gaps, 24 DIP icon slot;
+       section header 56 DIP, 18/16 DIP padding, title-small;
+       divider 1 DIP outline-variant inset 16 DIP;
+       drag handle 108x4 DIP, radius 12, 24 DIP grab area. -->
+
+  <ControlTheme x:Key="{x:Type controls:MaterialNavigationDrawer}" TargetType="controls:MaterialNavigationDrawer">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
+    <Setter Property="Padding" Value="12" />
+    <Setter Property="Width" Value="360" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                ClipToBounds="True">
+          <ScrollViewer Name="PART_ScrollViewer"
+                        AllowAutoHide="{TemplateBinding (ScrollViewer.AllowAutoHide)}"
+                        BringIntoViewOnFocusChange="{TemplateBinding (ScrollViewer.BringIntoViewOnFocusChange)}"
+                        HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                        VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                        IsScrollChainingEnabled="{TemplateBinding (ScrollViewer.IsScrollChainingEnabled)}">
+            <ItemsPresenter Name="PART_ItemsPresenter" Margin="{TemplateBinding Padding}"
+                            ItemsPanel="{TemplateBinding ItemsPanel}" />
+          </ScrollViewer>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialNavigationItem}" TargetType="controls:MaterialNavigationItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="MinWidth" Value="56" />
+    <Setter Property="Padding" Value="16,16,24,16" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid>
+          <Border Name="Surface" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border Name="StateLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <Grid Name="ContentRoot" Margin="{TemplateBinding Padding}" ColumnDefinitions="Auto,*,Auto">
+            <ContentPresenter Name="IconPresenter" Grid.Column="0" Width="24" Height="24"
+                              Margin="0,0,12,0" VerticalAlignment="Center"
+                              Content="{TemplateBinding Icon}"
+                              Foreground="{TemplateBinding Foreground}"
+                              HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                              IsVisible="False" />
+            <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              RecognizesAccessKey="True"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              FontSize="{DynamicResource MaterialLabelLargeFontSize}"
+                              FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
+                              LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}"
+                              LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
+                              MaxLines="1" TextTrimming="CharacterEllipsis" />
+            <TextBlock Name="Badge" Grid.Column="2" Margin="12,0,0,0"
+                       Text="{TemplateBinding BadgeText}" VerticalAlignment="Center"
+                       FontSize="{DynamicResource MaterialLabelLargeFontSize}"
+                       FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
+                       LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}"
+                       LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
+                       MaxLines="1" IsVisible="False" />
+          </Grid>
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#Surface">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <!-- Selected: secondary-container container with on-secondary-container content and an
+         emphasized label, matching the source Nav item Selected=True variants. -->
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#StateLayer">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeEmphasizedFontWeight}" />
+    </Style>
+    <Style Selector="^:icon /template/ ContentPresenter#IconPresenter">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:badge /template/ TextBlock#Badge">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- Show icon=False widens the leading padding to 24 DIP in the source component. -->
+    <Style Selector="^:no-icon">
+      <Setter Property="Padding" Value="24,16,24,16" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Grid#ContentRoot">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:selected:disabled /template/ Border#Surface">
+      <Setter Property="Background" Value="{DynamicResource MaterialDisabledOutlineBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialNavigationSectionHeader}" TargetType="controls:MaterialNavigationSectionHeader">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="Padding" Value="16,18" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}" MinHeight="{TemplateBinding MinHeight}">
+          <ContentPresenter Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            VerticalAlignment="Center"
+                            FontSize="{DynamicResource MaterialTitleSmallFontSize}"
+                            FontWeight="{DynamicResource MaterialTitleSmallFontWeight}"
+                            LetterSpacing="{DynamicResource MaterialTitleSmallLetterSpacing}"
+                            LineHeight="{DynamicResource MaterialTitleSmallLineHeight}"
+                            MaxLines="1" TextTrimming="CharacterEllipsis" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialNavigationDivider}" TargetType="controls:MaterialNavigationDivider">
+    <Setter Property="Background" Value="{DynamicResource MaterialOutlineVariantBrush}" />
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" Height="{TemplateBinding Height}" Margin="16,0" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialDragHandle}" TargetType="controls:MaterialDragHandle">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
+                MinHeight="{TemplateBinding MinHeight}">
+          <Border Name="PART_Handle" Width="108" Height="4" CornerRadius="12"
+                  Background="{TemplateBinding Foreground}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialNavigationDrawerHost}" TargetType="controls:MaterialNavigationDrawerHost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Name="PART_Root" ClipToBounds="True">
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+          <Panel Name="PART_Overlay" Background="Transparent" IsVisible="False">
+            <Border Name="PART_Scrim" Background="{DynamicResource MaterialScrimBrush}" Opacity="0" />
+          </Panel>
+          <Border Name="PART_DrawerHost" HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                  IsVisible="False" Margin="0">
+            <Border.RenderTransform>
+              <TranslateTransform />
+            </Border.RenderTransform>
+            <ContentPresenter Name="PART_DrawerPresenter" Content="{TemplateBinding Drawer}" />
+          </Border>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>

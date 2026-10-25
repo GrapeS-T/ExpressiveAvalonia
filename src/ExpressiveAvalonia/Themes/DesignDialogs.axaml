@@ -1,0 +1,259 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming"
+                    xmlns:sys="using:System"
+                    xmlns:conv="using:Avalonia.Data.Converters">
+  <!-- Material 3 dialog family: basic dialog, list dialog and scrollable list dialog.
+       Source anatomy: 28 unit corner, surface-container-high container, 24 unit content padding,
+       16 unit spacing between icon, headline and supporting text, 88 unit footer
+       (24 + 40 unit actions + 24). The divider is a full-width line 16 units below the body and
+       consumes no layout height, matching the source component. -->
+  <!-- Icon geometry comes from the exported glyph local-004360; MaterialDialog.CreateIcon()
+       builds the 24 unit icon from the theme's on-surface-variant role. -->
+
+  <!-- Modal scrim: 32% of the scrim role over the page. -->
+  <sys:Double x:Key="MaterialDialogScrimOpacity">0.32</sys:Double>
+  <!-- Accessible name used when a dialog has no title; override to localize. -->
+  <x:String x:Key="MaterialDialogAccessibleName">Dialog</x:String>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialDialog}" TargetType="controls:MaterialDialog">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyMediumFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyMediumFontWeight}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraLargeCornerRadius}" />
+    <Setter Property="MinWidth" Value="280" />
+    <Setter Property="MaxWidth" Value="560" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Focusable" Value="True" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Surface" Background="{TemplateBinding Background}"
+                CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True"
+                BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}">
+          <Grid RowDefinitions="Auto,*,Auto">
+            <StackPanel Name="PART_Header" Grid.Row="0" Margin="24,24,24,0" Spacing="16">
+              <StackPanel.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                  <Binding Path="Icon" RelativeSource="{RelativeSource TemplatedParent}"
+                           Converter="{x:Static conv:ObjectConverters.IsNotNull}" />
+                  <Binding Path="Title" RelativeSource="{RelativeSource TemplatedParent}"
+                           Converter="{x:Static conv:StringConverters.IsNotNullOrEmpty}" />
+                  <Binding Path="SupportingText" RelativeSource="{RelativeSource TemplatedParent}"
+                           Converter="{x:Static conv:StringConverters.IsNotNullOrEmpty}" />
+                </MultiBinding>
+              </StackPanel.IsVisible>
+              <ContentPresenter Name="PART_Icon" Width="24" Height="24" HorizontalAlignment="Center"
+                                Content="{TemplateBinding Icon}"
+                                IsVisible="{Binding Icon, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+              <TextBlock Name="PART_Title" Text="{TemplateBinding Title}" TextWrapping="Wrap"
+                         TextAlignment="Left"
+                         AutomationProperties.HeadingLevel="2"
+                         FontSize="{DynamicResource MaterialHeadlineSmallFontSize}"
+                         FontWeight="{DynamicResource MaterialHeadlineSmallFontWeight}"
+                         LineHeight="{DynamicResource MaterialHeadlineSmallLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialHeadlineSmallLetterSpacing}"
+                         Foreground="{DynamicResource MaterialOnSurfaceBrush}"
+                         IsVisible="{Binding Title, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+              <TextBlock Name="PART_SupportingText" Text="{TemplateBinding SupportingText}" TextWrapping="Wrap"
+                         TextAlignment="Left"
+                         FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                         FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
+                         LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
+                         Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                         IsVisible="{Binding SupportingText, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+            <!-- The body is the only star row: a dialog taller than the window scrolls here and
+                 the footer stays visible instead of being clipped by the surface. -->
+            <ScrollViewer Name="PART_BodyScroller" Grid.Row="1"
+                          HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                          IsScrollChainingEnabled="True" AllowAutoHide="True">
+              <StackPanel>
+                <ContentPresenter Name="PART_ContentHost" Margin="24,24,24,0"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                  IsVisible="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+                <ContentPresenter Name="PART_ListHost" Margin="0,24,0,0"
+                                  Content="{TemplateBinding List}"
+                                  IsVisible="{Binding List, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+            </ScrollViewer>
+            <Border Name="PART_Divider" Grid.Row="2" Height="1" VerticalAlignment="Top" Margin="0,16,0,0"
+                    Background="{DynamicResource MaterialOutlineVariantBrush}"
+                    IsVisible="{TemplateBinding ShowDivider}" IsHitTestVisible="False" />
+            <StackPanel Name="PART_Actions" Grid.Row="2" Orientation="Horizontal"
+                        HorizontalAlignment="Right" Spacing="8" Margin="24,20,24,20" />
+            <Border Name="PART_BottomSpacer" Grid.Row="2" Height="24" VerticalAlignment="Top" IsHitTestVisible="False" />
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <!-- The source family left-aligns the heading without an icon and centers it when the
+         icon sits above it; the supporting text is left-aligned in both variants. -->
+    <Style Selector="^:icon /template/ TextBlock#PART_Title">
+      <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialDialogList}" TargetType="controls:MaterialDialogList">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}">
+          <ScrollViewer Name="PART_ScrollViewer"
+                        AllowAutoHide="{TemplateBinding (ScrollViewer.AllowAutoHide)}"
+                        HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                        VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                        IsScrollChainingEnabled="False">
+            <ItemsPresenter Name="PART_ItemsPresenter" Margin="{TemplateBinding Padding}"
+                            ItemsPanel="{TemplateBinding ItemsPanel}" />
+          </ScrollViewer>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <!-- Source scrollable list dialog viewport: 170 units, three 56 unit rows plus dividers. -->
+    <Style Selector="^[IsScrollable=True]">
+      <Setter Property="MaxHeight" Value="170" />
+      <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialDialogListItem}" TargetType="controls:MaterialDialogListItem">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="Padding" Value="16,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid MinHeight="{TemplateBinding MinHeight}" Background="{TemplateBinding Background}">
+          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
+                  Opacity="0" IsHitTestVisible="False" />
+          <Grid Name="ItemContent" ColumnDefinitions="Auto,*,Auto" Margin="{TemplateBinding Padding}">
+            <Border Name="Monogram" Width="40" Height="40" CornerRadius="9999"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource MaterialPrimaryContainerBrush}"
+                    IsVisible="{Binding Initial, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
+              <TextBlock Text="{TemplateBinding Initial}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                         FontSize="{DynamicResource MaterialTitleMediumFontSize}"
+                         FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
+                         LineHeight="{DynamicResource MaterialTitleMediumLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
+                         Foreground="{DynamicResource MaterialOnPrimaryContainerBrush}" />
+            </Border>
+            <StackPanel Name="TextContent" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+              <TextBlock Name="Overline" Text="{TemplateBinding Overline}" MaxLines="1"
+                         TextTrimming="CharacterEllipsis"
+                         FontSize="{DynamicResource MaterialLabelMediumFontSize}"
+                         FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
+                         LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}"
+                         Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                         IsVisible="{Binding Overline, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+              <TextBlock Name="Headline" Text="{TemplateBinding Headline}" MaxLines="1"
+                         TextTrimming="CharacterEllipsis"
+                         FontSize="{DynamicResource MaterialBodyLargeFontSize}"
+                         FontWeight="{DynamicResource MaterialBodyLargeFontWeight}"
+                         LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}"
+                         Foreground="{DynamicResource MaterialOnSurfaceBrush}"
+                         IsVisible="{Binding Headline, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+              <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                TextElement.FontSize="{DynamicResource MaterialBodyLargeFontSize}"
+                                TextElement.FontWeight="{DynamicResource MaterialBodyLargeFontWeight}"
+                                TextBlock.LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                                TextElement.LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}"
+                                TextElement.Foreground="{DynamicResource MaterialOnSurfaceBrush}"
+                                IsVisible="{Binding Headline, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}" />
+              <TextBlock Name="SupportingText" Text="{TemplateBinding SupportingText}" MaxLines="1"
+                         TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                         FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                         FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
+                         LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
+                         Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                         IsVisible="{Binding SupportingText, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" Margin="16,0,0,0"
+                        VerticalAlignment="Center">
+              <TextBlock Text="{TemplateBinding TrailingText}" VerticalAlignment="Center"
+                         FontSize="{DynamicResource MaterialLabelSmallFontSize}"
+                         FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
+                         LineHeight="{DynamicResource MaterialLabelSmallLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialLabelSmallLetterSpacing}"
+                         Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                         IsVisible="{Binding TrailingText, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+              <!-- The row owns selection, so the box is presentational: pointer and Space reach
+                   the list item and toggle one IsSelected state instead of toggling twice. -->
+              <CheckBox IsChecked="{Binding IsSelected, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"
+                        IsVisible="{TemplateBinding ShowCheckBox}" Focusable="False"
+                        IsHitTestVisible="False"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="{Binding Headline, RelativeSource={RelativeSource TemplatedParent}}" />
+            </StackPanel>
+          </Grid>
+          <Border Name="Divider" Height="1" VerticalAlignment="Bottom" Margin="16,0,0,0"
+                  Background="{DynamicResource MaterialOutlineVariantBrush}"
+                  IsVisible="{TemplateBinding ShowDivider}" IsHitTestVisible="False" />
+          <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                  BorderThickness="2" IsVisible="False" IsHitTestVisible="False" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled /template/ Grid#ItemContent">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^[(theming|MaterialList.LineCount)=2]">
+      <Setter Property="MinHeight" Value="72" />
+    </Style>
+    <Style Selector="^[(theming|MaterialList.LineCount)=3]">
+      <Setter Property="MinHeight" Value="88" />
+      <Setter Property="Padding" Value="16,12" />
+    </Style>
+    <Style Selector="^[(theming|MaterialList.LineCount)=3] /template/ Border#Monogram, ^[(theming|MaterialList.LineCount)=3] /template/ StackPanel#TextContent">
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="^[(theming|MaterialList.LineCount)=3] /template/ TextBlock#SupportingText">
+      <Setter Property="MaxLines" Value="2" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

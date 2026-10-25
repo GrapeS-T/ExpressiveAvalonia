@@ -1,0 +1,413 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls">
+  <!-- Material 3 time picker family. Source packages and their anatomy:
+         .Building Blocks/Clock face - 12 hour  local-000215  256x256 face, 12 outer numbers
+         .Building Blocks/Clock face - 24 hour  local-000216  256x256 face, 12 outer + 12 inner numbers
+         .Building Blocks/hour-line             local-000271  2 DIP primary radial line, 24 angles
+         .Building Blocks/Hour                  local-000264  48x48 number cell, 6 selected/state variants
+         .Building Blocks/Direct Input          local-000224 96x80 selected/unselected time cell
+         .Building Blocks/Input                 local-000299 same anatomy, covered by the same cell
+         .Building Blocks/Period Selector       local-000530  52x80 vertical AM/PM, 6 variants
+         .Building Blocks/Period Selector - H   local-000537  216x38 horizontal AM/PM, 6 variants
+         Dial picker                            local-001332  12/24 hour x vertical/horizontal
+         Keyboard picker                        local-003542  12/24 hour
+       Geometry, colors and type sizes below are taken from those design.json files. -->
+
+  <!-- Source icon glyphs: keyboard (dial picker mode toggle) and schedule (keyboard picker mode
+       toggle), 24 x 24, filled with OnSurfaceVariant. -->
+  <StreamGeometry x:Key="MaterialTimePickerKeyboardIconGeometry">M4 19C3.45 19 2.97917 18.8042 2.5875 18.4125C2.19583 18.0208 2 17.55 2 17V7C2 6.45 2.19583 5.97917 2.5875 5.5875C2.97917 5.19583 3.45 5 4 5H20C20.55 5 21.0208 5.19583 21.4125 5.5875C21.8042 5.97917 22 6.45 22 7V17C22 17.55 21.8042 18.0208 21.4125 18.4125C21.0208 18.8042 20.55 19 20 19H4ZM4 17H20V7H4V17ZM8 16H16V14H8V16ZM5 13H7V11H5V13ZM8 13H10V11H8V13ZM11 13H13V11H11V13ZM14 13H16V11H14V13ZM17 13H19V11H17V13ZM5 10H7V8H5V10ZM8 10H10V8H8V10ZM11 10H13V8H11V10ZM14 10H16V8H14V10ZM17 10H19V8H17V10Z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialTimePickerScheduleIconGeometry">M15.3 16.7L16.7 15.3L13 11.6V7H11V12.4L15.3 16.7ZM12 22C10.6167 22 9.31667 21.7375 8.1 21.2125C6.88333 20.6875 5.825 19.975 4.925 19.075C4.025 18.175 3.3125 17.1167 2.7875 15.9C2.2625 14.6833 2 13.3833 2 12C2 10.6167 2.2625 9.31667 2.7875 8.1C3.3125 6.88333 4.025 5.825 4.925 4.925C5.825 4.025 6.88333 3.3125 8.1 2.7875C9.31667 2.2625 10.6167 2 12 2C13.3833 2 14.6833 2.2625 15.9 2.7875C17.1167 3.3125 18.175 4.025 19.075 4.925C19.975 5.825 20.6875 6.88333 21.2125 8.1C21.7375 9.31667 22 10.6167 22 12C22 13.3833 21.7375 14.6833 21.2125 15.9C20.6875 17.1167 19.975 18.175 19.075 19.075C18.175 19.975 17.1167 20.6875 15.9 21.2125C14.6833 21.7375 13.3833 22 12 22ZM12 20C14.2167 20 16.1042 19.2208 17.6625 17.6625C19.2208 16.1042 20 14.2167 20 12C20 9.78333 19.2208 7.89583 17.6625 6.3375C16.1042 4.77917 14.2167 4 12 4C9.78333 4 7.89583 4.77917 6.3375 6.3375C4.77917 7.89583 4 9.78333 4 12C4 14.2167 4.77917 16.1042 6.3375 17.6625C7.89583 19.2208 9.78333 20 12 20Z</StreamGeometry>
+
+  <!-- Template strings. Override any key to localize the picker; the control code reads them
+       through TryFindResource and falls back to invariant English when a key is absent. -->
+  <x:String x:Key="MaterialTimePickerSelectTimeText">Select time</x:String>
+  <x:String x:Key="MaterialTimePickerEnterTimeText">Enter time</x:String>
+  <x:String x:Key="MaterialTimePickerHourText">Hour</x:String>
+  <x:String x:Key="MaterialTimePickerMinuteText">Minute</x:String>
+  <x:String x:Key="MaterialTimePickerHourHelpText">Enter a value between {0} and {1}</x:String>
+  <x:String x:Key="MaterialTimePickerMinuteHelpText">Enter a value between {0} and {1}</x:String>
+  <x:String x:Key="MaterialTimePickerOutOfRangeText">Time must be between {0} and {1}</x:String>
+  <x:String x:Key="MaterialTimePickerSwitchToKeyboardText">Switch to keyboard input</x:String>
+  <x:String x:Key="MaterialTimePickerSwitchToDialText">Switch to dial input</x:String>
+  <x:String x:Key="MaterialTimePickerAmText">AM</x:String>
+  <x:String x:Key="MaterialTimePickerPmText">PM</x:String>
+  <x:String x:Key="MaterialTimePickerCancelText">Cancel</x:String>
+  <x:String x:Key="MaterialTimePickerOkText">OK</x:String>
+
+  <!-- Native TextBox inside a time cell. An explicit theme keeps the standalone floating-label
+       TextBox behavior off while retaining caret, selection, clipboard, IME and automation. -->
+  <ControlTheme x:Key="MaterialTimeSegmentEditor" TargetType="TextBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CaretBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="SelectionForegroundBrush" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="TextAlignment" Value="Center" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+          <ScrollViewer Name="PART_ScrollViewer" HorizontalScrollBarVisibility="Hidden"
+                        VerticalScrollBarVisibility="Hidden">
+            <Panel>
+              <TextPresenter Name="PART_TextPresenter"
+                             Text="{TemplateBinding Text, Mode=TwoWay}"
+                             CaretBlinkInterval="{TemplateBinding CaretBlinkInterval}"
+                             CaretIndex="{TemplateBinding CaretIndex}"
+                             SelectionStart="{TemplateBinding SelectionStart}"
+                             SelectionEnd="{TemplateBinding SelectionEnd}"
+                             SelectionBrush="{TemplateBinding SelectionBrush}"
+                             SelectionForegroundBrush="{TemplateBinding SelectionForegroundBrush}"
+                             CaretBrush="{TemplateBinding CaretBrush}"
+                             LineHeight="{TemplateBinding LineHeight}"
+                             LetterSpacing="{TemplateBinding LetterSpacing}"
+                             TextAlignment="{TemplateBinding TextAlignment}"
+                             HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                             VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Panel>
+          </ScrollViewer>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <!-- .Building Blocks/Direct Input (keyboard) input (local-000224) and .Building Blocks/Input
+       (local-000299): both are the 96 x 80 dial cell (radius 8, DisplayLarge 57/64, default
+       SurfaceContainerHighest/OnSurface, selected PrimaryContainer/OnPrimaryContainer) with the
+       100 x 84 / 3 DIP / radius 2 focus indicator. The keyboard picker adds the 96 x 72 field +
+       7 DIP gap + 16 DIP label form. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialTimeInputSegment}" TargetType="controls:MaterialTimeInputSegment">
+    <Setter Property="Width" Value="96" />
+    <Setter Property="Height" Value="80" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <StackPanel>
+          <Panel>
+            <Border Name="Field" Height="{TemplateBinding FieldHeight}"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{TemplateBinding CornerRadius}">
+              <TextBox Name="PART_Editor" Theme="{StaticResource MaterialTimeSegmentEditor}"
+                       MaxLength="2"
+                       Foreground="{TemplateBinding Foreground}"
+                       CaretBrush="{TemplateBinding Foreground}"
+                       FontFamily="{TemplateBinding FontFamily}" />
+            </Border>
+            <!-- Source focus indicator: 100 x 84 for the 96 x 80 cell (2 DIP outset), 3 DIP stroke,
+                 radius 2, #625C70 (nearest role: OnSurfaceVariant). -->
+            <Border Name="FocusRing" Margin="-2"
+                    CornerRadius="2"
+                    BorderBrush="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                    BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
+          </Panel>
+          <TextBlock Name="SegmentLabel" IsVisible="False" Margin="0,7,0,0"
+                     Text="{TemplateBinding Label}" TextAlignment="Center"
+                     Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                     FontFamily="{DynamicResource MaterialFontFamily}"
+                     FontSize="{DynamicResource MaterialLabelMediumFontSize}"
+                     FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
+                     LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
+                     LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}" />
+        </StackPanel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ TextBox#PART_Editor">
+      <Setter Property="FontSize" Value="{DynamicResource MaterialDisplayLargeFontSize}" />
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialDisplayLargeLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialDisplayLargeLetterSpacing}" />
+    </Style>
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:keyboard">
+      <Setter Property="Height" Value="95" />
+      <Setter Property="FieldHeight" Value="72" />
+    </Style>
+    <Style Selector="^:keyboard /template/ TextBlock#SegmentLabel">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:keyboard /template/ TextBox#PART_Editor">
+      <Setter Property="FontSize" Value="{DynamicResource MaterialDisplayMediumFontSize}" />
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialDisplayMediumLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialDisplayMediumLetterSpacing}" />
+    </Style>
+    <Style Selector="^:keyboard:selected">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="^:invalid /template/ Border#Field">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialErrorBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="^:invalid">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialErrorBrush}" />
+    </Style>
+    <Style Selector="^:focus-within /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialDisabledContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- One AM/PM cell. 52 x 40 vertical, 108 x 38 horizontal, 52 x 36 compact. -->
+  <ControlTheme x:Key="MaterialPeriodCell" TargetType="ToggleButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialTitleMediumFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleMediumFontWeight}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="CellBackground" Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            LineHeight="{DynamicResource MaterialTitleMediumLineHeight}"
+                            LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}" />
+          <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                  BorderThickness="2" CornerRadius="{TemplateBinding CornerRadius}"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- .Building Blocks/Period Selector (local-000530): 52 x 80, radius 8, 1 DIP outline, two
+       40-tall cells split by a 1 DIP divider. The horizontal variant (local-000537) is
+       216 x 38 with two 108-wide cells and a vertical divider. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialPeriodSelector}" TargetType="controls:MaterialPeriodSelector">
+    <Setter Property="Width" Value="52" />
+    <Setter Property="Height" Value="80" />
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                ClipToBounds="True">
+          <Grid Name="Cells" RowDefinitions="*,Auto,*" ColumnDefinitions="*,Auto,*">
+            <ToggleButton Name="PART_Am" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                          Theme="{StaticResource MaterialPeriodCell}"
+                          Content="{DynamicResource MaterialTimePickerAmText}" />
+            <Border Name="DividerVertical" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Height="1"
+                    Background="{TemplateBinding BorderBrush}" />
+            <Border Name="DividerHorizontal" Grid.Row="0" Grid.RowSpan="3" Grid.Column="1"
+                    Width="1" IsVisible="False"
+                    Background="{TemplateBinding BorderBrush}" />
+            <ToggleButton Name="PART_Pm" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
+                          Theme="{StaticResource MaterialPeriodCell}"
+                          Content="{DynamicResource MaterialTimePickerPmText}" />
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:horizontal">
+      <Setter Property="Width" Value="216" />
+      <Setter Property="Height" Value="38" />
+    </Style>
+    <Style Selector="^:horizontal /template/ ToggleButton#PART_Am">
+      <Setter Property="Grid.Row" Value="0" />
+      <Setter Property="Grid.RowSpan" Value="3" />
+      <Setter Property="Grid.Column" Value="0" />
+      <Setter Property="Grid.ColumnSpan" Value="1" />
+    </Style>
+    <Style Selector="^:horizontal /template/ Border#DividerVertical">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:horizontal /template/ Border#DividerHorizontal">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:horizontal /template/ ToggleButton#PART_Pm">
+      <Setter Property="Grid.Row" Value="0" />
+      <Setter Property="Grid.RowSpan" Value="3" />
+      <Setter Property="Grid.Column" Value="2" />
+      <Setter Property="Grid.ColumnSpan" Value="1" />
+    </Style>
+    <Style Selector="^:compact">
+      <Setter Property="Height" Value="72" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialDisabledOutlineBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- .Building Blocks/Clock face - 12 hour (local-000215) and - 24 hour (local-000216):
+       256 x 256 SurfaceContainerHighest face, 48 DIP number cells, Primary selected cell,
+       OnSurface numbers, 8 DIP Primary centre dot, 2 DIP Primary hour line. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialClockDial}" TargetType="controls:MaterialClockDial">
+    <Setter Property="Width" Value="256" />
+    <Setter Property="Height" Value="256" />
+    <Setter Property="FaceBrush" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+    <Setter Property="NumberBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="SelectedBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="SelectedTextBrush" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    <Setter Property="LineBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="StateLayerBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="StateLayerOpacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    <Setter Property="FocusRingBrush" Value="{DynamicResource MaterialSecondaryBrush}" />
+    <Setter Property="DisabledNumberBrush" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="NumberFontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="NumberFontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
+  </ControlTheme>
+
+  <!-- Dial picker (local-001332) and keyboard picker (local-003542).
+       Vertical dial:  328 x 520 = 24 + 16 headline, 20, 372 inputs (80 + 36 + 256), 20, 68 actions.
+       Horizontal dial: 572 x 384 = 24 + 16 headline, 20, 256 (216 inputs beside the 256 dial), 68.
+       Keyboard:       328 x 243 = 24 + 16 headline, 20, 95 inputs, 20, 68 actions. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialTimePicker}" TargetType="controls:MaterialTimePicker">
+    <Setter Property="MinWidth" Value="328" />
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="28" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}">
+          <StackPanel>
+            <TextBlock Name="Headline" Margin="24,24,24,0"
+                       Text="{TemplateBinding EffectiveHeadline}"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                       FontFamily="{TemplateBinding FontFamily}"
+                       FontSize="{DynamicResource MaterialLabelMediumFontSize}"
+                       FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
+                       LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
+                       LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}" />
+
+            <StackPanel Name="InputSelection" Orientation="Vertical" Spacing="36" Margin="24,20,24,0">
+              <StackPanel Name="InputColumn" Orientation="Horizontal" Spacing="12">
+                <StackPanel Name="TimeInputs" Orientation="Horizontal">
+                  <controls:MaterialTimeInputSegment Name="PART_Hour" />
+                  <TextBlock Name="Colon" Text=":" Width="24" TextAlignment="Center"
+                             VerticalAlignment="Center"
+                             Foreground="{TemplateBinding Foreground}"
+                             FontFamily="{TemplateBinding FontFamily}"
+                             FontSize="{DynamicResource MaterialDisplayLargeFontSize}"
+                             LineHeight="{DynamicResource MaterialDisplayLargeLineHeight}"
+                             LetterSpacing="{DynamicResource MaterialDisplayLargeLetterSpacing}" />
+                  <controls:MaterialTimeInputSegment Name="PART_Minute" />
+                </StackPanel>
+                <controls:MaterialPeriodSelector Name="PART_Period" VerticalAlignment="Top" />
+              </StackPanel>
+              <controls:MaterialClockDial Name="PART_Dial" HorizontalAlignment="Left" />
+            </StackPanel>
+
+            <Grid Name="Actions" Margin="12,20,24,20" ColumnDefinitions="Auto,*,Auto">
+              <Button Name="PART_ModeToggle" Grid.Column="0"
+                      theming:MaterialAssist.IsIconButton="True"
+                      theming:MaterialAssist.ControlSize="Small"
+                      theming:MaterialAssist.ButtonVariant="Standard" />
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <Button Name="PART_Cancel"
+                        theming:MaterialAssist.ButtonVariant="Text"
+                        theming:MaterialAssist.ControlSize="Small"
+                        Content="{DynamicResource MaterialTimePickerCancelText}" />
+                <Button Name="PART_Ok"
+                        theming:MaterialAssist.ButtonVariant="Text"
+                        theming:MaterialAssist.ControlSize="Small"
+                        Content="{DynamicResource MaterialTimePickerOkText}" />
+              </StackPanel>
+            </Grid>
+
+            <TextBlock Name="ValidationMessage" Margin="24,0,24,16" TextWrapping="Wrap"
+                       Text="{TemplateBinding ValidationMessage}"
+                       Foreground="{DynamicResource MaterialErrorBrush}"
+                       FontFamily="{TemplateBinding FontFamily}"
+                       FontSize="{DynamicResource MaterialBodySmallFontSize}"
+                       FontWeight="{DynamicResource MaterialBodySmallFontWeight}"
+                       LineHeight="{DynamicResource MaterialBodySmallLineHeight}"
+                       LetterSpacing="{DynamicResource MaterialBodySmallLetterSpacing}"
+                       AutomationProperties.LiveSetting="Assertive"
+                       IsVisible="{Binding ValidationMessage, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          </StackPanel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- Horizontal dial: the inputs stack vertically beside the dial, and the period selector
+         moves under the time cells as the 216 x 38 segmented row. -->
+    <Style Selector="^:horizontal">
+      <Setter Property="MinWidth" Value="572" />
+    </Style>
+    <Style Selector="^:horizontal /template/ StackPanel#InputSelection">
+      <Setter Property="Orientation" Value="Horizontal" />
+      <Setter Property="Spacing" Value="52" />
+    </Style>
+    <Style Selector="^:horizontal /template/ StackPanel#InputColumn">
+      <Setter Property="Orientation" Value="Vertical" />
+      <Setter Property="Spacing" Value="16" />
+      <Setter Property="Margin" Value="0,72,0,50" />
+    </Style>
+    <Style Selector="^:horizontal /template/ Grid#Actions">
+      <Setter Property="Margin" Value="12,0,24,20" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

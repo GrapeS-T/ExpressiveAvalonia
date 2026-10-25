@@ -1,0 +1,190 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls">
+  <!-- Shape family, dividers, scrim, focus indicator and state-layer building blocks.
+       Source geometry lives in Controls/MaterialShapeGeometries.cs (verbatim path data).
+       Color roles, insets and opacities below are taken from the source design data:
+         Shape Set (local-004595)        fill M3/sys/light/primary
+         .Shape (local-004585)           fill M3/sys/light/primary-container
+         Divider                         1 dp M3/sys/light/outline-variant
+         Divider with subhead            line 16 dp inset both ends, 4 dp gap, title-small
+                                         M3/sys/light/on-surface-variant label
+         Scrim                           M3/sys/light/scrim at 32%
+         Focus indicator                 3 dp outside stroke, 2 dp radius, secondary
+         State layer                     on-surface at 8% hover, 10% focus, 10% pressed,
+                                         16% dragged; dragged also paints surface + elevation 5
+       All spacing is in device-independent units. -->
+
+  <!-- Strings are resources so an application can localize them. -->
+  <x:String x:Key="MaterialScrimDismissText">Dismiss</x:String>
+
+  <!-- ============================== Shapes ============================== -->
+
+  <ControlTheme x:Key="{x:Type controls:MaterialShape}" TargetType="controls:MaterialShape">
+    <!-- Uniform keeps every geometry's aspect ratio; the source previews draw each shape at
+         its own aspect rather than stretching it. Like Path, an unsized shape measures to its
+         source geometry, so give it a Width/Height or let a parent stretch it. -->
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+
+    <!-- The nine numbered `.Shape` geometries are painted with the primary container role in
+         the source. Each variant is listed explicitly; a local Fill still overrides it. -->
+    <Style Selector="^[Kind=Shape1]">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Shape2]">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Shape3]">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Shape4]">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Shape5]">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Shape6]">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Shape7]">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Shape8]">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Shape9]">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- ============================== Divider ============================== -->
+
+  <ControlTheme x:Key="{x:Type controls:MaterialDivider}" TargetType="controls:MaterialDivider">
+    <Setter Property="Brush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
+    <Setter Property="LineThickness" Value="1" />
+    <Setter Property="Orientation" Value="Horizontal" />
+    <Setter Property="Variant" Value="FullWidth" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <!-- Row 0 is a star row so a vertical divider with an explicit Height really stretches;
+             an unconstrained Grid treats the star row as auto, which is what a horizontal
+             divider needs. Row 1 holds the optional subheader. -->
+        <Grid Name="PART_Root" RowDefinitions="*,Auto">
+          <!-- Both line parts live in the template; orientation styles show exactly one, so no
+               style has to override a locally set template value. -->
+          <Panel Name="PART_LineHost">
+            <Border Name="PART_HLine"
+                    Background="{TemplateBinding Brush}"
+                    Height="{TemplateBinding LineThickness}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Center" />
+            <Border Name="PART_VLine"
+                    Background="{TemplateBinding Brush}"
+                    Width="{TemplateBinding LineThickness}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Stretch" />
+          </Panel>
+          <TextBlock Name="PART_Subheader" Grid.Row="1"
+                     Text="{TemplateBinding Subheader}"
+                     AutomationProperties.HeadingLevel="2"
+                     Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                     FontFamily="{DynamicResource MaterialFontFamily}"
+                     FontSize="{DynamicResource MaterialTitleSmallFontSize}"
+                     LineHeight="{DynamicResource MaterialTitleSmallLineHeight}"
+                     LetterSpacing="{DynamicResource MaterialTitleSmallLetterSpacing}"
+                     FontWeight="{DynamicResource MaterialTitleSmallFontWeight}"
+                     TextWrapping="Wrap" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- Horizontal is the default orientation: hide the vertical line. -->
+    <Style Selector="^[Orientation=Horizontal] /template/ Border#PART_VLine">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^[Orientation=Vertical] /template/ Border#PART_HLine">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <!-- The subheader row collapses when there is no text, and vertical dividers never show a
+         label (the source vertical packages contain only the line). -->
+    <Style Selector="^[HasSubheader=False] /template/ TextBlock#PART_Subheader">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^[Orientation=Vertical] /template/ TextBlock#PART_Subheader">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <!-- Source insets: 16 dp from the leading edge for Inset, 16 dp on both ends for
+         Middle-inset. Horizontal and vertical dividers use the same 16 dp value.
+         Horizontal/Divider with subhead is MiddleInset plus Subheader: its 320 dp frame holds a
+         288 dp line and label, i.e. 16 dp on each side. -->
+    <Style Selector="^[Variant=Inset] /template/ Border#PART_HLine">
+      <Setter Property="Margin" Value="16,0,0,0" />
+    </Style>
+    <Style Selector="^[Variant=MiddleInset] /template/ Border#PART_HLine">
+      <Setter Property="Margin" Value="16,0,16,0" />
+    </Style>
+    <Style Selector="^[Variant=Inset] /template/ Border#PART_VLine">
+      <Setter Property="Margin" Value="0,16,0,0" />
+    </Style>
+    <Style Selector="^[Variant=MiddleInset] /template/ Border#PART_VLine">
+      <Setter Property="Margin" Value="0,16,0,16" />
+    </Style>
+    <!-- The subheader keeps a 4 dp gap under the line; the inset variants add their side
+         insets. Exactly one Variant value matches, so these styles never conflict. -->
+    <Style Selector="^[Variant=FullWidth] /template/ TextBlock#PART_Subheader">
+      <Setter Property="Margin" Value="0,4,0,0" />
+    </Style>
+    <Style Selector="^[Variant=Inset] /template/ TextBlock#PART_Subheader">
+      <Setter Property="Margin" Value="16,4,0,0" />
+    </Style>
+    <Style Selector="^[Variant=MiddleInset] /template/ TextBlock#PART_Subheader">
+      <Setter Property="Margin" Value="16,4,16,0" />
+    </Style>
+  </ControlTheme>
+
+  <!-- ============================== Scrim ============================== -->
+
+  <ControlTheme x:Key="{x:Type controls:MaterialScrim}" TargetType="controls:MaterialScrim">
+    <Setter Property="Fill" Value="{DynamicResource MaterialScrimBrush}" />
+    <Setter Property="ScrimOpacity" Value="0.32" />
+    <Setter Property="IsDismissEnabled" Value="True" />
+    <Setter Property="Focusable" Value="True" />
+    <!-- The scrim is focusable so Escape works; give assistive technology a name for it. -->
+    <Setter Property="AutomationProperties.Name" Value="{DynamicResource MaterialScrimDismissText}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.2,0,0,1" />
+      </Transitions>
+    </Setter>
+  </ControlTheme>
+
+  <!-- ========================== Focus indicator ========================== -->
+
+  <ControlTheme x:Key="{x:Type controls:MaterialFocusIndicator}" TargetType="controls:MaterialFocusIndicator">
+    <Setter Property="Stroke" Value="{DynamicResource MaterialSecondaryBrush}" />
+    <Setter Property="StrokeThickness" Value="3" />
+    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="Focusable" Value="False" />
+  </ControlTheme>
+
+  <!-- =========================== State layers =========================== -->
+
+  <ControlTheme x:Key="{x:Type controls:MaterialStateLayer}" TargetType="controls:MaterialStateLayer">
+    <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="SurfaceFill" Value="{DynamicResource MaterialSurfaceBrush}" />
+    <Setter Property="Shadow" Value="{DynamicResource MaterialElevationLevel5Shadow}" />
+    <Setter Property="HoverOpacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    <Setter Property="FocusOpacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    <Setter Property="PressedOpacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    <Setter Property="DraggedOpacity" Value="{DynamicResource MaterialDraggedStateLayerOpacity}" />
+    <Setter Property="CornerRadius" Value="0" />
+  </ControlTheme>
+</ResourceDictionary>

@@ -131,7 +131,8 @@ public sealed class MaterialRangeSlider : TemplatedControl
         }
         if (change.Property == MinimumProperty || change.Property == MaximumProperty ||
             change.Property == LowerValueProperty || change.Property == UpperValueProperty ||
-            change.Property == FlowDirectionProperty || change.Property == TickFrequencyProperty)
+            change.Property == FlowDirectionProperty || change.Property == TickFrequencyProperty ||
+            change.Property == MaterialAssist.ControlSizeProperty)
             UpdatePositions();
         if (change.Property == IsEnabledProperty && !IsEffectivelyEnabled)
             _capturedPointer?.Capture(null);
@@ -141,33 +142,67 @@ public sealed class MaterialRangeSlider : TemplatedControl
 
     private void CanvasSizeChanged(object? sender, SizeChangedEventArgs e) => UpdatePositions();
 
-    private double Travel => Math.Max(0, (_canvas?.Bounds.Width ?? 0) - 4);
+    private double Travel => Math.Max(0, (_canvas?.Bounds.Width ?? 0) - 12);
 
-    private double Position(double value)
+    /// <summary>
+    /// Handle centers in track coordinates. Coincident endpoints are separated by ten DIP so
+    /// both can be grabbed, and the source's centered stop dot marks the shared position.
+    /// </summary>
+    internal (double Lower, double Upper, bool Coincident) GetVisualPositions(double length)
     {
-        // Avalonia mirrors the visual tree for RTL, including pointer coordinates.
-        // Halving first keeps the fraction finite for opposite extreme bounds.
-        var fraction = Maximum > Minimum
-            ? (value / 2 - Minimum / 2) / (Maximum / 2 - Minimum / 2)
-            : 0;
-        return fraction * Travel;
+        var travel = Math.Max(0, length - 12);
+        double At(double value)
+        {
+            var fraction = Maximum > Minimum
+                ? (value / 2 - Minimum / 2) / (Maximum / 2 - Minimum / 2)
+                : 0;
+            return 6 + fraction * travel;
+        }
+
+        var lower = At(LowerValue);
+        var upper = At(UpperValue);
+        var coincident = LowerValue == UpperValue;
+        if (Math.Abs(upper - lower) < 10)
+        {
+            var middle = (lower + upper) / 2;
+            return (middle - 5, middle + 5, coincident);
+        }
+        return (lower, upper, coincident);
     }
 
     private void UpdatePositions()
     {
-        var lower = Position(LowerValue);
-        var upper = Position(UpperValue);
+        if (_canvas is null)
+        {
+            InvalidateTrack();
+            return;
+        }
+        var (lower, upper, _) = GetVisualPositions(_canvas.Bounds.Width);
+        // The thumb keeps at least the 48-DIP accessibility target; larger sizes use the
+        // source's cross size so the painted handle is centered on a matching target.
+        var target = Math.Max(48, Bounds.Height);
+        var top = Math.Max(0, (_canvas.Bounds.Height - target) / 2);
         if (_lowerThumb is not null)
-            Canvas.SetLeft(_lowerThumb, lower - 22);
+        {
+            _lowerThumb.Width = target;
+            _lowerThumb.Height = target;
+            Canvas.SetLeft(_lowerThumb, lower - target / 2);
+            Canvas.SetTop(_lowerThumb, top);
+        }
         if (_upperThumb is not null)
-            Canvas.SetLeft(_upperThumb, upper - 22);
+        {
+            _upperThumb.Width = target;
+            _upperThumb.Height = target;
+            Canvas.SetLeft(_upperThumb, upper - target / 2);
+            Canvas.SetTop(_upperThumb, top);
+        }
         InvalidateTrack();
     }
 
-    internal bool IsLowerThumbFocused => _lowerThumb?.IsFocused == true;
-    internal bool IsUpperThumbFocused => _upperThumb?.IsFocused == true;
-    internal bool IsLowerThumbDragging => _activeThumb == _lowerThumb && _capturedPointer is not null;
-    internal bool IsUpperThumbDragging => _activeThumb == _upperThumb && _capturedPointer is not null;
+    internal Thumb? LowerThumb => _lowerThumb;
+    internal Thumb? UpperThumb => _upperThumb;
+    internal bool IsDragging => _capturedPointer is not null;
+    internal bool IsUpperEndpointActive => _activeThumb is not null && _activeThumb == _upperThumb;
     internal void InvalidateTrack() => _trackVisual?.InvalidateVisual();
 
     private void OnRangePointerPressed(object? sender, PointerPressedEventArgs e)
@@ -176,8 +211,7 @@ public sealed class MaterialRangeSlider : TemplatedControl
             !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             return;
         var point = e.GetPosition(_canvas);
-        var lower = Position(LowerValue) + 2;
-        var upper = Position(UpperValue) + 2;
+        var (lower, upper, _) = GetVisualPositions(_canvas.Bounds.Width);
         // When endpoints coincide, the focused thumb wins; otherwise the nearest endpoint wins.
         var useUpper = Math.Abs(point.X - upper) < Math.Abs(point.X - lower) ||
             (Math.Abs(point.X - upper) == Math.Abs(point.X - lower) && _upperThumb?.IsFocused == true);
@@ -232,7 +266,7 @@ public sealed class MaterialRangeSlider : TemplatedControl
     {
         if (Travel <= 0)
             return;
-        var fraction = Math.Clamp((x - 2 - _grabOffset) / Travel, 0, 1);
+        var fraction = Math.Clamp((x - 6 - _grabOffset) / Travel, 0, 1);
         SetEndpoint(_activeThumb == _upperThumb, Minimum * (1 - fraction) + Maximum * fraction);
     }
 
@@ -300,10 +334,26 @@ internal sealed class MaterialRangeThumb : Thumb
 
     internal void SetDragging(bool dragging) => PseudoClasses.Set(":pressed", dragging);
 
+    internal bool IsFocusVisible { get; private set; }
+
+    protected override void OnGotFocus(FocusChangedEventArgs e)
+    {
+        base.OnGotFocus(e);
+        IsFocusVisible = e.NavigationMethod != NavigationMethod.Pointer;
+        _slider?.InvalidateTrack();
+    }
+
+    protected override void OnLostFocus(FocusChangedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        IsFocusVisible = false;
+        _slider?.InvalidateTrack();
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == IsFocusedProperty)
+        if (change.Property == IsFocusedProperty || change.Property == IsPointerOverProperty)
             _slider?.InvalidateTrack();
     }
 

@@ -1,0 +1,144 @@
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls">
+  <!-- Material 3 carousel. Geometry follows the assigned source packages:
+       Carousel (local-001094: 10 variants = Context Mobile/Tablet x Layout
+       Hero, Center-aligned hero, Multi-browse, Uncontained, Multi-aspect ratio),
+       Carousel - Full screen (local-001105), and the five multi-ratio building blocks
+       (16:9 local-000381, 4:3 local-000383, 1:1 local-000380, 3:4 local-000382, 9:16 local-000384).
+       Source values: 16 unit leading inset, 8 unit gap and vertical inset, 204 unit card height,
+       28 unit corner radius, and a bottom scrim whose content block is inset 16 units. -->
+  <SolidColorBrush x:Key="MaterialCarouselOnMediaBrush" Color="#FFFFFFFF" />
+  <LinearGradientBrush x:Key="MaterialCarouselScrimBrush" StartPoint="50%,0%" EndPoint="50%,100%">
+    <!-- Source Content fill: transparent at the top, 50% black at the bottom (multiply). -->
+    <GradientStop Color="#00000000" Offset="0" />
+    <GradientStop Color="#80000000" Offset="1" />
+  </LinearGradientBrush>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialCarousel}" TargetType="controls:MaterialCarousel">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="16,8" />
+    <Setter Property="ItemSpacing" Value="8" />
+    <Setter Property="ItemHeight" Value="204" />
+    <Setter Property="IsSnapToItems" Value="True" />
+    <Setter Property="AutoScrollToSelectedItem" Value="False" />
+    <!-- Hidden keeps horizontal scrolling enabled without drawing a bar; Disabled would
+         constrain the strip instead of letting it overflow. -->
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Hidden" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ScrollViewer.HorizontalSnapPointsType" Value="MandatorySingle" />
+    <Setter Property="ScrollViewer.HorizontalSnapPointsAlignment" Value="Near" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+          <!-- The strip applies Padding itself, so item snap points can keep the source inset. -->
+          <ScrollViewer Name="PART_ScrollViewer" Focusable="False"
+                        HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                        VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                        HorizontalSnapPointsType="{TemplateBinding (ScrollViewer.HorizontalSnapPointsType)}"
+                        HorizontalSnapPointsAlignment="{TemplateBinding (ScrollViewer.HorizontalSnapPointsAlignment)}"
+                        BringIntoViewOnFocusChange="False">
+            <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+          </ScrollViewer>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <!-- Uncontained has no trailing inset in the source: the last card bleeds off the end. -->
+    <Style Selector="^:uncontained">
+      <Setter Property="Padding" Value="16,8,0,8" />
+    </Style>
+    <Style Selector="^:full-screen">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="ItemSpacing" Value="0" />
+    </Style>
+    <Style Selector="^:no-snap">
+      <Setter Property="ScrollViewer.HorizontalSnapPointsType" Value="None" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialCarouselItem}" TargetType="controls:MaterialCarouselItem">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraLargeCornerRadius}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Name="PART_Root" Background="Transparent">
+          <Border Name="PART_Card" Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
+            <Panel>
+              <Image Name="PART_Image" Source="{TemplateBinding ImageSource}"
+                     Stretch="{TemplateBinding ImageStretch}" />
+              <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+              <Border Name="PART_Scrim" Background="{DynamicResource MaterialCarouselScrimBrush}"
+                      IsVisible="{TemplateBinding IsOverlayVisible}" IsHitTestVisible="False" />
+              <!-- "Carousel text" block: 16 unit inset, 4 unit line gap, label 16/24 medium,
+                   supporting text 11/16 medium at 0.5 tracking. Source text is pure white. -->
+              <StackPanel Name="PART_Overlay" Margin="16" Spacing="4" VerticalAlignment="Bottom"
+                          IsVisible="{TemplateBinding IsOverlayVisible}" IsHitTestVisible="False">
+                <TextBlock Name="PART_Label" Text="{TemplateBinding Label}"
+                           Foreground="{DynamicResource MaterialCarouselOnMediaBrush}"
+                           FontSize="{DynamicResource MaterialTitleMediumFontSize}"
+                           FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
+                           LineHeight="{DynamicResource MaterialTitleMediumLineHeight}"
+                           LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
+                           TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                <TextBlock Name="PART_SupportingText" Text="{TemplateBinding SupportingText}"
+                           IsVisible="{TemplateBinding IsSupportingTextVisible}"
+                           Foreground="{DynamicResource MaterialCarouselOnMediaBrush}"
+                           FontSize="{DynamicResource MaterialLabelSmallFontSize}"
+                           FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
+                           LineHeight="{DynamicResource MaterialLabelSmallLineHeight}"
+                           LetterSpacing="{DynamicResource MaterialLabelSmallLetterSpacing}"
+                           TextWrapping="Wrap" MaxLines="1" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+              <Border Name="PART_StateLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
+                      Opacity="0" IsHitTestVisible="False" />
+            </Panel>
+          </Border>
+          <!-- The source has no selected card treatment; the ring exists so native selection,
+               which drives SelectionPattern and keyboard paging, stays visible. -->
+          <Border Name="PART_SelectionRing" BorderBrush="{DynamicResource MaterialPrimaryBrush}"
+                  BorderThickness="2" CornerRadius="{TemplateBinding CornerRadius}"
+                  IsVisible="False" IsHitTestVisible="False" />
+          <Border Name="PART_FocusRing" BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                  BorderThickness="3" Margin="3" CornerRadius="{TemplateBinding CornerRadius}"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#PART_StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#PART_SelectionRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#PART_FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_Card">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_SelectionRing, ^:disabled /template/ Border#PART_FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

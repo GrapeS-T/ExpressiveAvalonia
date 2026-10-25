@@ -1,0 +1,155 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming"
+                    xmlns:data="using:Avalonia.Data.Converters">
+  <!-- Sheet anatomy from the Material design source:
+       Side sheet  320 wide (400 max), 76 header (12/12/16/24 padding), Title Large headline on
+                   OnSurfaceVariant, 48 icon-button affordances, scrolling content slot, actions
+                   row above a 1-pixel OutlineVariant divider (12/24 padding, 8 gap). Modal sheets
+                   use the SurfaceContainerLow fill with a 16 corner radius; standard sheets use
+                   Surface with square corners.
+       Bottom      28/28/0/0 corners, 36 drag-handle header (16 padding, 32x4 Outline handle),
+                   scrolling content slot. Modal drops the resting elevation shadow.
+       Scrim       MaterialScrim at 32% opacity in both modal presentations.
+       Strings are resources so an application can localize them. -->
+  <x:String x:Key="MaterialSheetCloseText">Close</x:String>
+  <x:String x:Key="MaterialSheetBackText">Back</x:String>
+  <x:String x:Key="MaterialSheetDragHandleText">Drag to dismiss</x:String>
+  <x:String x:Key="MaterialBottomSheetText">Bottom sheet</x:String>
+
+  <!-- Affordances reuse the implicit Material Button theme (icon button, Small, Standard,
+       Round) so disabled, hover, focus and pressed states stay identical to other icon buttons. -->
+
+  <ControlTheme x:Key="{x:Type controls:MaterialSideSheet}" TargetType="controls:MaterialSideSheet">
+    <Setter Property="IsModal" Value="False" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyMediumFontSize}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Name="PART_Root" ClipToBounds="True">
+          <Border Name="PART_Scrim" Background="{DynamicResource MaterialScrimBrush}" Opacity="0" IsVisible="False" />
+          <Border Name="PART_Surface"
+                  Width="{TemplateBinding SheetWidth}" MaxWidth="400"
+                  HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                  Background="{DynamicResource MaterialSurfaceBrush}"
+                  BorderBrush="{DynamicResource MaterialOutlineVariantBrush}"
+                  BorderThickness="1,0,0,0">
+            <Grid RowDefinitions="Auto,*,Auto">
+              <Grid Name="PART_Header" ColumnDefinitions="Auto,*,Auto" Margin="24,12,12,16">
+                <Button Name="PART_BackButton"
+                        theming:MaterialAssist.IsIconButton="True"
+                        theming:MaterialAssist.ControlSize="Small"
+                        theming:MaterialAssist.ButtonVariant="Standard"
+                        theming:MaterialAssist.ButtonShape="Round"
+                        theming:MaterialAssist.IconButtonWidth="Narrow"
+                        IsVisible="{TemplateBinding ShowBackButton}"
+                        AutomationProperties.Name="{DynamicResource MaterialSheetBackText}"
+                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                  <Grid Width="24" Height="24">
+                    <Path Width="16" Height="16" Stretch="None"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Data="M3.825 9L9.425 14.6L8 16L0 8L8 0L9.425 1.4L3.825 7L16 7L16 9L3.825 9Z"
+                          Fill="{Binding $parent[Button].Foreground}" />
+                  </Grid>
+                </Button>
+                <TextBlock Name="PART_Headline" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                           Text="{TemplateBinding Headline}" TextWrapping="Wrap"
+                           FontSize="{DynamicResource MaterialTitleLargeFontSize}"
+                           FontWeight="{DynamicResource MaterialTitleLargeFontWeight}"
+                           LineHeight="{DynamicResource MaterialTitleLargeLineHeight}"
+                           LetterSpacing="{DynamicResource MaterialTitleLargeLetterSpacing}"
+                           Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}">
+                  <TextBlock.IsVisible>
+                    <Binding Path="Headline" RelativeSource="{RelativeSource TemplatedParent}"
+                             Converter="{x:Static data:StringConverters.IsNotNullOrEmpty}" />
+                  </TextBlock.IsVisible>
+                </TextBlock>
+                <Button Name="PART_CloseButton" Grid.Column="2"
+                        theming:MaterialAssist.IsIconButton="True"
+                        theming:MaterialAssist.ControlSize="Small"
+                        theming:MaterialAssist.ButtonVariant="Standard"
+                        theming:MaterialAssist.ButtonShape="Round"
+                        IsVisible="{TemplateBinding ShowCloseButton}"
+                        AutomationProperties.Name="{DynamicResource MaterialSheetCloseText}"
+                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                  <Grid Width="24" Height="24">
+                    <Path Width="14" Height="14" Stretch="None"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Data="M1.4 14L0 12.6L5.6 7L0 1.4L1.4 0L7 5.6L12.6 0L14 1.4L8.4 7L14 12.6L12.6 14L7 8.4L1.4 14Z"
+                          Fill="{Binding $parent[Button].Foreground}" />
+                  </Grid>
+                </Button>
+              </Grid>
+              <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ContentPresenter Name="PART_ContentHost"
+                                  Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+              </ScrollViewer>
+              <StackPanel Name="PART_Actions" Grid.Row="2">
+                <Border Height="1" Background="{DynamicResource MaterialOutlineVariantBrush}" />
+                <ContentControl Name="PART_ActionsHost" Margin="24,12,24,0"
+                                Content="{TemplateBinding Actions}" ContentTemplate="{TemplateBinding ActionsTemplate}"
+                                HorizontalContentAlignment="Left" VerticalContentAlignment="Center" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- Modal sheets use the surface container low fill; standard sheets sit on Surface. -->
+    <Style Selector="^[IsModal=True] /template/ Border#PART_Surface">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialBottomSheet}" TargetType="controls:MaterialBottomSheet">
+    <Setter Property="IsModal" Value="False" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyMediumFontSize}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Name="PART_Root" ClipToBounds="True">
+          <Border Name="PART_Scrim" Background="{DynamicResource MaterialScrimBrush}" Opacity="0" IsVisible="False" />
+          <Border Name="PART_Surface"
+                  HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
+                  Background="{DynamicResource MaterialSurfaceContainerLowBrush}"
+                  CornerRadius="28,28,0,0"
+                  BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}">
+            <Grid RowDefinitions="Auto,Auto,Auto">
+              <Border Name="PART_DragHandle" Background="Transparent" Padding="16"
+                      IsVisible="{TemplateBinding ShowDragHandle}"
+                      AutomationProperties.Name="{DynamicResource MaterialSheetDragHandleText}">
+                <Border Width="32" Height="4" CornerRadius="2"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Background="{DynamicResource MaterialOutlineBrush}" />
+              </Border>
+              <ScrollViewer Name="PART_ContentScroll" Grid.Row="1"
+                            HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ContentPresenter Name="PART_ContentHost"
+                                  Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+              </ScrollViewer>
+              <StackPanel Name="PART_Actions" Grid.Row="2">
+                <Border Height="1" Background="{DynamicResource MaterialOutlineVariantBrush}" />
+                <ContentControl Name="PART_ActionsHost" Margin="24,12,24,16"
+                                Content="{TemplateBinding Actions}" ContentTemplate="{TemplateBinding ActionsTemplate}"
+                                HorizontalContentAlignment="Left" VerticalContentAlignment="Center" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- The modal source presentation relies on the scrim instead of a resting shadow. -->
+    <Style Selector="^[IsModal=True] /template/ Border#PART_Surface">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

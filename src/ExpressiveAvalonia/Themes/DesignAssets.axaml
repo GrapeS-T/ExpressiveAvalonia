@@ -1,0 +1,95 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls">
+  <!-- Icon and tonal-palette assets ported from the design source.
+       Icons: 140 exported 24 dp glyphs (Assets/DesignSystem/Icons), keyed by source node id in
+       MaterialIcons so duplicate layer names keep distinct geometry. The source fill variable
+       (local-005802 = #1D1B20) is the on-surface role, so the glyph tints with Foreground.
+       Tonal palettes: the .Tonal palettes board (local-005641): 6 rows x 13 tones, 61 x 108 cells
+       (the last row is 70 as exported), 140 label column, 20 row gap and an extra 40 gap before
+       the neutral group. -->
+
+  <ControlTheme x:Key="{x:Type controls:MaterialIcon}" TargetType="controls:MaterialIcon">
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Path Name="PART_Glyph"
+              Data="{TemplateBinding Geometry}"
+              Stretch="{TemplateBinding Stretch}"
+              Fill="{TemplateBinding Foreground}"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch" />
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialTonalSwatch}" TargetType="controls:MaterialTonalSwatch">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Focusable" Value="True" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel>
+          <Border Name="PART_Swatch"
+                  Background="{TemplateBinding SwatchBrush}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border Name="PART_StateLayer"
+                  Background="{DynamicResource MaterialOnSurfaceBrush}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Opacity="0" />
+          <Border Name="PART_FocusRing"
+                  BorderBrush="{DynamicResource MaterialPrimaryBrush}"
+                  BorderThickness="2"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  IsVisible="False" />
+          <TextBlock Name="PART_Tone"
+                     Text="{TemplateBinding ToneLabel}"
+                     Foreground="{TemplateBinding ToneLabelBrush}"
+                     FontSize="{TemplateBinding ToneFontSize}"
+                     FontWeight="Medium"
+                     Margin="0,10,0,0"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Top"
+                     IsVisible="{TemplateBinding ShowToneLabel}" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#PART_StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#PART_FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialTonalPalette}" TargetType="controls:MaterialTonalPalette">
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="SeedColor" Value="{DynamicResource MaterialPrimaryColor}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <StackPanel Name="PART_Root" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>

@@ -1,0 +1,554 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:data="using:Avalonia.Data.Converters">
+  <!-- Button group family: standard (separated action buttons), connected (2-DIP joined segments),
+       segmented (shared 1-DIP outline, check mark replaces the icon) and split buttons.
+       Geometry comes from the source designs: 18/12/8 DIP standard gaps, 32/40/56/96/136 DIP
+       segment heights, 48/44/40/36 DIP segmented densities and a 2-DIP split-button seam.
+       State layers use the foreground at the Material hover/pressed/focus opacities, and every
+       transition binds its duration to the theme tokens, which Motion="Reduced" zeroes. -->
+
+  <ControlTheme x:Key="{x:Type controls:MaterialButtonGroupItem}" TargetType="controls:MaterialButtonGroupItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Focusable" Value="True" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Panel Name="ContainerHost" Margin="{TemplateBinding ContainerInset}">
+            <Border Name="Surface"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{TemplateBinding CornerRadius}" />
+            <Border Name="StateLayer"
+                    Background="{TemplateBinding Foreground}"
+                    CornerRadius="{TemplateBinding CornerRadius}"
+                    Opacity="0" IsHitTestVisible="False" />
+          </Panel>
+          <StackPanel Name="ContentHost" Orientation="Horizontal"
+                      Spacing="{TemplateBinding ContentSpacing}"
+                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                      Margin="{TemplateBinding Padding}">
+            <Viewbox Width="{TemplateBinding IconSize}" Height="{TemplateBinding IconSize}" Stretch="Uniform"
+                     IsVisible="{TemplateBinding ShowIconContent}">
+              <ContentPresenter Content="{TemplateBinding Icon}" />
+            </Viewbox>
+            <Path Width="{TemplateBinding IconSize}" Height="{TemplateBinding IconSize}"
+                  Data="M2,9 L7,14 L16,3"
+                  Stroke="{TemplateBinding Foreground}" StrokeThickness="2"
+                  StrokeLineCap="Round" StrokeJoin="Round" Stretch="Uniform"
+                  IsVisible="{TemplateBinding ShowCheckIcon}" />
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              IsVisible="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static data:ObjectConverters.IsNotNull}}"
+                              VerticalAlignment="Center"
+                              RecognizesAccessKey="True" />
+          </StackPanel>
+          <Border Name="FocusRing" Margin="-4"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                  BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#Surface">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+
+    <!-- Standard group: separated action buttons. Filled uses the surface-container container. -->
+    <Style Selector="^[Kind=Standard][Variant=Filled]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Tonal]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Outlined]">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Elevated]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Elevated] /template/ Border#Surface">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Text], ^[Kind=Standard][Variant=Standard]">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+
+    <!-- Connected group: secondary container at rest, secondary with on-secondary when selected. -->
+    <Style Selector="^[Kind=Connected]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Connected]:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryBrush}" />
+    </Style>
+
+    <!-- Segmented: outlined container, secondary container and on-secondary when selected. -->
+    <Style Selector="^[Kind=Segmented]">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="^[Kind=Segmented]:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+
+    <!-- Standard sizes: 48/48/56/96/136 DIP targets with 32/40/56/96/136 DIP containers. -->
+    <Style Selector="^[Kind=Standard]">
+      <Setter Property="MinWidth" Value="48" />
+    </Style>
+    <Style Selector="^[Kind=Standard][ControlSize=ExtraSmall]">
+      <Setter Property="MinHeight" Value="48" />
+      <Setter Property="Padding" Value="12,6" />
+      <Setter Property="IconSize" Value="20" />
+      <Setter Property="ContentSpacing" Value="4" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][ControlSize=Small]">
+      <Setter Property="MinHeight" Value="48" />
+      <Setter Property="Padding" Value="16,10" />
+      <Setter Property="IconSize" Value="20" />
+      <Setter Property="ContentSpacing" Value="8" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][ControlSize=Medium]">
+      <Setter Property="MinHeight" Value="56" />
+      <Setter Property="Padding" Value="24,16" />
+      <Setter Property="IconSize" Value="24" />
+      <Setter Property="ContentSpacing" Value="8" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialTitleMediumFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleMediumFontWeight}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][ControlSize=Medium] /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialTitleMediumLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialTitleMediumLetterSpacing}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][ControlSize=Large]">
+      <Setter Property="MinHeight" Value="96" />
+      <Setter Property="Padding" Value="48,32" />
+      <Setter Property="IconSize" Value="32" />
+      <Setter Property="ContentSpacing" Value="12" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineSmallFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineSmallFontWeight}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][ControlSize=Large] /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineSmallLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineSmallLetterSpacing}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][ControlSize=ExtraLarge]">
+      <Setter Property="MinHeight" Value="136" />
+      <Setter Property="Padding" Value="64,48" />
+      <Setter Property="IconSize" Value="40" />
+      <Setter Property="ContentSpacing" Value="16" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineLargeFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineLargeFontWeight}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][ControlSize=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineLargeLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineLargeLetterSpacing}" />
+    </Style>
+    <!-- Icon-only standard items are icon buttons: 40/52/72/128/184 DIP square targets. -->
+    <Style Selector="^[Kind=Standard][IsIconOnly=True]">
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=ExtraSmall]">
+      <Setter Property="MinWidth" Value="40" />
+    </Style>
+    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=Small]">
+      <Setter Property="MinWidth" Value="52" />
+    </Style>
+    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=Medium]">
+      <Setter Property="MinWidth" Value="72" />
+    </Style>
+    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=Large]">
+      <Setter Property="MinWidth" Value="128" />
+    </Style>
+    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=ExtraLarge]">
+      <Setter Property="MinWidth" Value="184" />
+    </Style>
+
+    <!-- Connected sizes: segment heights 32/40/56/96/136 with 12/16/20/32/48 DIP label padding. -->
+    <Style Selector="^[Kind=Connected]">
+      <Setter Property="MinWidth" Value="48" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=ExtraSmall]">
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="IconSize" Value="20" />
+      <Setter Property="ContentSpacing" Value="4" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=Small]">
+      <Setter Property="MinHeight" Value="40" />
+      <Setter Property="Padding" Value="16,0" />
+      <Setter Property="IconSize" Value="20" />
+      <Setter Property="ContentSpacing" Value="8" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=Medium]">
+      <Setter Property="MinHeight" Value="56" />
+      <Setter Property="Padding" Value="20,0" />
+      <Setter Property="IconSize" Value="24" />
+      <Setter Property="ContentSpacing" Value="8" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialTitleMediumFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleMediumFontWeight}" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=Medium] /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialTitleMediumLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialTitleMediumLetterSpacing}" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=Large]">
+      <Setter Property="MinHeight" Value="96" />
+      <Setter Property="Padding" Value="32,0" />
+      <Setter Property="IconSize" Value="32" />
+      <Setter Property="ContentSpacing" Value="12" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineSmallFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineSmallFontWeight}" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=Large] /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineSmallLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineSmallLetterSpacing}" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=ExtraLarge]">
+      <Setter Property="MinHeight" Value="136" />
+      <Setter Property="Padding" Value="48,0" />
+      <Setter Property="IconSize" Value="40" />
+      <Setter Property="ContentSpacing" Value="16" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineLargeFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineLargeFontWeight}" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineLargeLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineLargeLetterSpacing}" />
+    </Style>
+
+    <!-- Segmented: 104-DIP minimum segment width, 18-DIP check mark and icon. Density sets the
+         height in code (40/36/32/28) because it is a numeric axis, not a control size. -->
+    <Style Selector="^[Kind=Segmented]">
+      <Setter Property="MinHeight" Value="40" />
+      <Setter Property="MinWidth" Value="104" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="IconSize" Value="18" />
+      <Setter Property="ContentSpacing" Value="8" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    </Style>
+
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- The source segmented button shows focus as a state layer only, without a ring. -->
+    <Style Selector="^[Kind=Segmented]:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <Style Selector="^:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#Surface">
+      <Setter Property="Opacity" Value="0.10" />
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
+    </Style>
+    <Style Selector="^:disabled /template/ StackPanel#ContentHost">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^[Kind=Segmented]:disabled">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialDisabledOutlineBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Segmented]:disabled /template/ Border#Surface">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="MaterialButtonGroupBase" TargetType="controls:MaterialButtonGroup">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="{TemplateBinding Background}">
+          <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}"
+                          Margin="{TemplateBinding Padding}" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^[Kind=Connected][ControlSize=ExtraSmall], ^[Kind=Standard][ControlSize=ExtraSmall]">
+      <Setter Property="MinHeight" Value="48" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=Small], ^[Kind=Standard][ControlSize=Small]">
+      <Setter Property="MinHeight" Value="48" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=Medium], ^[Kind=Standard][ControlSize=Medium]">
+      <Setter Property="MinHeight" Value="56" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=Large], ^[Kind=Standard][ControlSize=Large]">
+      <Setter Property="MinHeight" Value="96" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=ExtraLarge], ^[Kind=Standard][ControlSize=ExtraLarge]">
+      <Setter Property="MinHeight" Value="136" />
+    </Style>
+    <!-- Connected segments are inset inside the 48-DIP touch target at the smaller sizes. -->
+    <Style Selector="^[Kind=Connected][ControlSize=ExtraSmall]">
+      <Setter Property="Padding" Value="0,8" />
+    </Style>
+    <Style Selector="^[Kind=Connected][ControlSize=Small]">
+      <Setter Property="Padding" Value="0,4" />
+    </Style>
+    <!-- The segmented button always reserves 4 DIP above and below its segments, so the group
+         height follows the density (48/44/40/36) without a fixed minimum. -->
+    <Style Selector="^[Kind=Segmented]">
+      <Setter Property="Padding" Value="0,4" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialButtonGroup}" TargetType="controls:MaterialButtonGroup"
+                BasedOn="{StaticResource MaterialButtonGroupBase}" />
+
+  <ControlTheme x:Key="{x:Type controls:MaterialSegmentedButton}" TargetType="controls:MaterialSegmentedButton"
+                BasedOn="{StaticResource MaterialButtonGroupBase}" />
+
+  <!-- The two halves of a split button. Each half is a real Button, so it keeps native focus,
+       Space/Enter activation and automation; the parent supplies colors and corner radii. -->
+  <ControlTheme x:Key="MaterialSplitButtonSegment" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="SegmentSurface"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border Name="SegmentStateLayer"
+                  Background="{TemplateBinding Foreground}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            Margin="{TemplateBinding Padding}"
+                            RecognizesAccessKey="True" />
+          <Border Name="SegmentFocusRing" Margin="-4"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                  BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#SegmentStateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#SegmentSurface">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#SegmentStateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#SegmentStateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#SegmentStateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#SegmentFocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- The open menu keeps the trailing half in its selected state layer. -->
+    <Style Selector="^.menuopen /template/ Border#SegmentStateLayer">
+      <Setter Property="Opacity" Value="0.10" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#SegmentStateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ ContentPresenter">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#SegmentFocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <!-- Filled, tonal and elevated halves dim their container to the disabled container opacity. -->
+    <Style Selector="^.dimmed:disabled /template/ Border#SegmentSurface">
+      <Setter Property="Opacity" Value="0.10" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialSplitButton}" TargetType="controls:MaterialSplitButton">
+    <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="Container" Background="Transparent"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Margin="{TemplateBinding Padding}">
+            <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="2" HorizontalAlignment="Left">
+              <Button Name="PART_PrimaryButton"
+                      Theme="{StaticResource MaterialSplitButtonSegment}"
+                      IsEnabled="{TemplateBinding IsEnabled}"
+                      Background="{TemplateBinding Background}"
+                      Foreground="{TemplateBinding Foreground}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}">
+                <Button.Content>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                              Spacing="{Binding ContentSpacing, RelativeSource={RelativeSource AncestorType=controls:MaterialSplitButton}}">
+                    <Viewbox Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=controls:MaterialSplitButton}}"
+                             Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=controls:MaterialSplitButton}}"
+                             Stretch="Uniform"
+                             IsVisible="{Binding Icon, RelativeSource={RelativeSource AncestorType=controls:MaterialSplitButton}, Converter={x:Static data:ObjectConverters.IsNotNull}}">
+                      <ContentPresenter Content="{Binding Icon, RelativeSource={RelativeSource AncestorType=controls:MaterialSplitButton}}" />
+                    </Viewbox>
+                    <ContentPresenter
+                        Content="{Binding Content, RelativeSource={RelativeSource AncestorType=controls:MaterialSplitButton}}"
+                        ContentTemplate="{Binding ContentTemplate, RelativeSource={RelativeSource AncestorType=controls:MaterialSplitButton}}"
+                        VerticalAlignment="Center" RecognizesAccessKey="True" />
+                  </StackPanel>
+                </Button.Content>
+              </Button>
+              <Button Name="PART_TrailingButton" Grid.Column="1"
+                      Theme="{StaticResource MaterialSplitButtonSegment}"
+                      IsEnabled="{TemplateBinding IsEnabled}"
+                      Background="{TemplateBinding Background}"
+                      Foreground="{TemplateBinding Foreground}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}">
+                <Button.Content>
+                  <Viewbox Width="{Binding TrailingIconSize, RelativeSource={RelativeSource AncestorType=controls:MaterialSplitButton}}"
+                           Height="{Binding TrailingIconSize, RelativeSource={RelativeSource AncestorType=controls:MaterialSplitButton}}"
+                           Stretch="Uniform">
+                    <Path Width="11" Height="7"
+                          Data="M5.5,6.7866 L0,1.2866 L1.283,0.0033 L5.5,4.22 L9.717,0.0033 L11,1.2866 Z"
+                          Stretch="Fill"
+                          Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=controls:MaterialSplitButton}}" />
+                  </Viewbox>
+                </Button.Content>
+              </Button>
+            </Grid>
+          </Border>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+
+    <Style Selector="^[Variant=Filled]">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="^[Variant=Tonal]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="^[Variant=Elevated]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="^[Variant=Elevated] /template/ Border#Container">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+    </Style>
+    <Style Selector="^[Variant=Outlined]">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style Selector="^:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="^[Variant=Outlined]:disabled">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialDisabledOutlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="^[Variant=Elevated]:disabled /template/ Border#Container">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

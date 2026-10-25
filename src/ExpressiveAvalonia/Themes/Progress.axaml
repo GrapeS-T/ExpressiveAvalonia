@@ -6,7 +6,10 @@
 
   <!-- Standard (non-wavy) MD3 progress: ProgressIndicatorTokens supplies Primary and
        SecondaryContainer; AndroidX ProgressIndicatorDefaults makes only the circular
-       indeterminate track transparent. Thickness/gap/stop are 4 dp; circular size is 40 dp. -->
+       indeterminate track transparent. Thickness/gap/stop are 4 dp; circular size is 40 dp.
+       The source "Type" axis (Flat/Wave), "Thickness" (4/8 dp), "Wave height" and
+       "Wavelength" arrive through the MaterialProgress attached properties, which the
+       presenter reads from its owning ProgressBar. -->
   <ControlTheme x:Key="{x:Type ProgressBar}" TargetType="ProgressBar">
     <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
@@ -65,6 +68,23 @@
     <Setter Property="GapSize" Value="4" />
     <Setter Property="MinWidth" Value="40" /><Setter Property="MinHeight" Value="40" />
     <Setter Property="Template"><ControlTemplate><Panel /></ControlTemplate></Setter>
-    <Style Selector="^[IsIndeterminate=True]"><Setter Property="TrackBrush" Value="Transparent" /></Style>
+    <!-- Source default for "Show track" is true, so the indeterminate ring keeps its track;
+         set ShowTrack="False" for the AndroidX transparent-track appearance. -->
+  </ControlTheme>
+
+  <!-- Source Loading indicator (local-004296): seven morphing shapes in a 48 dp box, with the
+       optional circular container. The control paints itself; the theme only supplies roles. -->
+  <ControlTheme x:Key="{x:Type controls:LoadingIndicator}" TargetType="controls:LoadingIndicator">
+    <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="ContainerBrush" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+    <Setter Property="MinWidth" Value="48" /><Setter Property="MinHeight" Value="48" />
+    <!-- A loading indicator must not swallow pointer input from the surface it overlays. -->
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="Template"><ControlTemplate><Panel /></ControlTemplate></Setter>
+    <!-- The source pairs the container with a darker shape (on secondary container), so the
+         Show container=True variants keep their contrast instead of reusing the bare primary. -->
+    <Style Selector="^[ShowContainer=True]">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
   </ControlTheme>
 </ResourceDictionary>

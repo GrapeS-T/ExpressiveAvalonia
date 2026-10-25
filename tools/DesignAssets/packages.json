@@ -1,0 +1,566 @@
+[
+  {
+    "id": "local-005658",
+    "name": "wifi"
+  },
+  {
+    "id": "local-000035",
+    "name": "alarm"
+  },
+  {
+    "id": "local-000114",
+    "name": "bluetooth"
+  },
+  {
+    "id": "local-001341",
+    "name": "do_not_disturb_on"
+  },
+  {
+    "id": "local-001629",
+    "name": "flashlight_on"
+  },
+  {
+    "id": "local-000052",
+    "name": "arrow_back"
+  },
+  {
+    "id": "local-000055",
+    "name": "arrow_forward"
+  },
+  {
+    "id": "local-001230",
+    "name": "check"
+  },
+  {
+    "id": "local-001312",
+    "name": "close"
+  },
+  {
+    "id": "local-000033",
+    "name": "add"
+  },
+  {
+    "id": "local-005028",
+    "name": "stars_filled"
+  },
+  {
+    "id": "local-005027",
+    "name": "stars"
+  },
+  {
+    "id": "local-001529",
+    "name": "fast_rewind"
+  },
+  {
+    "id": "local-004641",
+    "name": "skip_previous"
+  },
+  {
+    "id": "local-004414",
+    "name": "play_arrow"
+  },
+  {
+    "id": "local-001527",
+    "name": "fast_forward"
+  },
+  {
+    "id": "local-004639",
+    "name": "skip_next"
+  },
+  {
+    "id": "local-000057",
+    "name": "arrow_right"
+  },
+  {
+    "id": "local-000056",
+    "name": "arrow_left"
+  },
+  {
+    "id": "local-000054",
+    "name": "arrow_drop_up"
+  },
+  {
+    "id": "local-000053",
+    "name": "arrow_drop_down"
+  },
+  {
+    "id": "local-004367",
+    "name": "more_vert"
+  },
+  {
+    "id": "local-001337",
+    "name": "directions_bus"
+  },
+  {
+    "id": "local-001339",
+    "name": "directions_subway"
+  },
+  {
+    "id": "local-001338",
+    "name": "directions_car"
+  },
+  {
+    "id": "local-004311",
+    "name": "local_taxi"
+  },
+  {
+    "id": "local-004314",
+    "name": "mail"
+  },
+  {
+    "id": "local-000115",
+    "name": "bookmark"
+  },
+  {
+    "id": "local-000116",
+    "name": "bookmark_filled"
+  },
+  {
+    "id": "local-000032",
+    "name": "account_circle"
+  },
+  {
+    "id": "local-004409",
+    "name": "person"
+  },
+  {
+    "id": "local-001228",
+    "name": "chat_bubble"
+  },
+  {
+    "id": "local-001229",
+    "name": "chat_bubble"
+  },
+  {
+    "id": "local-003547",
+    "name": "light_mode"
+  },
+  {
+    "id": "local-001328",
+    "name": "dark_mode"
+  },
+  {
+    "id": "local-001329",
+    "name": "delete"
+  },
+  {
+    "id": "local-005026",
+    "name": "star_filled"
+  },
+  {
+    "id": "local-005025",
+    "name": "star"
+  },
+  {
+    "id": "local-001631",
+    "name": "folder"
+  },
+  {
+    "id": "local-001632",
+    "name": "folder_filled"
+  },
+  {
+    "id": "local-001267",
+    "name": "chevron_backward"
+  },
+  {
+    "id": "local-001268",
+    "name": "chevron_forward"
+  },
+  {
+    "id": "local-005650",
+    "name": "upload"
+  },
+  {
+    "id": "local-001346",
+    "name": "download"
+  },
+  {
+    "id": "local-005236",
+    "name": "today"
+  },
+  {
+    "id": "local-001348",
+    "name": "edit"
+  },
+  {
+    "id": "local-004631",
+    "name": "share"
+  },
+  {
+    "id": "local-001093",
+    "name": "cancel"
+  },
+  {
+    "id": "local-001350",
+    "name": "error"
+  },
+  {
+    "id": "local-004583",
+    "name": "settings"
+  },
+  {
+    "id": "local-004584",
+    "name": "settings"
+  },
+  {
+    "id": "local-001235",
+    "name": "check_small"
+  },
+  {
+    "id": "local-001234",
+    "name": "check_indeterminate_small"
+  },
+  {
+    "id": "local-004520",
+    "name": "schedule"
+  },
+  {
+    "id": "local-005029",
+    "name": "sticker"
+  },
+  {
+    "id": "local-004366",
+    "name": "more_horiz"
+  },
+  {
+    "id": "local-004357",
+    "name": "mic"
+  },
+  {
+    "id": "local-003546",
+    "name": "language"
+  },
+  {
+    "id": "local-001641",
+    "name": "g_translate"
+  },
+  {
+    "id": "local-001327",
+    "name": "content_cut"
+  },
+  {
+    "id": "local-000050",
+    "name": "archive"
+  },
+  {
+    "id": "local-001638",
+    "name": "forward"
+  },
+  {
+    "id": "local-004406",
+    "name": "notifications"
+  },
+  {
+    "id": "local-000034",
+    "name": "add_circle"
+  },
+  {
+    "id": "local-001315",
+    "name": "commute"
+  },
+  {
+    "id": "local-004407",
+    "name": "outbox"
+  },
+  {
+    "id": "local-003469",
+    "name": "inbox"
+  },
+  {
+    "id": "local-003470",
+    "name": "inbox"
+  },
+  {
+    "id": "local-001531",
+    "name": "favorite"
+  },
+  {
+    "id": "local-004582",
+    "name": "send"
+  },
+  {
+    "id": "local-005654",
+    "name": "videocam"
+  },
+  {
+    "id": "local-004315",
+    "name": "mail"
+  },
+  {
+    "id": "local-004369",
+    "name": "music_note"
+  },
+  {
+    "id": "local-004410",
+    "name": "photo"
+  },
+  {
+    "id": "local-001646",
+    "name": "GIF"
+  },
+  {
+    "id": "local-004415",
+    "name": "play_arrow_filled"
+  },
+  {
+    "id": "local-001530",
+    "name": "fast_rewind_filled"
+  },
+  {
+    "id": "local-004642",
+    "name": "skip_previous_filled"
+  },
+  {
+    "id": "local-004640",
+    "name": "skip_next_filled"
+  },
+  {
+    "id": "local-001528",
+    "name": "fast_forward_filled"
+  },
+  {
+    "id": "local-004408",
+    "name": "pause"
+  },
+  {
+    "id": "local-004365",
+    "name": "mood"
+  },
+  {
+    "id": "local-001340",
+    "name": "directions_walk"
+  },
+  {
+    "id": "local-000031",
+    "name": "accessibility"
+  },
+  {
+    "id": "local-003586",
+    "name": "link"
+  },
+  {
+    "id": "local-000036",
+    "name": "alarm"
+  },
+  {
+    "id": "local-003587",
+    "name": "link_off"
+  },
+  {
+    "id": "local-004358",
+    "name": "mic"
+  },
+  {
+    "id": "local-001091",
+    "name": "call_end"
+  },
+  {
+    "id": "local-001639",
+    "name": "front_hand"
+  },
+  {
+    "id": "local-004632",
+    "name": "share"
+  },
+  {
+    "id": "local-001313",
+    "name": "comment"
+  },
+  {
+    "id": "local-001349",
+    "name": "edit"
+  },
+  {
+    "id": "local-005656",
+    "name": "videocam_off"
+  },
+  {
+    "id": "local-000051",
+    "name": "archive"
+  },
+  {
+    "id": "local-001330",
+    "name": "delete"
+  },
+  {
+    "id": "local-004316",
+    "name": "mark_email_unread"
+  },
+  {
+    "id": "local-004654",
+    "name": "snooze"
+  },
+  {
+    "id": "local-001640",
+    "name": "front_hand"
+  },
+  {
+    "id": "local-001633",
+    "name": "format_bold"
+  },
+  {
+    "id": "local-001636",
+    "name": "format_italic"
+  },
+  {
+    "id": "local-001637",
+    "name": "format_underlined"
+  },
+  {
+    "id": "local-001634",
+    "name": "format_color_fill"
+  },
+  {
+    "id": "local-005649",
+    "name": "undo"
+  },
+  {
+    "id": "local-001635",
+    "name": "format_color_text"
+  },
+  {
+    "id": "local-004517",
+    "name": "redo"
+  },
+  {
+    "id": "local-004359",
+    "name": "mic_off"
+  },
+  {
+    "id": "local-005655",
+    "name": "videocam_off"
+  },
+  {
+    "id": "local-001092",
+    "name": "call_end"
+  },
+  {
+    "id": "local-005657",
+    "name": "volume_up"
+  },
+  {
+    "id": "local-001314",
+    "name": "comment"
+  },
+  {
+    "id": "local-004518",
+    "name": "reply"
+  },
+  {
+    "id": "local-005079",
+    "name": "swap_horiz"
+  },
+  {
+    "id": "local-005080",
+    "name": "swap_vert"
+  },
+  {
+    "id": "local-004360",
+    "name": "mobile_check"
+  },
+  {
+    "id": "local-000107",
+    "name": "attach_file"
+  },
+  {
+    "id": "local-004313",
+    "name": "location_on"
+  },
+  {
+    "id": "local-004312",
+    "name": "location_on"
+  },
+  {
+    "id": "local-001647",
+    "name": "groups"
+  },
+  {
+    "id": "local-004521",
+    "name": "schedule"
+  },
+  {
+    "id": "local-004368",
+    "name": "move_item"
+  },
+  {
+    "id": "local-001347",
+    "name": "drag_handle"
+  },
+  {
+    "id": "local-005641",
+    "name": ".Tonal palettes"
+  },
+  {
+    "id": "local-004527",
+    "name": "search"
+  },
+  {
+    "id": "local-005102",
+    "name": "tab"
+  },
+  {
+    "id": "local-005235",
+    "name": "text_fields"
+  },
+  {
+    "id": "local-001231",
+    "name": "check_box"
+  },
+  {
+    "id": "local-001232",
+    "name": "check_box"
+  },
+  {
+    "id": "local-001233",
+    "name": "check_box_outline_blank"
+  },
+  {
+    "id": "local-003471",
+    "name": "indeterminate_check_box"
+  },
+  {
+    "id": "local-003472",
+    "name": "indeterminate_check_box"
+  },
+  {
+    "id": "local-004443",
+    "name": "radio_button_checked"
+  },
+  {
+    "id": "local-004444",
+    "name": "radio_button_unchecked"
+  },
+  {
+    "id": "local-004317",
+    "name": "menu"
+  },
+  {
+    "id": "local-004354",
+    "name": "menu_open"
+  },
+  {
+    "id": "local-003468",
+    "name": "image"
+  },
+  {
+    "id": "local-003540",
+    "name": "keyboard_arrow_up"
+  },
+  {
+    "id": "local-003539",
+    "name": "keyboard_arrow_down"
+  },
+  {
+    "id": "local-003538",
+    "name": "keyboard"
+  },
+  {
+    "id": "local-003545",
+    "name": "keyboard_return"
+  },
+  {
+    "id": "local-003541",
+    "name": "keyboard_filled"
+  }
+]

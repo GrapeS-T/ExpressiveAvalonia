@@ -1,10 +1,23 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:theming="using:ExpressiveAvalonia.Theming">
+                    xmlns:theming="using:ExpressiveAvalonia.Theming"
+                    xmlns:ctrl="clr-namespace:ExpressiveAvalonia.Controls">
   <!-- Editing bindings follow Avalonia 12.1.4's official TextBox template. No external theme is used. -->
-  <!-- AndroidX FilledTextFieldTokens v0_210 / OutlinedTextFieldTokens v0_103. -->
+  <!-- Anatomy and color roles come from the source family:
+       FilledTextFieldTokens v0_210 / OutlinedTextFieldTokens v0_103 for the field itself and
+       "Menu with Text field - Example 1/2" (local-004355 / local-004356) for the searchable menu. -->
   <StreamGeometry x:Key="MaterialTextFieldRevealGeometry">M 2,12 C 6,4 18,4 22,12 C 18,20 6,20 2,12 Z M 15,12 A 3,3 0 1 1 9,12 A 3,3 0 1 1 15,12 Z</StreamGeometry>
   <StreamGeometry x:Key="MaterialTextFieldConcealGeometry">M 3,2 L 22,21 L 20,23 L 1,4 Z M 8,6 C 13,3 20,7 23,12 L 20,16 L 17,13 A 5,5 0 0 0 11,7 Z M 1,12 L 4,8 L 7,11 A 5,5 0 0 0 13,17 L 16,20 C 10,22 4,18 1,12 Z</StreamGeometry>
+  <!-- Exact source geometry: trailing clear icon of local-004355 (24dp slot, 20dp glyph). -->
+  <StreamGeometry x:Key="MaterialTextFieldClearGeometry">M180.4 41L184 37.4L187.6 41L189 39.6L185.4 36L189 32.4L187.6 31L184 34.6L180.4 31L179 32.4L182.6 36L179 39.6L180.4 41ZM184 46C182.617 46 181.317 45.7375 180.1 45.2125C178.883 44.6875 177.825 43.975 176.925 43.075C176.025 42.175 175.312 41.1167 174.788 39.9C174.262 38.6833 174 37.3833 174 36C174 34.6167 174.262 33.3167 174.788 32.1C175.312 30.8833 176.025 29.825 176.925 28.925C177.825 28.025 178.883 27.3125 180.1 26.7875C181.317 26.2625 182.617 26 184 26C185.383 26 186.683 26.2625 187.9 26.7875C189.117 27.3125 190.175 28.025 191.075 28.925C191.975 29.825 192.688 30.8833 193.212 32.1C193.737 33.3167 194 34.6167 194 36C194 37.3833 193.737 38.6833 193.212 39.9C192.688 41.1167 191.975 42.175 191.075 43.075C190.175 43.975 189.117 44.6875 187.9 45.2125C186.683 45.7375 185.383 46 184 46ZM184 44C186.233 44 188.125 43.225 189.675 41.675C191.225 40.125 192 38.2333 192 36C192 33.7667 191.225 31.875 189.675 30.325C188.125 28.775 186.233 28 184 28C181.767 28 179.875 28.775 178.325 30.325C176.775 31.875 176 33.7667 176 36C176 38.2333 176.775 40.125 178.325 41.675C179.875 43.225 181.767 44 184 44Z</StreamGeometry>
+  <!-- Exact source geometry: leading search icon of local-004356. -->
+  <StreamGeometry x:Key="MaterialTextFieldSearchGeometry">M39.6 45L33.3 38.7C32.8 39.1 32.225 39.4167 31.575 39.65C30.925 39.8833 30.2333 40 29.5 40C27.6833 40 26.1458 39.3708 24.8875 38.1125C23.6292 36.8542 23 35.3167 23 33.5C23 31.6833 23.6292 30.1458 24.8875 28.8875C26.1458 27.6292 27.6833 27 29.5 27C31.3167 27 32.8542 27.6292 34.1125 28.8875C35.3708 30.1458 36 31.6833 36 33.5C36 34.2333 35.8833 34.925 35.65 35.575C35.4167 36.225 35.1 36.8 34.7 37.3L41 43.6L39.6 45ZM29.5 38C30.75 38 31.8125 37.5625 32.6875 36.6875C33.5625 35.8125 34 34.75 34 33.5C34 32.25 33.5625 31.1875 32.6875 30.3125C31.8125 29.4375 30.75 29 29.5 29C28.25 29 27.1875 29.4375 26.3125 30.3125C25.4375 31.1875 25 32.25 25 33.5C25 34.75 25.4375 35.8125 26.3125 36.6875C27.1875 37.5625 28.25 38 29.5 38Z</StreamGeometry>
+  <!-- Exact source geometry: 5x10 trailing chevron from the menu list items of local-004355. -->
+  <StreamGeometry x:Key="MaterialTextFieldChevronGeometry">M 0,10 L 0,0 L 5,5 Z</StreamGeometry>
+
+  <x:String x:Key="MaterialTextFieldClearText">Clear text</x:String>
+  <x:String x:Key="MaterialTextFieldMenuItemsText">Menu items</x:String>
+  <x:String x:Key="MaterialTextFieldNoResultsText">No results</x:String>
 
   <MenuFlyout x:Key="MaterialTextFieldContextFlyout">
     <MenuItem Header="{DynamicResource MaterialTextInputCutText}" Command="{Binding $parent[TextBox].Cut}"
@@ -16,27 +29,75 @@
     <MenuItem Header="{DynamicResource MaterialTextInputSelectAllText}" Command="{Binding $parent[TextBox].SelectAll}" />
   </MenuFlyout>
 
-  <ControlTheme x:Key="MaterialTextFieldRevealButtonTheme" TargetType="ToggleButton">
+  <!-- 48dp trailing action with the source's 40dp state layer and 20dp glyph. -->
+  <ControlTheme x:Key="MaterialTextFieldActionTheme" TargetType="Button">
     <Setter Property="Width" Value="48" />
     <Setter Property="Height" Value="48" />
-    <Setter Property="Padding" Value="12" />
-    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="Padding" Value="8" />
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="CornerRadius" Value="24" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="CornerRadius" Value="20" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel>
-          <Border Name="RevealStateLayer" CornerRadius="{TemplateBinding CornerRadius}"
+          <Border Name="ActionStateLayer" Margin="4" CornerRadius="{TemplateBinding CornerRadius}"
                   Background="{TemplateBinding Foreground}" Opacity="0" />
-          <Border Name="RevealBorder" Background="{TemplateBinding Background}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+          <Border Name="ActionBorder" Margin="4" Padding="{TemplateBinding Padding}"
+                  Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderBrush="Transparent" BorderThickness="0">
+            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+          </Border>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#ActionStateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#ActionStateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#ActionStateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#ActionBorder">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="MaterialTextFieldRevealButtonTheme" TargetType="ToggleButton">
+    <Setter Property="Width" Value="48" />
+    <Setter Property="Height" Value="48" />
+    <Setter Property="Padding" Value="8" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="CornerRadius" Value="20" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel>
+          <Border Name="RevealStateLayer" Margin="4" CornerRadius="{TemplateBinding CornerRadius}"
+                  Background="{TemplateBinding Foreground}" Opacity="0" />
+          <Border Name="RevealBorder" Margin="4" Padding="{TemplateBinding Padding}"
+                  Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderBrush="Transparent" BorderThickness="0">
             <Panel>
-              <PathIcon Width="24" Height="24" Foreground="{TemplateBinding Foreground}"
-                        Data="{StaticResource MaterialTextFieldRevealGeometry}"
-                        IsVisible="{Binding !IsChecked, RelativeSource={RelativeSource TemplatedParent}}" />
-              <PathIcon Width="24" Height="24" Foreground="{TemplateBinding Foreground}"
-                        Data="{StaticResource MaterialTextFieldConcealGeometry}"
-                        IsVisible="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" />
+              <Path Name="RevealIcon" Width="24" Height="24" Stretch="Uniform"
+                    Fill="{TemplateBinding Foreground}" Data="{StaticResource MaterialTextFieldRevealGeometry}"
+                    IsVisible="{Binding !IsChecked, RelativeSource={RelativeSource TemplatedParent}}" />
+              <Path Name="ConcealIcon" Width="24" Height="24" Stretch="Uniform"
+                    Fill="{TemplateBinding Foreground}" Data="{StaticResource MaterialTextFieldConcealGeometry}"
+                    IsVisible="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" />
             </Panel>
           </Border>
         </Panel>
@@ -91,7 +152,7 @@
             Value="{Binding (theming:MaterialTextField.AccessibleDescription), RelativeSource={RelativeSource Self}}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Grid RowDefinitions="*,Auto,Auto">
+        <Grid RowDefinitions="*,Auto">
           <Panel Name="FieldContainer" MinHeight="{TemplateBinding MinHeight}">
             <Border Name="ContainerBackground" Background="{TemplateBinding Background}"
                     CornerRadius="{TemplateBinding CornerRadius}" />
@@ -99,9 +160,10 @@
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
                     CornerRadius="{TemplateBinding CornerRadius}" />
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" MinHeight="56">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" MinHeight="{TemplateBinding MinHeight}">
               <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                 <ContentPresenter Name="LeadingContent" Margin="12,0,0,0" Width="24" Height="24"
+                                  HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                                   Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                                   Content="{TemplateBinding (theming:MaterialTextField.LeadingContent)}"
                                   IsVisible="{Binding (theming:MaterialTextField.LeadingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
@@ -112,8 +174,7 @@
                          FontSize="{DynamicResource MaterialBodyLargeFontSize}" LineHeight="{TemplateBinding LineHeight}"
                          LetterSpacing="{TemplateBinding LetterSpacing}"
                          Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                         Text="{TemplateBinding (theming:MaterialTextField.Prefix)}"
-                         >
+                         Text="{TemplateBinding (theming:MaterialTextField.Prefix)}">
                 <TextBlock.IsVisible>
                   <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="(theming:MaterialTextField.Prefix)" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
@@ -173,8 +234,8 @@
                   </ScrollViewer.Styles>
                 </ScrollViewer>
               </Grid>
-              <Border Name="LabelContainer" Grid.Column="1" Grid.ColumnSpan="3" Margin="12,0" Padding="4,0"
-                      HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False"
+              <Border Name="LabelContainer" Grid.Column="1" Grid.ColumnSpan="3" Margin="12,16,12,0" Padding="4,0"
+                      HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"
                       IsVisible="{TemplateBinding (theming:MaterialTextField.HasLabel)}">
                 <TextBlock Name="FloatingLabel" Text="{TemplateBinding (theming:MaterialTextField.EffectiveLabel)}"
                            Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
@@ -186,8 +247,7 @@
                          FontSize="{DynamicResource MaterialBodyLargeFontSize}" LineHeight="{TemplateBinding LineHeight}"
                          LetterSpacing="{TemplateBinding LetterSpacing}"
                          Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                         Text="{TemplateBinding (theming:MaterialTextField.Suffix)}"
-                         >
+                         Text="{TemplateBinding (theming:MaterialTextField.Suffix)}">
                 <TextBlock.IsVisible>
                   <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="(theming:MaterialTextField.Suffix)" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
@@ -202,11 +262,18 @@
                 <ContentPresenter Name="InnerTrailingContent" Content="{TemplateBinding InnerRightContent}"
                                   Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" VerticalContentAlignment="Center" />
                 <ContentPresenter Name="TrailingContent" Margin="0,0,12,0" Width="24" Height="24"
+                                  HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                                   Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                                   Content="{TemplateBinding (theming:MaterialTextField.TrailingContent)}"
                                   IsVisible="{Binding (theming:MaterialTextField.TrailingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                <ToggleButton Name="PasswordReveal" Margin="0,4,0,4"
-                              Theme="{StaticResource MaterialTextFieldRevealButtonTheme}"
+                <Button Name="ClearButton" Theme="{StaticResource MaterialTextFieldActionTheme}"
+                        AutomationProperties.Name="{DynamicResource MaterialTextFieldClearText}"
+                        ToolTip.Tip="{DynamicResource MaterialTextFieldClearText}"
+                        IsVisible="{Binding (theming:MaterialTextField.IsClearAvailable), RelativeSource={RelativeSource TemplatedParent}}">
+                  <Path Width="20" Height="20" Stretch="Uniform" Fill="{Binding $parent[Button].Foreground}"
+                        Data="{StaticResource MaterialTextFieldClearGeometry}" />
+                </Button>
+                <ToggleButton Name="PasswordReveal" Theme="{StaticResource MaterialTextFieldRevealButtonTheme}"
                               IsVisible="{TemplateBinding (theming:MaterialTextField.IsRevealAvailable)}"
                               IsChecked="{Binding RevealPassword, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
                               AutomationProperties.Name="{DynamicResource MaterialPasswordShowText}"
@@ -214,25 +281,36 @@
               </StackPanel>
             </Grid>
           </Panel>
+          <!-- Validation replaces the supporting text in the same slot, as Material specifies. -->
           <TextBlock Name="SupportingText" Grid.Row="1" Margin="16,4,16,0"
-                     Text="{TemplateBinding (theming:MaterialTextField.SupportingText)}" TextWrapping="Wrap"
+                     Text="{TemplateBinding (theming:MaterialTextField.EffectiveSupportingText)}" TextWrapping="Wrap"
                      Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                      FontSize="{DynamicResource MaterialBodySmallFontSize}"
                      LineHeight="{DynamicResource MaterialBodySmallLineHeight}"
                      LetterSpacing="{DynamicResource MaterialBodySmallLetterSpacing}"
-                     IsVisible="{Binding (theming:MaterialTextField.SupportingText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-          <TextBlock Name="ValidationErrors" Grid.Row="2" Margin="16,4,16,0" TextWrapping="Wrap"
-                     Text="{TemplateBinding (theming:MaterialTextField.ValidationMessage)}"
-                     Foreground="{DynamicResource MaterialErrorBrush}"
-                     FontSize="{DynamicResource MaterialBodySmallFontSize}"
-                     LineHeight="{DynamicResource MaterialBodySmallLineHeight}"
-                     LetterSpacing="{DynamicResource MaterialBodySmallLetterSpacing}"
                      AutomationProperties.LiveSetting="Assertive"
-                     IsVisible="{Binding (theming:MaterialTextField.ValidationMessage), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                     IsVisible="{Binding (theming:MaterialTextField.EffectiveSupportingText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         </Grid>
       </ControlTemplate>
     </Setter>
 
+    <!-- Label float motion: margin and type scale animate over short4; reduced motion zeroes
+         the duration tokens, which collapses both transitions to an instant state change. -->
+    <Style Selector="^ /template/ Border#LabelContainer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <ThicknessTransition Property="Margin" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ TextBlock#FloatingLabel">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="FontSize" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="LineHeight" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
     <!-- Focus indicator growth and color follow the text-field motion tokens: the indicator
          thickness changes over short3 (150 ms) and the color over short4 (200 ms). -->
     <Style Selector="^ /template/ Border#PART_BorderElement">
@@ -251,13 +329,8 @@
       <Style Selector="^ /template/ TextBlock#Prefix, ^ /template/ TextBlock#Suffix">
         <Setter Property="VerticalAlignment" Value="Top" />
       </Style>
-      <Style Selector="^ /template/ Border#LabelContainer">
-        <Setter Property="VerticalAlignment" Value="Top" />
-        <Setter Property="Margin" Value="12,16,12,0" />
-      </Style>
     </Style>
     <Style Selector="^[(theming|MaterialTextField.IsLabelFloating)=True] /template/ Border#LabelContainer">
-      <Setter Property="VerticalAlignment" Value="Top" />
       <Setter Property="Margin" Value="12,8,12,0" />
     </Style>
     <Style Selector="^[(theming|MaterialTextField.IsLabelFloating)=True] /template/ TextBlock#FloatingLabel">
@@ -272,6 +345,8 @@
       <Setter Property="CornerRadius" Value="4" />
       <Setter Property="Padding" Value="16,16" />
     </Style>
+    <!-- Compound conditions use nested styles: a nested `^` re-evaluates the parent selector, which
+         is how Avalonia expresses a conjunction; chained property selectors (^[a][b]) do not parse. -->
     <Style Selector="^[(theming|MaterialTextField.Variant)=Outlined]">
       <Style Selector="^[(theming|MaterialTextField.HasLabel)=True] /template/ Panel#FieldContainer">
         <Setter Property="Margin" Value="0,8,0,0" />
@@ -290,19 +365,25 @@
     <Style Selector="^[(theming|MaterialTextField.Variant)=Outlined]:pointerover:not(:disabled) /template/ TextBlock#FloatingLabel">
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     </Style>
+    <!-- The source family draws a 3dp indicator/outline in the focused and error states and
+         1dp at rest. -->
     <Style Selector="^:focus-within:not(:disabled)">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
-      <Setter Property="BorderThickness" Value="0,0,0,2" />
+      <Setter Property="BorderThickness" Value="0,0,0,3" />
     </Style>
     <Style Selector="^[(theming|MaterialTextField.Variant)=Outlined]:focus-within:not(:disabled)">
-      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="BorderThickness" Value="3" />
     </Style>
     <Style Selector="^:focus-within:not(:disabled) /template/ TextBlock#FloatingLabel, ^:focus-within:pointerover:not(:disabled) /template/ TextBlock#FloatingLabel">
       <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
     <Style Selector="^:error:not(:disabled), ^:error:focus-within:not(:disabled)">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialErrorBrush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,3" />
       <Setter Property="CaretBrush" Value="{DynamicResource MaterialErrorBrush}" />
+    </Style>
+    <Style Selector="^[(theming|MaterialTextField.Variant)=Outlined]:error:not(:disabled), ^[(theming|MaterialTextField.Variant)=Outlined]:error:focus-within:not(:disabled)">
+      <Setter Property="BorderThickness" Value="3" />
     </Style>
     <Style Selector="^:error:not(:disabled) /template/ TextBlock#FloatingLabel, ^:error:focus-within:not(:disabled) /template/ TextBlock#FloatingLabel, ^:error:focus-within:pointerover:not(:disabled) /template/ TextBlock#FloatingLabel">
       <Setter Property="Foreground" Value="{DynamicResource MaterialErrorBrush}" />
@@ -310,28 +391,33 @@
     <Style Selector="^:error:not(:disabled) /template/ TextBlock#SupportingText">
       <Setter Property="Foreground" Value="{DynamicResource MaterialErrorBrush}" />
     </Style>
-    <Style Selector="^:error:not(:disabled) /template/ ContentPresenter#TrailingContent, ^:error:not(:disabled) /template/ ContentPresenter#InnerTrailingContent, ^:error:not(:disabled) /template/ ToggleButton#PasswordReveal">
+    <Style Selector="^:error:not(:disabled) /template/ ContentPresenter#TrailingContent, ^:error:not(:disabled) /template/ ContentPresenter#InnerTrailingContent">
       <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialErrorBrush}" />
+    </Style>
+    <Style Selector="^:error:not(:disabled) /template/ Button#ClearButton, ^:error:not(:disabled) /template/ ToggleButton#PasswordReveal">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialErrorBrush}" />
     </Style>
     <Style Selector="^:error:pointerover:not(:focus-within):not(:disabled)">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnErrorContainerBrush}" />
     </Style>
-    <Style Selector="^:error:pointerover:not(:focus-within):not(:disabled) /template/ TextBlock#FloatingLabel, ^:error:pointerover:not(:focus-within):not(:disabled) /template/ ContentPresenter#TrailingContent, ^:error:pointerover:not(:focus-within):not(:disabled) /template/ ContentPresenter#InnerTrailingContent, ^:error:pointerover:not(:focus-within):not(:disabled) /template/ ToggleButton#PasswordReveal">
+    <Style Selector="^:error:pointerover:not(:focus-within):not(:disabled) /template/ TextBlock#FloatingLabel, ^:error:pointerover:not(:focus-within):not(:disabled) /template/ ContentPresenter#TrailingContent, ^:error:pointerover:not(:focus-within):not(:disabled) /template/ ContentPresenter#InnerTrailingContent">
       <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnErrorContainerBrush}" />
     </Style>
+    <Style Selector="^:error:pointerover:not(:focus-within):not(:disabled) /template/ Button#ClearButton, ^:error:pointerover:not(:focus-within):not(:disabled) /template/ ToggleButton#PasswordReveal">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnErrorContainerBrush}" />
+    </Style>
+    <!-- Disabled roles are composited into the color, never applied as control opacity.
+         The source family draws a 1dp 10% outline with no container fill in this state. -->
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
       <Setter Property="PlaceholderForeground" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
-      <Setter Property="BorderThickness" Value="0,0,0,1" />
-      <Setter Property="Background" Value="{DynamicResource MaterialTextFieldDisabledContainerBrush}" />
-    </Style>
-    <Style Selector="^:disabled[(theming|MaterialTextField.Variant)=Outlined]">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialTextFieldDisabledOutlineBrush}" />
       <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
       <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CaretBrush" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
     </Style>
-    <Style Selector="^:disabled /template/ TextBlock#FloatingLabel, ^:disabled /template/ TextBlock#SupportingText, ^:disabled /template/ TextBlock#ValidationErrors, ^:disabled /template/ ContentPresenter#LeadingContent, ^:disabled /template/ ContentPresenter#InnerLeadingContent, ^:disabled /template/ ContentPresenter#TrailingContent, ^:disabled /template/ ContentPresenter#InnerTrailingContent">
+    <Style Selector="^:disabled /template/ TextBlock#FloatingLabel, ^:disabled /template/ TextBlock#SupportingText, ^:disabled /template/ ContentPresenter#LeadingContent, ^:disabled /template/ ContentPresenter#InnerLeadingContent, ^:disabled /template/ ContentPresenter#TrailingContent, ^:disabled /template/ ContentPresenter#InnerTrailingContent">
       <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
     </Style>
     <Style Selector="^:disabled /template/ TextBlock#Prefix, ^:disabled /template/ TextBlock#Suffix">
@@ -341,5 +427,124 @@
       <Setter Property="AutomationProperties.Name" Value="{DynamicResource MaterialPasswordHideText}" />
       <Setter Property="ToolTip.Tip" Value="{DynamicResource MaterialPasswordHideText}" />
     </Style>
+  </ControlTheme>
+
+  <!-- Menu row from "Menu with Text field" (local-004355/local-004356): 56dp pitch, 24dp
+       leading icon, label plus supporting text, trailing chevron and a 1dp divider. -->
+  <ControlTheme x:Key="MaterialMenuTextFieldItemTheme" TargetType="ListBoxItem">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel>
+          <Border Name="Surface" Background="{TemplateBinding Background}" CornerRadius="4" />
+          <Border Name="StateLayer" Background="{TemplateBinding Foreground}" CornerRadius="4"
+                  Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center" />
+          <Border Name="Divider" Height="1" VerticalAlignment="Bottom" Margin="12,0"
+                  Background="{DynamicResource MaterialOutlineVariantBrush}" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <!-- The row content is a data template, so the colors are applied to the presenter's
+         content rather than as local values (which would win over these state setters). -->
+    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter TextBlock#MenuLabel">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter TextBlock#MenuSupportingText">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ ContentPresenter#PART_ContentPresenter TextBlock#MenuLabel, ^:selected /template/ ContentPresenter#PART_ContentPresenter TextBlock#MenuSupportingText">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+  </ControlTheme>
+
+  <DataTemplate x:Key="MaterialMenuTextFieldItemTemplate" x:DataType="ctrl:MaterialMenuTextFieldItem">
+    <Grid ColumnDefinitions="Auto,*,Auto">
+      <ContentPresenter Grid.Column="0" Width="24" Height="24" Margin="0,0,12,0" VerticalAlignment="Center"
+                        Content="{Binding Icon}"
+                        IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+        <TextBlock Name="MenuLabel" Text="{Binding Label}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                   FontSize="{DynamicResource MaterialBodyLargeFontSize}"
+                   FontWeight="{DynamicResource MaterialBodyLargeFontWeight}"
+                   LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                   LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}" />
+        <TextBlock Name="MenuSupportingText" Text="{Binding SupportingText}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                   FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                   LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                   LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
+                   IsVisible="{Binding SupportingText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </StackPanel>
+      <Path Name="MenuChevron" Grid.Column="2" Width="5" Height="10" Margin="12,0,0,0" Stretch="Uniform"
+            VerticalAlignment="Center" Data="{StaticResource MaterialTextFieldChevronGeometry}"
+            Fill="{Binding $parent[ListBoxItem].Foreground}" />
+    </Grid>
+  </DataTemplate>
+
+  <ControlTheme x:Key="{x:Type ctrl:MaterialMenuTextField}" TargetType="ctrl:MaterialMenuTextField">
+    <Setter Property="MinWidth" Value="200" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <StackPanel>
+          <TextBox Name="PART_Input" MinWidth="0" MinHeight="56"
+                   theming:MaterialTextField.Variant="Outlined"
+                   theming:MaterialTextField.ShowClearButton="True"
+                   theming:MaterialTextField.Label="{TemplateBinding Label}"
+                   theming:MaterialTextField.SupportingText="{TemplateBinding SupportingText}"
+                   PlaceholderText="{TemplateBinding PlaceholderText}"
+                   Text="{TemplateBinding Text, Mode=TwoWay}" />
+          <Border Name="PART_MenuSurface" Margin="0,4,0,0" Padding="0,8"
+                  MaxHeight="{TemplateBinding MaxMenuHeight}"
+                  Background="{DynamicResource MaterialSurfaceContainerBrush}"
+                  CornerRadius="4" BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
+            <Panel>
+              <ListBox Name="PART_List" Background="Transparent" Padding="0" Focusable="False"
+                       AutomationProperties.Name="{DynamicResource MaterialTextFieldMenuItemsText}"
+                       ItemContainerTheme="{StaticResource MaterialMenuTextFieldItemTheme}"
+                       ItemTemplate="{StaticResource MaterialMenuTextFieldItemTemplate}" />
+              <TextBlock Name="PART_Empty" Text="{DynamicResource MaterialTextFieldNoResultsText}"
+                         Margin="12,8" IsHitTestVisible="False" IsVisible="False"
+                         Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                         FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                         LineHeight="{DynamicResource MaterialBodyMediumLineHeight}" />
+            </Panel>
+          </Border>
+        </StackPanel>
+      </ControlTemplate>
+    </Setter>
   </ControlTheme>
 </ResourceDictionary>

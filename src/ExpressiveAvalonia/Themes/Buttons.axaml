@@ -1,14 +1,27 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:theming="using:ExpressiveAvalonia.Theming">
-  <!-- AndroidX Button*Tokens and *IconButtonTokens: visual containers are distinct from touch targets. -->
-  <!-- Standard Avalonia buttons retain command, keyboard, access-key and toggle behavior. -->
+  <!-- AndroidX Button*Tokens, *ToggleButtonTokens and *IconButtonTokens. Visual containers are
+       distinct from touch targets: ContainerInset reserves the 48-DIP target while the Surface
+       keeps the token size (32/40/56/96/136 for labeled buttons, the per-width content box for
+       icon buttons). -->
+  <!-- Standard Avalonia buttons retain command, keyboard (Space/Enter), access-key, automation
+       and ToggleButton checked behavior; the theme only supplies the Material anatomy. -->
+  <!-- Anatomy per source design data (all five sizes, both shapes, every state):
+         Size      Container  Padding      Type style        Icon  Icon/label gap
+         XSmall    32         12,6         label/large 14/20  20    4
+         Small     40         16,10        label/large 14/20  20    8
+         Medium    56         24,16        title/medium 16/24 24    8
+         Large     96         48,32        headline/small 24/32 32  12
+         XLarge    136        64,48        headline/large 32/40 40  16
+       Square corner radii are 12/12/16/28/28; pressed radii are 8/8/12/16/16 and the
+       selected silhouette inverts (Round becomes the square radius, Square becomes full).
+       The focus indicator is 2 DIPs outside the container with a 3 DIP secondary stroke. -->
   <!-- Transitions: state-layer and elevation changes use md.sys.motion duration tokens through
-       DynamicResource (short4 = 200 ms, short2 = 100 ms, short3 = 150 ms, medium2 = 300 ms).
-       MaterialTheme zeroes those tokens under Motion="Reduced", which collapses every transition.
-       The curve is inlined because TransitionBase.Easing is a direct property that does not
-       resolve DynamicResource; the MaterialEasing* resources carry the same md.sys.motion.easing
-       values for code and for consumer styles. -->
+       DynamicResource (short4 = 200 ms). MaterialTheme zeroes those tokens under Motion="Reduced",
+       which collapses every transition. The curve is inlined because TransitionBase.Easing is a
+       direct property that does not resolve DynamicResource; the MaterialEasing* resources carry
+       the same md.sys.motion.easing values for code and for consumer styles. -->
   <ControlTheme x:Key="MaterialButtonBase" TargetType="Button">
     <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
@@ -31,28 +44,53 @@
           <Panel Margin="{TemplateBinding theming:MaterialAssist.ContainerInset}">
           <Border Name="Surface"
                   Background="{TemplateBinding Background}"
-                  BorderBrush="{TemplateBinding BorderBrush}"
-                  BorderThickness="{TemplateBinding BorderThickness}"
                   CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}" />
           <Border Name="StateLayer"
                   Background="{TemplateBinding Foreground}"
                   CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}"
                   Opacity="0" IsHitTestVisible="False" />
+          <!-- Pressed ripple: the source draws the Ripple vector clipped by the container, so the
+               presenter clips to the same animated silhouette. It sits above the 0.08 state layer
+               and below the content, exactly like the Figma State-layer frame. -->
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{TemplateBinding Foreground}"
+                                  CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}"
+                                  RippleWidth="{TemplateBinding theming:MaterialAssist.RippleWidth}"
+                                  RippleHeight="{TemplateBinding theming:MaterialAssist.RippleHeight}"
+                                  Opacity="0" IsHitTestVisible="False" />
+          <!-- The outline is a separate border so a disabled outlined button keeps its full
+               strength stroke while only the container fill drops to the 10% token opacity. -->
+          <Border Name="Outline"
+                  Background="Transparent"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}"
+                  IsHitTestVisible="False" />
           <Viewbox Name="ContentHost" Stretch="None"
                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+          <!-- The icon host is a sibling of the content presenter so the icon sits inside the
+               token padding. Its spacing is a right margin, which collapses with the host, so a
+               button without an icon keeps the exact token content width. -->
+          <StackPanel Name="ContentRoot" Orientation="Horizontal"
+                      Margin="{TemplateBinding Padding}">
+          <ContentPresenter Name="IconHost"
+                            Content="{TemplateBinding theming:MaterialAssist.DisplayedIcon}"
+                            IsVisible="{TemplateBinding theming:MaterialAssist.IsIconVisible}"
+                            VerticalAlignment="Center" />
           <ContentPresenter Name="PART_ContentPresenter"
                             Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
-                            Padding="{TemplateBinding Padding}"
+                            Padding="0"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
                             LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}"
                             RecognizesAccessKey="True" />
+          </StackPanel>
           </Viewbox>
-          <Border Name="FocusRing" Margin="-5"
-                  CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}"
+          <Border Name="FocusRing" Margin="-2"
+                  CornerRadius="{TemplateBinding theming:MaterialAssist.FocusRingCornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}"
                   BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
           </Panel>
@@ -65,7 +103,14 @@
         <Transitions>
           <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
           <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#Outline">
+      <Setter Property="Transitions">
+        <Transitions>
           <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <ThicknessTransition Property="BorderThickness" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
         </Transitions>
       </Setter>
     </Style>
@@ -76,7 +121,61 @@
         </Transitions>
       </Setter>
     </Style>
+    <!-- Ripple geometry sizes. The ripple width/height are the source Ripple vector boxes per
+         size (they are identical for every variant and for selected/unselected toggles):
+         labelled XSmall/Small/Medium/Large/XLarge = 75x22, 84x28, 115x38, 176x58, 248x82;
+         icon buttons use 34x22, 38x28, 46x38, 82x58, 118x82. The vector is anchored to the
+         container's right and bottom edges in every source variant (e.g. XLarge Narrow icon:
+         x=-14 width 118 in a 104-wide box), so a narrower container overflows on the left and is
+         clipped by the rounded silhouette, while a wider one leaves a left inset. -->
+    <Style Selector="^ /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
+      <Setter Property="theming:MaterialAssist.RippleWidth" Value="75" />
+      <Setter Property="theming:MaterialAssist.RippleHeight" Value="22" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Small]">
+      <Setter Property="theming:MaterialAssist.RippleWidth" Value="84" />
+      <Setter Property="theming:MaterialAssist.RippleHeight" Value="28" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
+      <Setter Property="theming:MaterialAssist.RippleWidth" Value="115" />
+      <Setter Property="theming:MaterialAssist.RippleHeight" Value="38" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
+      <Setter Property="theming:MaterialAssist.RippleWidth" Value="176" />
+      <Setter Property="theming:MaterialAssist.RippleHeight" Value="58" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
+      <Setter Property="theming:MaterialAssist.RippleWidth" Value="248" />
+      <Setter Property="theming:MaterialAssist.RippleHeight" Value="82" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
+        <Setter Property="theming:MaterialAssist.RippleWidth" Value="34" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Small]">
+        <Setter Property="theming:MaterialAssist.RippleWidth" Value="38" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
+        <Setter Property="theming:MaterialAssist.RippleWidth" Value="46" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
+        <Setter Property="theming:MaterialAssist.RippleWidth" Value="82" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
+        <Setter Property="theming:MaterialAssist.RippleWidth" Value="118" />
+      </Style>
+    </Style>
 
+    <!-- Color treatments. The state layer reuses Foreground, which is exactly the token's
+         state-layer color in every variant: onPrimary, primary, onSecondaryContainer,
+         onSurfaceVariant and inverseOnSurface. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Filled]">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
@@ -98,33 +197,45 @@
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Elevated] /template/ Border#Surface">
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
     </Style>
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=False]">
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Filled]:pointerover:not(:pressed):not(:disabled) /template/ Border#Surface">
-        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:pointerover:not(:pressed):not(:disabled) /template/ Border#Surface">
-        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Elevated]:pointerover:not(:pressed):not(:disabled) /template/ Border#Surface">
-        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel2Shadow}" />
-      </Style>
-    </Style>
-    <!-- TextButtonTokens: LabelColor and IconColor are OnSurfaceVariant, not Primary. -->
+    <!-- TextButtonTokens: label and icon are Primary and the state layer is Primary. The
+         container stays transparent in every enabled state. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
 
+    <!-- Sizes: container height, token padding, type scale, icon size and icon gap. -->
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
       <Setter Property="MinHeight" Value="48" />
       <Setter Property="theming:MaterialAssist.ContainerInset" Value="0,8" />
-      <!-- ButtonXSmallTokens.LeadingSpace/TrailingSpace = 16. -->
-      <Setter Property="Padding" Value="16,6" />
+      <Setter Property="Padding" Value="12,6" />
+      <Style Selector="^ /template/ ContentPresenter#IconHost">
+        <Setter Property="Margin" Value="0,0,4,0" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+      </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=Small]">
       <Setter Property="MinHeight" Value="48" />
       <Setter Property="theming:MaterialAssist.ContainerInset" Value="0,4" />
       <Setter Property="Padding" Value="16,10" />
+      <Style Selector="^ /template/ ContentPresenter#IconHost">
+        <Setter Property="Margin" Value="0,0,8,0" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+      </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
       <Setter Property="MinHeight" Value="56" />
@@ -132,10 +243,21 @@
       <Setter Property="Padding" Value="24,16" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialTitleMediumFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleMediumFontWeight}" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium] /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="LineHeight" Value="{DynamicResource MaterialTitleMediumLineHeight}" />
-      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialTitleMediumLetterSpacing}" />
+      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="LineHeight" Value="{DynamicResource MaterialTitleMediumLineHeight}" />
+        <Setter Property="LetterSpacing" Value="{DynamicResource MaterialTitleMediumLetterSpacing}" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#IconHost">
+        <Setter Property="Margin" Value="0,0,8,0" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+      </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
       <Setter Property="MinHeight" Value="96" />
@@ -143,10 +265,21 @@
       <Setter Property="Padding" Value="48,32" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineSmallFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineSmallFontWeight}" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large] /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineSmallLineHeight}" />
-      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineSmallLetterSpacing}" />
+      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineSmallLineHeight}" />
+        <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineSmallLetterSpacing}" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#IconHost">
+        <Setter Property="Margin" Value="0,0,12,0" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
+      </Style>
+      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
+      </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
       <Setter Property="MinHeight" Value="136" />
@@ -154,39 +287,38 @@
       <Setter Property="Padding" Value="64,48" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineLargeFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineLargeFontWeight}" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineLargeLineHeight}" />
-      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineLargeLetterSpacing}" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=False]">
-      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-        <Setter Property="Width" Value="20" />
-        <Setter Property="Height" Value="20" />
+      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineLargeLineHeight}" />
+        <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineLargeLetterSpacing}" />
       </Style>
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium] /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-        <Setter Property="Width" Value="24" />
-        <Setter Property="Height" Value="24" />
+      <Style Selector="^ /template/ ContentPresenter#IconHost">
+        <Setter Property="Margin" Value="0,0,16,0" />
       </Style>
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large] /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-        <Setter Property="Width" Value="32" />
-        <Setter Property="Height" Value="32" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter PathIcon">
+      <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
         <Setter Property="Width" Value="40" />
         <Setter Property="Height" Value="40" />
       </Style>
-      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
-        <Setter Property="Spacing" Value="8" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large] /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
-        <Setter Property="Spacing" Value="12" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
-        <Setter Property="Spacing" Value="16" />
+      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
+        <Setter Property="Width" Value="40" />
+        <Setter Property="Height" Value="40" />
       </Style>
     </Style>
+    <!-- A consumer that composes its own icon + label StackPanel as Content keeps the token gap. -->
+    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
+      <Setter Property="Spacing" Value="8" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall] /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
+      <Setter Property="Spacing" Value="4" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large] /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
+      <Setter Property="Spacing" Value="12" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
+      <Setter Property="Spacing" Value="16" />
+    </Style>
 
+    <!-- Silhouettes. Round is the full pill; Square uses the CornerMedium/CornerLarge/
+         CornerExtraLarge token per size. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonShape)=Round]">
       <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
     </Style>
@@ -201,15 +333,15 @@
         <Setter Property="CornerRadius" Value="28" />
       </Style>
     </Style>
+    <!-- Outline weight follows the token stroke: 1 for XSmall/Small/Medium, 2 for Large/XLarge. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]">
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large], ^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
         <Setter Property="BorderThickness" Value="2" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
-        <Setter Property="BorderThickness" Value="3" />
       </Style>
     </Style>
 
+    <!-- Icon buttons: the Content is the glyph, so there is no padding and no label. The icon
+         box is 20/24/24/32/40 and the width axis changes only the container box. -->
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
       <Setter Property="Padding" Value="0" />
       <Setter Property="MinWidth" Value="48" />
@@ -230,36 +362,145 @@
       <Setter Property="Height" Value="24" />
       <Setter Property="Stretch" Value="Uniform" />
     </Style>
+    <!-- When an icon button uses the Icon/SelectedIcon properties instead of Content, the glyph
+         takes the icon-button size and no label gap. -->
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True] /template/ ContentPresenter#IconHost">
+      <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True] /template/ ContentPresenter#IconHost PathIcon">
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Height" Value="24" />
+    </Style>
+    <!-- The Content glyph of an icon button uses the icon-button size (20/24/24/32/40), not the
+         labeled-button size, so the Viewbox never has to rescale it. Per-size overrides are nested
+         below, because Avalonia's selector grammar cannot chain two attached-property matches. -->
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True] /template/ ContentPresenter#PART_ContentPresenter PathIcon">
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Height" Value="24" />
+    </Style>
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
       <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
-        <Setter Property="MinWidth" Value="48" />
-        <Setter Property="theming:MaterialAssist.ContainerInset" Value="8" />
         <Setter Property="FontSize" Value="20" />
         <Style Selector="^ /template/ Viewbox#ContentHost">
           <Setter Property="Width" Value="20" />
           <Setter Property="Height" Value="20" />
         </Style>
+        <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
+          <Setter Property="Width" Value="20" />
+          <Setter Property="Height" Value="20" />
+        </Style>
+        <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
+          <Setter Property="Width" Value="20" />
+          <Setter Property="Height" Value="20" />
+        </Style>
       </Style>
       <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
-        <Setter Property="MinWidth" Value="56" />
-        <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
+        <Setter Property="MinHeight" Value="56" />
       </Style>
       <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
-        <Setter Property="MinWidth" Value="96" />
+        <Setter Property="MinHeight" Value="96" />
         <Setter Property="FontSize" Value="32" />
-        <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
         <Style Selector="^ /template/ Viewbox#ContentHost">
+          <Setter Property="Width" Value="32" />
+          <Setter Property="Height" Value="32" />
+        </Style>
+        <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
+          <Setter Property="Width" Value="32" />
+          <Setter Property="Height" Value="32" />
+        </Style>
+        <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
           <Setter Property="Width" Value="32" />
           <Setter Property="Height" Value="32" />
         </Style>
       </Style>
       <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
-        <Setter Property="MinWidth" Value="136" />
+        <Setter Property="MinHeight" Value="136" />
         <Setter Property="FontSize" Value="40" />
-        <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
         <Style Selector="^ /template/ Viewbox#ContentHost">
           <Setter Property="Width" Value="40" />
           <Setter Property="Height" Value="40" />
+        </Style>
+        <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
+          <Setter Property="Width" Value="40" />
+          <Setter Property="Height" Value="40" />
+        </Style>
+        <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
+          <Setter Property="Width" Value="40" />
+          <Setter Property="Height" Value="40" />
+        </Style>
+      </Style>
+    </Style>
+    <!-- Width axis: root box = max(48, content box + insets). Narrow/Default/Wide content boxes:
+         XSmall 28/32/40, Small 32/40/52, Medium 48/56/72, Large 64/96/128, XLarge 104/136/184. -->
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Narrow]">
+          <Setter Property="MinWidth" Value="48" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="10,8" />
+        </Style>
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Default]">
+          <Setter Property="MinWidth" Value="48" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="8,8" />
+        </Style>
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Wide]">
+          <Setter Property="MinWidth" Value="48" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="4,8" />
+        </Style>
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Small]">
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Narrow]">
+          <Setter Property="MinWidth" Value="48" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="8,4" />
+        </Style>
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Default]">
+          <Setter Property="MinWidth" Value="48" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="4,4" />
+        </Style>
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Wide]">
+          <Setter Property="MinWidth" Value="52" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="0,4" />
+        </Style>
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Narrow]">
+          <Setter Property="MinWidth" Value="48" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
+        </Style>
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Default]">
+          <Setter Property="MinWidth" Value="56" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
+        </Style>
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Wide]">
+          <Setter Property="MinWidth" Value="72" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
+        </Style>
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Narrow]">
+          <Setter Property="MinWidth" Value="64" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
+        </Style>
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Default]">
+          <Setter Property="MinWidth" Value="96" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
+        </Style>
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Wide]">
+          <Setter Property="MinWidth" Value="128" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
+        </Style>
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Narrow]">
+          <Setter Property="MinWidth" Value="104" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
+        </Style>
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Default]">
+          <Setter Property="MinWidth" Value="136" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
+        </Style>
+        <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Wide]">
+          <Setter Property="MinWidth" Value="184" />
+          <Setter Property="theming:MaterialAssist.ContainerInset" Value="0" />
         </Style>
       </Style>
     </Style>
@@ -274,46 +515,39 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
     </Style>
-    <!-- Disabled: container OnSurface at the token opacity, label OnSurfaceVariant at 0.38. -->
+    <!-- The source pressed state is the 0.08 hover layer plus the Ripple vector at 0.10 (SVG
+         fill-opacity), so the ripple layer carries the pressed opacity itself. -->
+    <Style Selector="^:pressed /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Opacity" Value="0.1" />
+    </Style>
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <!-- Disabled: container OnSurface at 0.10, label and icon OnSurface at 0.38, no state layer. -->
     <Style Selector="^:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
     </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
-      <Setter Property="Background" Value="Transparent" />
-    </Style>
     <Style Selector="^:disabled /template/ Border#Surface">
       <Setter Property="Opacity" Value="0.10" />
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
     </Style>
-    <!-- FilledTonalButtonTokens.DisabledContainerOpacity = 0.12. -->
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled /template/ Border#Surface">
-      <Setter Property="Opacity" Value="0.12" />
-    </Style>
     <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Style Selector="^:disabled /template/ ContentPresenter#IconHost">
+      <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <!-- Standard and text icon buttons have no container in any state. -->
+    <!-- Standard and text icon buttons have no container in any state, disabled included. -->
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
       <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
         <Setter Property="Background" Value="Transparent" />
-      </Style>
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]">
-        <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-        <Style Selector="^:disabled">
-          <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-        </Style>
       </Style>
     </Style>
     <Style Selector="^:disabled /template/ Border#StateLayer">
@@ -329,6 +563,8 @@
   <ControlTheme x:Key="{x:Type ToggleButton}" TargetType="ToggleButton" BasedOn="{StaticResource MaterialButtonBase}">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <!-- Unselected treatments: Standard/Filled keep the surface-container container, Outlined
+         keeps its outline, Elevated keeps its level-1 shadow, Text stays transparent. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:not(:checked):not(:disabled), ^[(theming|MaterialAssist.ButtonVariant)=Filled]:not(:checked):not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
@@ -347,7 +583,7 @@
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:not(:checked):not(:disabled)">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
     <!-- A standard icon toggle has no container until it is selected. -->
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
@@ -356,6 +592,8 @@
         <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
       </Style>
     </Style>
+    <!-- Selected treatments. ToggleButtonTokens swap container, label and icon together; the
+         silhouette swap itself is animated by MaterialAssist. -->
     <Style Selector="^:checked:not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
@@ -368,48 +606,38 @@
       <Setter Property="Background" Value="{DynamicResource MaterialInverseSurfaceBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialInverseOnSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Elevated]:checked:not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
     </Style>
-    <!-- TextButtonTokens define no selected container, so a checked text toggle keeps
-         the text-button colors instead of becoming a filled button. -->
+    <!-- Text toggles define no selected container; a checked text toggle keeps text colors. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:checked:not(:disabled)">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
+    <!-- A selected standard icon toggle stays container-less and turns its glyph Primary. -->
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:checked:not(:disabled)">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:checked:not(:disabled), ^[(theming|MaterialAssist.ButtonVariant)=Text]:checked:not(:disabled)">
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
       </Style>
     </Style>
+    <!-- Disabled: the selected and unselected containers collapse to the same 10% OnSurface
+         container, while an outline keeps its stroke. -->
     <Style Selector="^:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
     </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
-      <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    </Style>
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
       <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
         <Setter Property="Background" Value="Transparent" />
       </Style>
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:checked:disabled">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="BorderBrush" Value="Transparent" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:checked:disabled /template/ Border#Surface">
-      <Setter Property="Opacity" Value="0.10" />
     </Style>
   </ControlTheme>
 </ResourceDictionary>

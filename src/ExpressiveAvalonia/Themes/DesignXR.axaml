@@ -1,0 +1,878 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:xr="using:ExpressiveAvalonia.Controls">
+  <!-- XR family (source: XR app bar, dialog, toolbar, navigation rail/bar, and the
+       surface / surface-high / tertiary-container button building blocks).
+
+       Geometry follows the source design.json values in device-independent units:
+       app bar 72 high with a 36 radius; dialog 312 wide with a 28 radius; toolbar pill
+       72 high with a 72 radius; rail 96 wide with a 48 radius and 20 vertical padding;
+       navigation bar 80 high with a 40 radius and 8 horizontal padding; icon button
+       48 hit target with a 40 circular container; labeled toggle 40 high with 16,10
+       padding; FAB 56 with a 16 radius.
+
+       Color roles, verified against the source variants: a selected container uses
+       secondary-container on "surface", secondary-fixed-dim on "surface high", and
+       tertiary-fixed-dim on "tertiary container"; the selected content uses
+       on-secondary-fixed-variant, on-secondary-fixed, and on-tertiary-fixed respectively.
+       Navigation destinations reuse the secondary-container selection with the
+       on-secondary-fixed-variant icon and the on-surface label. The tertiary toolbar swaps
+       its FAB to primary/on-primary. All roles stay dynamic under MaterialTheme's
+       seed/contrast changes.
+
+       Interaction: icon buttons keep a transparent container and paint only the state
+       layer (0.08 hover, 0.10 focus, 0.10 press, from md.sys.state) plus the 8 unit pressed
+       shape. Labeled toggles additionally show a surface-container pill on hover, focus,
+       and press while unselected, matching the source building block. Disabled content
+       uses the composite disabled roles rather than dimming the whole control.
+
+       Transitions bind to the md.sys.motion duration tokens, so MaterialTheme's Reduced
+       mode (which zeroes them) removes the hover/focus/press animation without any extra
+       code here. -->
+
+  <!-- FAB anatomy only: the containing rail or toolbar supplies the fill and icon role, so
+       a parent style never has to fight this theme for Background or Foreground. -->
+  <ControlTheme x:Key="XrFabTheme" TargetType="Button">
+    <Setter Property="Width" Value="56" />
+    <Setter Property="Height" Value="56" />
+    <Setter Property="MinWidth" Value="56" />
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Padding" Value="16" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="Surface" Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            RecognizesAccessKey="True" />
+          <Border Name="FocusRing" Margin="-2" CornerRadius="18"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#Surface">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Dialog action: a native text button with the 40 unit action height. -->
+  <ControlTheme x:Key="XrDialogActionTheme" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="Padding" Value="16,10" />
+    <Setter Property="CornerRadius" Value="9999" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="Surface" Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
+                            RecognizesAccessKey="True" />
+          <Border Name="FocusRing" Margin="-2" CornerRadius="9999"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Icon button: 48 hit target, 40 container, 20 icon. -->
+  <ControlTheme x:Key="{x:Type xr:XrIconButton}" TargetType="xr:XrIconButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="9999" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="Container" Width="40" Height="40"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Border Name="StateLayer" Width="40" Height="40"
+                  Background="{TemplateBinding Foreground}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Path Name="Icon" Data="{TemplateBinding Icon}" Fill="{TemplateBinding Foreground}"
+                Width="20" Height="20" Stretch="Uniform"
+                HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+          <Border Name="FocusRing" Margin="2" CornerRadius="9999"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#Container">
+      <Setter Property="Transitions">
+        <Transitions>
+          <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:tertiary-container">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryFixedVariantBrush}" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed">
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Toggleable icon button: the selected container is the surface's emphasized role. -->
+  <ControlTheme x:Key="{x:Type xr:XrToggleIconButton}" TargetType="xr:XrToggleIconButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="9999" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="Container" Width="40" Height="40"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Border Name="StateLayer" Width="40" Height="40"
+                  Background="{TemplateBinding Foreground}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Path Name="Icon" Data="{TemplateBinding Icon}" Fill="{TemplateBinding Foreground}"
+                Width="20" Height="20" Stretch="Uniform"
+                HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+          <Path Name="SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Fill="{TemplateBinding Foreground}"
+                Width="20" Height="20" Stretch="Uniform" IsVisible="False"
+                HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+          <Border Name="FocusRing" Margin="2" CornerRadius="9999"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#Container">
+      <Setter Property="Transitions">
+        <Transitions>
+          <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:tertiary-container">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryFixedVariantBrush}" />
+    </Style>
+    <Style Selector="^:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
+    </Style>
+    <Style Selector="^:surface-high:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryFixedDimBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryFixedBrush}" />
+    </Style>
+    <Style Selector="^:tertiary-container:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialTertiaryFixedDimBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryFixedBrush}" />
+    </Style>
+    <Style Selector="^:checked /template/ Path#Icon">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:checked /template/ Path#SelectedIcon">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed">
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialDisabledContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Labeled toggle: 40 unit pill, 8 unit icon/label gap, 16,10 padding. -->
+  <ControlTheme x:Key="{x:Type xr:XrToggleButton}" TargetType="xr:XrToggleButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="9999" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Name="Container" Height="40" Background="{TemplateBinding Background}"
+                    CornerRadius="{TemplateBinding CornerRadius}" />
+            <Border Name="StateLayer" Height="40" Background="{TemplateBinding Foreground}"
+                    CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="16,10"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Path Name="Icon" Data="{TemplateBinding Icon}" Fill="{TemplateBinding Foreground}"
+                    Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center" IsHitTestVisible="False" />
+              <Path Name="SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Fill="{TemplateBinding Foreground}"
+                    Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center"
+                    IsVisible="False" IsHitTestVisible="False" />
+              <TextBlock Name="Label" Text="{TemplateBinding Label}"
+                         Foreground="{TemplateBinding Foreground}"
+                         FontSize="{DynamicResource MaterialLabelLargeFontSize}"
+                         FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
+                         LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </Grid>
+          <Border Name="FocusRing" Margin="2" CornerRadius="9999"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#Container">
+      <Setter Property="Transitions">
+        <Transitions>
+          <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:not(:checked):pointerover">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    </Style>
+    <Style Selector="^:not(:checked):focus-visible">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    </Style>
+    <Style Selector="^:tertiary-container">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryFixedVariantBrush}" />
+    </Style>
+    <Style Selector="^:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
+    </Style>
+    <Style Selector="^:surface-high:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryFixedDimBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryFixedBrush}" />
+    </Style>
+    <Style Selector="^:tertiary-container:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialTertiaryFixedDimBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryFixedBrush}" />
+    </Style>
+    <Style Selector="^:checked /template/ Path#Icon">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:checked /template/ Path#SelectedIcon">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:no-icon /template/ Path#Icon, ^:no-icon /template/ Path#SelectedIcon">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed">
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialDisabledContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Navigation bar destination: 112 wide, 80 high, 64x32 icon container, 12 unit label. -->
+  <ControlTheme x:Key="{x:Type xr:XrNavigationBarItem}" TargetType="xr:XrNavigationBarItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinWidth" Value="112" />
+    <Setter Property="Height" Value="80" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent" ClipToBounds="False">
+          <StackPanel Orientation="Vertical" Spacing="4" Margin="0,12,0,0"
+                      HorizontalAlignment="Center" VerticalAlignment="Top">
+            <Grid Width="64" Height="32">
+              <Border Name="IconContainer" CornerRadius="9999" Background="{TemplateBinding Background}" />
+              <Border Name="StateLayer" CornerRadius="9999"
+                      Background="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                      Opacity="0" IsHitTestVisible="False" />
+              <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Path Name="Icon" Data="{TemplateBinding Icon}"
+                      Fill="{TemplateBinding Foreground}"
+                      Width="24" Height="24" Stretch="Uniform" />
+                <Path Name="SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}"
+                      Fill="{TemplateBinding Foreground}"
+                      Width="24" Height="24" Stretch="Uniform" IsVisible="False" />
+                <Border Name="BadgeLarge" MinWidth="16" Height="16" CornerRadius="8" Padding="4,0"
+                        Background="{DynamicResource MaterialErrorBrush}"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-4,0"
+                        IsVisible="False">
+                  <TextBlock Text="{TemplateBinding BadgeText}" FontSize="11" LineHeight="16"
+                             Foreground="{DynamicResource MaterialOnErrorBrush}"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <Border Name="BadgeSmall" Width="6" Height="6" CornerRadius="3"
+                        Background="{DynamicResource MaterialErrorBrush}"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,-4,0"
+                        IsVisible="False" />
+              </Grid>
+            </Grid>
+            <TextBlock Name="Label" Text="{TemplateBinding Label}"
+                       Foreground="{TemplateBinding Foreground}"
+                       FontSize="12" LineHeight="16" FontWeight="Medium"
+                       HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="104" />
+          </StackPanel>
+          <Border Name="FocusRing" Margin="3" CornerRadius="12"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#IconContainer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ Path#Icon, ^:selected /template/ Path#SelectedIcon">
+      <Setter Property="Fill" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#StateLayer">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ TextBlock#Label">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="^:selected /template/ Path#Icon">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:selected /template/ Path#SelectedIcon">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:badge-large /template/ Border#BadgeLarge">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:badge-small /template/ Border#BadgeSmall">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:no-label /template/ TextBlock#Label">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Navigation rail destination: 56x32 pill growing to 56 wide, or a 56x56 square
+       when the label is hidden, as in the source rail. -->
+  <ControlTheme x:Key="{x:Type xr:XrNavigationRailItem}" TargetType="xr:XrNavigationRailItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinWidth" Value="96" />
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent" ClipToBounds="False">
+          <StackPanel Name="Content" Orientation="Vertical" Spacing="4" Margin="0,2"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Name="IconContainer" Width="24" Height="32" CornerRadius="9999"
+                    Background="{TemplateBinding Background}">
+              <Grid>
+                <Border Name="StateLayer" CornerRadius="9999"
+                        Background="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                        Opacity="0" IsHitTestVisible="False" />
+                <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Path Name="Icon" Data="{TemplateBinding Icon}"
+                        Fill="{TemplateBinding Foreground}"
+                        Width="24" Height="24" Stretch="Uniform" />
+                  <Path Name="SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}"
+                        Fill="{TemplateBinding Foreground}"
+                        Width="24" Height="24" Stretch="Uniform" IsVisible="False" />
+                  <Border Name="BadgeLarge" MinWidth="16" Height="16" CornerRadius="8" Padding="4,0"
+                          Background="{DynamicResource MaterialErrorBrush}"
+                          HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-4,0"
+                          IsVisible="False">
+                    <TextBlock Text="{TemplateBinding BadgeText}" FontSize="11" LineHeight="16"
+                               Foreground="{DynamicResource MaterialOnErrorBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <Border Name="BadgeSmall" Width="6" Height="6" CornerRadius="3"
+                          Background="{DynamicResource MaterialErrorBrush}"
+                          HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,-4,0"
+                          IsVisible="False" />
+                </Grid>
+              </Grid>
+            </Border>
+            <TextBlock Name="Label" Text="{TemplateBinding Label}"
+                       Foreground="{TemplateBinding Foreground}"
+                       FontSize="12" LineHeight="16" FontWeight="Medium"
+                       IsVisible="{TemplateBinding ShowLabel}"
+                       HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="88" />
+          </StackPanel>
+          <Border Name="FocusRing" Margin="3" CornerRadius="12"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#IconContainer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Width" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Height" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#IconContainer">
+      <Setter Property="Width" Value="56" />
+    </Style>
+    <Style Selector="^:no-label /template/ StackPanel#Content">
+      <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="^:no-label /template/ Border#IconContainer">
+      <Setter Property="Width" Value="56" />
+      <Setter Property="Height" Value="56" />
+    </Style>
+    <Style Selector="^:selected /template/ Path#Icon, ^:selected /template/ Path#SelectedIcon">
+      <Setter Property="Fill" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#StateLayer">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ TextBlock#Label">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="^:selected /template/ Path#Icon">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:selected /template/ Path#SelectedIcon">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:badge-large /template/ Border#BadgeLarge">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:badge-small /template/ Border#BadgeSmall">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Navigation bar container: 80 high, 40 radius, 8 horizontal padding. -->
+  <ControlTheme x:Key="{x:Type xr:XrNavigationBar}" TargetType="xr:XrNavigationBar">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" CornerRadius="40" Padding="{TemplateBinding Padding}">
+          <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <!-- Navigation rail container: 96 wide, 48 radius, 20 vertical padding, menu then FAB. -->
+  <ControlTheme x:Key="{x:Type xr:XrNavigationRail}" TargetType="xr:XrNavigationRail">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="MinWidth" Value="96" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" CornerRadius="48" Padding="0,20" MinWidth="96">
+          <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+            <StackPanel Orientation="Vertical" Spacing="4" HorizontalAlignment="Center">
+              <xr:XrIconButton Name="PART_Menu"
+                               Icon="{TemplateBinding MenuIcon}"
+                               Label="{TemplateBinding MenuLabel}"
+                               Command="{TemplateBinding MenuCommand}"
+                               CommandParameter="{TemplateBinding MenuCommandParameter}"
+                               IsVisible="{TemplateBinding ShowMenu}" />
+              <Button Name="PART_Fab" Theme="{StaticResource XrFabTheme}"
+                      Background="{DynamicResource MaterialTertiaryContainerBrush}"
+                      Foreground="{DynamicResource MaterialOnTertiaryFixedVariantBrush}"
+                      IsVisible="{TemplateBinding ShowFab}"
+                      Command="{TemplateBinding FabCommand}"
+                      CommandParameter="{TemplateBinding FabCommandParameter}"
+                      AutomationProperties.Name="{Binding FabLabel, RelativeSource={RelativeSource TemplatedParent}}">
+                <Path Data="{TemplateBinding FabIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                      Width="24" Height="24" Stretch="Uniform" />
+              </Button>
+            </StackPanel>
+            <Border Name="GroupGap" Height="40" />
+            <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+          </StackPanel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:no-fab /template/ Border#GroupGap">
+      <Setter Property="Height" Value="20" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Toolbar: a 72 high fully rounded pill plus the spatial FAB. -->
+  <ControlTheme x:Key="{x:Type xr:XrToolbar}" TargetType="xr:XrToolbar">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <StackPanel Orientation="{TemplateBinding Orientation}" Spacing="8" Background="Transparent">
+          <Border Background="{TemplateBinding Background}" CornerRadius="72" Padding="12">
+            <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+          </Border>
+          <Button Name="PART_Fab" Theme="{StaticResource XrFabTheme}"
+                  IsVisible="{TemplateBinding ShowFab}"
+                  Command="{TemplateBinding FabCommand}"
+                  CommandParameter="{TemplateBinding FabCommandParameter}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  AutomationProperties.Name="{Binding FabLabel, RelativeSource={RelativeSource TemplatedParent}}">
+            <Path Data="{TemplateBinding FabIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                  Width="24" Height="24" Stretch="Uniform" />
+          </Button>
+        </StackPanel>
+      </ControlTemplate>
+    </Setter>
+    <!-- The FAB follows the toolbar tone: tertiary container on surface tones, primary on
+         the tertiary toolbar. The FAB theme carries no colors, so these setters are final. -->
+    <Style Selector="^ /template/ Button#PART_Fab">
+      <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:elevation-high">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+    </Style>
+    <Style Selector="^:elevation-highest">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+    </Style>
+    <Style Selector="^:tertiary-container">
+      <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:tertiary-container /template/ Button#PART_Fab">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- App bar: 72 high, 36 radius, 12 padding, centered or small headline. -->
+  <ControlTheme x:Key="{x:Type xr:XrAppBar}" TargetType="xr:XrAppBar">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="Height" Value="72" />
+    <Setter Property="Padding" Value="12" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" CornerRadius="36" Padding="{TemplateBinding Padding}">
+          <Panel>
+            <!-- The centered configuration centers the headline in the whole bar, not in the
+                 middle column between unequal side slots, so it is a separate overlay. -->
+            <TextBlock Name="HeadlineCenter"
+                       Text="{TemplateBinding Headline}"
+                       Foreground="{TemplateBinding Foreground}"
+                       FontSize="{DynamicResource MaterialTitleLargeFontSize}"
+                       LineHeight="{DynamicResource MaterialTitleLargeLineHeight}"
+                       FontWeight="{DynamicResource MaterialTitleLargeFontWeight}"
+                       Margin="48,0" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       AutomationProperties.HeadingLevel="1" />
+            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+              <ContentPresenter Name="PART_Leading" Grid.Column="0"
+                                Content="{TemplateBinding LeadingContent}"
+                                VerticalAlignment="Center" />
+              <TextBlock Name="HeadlineStart" Grid.Column="1" IsVisible="False"
+                         Text="{TemplateBinding Headline}"
+                         Foreground="{TemplateBinding Foreground}"
+                         FontSize="{DynamicResource MaterialTitleLargeFontSize}"
+                         LineHeight="{DynamicResource MaterialTitleLargeLineHeight}"
+                         FontWeight="{DynamicResource MaterialTitleLargeFontWeight}"
+                         Margin="6,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis"
+                         AutomationProperties.HeadingLevel="1" />
+              <ContentPresenter Name="PART_Trailing" Grid.Column="2"
+                                Content="{TemplateBinding TrailingContent}"
+                                HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+          </Panel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:small /template/ TextBlock#HeadlineCenter">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:small /template/ TextBlock#HeadlineStart">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:elevation-high">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+    </Style>
+    <Style Selector="^:elevation-highest">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Dialog: a 312 minimum card with 28 radius, 24 content padding, and a 1 unit divider.
+       The window is borderless and transparent, so the template keeps the window parts that
+       Avalonia expects (transparency fallback, visual layer manager, content presenter) and
+       centres the card inside them. -->
+  <ControlTheme x:Key="{x:Type xr:XrDialog}" TargetType="xr:XrDialog">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyMediumFontSize}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel>
+          <Border Name="PART_TransparencyFallback" IsHitTestVisible="False" />
+          <VisualLayerManager Name="PART_VisualLayerManager">
+            <Panel Background="{TemplateBinding Background}">
+              <Border Name="Card" MinWidth="312" MaxWidth="560" Margin="16" CornerRadius="28"
+                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                      Background="{DynamicResource MaterialSurfaceContainerHighBrush}"
+                      BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}">
+                <StackPanel>
+                  <StackPanel Orientation="Vertical" Spacing="16" Margin="24,24,24,0">
+                    <Border Name="IconRow" IsVisible="False">
+                      <Path Name="DialogIcon" Data="{TemplateBinding ContentIcon}"
+                            Fill="{DynamicResource MaterialSecondaryBrush}"
+                            Width="24" Height="24" Stretch="Uniform"
+                            HorizontalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="{TemplateBinding Headline}"
+                               Foreground="{TemplateBinding Foreground}"
+                               FontSize="{DynamicResource MaterialHeadlineSmallFontSize}"
+                               LineHeight="{DynamicResource MaterialHeadlineSmallLineHeight}"
+                               FontWeight="{DynamicResource MaterialHeadlineSmallFontWeight}"
+                               TextWrapping="Wrap"
+                               AutomationProperties.HeadingLevel="1" />
+                    <TextBlock Text="{TemplateBinding SupportingText}"
+                               Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                               FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                               LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                               TextWrapping="Wrap" />
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      IsVisible="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                  </StackPanel>
+                  <Border Height="1" Background="{DynamicResource MaterialOutlineVariantBrush}"
+                          IsVisible="{TemplateBinding ShowDivider}" />
+                  <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="24,24,24,8">
+                    <Button Name="PART_Secondary" Theme="{StaticResource XrDialogActionTheme}"
+                            Content="{TemplateBinding SecondaryActionText}"
+                            Command="{TemplateBinding SecondaryCommand}"
+                            CommandParameter="{TemplateBinding SecondaryCommandParameter}"
+                            IsVisible="{TemplateBinding ShowSecondaryAction}" />
+                    <Button Name="PART_Primary" Theme="{StaticResource XrDialogActionTheme}"
+                            Content="{TemplateBinding PrimaryActionText}"
+                            Command="{TemplateBinding PrimaryCommand}"
+                            CommandParameter="{TemplateBinding PrimaryCommandParameter}"
+                            IsDefault="True" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </Panel>
+          </VisualLayerManager>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:elevation-highest /template/ Border#Card">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+    </Style>
+    <Style Selector="^:with-icon /template/ Border#IconRow">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

@@ -1,0 +1,185 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls">
+  <!-- Material avatar, media thumbnail and brand-mark family.
+       Geometry, sizes and color roles come from the assigned source packages:
+         Generic avatar (local-001642, 3 variants: Style=Avatar/Monogram/Check),
+         3D Avatars / 1..30 (local-000001..local-000030, one image each),
+         .Building Blocks/Monogram (local-000379),
+         .Building Blocks/image-Thumbnail (local-000296, 56 x 56),
+         .Building Blocks/video-Thumbnail (local-000751, 114 x 64),
+         .Building Blocks/Colourful logo (local-000217, 18 x 18),
+         .Building Blocks/Favicon (local-000257, 18 x 18).
+       The source draws every avatar part in a 40 x 40 box and the brand marks in an 18 x 18 box;
+       the templates keep those boxes and scale them, so one artwork serves every size.
+       Source fills are M3/sys/light/primary-container (#EADDFF) and
+       on-primary-container (#4F378A); the theme maps them to the live color roles. -->
+
+  <ControlTheme x:Key="{x:Type controls:MaterialAvatar}" TargetType="controls:MaterialAvatar">
+    <Setter Property="Background" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryContainerBrush}" />
+    <!-- The source avatar is a full circle (corner radius 100 on a 40 dp box). -->
+    <Setter Property="CornerRadius" Value="9999" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="StateLayerBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FocusRingBrush" Value="{DynamicResource MaterialSecondaryBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid>
+          <Border Name="PART_Container"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  ClipToBounds="True">
+            <Viewbox Stretch="Uniform">
+              <Panel Width="40" Height="40">
+                <Canvas Width="40" Height="40">
+                  <!-- Offsets are the source child positions inside the 40 x 40 component:
+                       the placeholder glyph is 28.184 x 25.632 at (5.908, 10); the tick is
+                       17.743 x 13.526 at (11.44, 13.639). -->
+                  <Path Name="PART_Placeholder"
+                        Data="{x:Static controls:MaterialAvatarGeometries.Placeholder}"
+                        Fill="{TemplateBinding Foreground}"
+                        Canvas.Left="5.908" Canvas.Top="10" />
+                  <Path Name="PART_Check"
+                        Data="{x:Static controls:MaterialAvatarGeometries.Check}"
+                        Fill="{TemplateBinding Foreground}"
+                        Canvas.Left="11.4396" Canvas.Top="13.6385" />
+                </Canvas>
+                <Image Name="PART_Image" Source="{TemplateBinding Source}" Stretch="UniformToFill" />
+                <!-- Source text: Roboto Medium 16, line height 24, tracking 0.1, centered in 40 dp. -->
+                <TextBlock Name="PART_Letter"
+                           Text="{TemplateBinding Letter}"
+                           FontFamily="{TemplateBinding FontFamily}"
+                           FontSize="16" FontWeight="Medium" LetterSpacing="0.1" LineHeight="24"
+                           Foreground="{TemplateBinding Foreground}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Panel>
+            </Viewbox>
+          </Border>
+          <Border Name="PART_StateLayer" Background="{TemplateBinding StateLayerBrush}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <Border Name="PART_FocusRing" BorderBrush="{TemplateBinding FocusRingBrush}" BorderThickness="2"
+                  CornerRadius="{TemplateBinding FocusRingCornerRadius}" Margin="-2"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- Only the part selected by the Kind pseudo-class is laid out; an Image avatar without a
+         Source therefore shows the empty container rather than an unrelated glyph. -->
+    <Style Selector="^ /template/ Path#PART_Placeholder">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^ /template/ Path#PART_Check">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^ /template/ Image#PART_Image">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^ /template/ TextBlock#PART_Letter">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:placeholder /template/ Path#PART_Placeholder">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:check /template/ Path#PART_Check">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:image /template/ Image#PART_Image">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:monogram /template/ TextBlock#PART_Letter">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+
+    <Style Selector="^ /template/ Border#PART_StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:interactive:pointerover:not(:disabled) /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:interactive:pressed:not(:disabled) /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:interactive:focus-visible /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:interactive:focus-visible /template/ Border#PART_FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_Container">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialThumbnail}" TargetType="controls:MaterialThumbnail">
+    <!-- The source image fill sits on #ECE6F0, the surface-container-highest role. -->
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="StateLayerBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FocusRingBrush" Value="{DynamicResource MaterialSecondaryBrush}" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid>
+          <Border Name="PART_Container" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
+            <Image Name="PART_Image" Source="{TemplateBinding DisplayedSource}"
+                   Stretch="{TemplateBinding Stretch}" />
+          </Border>
+          <Border Name="PART_StateLayer" Background="{TemplateBinding StateLayerBrush}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <Border Name="PART_FocusRing" BorderBrush="{TemplateBinding FocusRingBrush}" BorderThickness="2"
+                  CornerRadius="{TemplateBinding FocusRingCornerRadius}" Margin="-2"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+
+    <Style Selector="^ /template/ Border#PART_StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:interactive:pointerover:not(:disabled) /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:interactive:pressed:not(:disabled) /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:interactive:focus-visible /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:interactive:focus-visible /template/ Border#PART_FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_Container">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialBrandMark}" TargetType="controls:MaterialBrandMark">
+    <Setter Property="Size" Value="18" />
+    <!-- The favicon disc uses the on-surface role, #1D1B20 in the source. -->
+    <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <!-- The mark paints itself in Render, so the template only supplies the layout root. -->
+    <Setter Property="Template"><ControlTemplate><Panel /></ControlTemplate></Setter>
+  </ControlTheme>
+</ResourceDictionary>

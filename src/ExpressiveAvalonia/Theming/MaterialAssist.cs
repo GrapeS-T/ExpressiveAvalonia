@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Media;
 using Avalonia.VisualTree;
 
 namespace ExpressiveAvalonia.Theming;
@@ -20,6 +21,12 @@ public enum MaterialControlSize { ExtraSmall, Small, Medium, Large, ExtraLarge }
 
 /// <summary>The resting silhouette of a Material Expressive button.</summary>
 public enum MaterialButtonShape { Round, Square }
+
+/// <summary>
+/// The three icon-button widths. Every size has a narrow, default and wide container;
+/// the width only changes the horizontal container, never the icon size or the touch target.
+/// </summary>
+public enum MaterialIconButtonWidth { Narrow, Default, Wide }
 
 /// <summary>Material presentation options for standard Avalonia controls.</summary>
 public sealed class MaterialAssist : AvaloniaObject
@@ -41,6 +48,42 @@ public sealed class MaterialAssist : AvaloniaObject
     public static readonly AttachedProperty<bool> IsIconButtonProperty =
         AvaloniaProperty.RegisterAttached<MaterialAssist, Control, bool>("IsIconButton");
 
+    public static readonly AttachedProperty<MaterialIconButtonWidth> IconButtonWidthProperty =
+        AvaloniaProperty.RegisterAttached<MaterialAssist, Control, MaterialIconButtonWidth>(
+            "IconButtonWidth", MaterialIconButtonWidth.Default);
+
+    /// <summary>
+    /// An optional icon rendered before <see cref="ContentControl.Content"/>.
+    /// </summary>
+    /// <remarks>
+    /// The value is any content the presenter can render; a <see cref="PathIcon"/> or another
+    /// <see cref="Control"/> is the usual choice. Icon buttons normally pass the glyph as
+    /// Content instead, because their Content is already the glyph.
+    /// </remarks>
+    public static readonly AttachedProperty<object?> IconProperty =
+        AvaloniaProperty.RegisterAttached<MaterialAssist, Control, object?>("Icon");
+
+    /// <summary>
+    /// The icon a <see cref="ToggleButton"/> shows while it is checked. When it is unset the
+    /// control keeps showing <see cref="IconProperty"/>.
+    /// </summary>
+    public static readonly AttachedProperty<object?> SelectedIconProperty =
+        AvaloniaProperty.RegisterAttached<MaterialAssist, Control, object?>("SelectedIcon");
+
+    /// <summary>Whether the optional <see cref="IconProperty"/> participates in the layout.</summary>
+    public static readonly AttachedProperty<bool> ShowIconProperty =
+        AvaloniaProperty.RegisterAttached<MaterialAssist, Control, bool>("ShowIcon", true);
+
+    // Template plumbing: the presenter reads one icon and one visibility flag, so the
+    // checked/unchecked swap never needs a style to win over a template binding.
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<object?> DisplayedIconProperty =
+        AvaloniaProperty.RegisterAttached<MaterialAssist, Control, object?>("DisplayedIcon");
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<bool> IsIconVisibleProperty =
+        AvaloniaProperty.RegisterAttached<MaterialAssist, Control, bool>("IsIconVisible");
+
     // Reserves the 48-DIP interactive target without enlarging the visual container.
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<Thickness> ContainerInsetProperty =
@@ -54,6 +97,21 @@ public sealed class MaterialAssist : AvaloniaObject
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<CornerRadius> AnimatedCornerRadiusProperty =
         AvaloniaProperty.RegisterAttached<MaterialAssist, Button, CornerRadius>("AnimatedCornerRadius");
+
+    // The focus indicator sits two DIPs outside the container and follows its animated
+    // silhouette, so the ring keeps its 3 DIP stroke visually parallel to the surface.
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<CornerRadius> FocusRingCornerRadiusProperty =
+        AvaloniaProperty.RegisterAttached<MaterialAssist, Button, CornerRadius>("FocusRingCornerRadius");
+
+    // The pressed-ripple box per size, straight from the source "Ripple" vector bounds.
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<double> RippleWidthProperty =
+        AvaloniaProperty.RegisterAttached<MaterialAssist, Button, double>("RippleWidth", 84d);
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<double> RippleHeightProperty =
+        AvaloniaProperty.RegisterAttached<MaterialAssist, Button, double>("RippleHeight", 28d);
 
     private static readonly AttachedProperty<ButtonShapeAnimation?> ShapeAnimationProperty =
         AvaloniaProperty.RegisterAttached<MaterialAssist, Button, ButtonShapeAnimation?>("ShapeAnimation");
@@ -82,6 +140,30 @@ public sealed class MaterialAssist : AvaloniaObject
             if (button.GetValue(ShapeAnimationProperty) is null)
                 button.SetCurrentValue(AnimatedCornerRadiusProperty, button.CornerRadius);
         });
+
+        // The ring is drawn two DIPs outside the container, so its radius trails the
+        // animated silhouette by exactly that offset.
+        AnimatedCornerRadiusProperty.Changed.AddClassHandler<Button>((button, args) =>
+        {
+            var radius = args.NewValue is CornerRadius value ? value : default;
+            button.SetCurrentValue(FocusRingCornerRadiusProperty, new CornerRadius(
+                radius.TopLeft + 2, radius.TopRight + 2, radius.BottomRight + 2, radius.BottomLeft + 2));
+        });
+
+        // Icon selection is resolved on the control instead of in the template so a checked
+        // toggle can swap glyphs without a style fighting a template binding.
+        IconProperty.Changed.AddClassHandler<Control>((control, _) => UpdateIcon(control));
+        SelectedIconProperty.Changed.AddClassHandler<Control>((control, _) => UpdateIcon(control));
+        ShowIconProperty.Changed.AddClassHandler<Control>((control, _) => UpdateIcon(control));
+        ToggleButton.IsCheckedProperty.Changed.AddClassHandler<ToggleButton>((toggle, _) => UpdateIcon(toggle));
+    }
+
+    private static void UpdateIcon(Control control)
+    {
+        var selected = control is ToggleButton { IsChecked: true } ? GetSelectedIcon(control) : null;
+        var icon = selected ?? GetIcon(control);
+        control.SetCurrentValue(DisplayedIconProperty, icon);
+        control.SetCurrentValue(IsIconVisibleProperty, GetShowIcon(control) && icon is not null);
     }
 
     public static MaterialButtonVariant GetButtonVariant(Control control) => control.GetValue(ButtonVariantProperty);
@@ -92,6 +174,35 @@ public sealed class MaterialAssist : AvaloniaObject
     public static void SetButtonShape(Control control, MaterialButtonShape value) => control.SetValue(ButtonShapeProperty, value);
     public static bool GetIsIconButton(Control control) => control.GetValue(IsIconButtonProperty);
     public static void SetIsIconButton(Control control, bool value) => control.SetValue(IsIconButtonProperty, value);
+    public static MaterialIconButtonWidth GetIconButtonWidth(Control control) => control.GetValue(IconButtonWidthProperty);
+    public static void SetIconButtonWidth(Control control, MaterialIconButtonWidth value) => control.SetValue(IconButtonWidthProperty, value);
+    public static object? GetIcon(Control control) => control.GetValue(IconProperty);
+    public static void SetIcon(Control control, object? value) => control.SetValue(IconProperty, value);
+    public static object? GetSelectedIcon(Control control) => control.GetValue(SelectedIconProperty);
+    public static void SetSelectedIcon(Control control, object? value) => control.SetValue(SelectedIconProperty, value);
+    public static bool GetShowIcon(Control control) => control.GetValue(ShowIconProperty);
+    public static void SetShowIcon(Control control, bool value) => control.SetValue(ShowIconProperty, value);
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static object? GetDisplayedIcon(Control control) => control.GetValue(DisplayedIconProperty);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void SetDisplayedIcon(Control control, object? value) => control.SetValue(DisplayedIconProperty, value);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static bool GetIsIconVisible(Control control) => control.GetValue(IsIconVisibleProperty);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void SetIsIconVisible(Control control, bool value) => control.SetValue(IsIconVisibleProperty, value);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static CornerRadius GetFocusRingCornerRadius(Button button) => button.GetValue(FocusRingCornerRadiusProperty);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void SetFocusRingCornerRadius(Button button, CornerRadius value) => button.SetValue(FocusRingCornerRadiusProperty, value);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static double GetRippleWidth(Button button) => button.GetValue(RippleWidthProperty);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void SetRippleWidth(Button button, double value) => button.SetValue(RippleWidthProperty, value);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static double GetRippleHeight(Button button) => button.GetValue(RippleHeightProperty);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void SetRippleHeight(Button button, double value) => button.SetValue(RippleHeightProperty, value);
 
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static Thickness GetContainerInset(Button button) => button.GetValue(ContainerInsetProperty);
@@ -161,12 +272,12 @@ public sealed class MaterialAssist : AvaloniaObject
                     MaterialControlSize.Medium => 12d,
                     _ => 16d,
                 };
-            // Only icon buttons swap their silhouette when selected: AndroidX
-            // XSmall/Small/Medium/Large/XLargeIconButtonTokens define
+            // Toggle buttons swap their silhouette when selected: AndroidX
             // SelectedContainerShapeRound = CornerMedium|Large|ExtraLarge and
-            // SelectedContainerShapeSquare = CornerFull, while the labeled *ButtonTokens
-            // repeat the unselected shapes. `square` above is SelectedContainerShapeRound.
-            else if (GetIsIconButton(_button) && _button is ToggleButton { IsChecked: true })
+            // SelectedContainerShapeSquare = CornerFull for labeled and icon toggles alike,
+            // while the unselected shapes are Round = full and Square = CornerMedium|... .
+            // `square` above is SelectedContainerShapeRound.
+            else if (_button is ToggleButton { IsChecked: true })
                 targetRadius = GetButtonShape(_button) == MaterialButtonShape.Round ? square : limit;
             var target = Math.Min(targetRadius, limit) - Math.Min(_button.CornerRadius.TopLeft, limit);
             if (!animate || !_button.IsAttachedToVisualTree() || MaterialMotion.GetIsReduced(_button))
@@ -205,6 +316,144 @@ public sealed class MaterialAssist : AvaloniaObject
             _button.PropertyChanged -= OnPropertyChanged;
             _button.AttachedToVisualTree -= OnAttached;
             _button.DetachedFromVisualTree -= OnDetached;
+        }
+    }
+}
+
+/// <summary>
+/// Paints the source pressed-ripple vector: the normalized Material ripple shape, scaled to the
+/// token ripple box, anchored to the container's right and bottom edges, and clipped by the
+/// button silhouette.
+/// </summary>
+/// <remarks>
+/// The built-in shape is the button-family source vector, normalized: every Button, ToggleButton
+/// and IconButton variant in the source scales this one path to its box (labelled Small 84x28,
+/// XLarge 248x82, icon Small 38x28, XLarge 118x82, ...), so the same normalized geometry
+/// reproduces all of them, including the square bottom-right corner the button source has.
+/// Other source families can have a slightly different outline in that corner (the checkbox
+/// ripple rounds it); pass <see cref="Data"/> to use their exact vector instead.
+/// The host control clips instead of squeezing the shape, so a Narrow icon button lets the ripple
+/// overflow and be cut by the rounded container exactly as the Figma frame does with
+/// <c>clipsContent</c>.
+/// </remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
+{
+    // Source ripple normalized to its own bounding box (x / 84, y / 28 of the Small vector).
+    private static readonly Geometry Shape = StreamGeometry.Parse(
+        "M1,0.111568 L1,1 L0,1 C0,0.447714 0.306768,0 0.685186,0 C0.798683,0 0.905736,0.0402754 1,0.111568 Z");
+
+    /// <summary>
+    /// A purely decorative layer never takes pointer input, so it can never block the interactive
+    /// control it is layered on, whatever the host's z-order or Opacity.
+    /// </summary>
+    bool Avalonia.Rendering.ICustomHitTest.HitTest(Point point) => false;
+
+    public static readonly StyledProperty<IBrush?> FillProperty =
+        AvaloniaProperty.Register<MaterialRipple, IBrush?>(nameof(Fill));
+
+    public static readonly StyledProperty<CornerRadius> CornerRadiusProperty =
+        AvaloniaProperty.Register<MaterialRipple, CornerRadius>(nameof(CornerRadius));
+
+    public static readonly StyledProperty<double> RippleWidthProperty =
+        AvaloniaProperty.Register<MaterialRipple, double>(nameof(RippleWidth), 84d);
+
+    public static readonly StyledProperty<double> RippleHeightProperty =
+        AvaloniaProperty.Register<MaterialRipple, double>(nameof(RippleHeight), 28d);
+
+    /// <summary>
+    /// An optional ripple outline in normalized (0..1) coordinates that replaces the built-in
+    /// source vector. Families whose source Ripple differs in a corner can pass their own path.
+    /// </summary>
+    public static readonly StyledProperty<Geometry?> DataProperty =
+        AvaloniaProperty.Register<MaterialRipple, Geometry?>(nameof(Data));
+
+    static MaterialRipple()
+    {
+        AffectsRender<MaterialRipple>(
+            FillProperty, CornerRadiusProperty, RippleWidthProperty, RippleHeightProperty, DataProperty);
+    }
+
+    /// <summary>Gets or sets the ripple brush; the theme passes the button foreground.</summary>
+    public IBrush? Fill
+    {
+        get => GetValue(FillProperty);
+        set => SetValue(FillProperty, value);
+    }
+
+    /// <summary>Gets or sets the silhouette the ripple is clipped by.</summary>
+    public CornerRadius CornerRadius
+    {
+        get => GetValue(CornerRadiusProperty);
+        set => SetValue(CornerRadiusProperty, value);
+    }
+
+    /// <summary>Gets or sets the ripple box width from the source vector.</summary>
+    public double RippleWidth
+    {
+        get => GetValue(RippleWidthProperty);
+        set => SetValue(RippleWidthProperty, value);
+    }
+
+    /// <summary>Gets or sets the ripple box height from the source vector.</summary>
+    public double RippleHeight
+    {
+        get => GetValue(RippleHeightProperty);
+        set => SetValue(RippleHeightProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a normalized (0..1) ripple outline. When null the built-in source vector is
+    /// used; see <see cref="Shape"/>.
+    /// </summary>
+    public Geometry? Data
+    {
+        get => GetValue(DataProperty);
+        set => SetValue(DataProperty, value);
+    }
+
+    private Size _arrangedSize;
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        var size = base.ArrangeOverride(finalSize);
+
+        // The ripple is drawn from Bounds, so a container resize has to re-record the drawing.
+        if (!_arrangedSize.Equals(size))
+        {
+            _arrangedSize = size;
+            InvalidateVisual();
+        }
+
+        return size;
+    }
+
+    public override void Render(DrawingContext context)
+    {
+        var fill = Fill;
+        var width = RippleWidth;
+        var height = RippleHeight;
+        var size = Bounds.Size;
+        var geometry = Data ?? Shape;
+
+        if (fill is null || !(width > 0) || !(height > 0) || !(size.Width > 0) || !(size.Height > 0))
+            return;
+
+        var limit = Math.Min(size.Width, size.Height) / 2;
+        double Clamp(double value) => double.IsNaN(value) || value < 0 ? 0 : Math.Min(value, limit);
+        var corners = CornerRadius;
+        var radii = new CornerRadius(
+            Clamp(corners.TopLeft), Clamp(corners.TopRight),
+            Clamp(corners.BottomRight), Clamp(corners.BottomLeft));
+
+        // Right- and bottom-anchored, as in every source variant; overflow is clipped.
+        var ripple = new Rect(size.Width - width, size.Height - height, width, height);
+
+        using (context.PushClip(new RoundedRect(new Rect(size), radii)))
+        using (context.PushTransform(Matrix.CreateTranslation(ripple.X, ripple.Y)))
+        using (context.PushTransform(Matrix.CreateScale(ripple.Width, ripple.Height)))
+        {
+            context.DrawGeometry(fill, null, geometry);
         }
     }
 }

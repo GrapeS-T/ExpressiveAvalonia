@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 
 namespace ExpressiveAvalonia.Theming;
@@ -20,6 +21,15 @@ public enum MaterialTextFieldVariant
 /// Material text field options for the native <see cref="TextBox"/>. Editing, undo,
 /// selection, input methods, clipboard commands and password masking remain native.
 /// </summary>
+/// <remarks>
+/// The attached options cover the source family's axes: <see cref="VariantProperty"/> is the
+/// Filled/Outlined style, <see cref="LabelProperty"/> plus <see cref="SupportingTextProperty"/>
+/// cover the label/placeholder/input-text configurations, <see cref="LeadingContentProperty"/>
+/// and <see cref="TrailingContentProperty"/> are the leading/trailing icon slots, and
+/// <see cref="ShowPasswordRevealProperty"/> and <see cref="ShowClearButtonProperty"/> add the
+/// trailing actions. Enabled, hovered, focused, error and disabled states come from the native
+/// control's own pseudo-classes.
+/// </remarks>
 public sealed class MaterialTextField : AvaloniaObject
 {
     public static readonly AttachedProperty<MaterialTextFieldVariant> VariantProperty =
@@ -38,6 +48,9 @@ public sealed class MaterialTextField : AvaloniaObject
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, object?>("TrailingContent");
     public static readonly AttachedProperty<bool> ShowPasswordRevealProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, bool>("ShowPasswordReveal");
+    /// <summary>Shows a trailing clear action while the field has text. Escape also clears.</summary>
+    public static readonly AttachedProperty<bool> ShowClearButtonProperty =
+        AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, bool>("ShowClearButton");
 
     // Theme state is separate from the public options so it never changes native TextBox properties.
     // These members are template plumbing, not consumer API.
@@ -60,8 +73,15 @@ public sealed class MaterialTextField : AvaloniaObject
     public static readonly AttachedProperty<bool> IsRevealAvailableProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, bool>("IsRevealAvailable");
     [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<bool> IsClearAvailableProperty =
+        AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, bool>("IsClearAvailable");
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<string?> ValidationMessageProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, string?>("ValidationMessage");
+    /// <summary>Validation replaces the supporting text in the same slot, as Material specifies.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<string?> EffectiveSupportingTextProperty =
+        AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, string?>("EffectiveSupportingText");
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<string?> AccessibleDescriptionProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, string?>("AccessibleDescription");
@@ -110,6 +130,8 @@ public sealed class MaterialTextField : AvaloniaObject
     public static void SetTrailingContent(TextBox box, object? value) => box.SetValue(TrailingContentProperty, value);
     public static bool GetShowPasswordReveal(TextBox box) => box.GetValue(ShowPasswordRevealProperty);
     public static void SetShowPasswordReveal(TextBox box, bool value) => box.SetValue(ShowPasswordRevealProperty, value);
+    public static bool GetShowClearButton(TextBox box) => box.GetValue(ShowClearButtonProperty);
+    public static void SetShowClearButton(TextBox box, bool value) => box.SetValue(ShowClearButtonProperty, value);
     public static bool GetIsEnabled(TextBox box) => box.GetValue(IsEnabledProperty);
     public static void SetIsEnabled(TextBox box, bool value) => box.SetValue(IsEnabledProperty, value);
     public static string? GetEffectiveLabel(TextBox box) => box.GetValue(EffectiveLabelProperty);
@@ -117,7 +139,9 @@ public sealed class MaterialTextField : AvaloniaObject
     public static bool GetIsLabelFloating(TextBox box) => box.GetValue(IsLabelFloatingProperty);
     public static bool GetIsPlaceholderAllowed(TextBox box) => box.GetValue(IsPlaceholderAllowedProperty);
     public static bool GetIsRevealAvailable(TextBox box) => box.GetValue(IsRevealAvailableProperty);
+    public static bool GetIsClearAvailable(TextBox box) => box.GetValue(IsClearAvailableProperty);
     public static string? GetValidationMessage(TextBox box) => box.GetValue(ValidationMessageProperty);
+    public static string? GetEffectiveSupportingText(TextBox box) => box.GetValue(EffectiveSupportingTextProperty);
     public static string? GetAccessibleDescription(TextBox box) => box.GetValue(AccessibleDescriptionProperty);
     public static Thickness GetInputMargin(TextBox box) => box.GetValue(InputMarginProperty);
     public static Thickness GetPrefixMargin(TextBox box) => box.GetValue(PrefixMarginProperty);
@@ -129,6 +153,7 @@ public sealed class MaterialTextField : AvaloniaObject
         private TextPresenter? _presenter;
         private Border? _outline;
         private Border? _label;
+        private Button? _clear;
         private Rect? _cutout;
         private Size _outlineSize;
 
@@ -138,8 +163,10 @@ public sealed class MaterialTextField : AvaloniaObject
             box.PropertyChanged += OnPropertyChanged;
             box.TemplateApplied += OnTemplateApplied;
             box.DetachedFromVisualTree += OnDetached;
+            box.KeyDown += OnKeyDown;
             UpdateLabel();
             UpdateReveal();
+            UpdateClear();
             UpdateValidation();
             UpdateMargins();
         }
@@ -149,11 +176,14 @@ public sealed class MaterialTextField : AvaloniaObject
             DetachParts();
             _outline = args.NameScope.Find<Border>("PART_BorderElement");
             _label = args.NameScope.Find<Border>("LabelContainer");
+            _clear = args.NameScope.Find<Button>("ClearButton");
             _cutout = null;
             if (_outline is not null)
                 _outline.PropertyChanged += OnPartChanged;
             if (_label is not null)
                 _label.PropertyChanged += OnPartChanged;
+            if (_clear is not null)
+                _clear.Click += OnClearClick;
             SetPresenter(args.NameScope.Find<TextPresenter>("PART_TextPresenter"));
             UpdateCutout();
         }
@@ -176,8 +206,11 @@ public sealed class MaterialTextField : AvaloniaObject
             }
             if (_label is not null)
                 _label.PropertyChanged -= OnPartChanged;
+            if (_clear is not null)
+                _clear.Click -= OnClearClick;
             _outline = null;
             _label = null;
+            _clear = null;
         }
 
         private void UpdateCutout()
@@ -213,8 +246,10 @@ public sealed class MaterialTextField : AvaloniaObject
             var showAffixes = !GetHasLabel(_box) || GetIsLabelFloating(_box);
             var hasPrefix = showAffixes && !string.IsNullOrEmpty(GetPrefix(_box));
             var hasSuffix = showAffixes && !string.IsNullOrEmpty(GetSuffix(_box));
-            var right = GetIsRevealAvailable(_box) && GetTrailingContent(_box) is null &&
-                _box.InnerRightContent is null ? Math.Max(0, padding.Right - 12) : padding.Right;
+            var hasAction = (GetShowClearButton(_box) && !_box.IsReadOnly) ||
+                (GetShowPasswordReveal(_box) && _box.PasswordChar != '\0' && !_box.IsReadOnly && !_box.AcceptsReturn);
+            var actionOnly = GetTrailingContent(_box) is null && _box.InnerRightContent is null;
+            var right = hasAction && actionOnly ? Math.Max(0, padding.Right - 12) : padding.Right;
             // A 24dp icon with 12dp outer space occupies 36dp. Retaining 16dp inner
             // padding places the text at 52dp, matching Compose's 48dp icon slot + 4dp.
             _box.SetCurrentValue(InputMarginProperty,
@@ -254,12 +289,15 @@ public sealed class MaterialTextField : AvaloniaObject
             var property = args.Property;
             if (property == TextBox.PaddingProperty || property == PrefixProperty || property == SuffixProperty ||
                 property == HasLabelProperty || property == IsLabelFloatingProperty ||
-                property == IsRevealAvailableProperty || property == TrailingContentProperty ||
-                property == TextBox.InnerRightContentProperty)
+                property == ShowPasswordRevealProperty || property == ShowClearButtonProperty ||
+                property == TextBox.PasswordCharProperty || property == TextBox.IsReadOnlyProperty ||
+                property == TextBox.AcceptsReturnProperty ||
+                property == TrailingContentProperty || property == TextBox.InnerRightContentProperty)
                 UpdateMargins();
 
             if (property == LabelProperty || property == TextBox.PlaceholderTextProperty ||
                 property == TextBox.UseFloatingPlaceholderProperty || property == TextBox.TextProperty ||
+                property == TextBox.AcceptsReturnProperty ||
                 property == InputElement.IsKeyboardFocusWithinProperty)
                 UpdateLabel();
 
@@ -272,6 +310,10 @@ public sealed class MaterialTextField : AvaloniaObject
                     _box.SetCurrentValue(TextBox.RevealPasswordProperty, false);
             }
 
+            if (property == ShowClearButtonProperty || property == TextBox.TextProperty ||
+                property == TextBox.IsReadOnlyProperty || property == InputElement.IsEffectivelyEnabledProperty)
+                UpdateClear();
+
             if (property == InputElement.IsKeyboardFocusWithinProperty && !_box.IsKeyboardFocusWithin)
                 ConcealPassword();
             if (property == DataValidationErrors.ErrorsProperty || property == SupportingTextProperty)
@@ -280,6 +322,31 @@ public sealed class MaterialTextField : AvaloniaObject
             // Variant and label visibility change which part of the outline is cut out.
             if (property == VariantProperty || property == HasLabelProperty || property == IsLabelFloatingProperty)
                 UpdateCutout();
+        }
+
+        private void OnKeyDown(object? sender, KeyEventArgs args)
+        {
+            if (args.Key == Key.Escape && GetIsClearAvailable(_box))
+            {
+                ClearText();
+                args.Handled = true;
+            }
+        }
+
+        private void OnClearClick(object? sender, RoutedEventArgs args)
+        {
+            ClearText();
+            _box.Focus();
+            args.Handled = true;
+        }
+
+        private void ClearText()
+        {
+            // SetCurrentValue keeps a two-way Text binding in sync instead of shadowing it.
+            _box.SetCurrentValue(TextBox.TextProperty, string.Empty);
+            _box.CaretIndex = 0;
+            _box.SelectionStart = 0;
+            _box.SelectionEnd = 0;
         }
 
         private void UpdateLabel()
@@ -291,7 +358,7 @@ public sealed class MaterialTextField : AvaloniaObject
             _box.SetCurrentValue(EffectiveLabelProperty, label);
             _box.SetCurrentValue(HasLabelProperty, hasLabel);
             _box.SetCurrentValue(IsLabelFloatingProperty, hasLabel &&
-                (_box.IsKeyboardFocusWithin || !string.IsNullOrEmpty(_box.Text) ||
+                (_box.AcceptsReturn || _box.IsKeyboardFocusWithin || !string.IsNullOrEmpty(_box.Text) ||
                  !string.IsNullOrEmpty(_presenter?.PreeditText)));
             _box.SetCurrentValue(IsPlaceholderAllowedProperty, !hasLabel ||
                 (!string.IsNullOrEmpty(GetLabel(_box)) && _box.IsKeyboardFocusWithin));
@@ -305,6 +372,13 @@ public sealed class MaterialTextField : AvaloniaObject
             _box.SetCurrentValue(IsRevealAvailableProperty, available);
             if (!available)
                 ConcealPassword();
+        }
+
+        private void UpdateClear()
+        {
+            var available = GetShowClearButton(_box) && !_box.IsReadOnly && _box.IsEffectivelyEnabled &&
+                !string.IsNullOrEmpty(_box.Text);
+            _box.SetCurrentValue(IsClearAvailableProperty, available);
         }
 
         private void ConcealPassword()
@@ -330,8 +404,11 @@ public sealed class MaterialTextField : AvaloniaObject
                 }
             }
             var validation = builder.Length == 0 ? null : builder.ToString();
-            _box.SetCurrentValue(ValidationMessageProperty, validation);
             var support = GetSupportingText(_box);
+            _box.SetCurrentValue(ValidationMessageProperty, validation);
+            // Material shows the error in the supporting-text slot instead of stacking two messages.
+            _box.SetCurrentValue(EffectiveSupportingTextProperty,
+                string.IsNullOrEmpty(validation) ? support : validation);
             _box.SetCurrentValue(AccessibleDescriptionProperty,
                 string.IsNullOrEmpty(validation) ? support :
                 string.IsNullOrEmpty(support) ? validation : support + Environment.NewLine + validation);
@@ -342,6 +419,7 @@ public sealed class MaterialTextField : AvaloniaObject
             _box.PropertyChanged -= OnPropertyChanged;
             _box.TemplateApplied -= OnTemplateApplied;
             _box.DetachedFromVisualTree -= OnDetached;
+            _box.KeyDown -= OnKeyDown;
             DetachParts();
             SetPresenter(null);
             ConcealPassword();

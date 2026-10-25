@@ -1,0 +1,382 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:md="using:ExpressiveAvalonia.Theming">
+  <!-- Material 3 tab family. Geometry and color roles follow the assigned source packages:
+       Tabs (local-005103, 10 variants), Primary tabs/Icon and label (local-004416, 8),
+       Primary tabs/Icon only (local-004425, 8), Primary tabs/Label only (local-004434, 8),
+       Secondary tabs/Icon and label (local-004547, 8) and Secondary tabs/Label only
+       (local-004556, 8).
+
+       Source anatomy: 48px header for label-only and icon-only, 64px for primary
+       icon-and-label, 16px horizontal padding, 24px icon, 2px icon/label gap, 8px
+       icon/label gap in the horizontal secondary header, title-small 14/20 medium label,
+       primary indicator 20x3 centered at the bottom, secondary indicator full width x 2,
+       one-pixel outline-variant divider under the strip, 6px error dot badge, and a
+       3px secondary focus ring with a 12px radius. Scrollable headers use 90px tabs and
+       clip/scroll instead of sharing the width. State layers: on-surface 8% hover and
+       pressed, 10% focus; selected primary tabs use the primary role. -->
+  <ControlTheme x:Key="DesignTabItem" TargetType="TabItem">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="Padding" Value="16,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialTitleSmallFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleSmallFontWeight}" />
+    <Setter Property="TextElement.LetterSpacing" Value="{DynamicResource MaterialTitleSmallLetterSpacing}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid Background="{TemplateBinding Background}">
+          <Border Name="StateLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
+                  Opacity="0" IsHitTestVisible="False" />
+          <Grid Name="HeaderArea" Margin="{TemplateBinding Padding}">
+            <StackPanel Name="HeaderContent" Orientation="Horizontal" Spacing="8"
+                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                        VerticalAlignment="Stretch">
+              <Grid Name="ContentColumn" ColumnDefinitions="Auto" VerticalAlignment="Stretch">
+                <StackPanel Grid.Column="0" Name="LabelGroup" Orientation="Horizontal" Spacing="8"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                  <Grid Name="IconHost" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        IsVisible="False">
+                    <ContentPresenter Name="IconPresenter" Content="{TemplateBinding Icon}"
+                                      ContentTemplate="{TemplateBinding IconTemplate}"
+                                      Width="24" Height="24"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <!-- The source places the badge over the icon's top-right corner when the
+                         header carries an icon; that badge is the small (dot) variant. -->
+                    <Border Name="IconBadge" Width="6" Height="6" CornerRadius="3"
+                            Background="{DynamicResource MaterialErrorBrush}"
+                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                            IsVisible="False" IsHitTestVisible="False" />
+                  </Grid>
+                  <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
+                                    ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                    RecognizesAccessKey="True" TextBlock.LineHeight="20"
+                                    IsVisible="False"
+                                    HorizontalContentAlignment="Center" VerticalAlignment="Center" />
+                </StackPanel>
+                <!-- Primary indicator: spans the header content minus the source's 2px inset. -->
+                <Border Grid.Column="0" Name="Indicator" Height="3" Margin="2,0" CornerRadius="0"
+                        Background="{DynamicResource MaterialPrimaryBrush}"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
+                        IsVisible="False" IsHitTestVisible="False" />
+              </Grid>
+              <Border Name="TrailingBadge" Width="6" Height="6" CornerRadius="3"
+                      Background="{DynamicResource MaterialErrorBrush}"
+                      Margin="-4,0,0,0" VerticalAlignment="Center"
+                      IsVisible="False" IsHitTestVisible="False">
+                <TextBlock Name="TrailingBadgeText" IsVisible="False"
+                           Text="{TemplateBinding (md:MaterialTabs.BadgeText)}"
+                           FontSize="{DynamicResource MaterialLabelSmallFontSize}"
+                           FontWeight="Medium"
+                           LineHeight="{DynamicResource MaterialLabelSmallLineHeight}"
+                           Foreground="{DynamicResource MaterialOnErrorBrush}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+            </StackPanel>
+          </Grid>
+          <!-- Secondary indicator: spans the whole strip width. -->
+          <Border Name="IndicatorSecondary" Height="2" CornerRadius="0"
+                  Background="{DynamicResource MaterialPrimaryBrush}"
+                  HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
+                  IsVisible="False" IsHitTestVisible="False" />
+          <Border Name="FocusRing" Margin="3,3,3,8" CornerRadius="12" BorderThickness="3"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- Header composition. MaterialTabs publishes the resolved layout as ordinary style
+         classes (an external helper cannot add pseudo-classes), so an icon-only tab can keep a
+         Header for its accessible name without painting it and a label-only tab never reserves
+         icon space. -->
+    <Style Selector="^.md-icon-only /template/ Grid#IconHost, ^.md-icon-and-label /template/ Grid#IconHost">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^.md-label-only /template/ ContentPresenter#PART_ContentPresenter, ^.md-icon-and-label /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^.md-scrollable">
+      <Setter Property="MinWidth" Value="90" />
+    </Style>
+
+    <!-- Primary icon-and-label uses the source's 64px vertical header. -->
+    <Style Selector="^.md-primary.md-icon-and-label">
+      <Setter Property="MinHeight" Value="64" />
+    </Style>
+    <Style Selector="^.md-primary.md-icon-and-label /template/ StackPanel#LabelGroup">
+      <Setter Property="Orientation" Value="Vertical" />
+      <Setter Property="Spacing" Value="2" />
+    </Style>
+
+    <!-- Badges: a dot by default, a pill when BadgeText is present. -->
+    <Style Selector="^.md-has-badge.md-icon-only /template/ Border#IconBadge">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^.md-has-badge.md-icon-and-label /template/ Border#IconBadge">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^.md-secondary.md-has-badge.md-icon-and-label /template/ Border#IconBadge">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^.md-secondary.md-has-badge.md-icon-and-label /template/ Border#TrailingBadge">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^.md-has-badge.md-label-only /template/ Border#TrailingBadge">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^.md-badge-text /template/ Border#TrailingBadge">
+      <Setter Property="Width" Value="NaN" />
+      <Setter Property="MinWidth" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="^.md-badge-text /template/ TextBlock#TrailingBadgeText">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+
+    <!-- Indicator. The primary style spans the header content minus 2px on each side
+         (20px for a 24px icon, 33px for the source's 37px "Tab 1" label); the secondary
+         style spans the whole strip and is 2px high. The :primary/:secondary classes are
+         mutually exclusive, so the two styles can never both match. Side placements reuse the
+         edge-aligned IndicatorSecondary because the content-width bar is centered in the header
+         and would otherwise float away from the strip edge. -->
+    <Style Selector="^ /template/ Border#Indicator, ^ /template/ Border#IndicatorSecondary">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Width" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.05,0.7,0.1,1" />
+          <DoubleTransition Property="Height" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.05,0.7,0.1,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^[TabStripPlacement=Bottom] /template/ Border#Indicator, ^[TabStripPlacement=Bottom] /template/ Border#IndicatorSecondary">
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <!-- Primary: content-width bar for top/bottom strips. The side-strip hide rule must come
+         after the selected-show rule so the later declaration wins for vertical strips. -->
+    <Style Selector="^.md-primary:selected /template/ Border#Indicator">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^.md-primary[TabStripPlacement=Left] /template/ Border#Indicator,
+                    ^.md-primary[TabStripPlacement=Right] /template/ Border#Indicator">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <!-- Primary: 3x20 edge marker for side strips. -->
+    <Style Selector="^.md-primary[TabStripPlacement=Left] /template/ Border#IndicatorSecondary">
+      <Setter Property="Width" Value="3" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="CornerRadius" Value="3,0,0,3" />
+    </Style>
+    <Style Selector="^.md-primary[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
+      <Setter Property="Width" Value="3" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="CornerRadius" Value="0,3,3,0" />
+    </Style>
+    <Style Selector="^.md-primary:selected[TabStripPlacement=Left] /template/ Border#IndicatorSecondary,
+                    ^.md-primary:selected[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- Secondary: full-width 2px rule (full-height for side strips). -->
+    <Style Selector="^.md-secondary[TabStripPlacement=Left] /template/ Border#IndicatorSecondary,
+                    ^.md-secondary[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
+      <Setter Property="Width" Value="2" />
+      <Setter Property="Height" Value="NaN" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="^.md-secondary:selected /template/ Border#IndicatorSecondary">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+
+    <!-- Text and state-layer roles. Hover/focus/pressed precede the selected rules so the
+         selected color survives pointer feedback, matching the source state variants. -->
+    <Style Selector="^:pointerover, ^:focus-visible, ^:pressed">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:selected">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#StateLayer">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+    </Style>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+    </Style>
+    <!-- The source pressed state layer measures 8%, the same value as hover. -->
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+
+    <Style Selector="^.md-secondary">
+      <Style Selector="^ /template/ StackPanel#LabelGroup">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="8" />
+      </Style>
+      <Style Selector="^:selected">
+        <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      </Style>
+      <Style Selector="^ /template/ Border#StateLayer">
+        <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      </Style>
+    </Style>
+
+    <!-- Focus ring: 3px secondary, 12px radius, inset from the header edges. -->
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^[(md|MaterialTabs.ShowFocusIndicator)=False] /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ StackPanel#HeaderContent">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#Indicator, ^:disabled /template/ Border#IndicatorSecondary">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="DesignTabControl" TargetType="TabControl">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="ItemContainerTheme" Value="{StaticResource DesignTabItem}" />
+    <Setter Property="ItemsPanel">
+      <ItemsPanelTemplate>
+        <UniformGrid Rows="1" />
+      </ItemsPanelTemplate>
+    </Setter>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+          <DockPanel>
+            <!-- The strip and its divider are one host so the divider always sits on the far
+                 side of the headers for every TabStripPlacement. -->
+            <DockPanel Name="HeaderHost" DockPanel.Dock="Top" LastChildFill="False">
+              <ScrollViewer Name="PART_HeaderScroller" DockPanel.Dock="Top"
+                            HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"
+                            BringIntoViewOnFocusChange="True">
+                <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+              </ScrollViewer>
+              <!-- The divider is a one-pixel outline-variant rule owned by the strip, exactly as
+                   the source Tabs component places it on the far side of the tab group. -->
+              <Border Name="HeaderDivider" DockPanel.Dock="Top" Height="1"
+                      Background="{DynamicResource MaterialOutlineVariantBrush}" IsHitTestVisible="False" />
+            </DockPanel>
+            <Panel ClipToBounds="True">
+              <ContentPresenter Name="PART_SelectedContentHost" Margin="{TemplateBinding Padding}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Panel>
+          </DockPanel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- Fixed configuration: headers share the strip width equally. -->
+    <Style Selector="^[TabStripPlacement=Bottom] /template/ DockPanel#HeaderHost">
+      <Setter Property="DockPanel.Dock" Value="Bottom" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Bottom] /template/ ScrollViewer#PART_HeaderScroller">
+      <Setter Property="DockPanel.Dock" Value="Bottom" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Bottom] /template/ Border#HeaderDivider">
+      <Setter Property="DockPanel.Dock" Value="Bottom" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Left] /template/ DockPanel#HeaderHost">
+      <Setter Property="DockPanel.Dock" Value="Left" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Left] /template/ ScrollViewer#PART_HeaderScroller">
+      <Setter Property="DockPanel.Dock" Value="Left" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Left] /template/ Border#HeaderDivider">
+      <Setter Property="DockPanel.Dock" Value="Left" />
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Height" Value="NaN" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Right] /template/ DockPanel#HeaderHost">
+      <Setter Property="DockPanel.Dock" Value="Right" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Right] /template/ ScrollViewer#PART_HeaderScroller">
+      <Setter Property="DockPanel.Dock" Value="Right" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Right] /template/ Border#HeaderDivider">
+      <Setter Property="DockPanel.Dock" Value="Right" />
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Height" Value="NaN" />
+    </Style>
+    <Style Selector="^[TabStripPlacement=Left], ^[TabStripPlacement=Right]">
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate>
+          <UniformGrid Columns="1" />
+        </ItemsPanelTemplate>
+      </Setter>
+    </Style>
+
+    <!-- Scrollable configuration: 90px headers that scroll instead of sharing the width. The
+         scrollbar is hidden to preserve the source's 48/64px strip; wheel, keyboard, focus,
+         and selection changes all keep the active header in view. -->
+    <Style Selector="^[(md|MaterialTabs.IsScrollable)=True]">
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate>
+          <StackPanel Orientation="Horizontal" />
+        </ItemsPanelTemplate>
+      </Setter>
+      <Style Selector="^ /template/ ScrollViewer#PART_HeaderScroller">
+        <Setter Property="HorizontalScrollBarVisibility" Value="Hidden" />
+        <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+      </Style>
+      <Style Selector="^[TabStripPlacement=Left], ^[TabStripPlacement=Right]">
+        <Setter Property="ItemsPanel">
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Vertical" />
+          </ItemsPanelTemplate>
+        </Setter>
+      </Style>
+      <Style Selector="^[TabStripPlacement=Left] /template/ ScrollViewer#PART_HeaderScroller, ^[TabStripPlacement=Right] /template/ ScrollViewer#PART_HeaderScroller">
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="VerticalScrollBarVisibility" Value="Hidden" />
+      </Style>
+    </Style>
+  </ControlTheme>
+
+  <!-- Implicit keys make these the default tab themes for the whole theme; the keyed themes
+       above remain available for explicit opt-in on a single strip. Collections.axaml no longer
+       defines tab themes, so no other dictionary competes for these keys. -->
+  <ControlTheme x:Key="{x:Type TabItem}" TargetType="TabItem"
+                BasedOn="{StaticResource DesignTabItem}" />
+  <ControlTheme x:Key="{x:Type TabControl}" TargetType="TabControl"
+                BasedOn="{StaticResource DesignTabControl}" />
+</ResourceDictionary>

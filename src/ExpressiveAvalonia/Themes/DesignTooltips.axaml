@@ -1,0 +1,39 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Rich tooltip presenter. The source component is a 312 px surface-container card with a
+       12 px corner radius, level 2 elevation, 16/12 content padding, a 4 px title-to-body gap,
+       an 8 px gap above a 40 px action row and 4 px action insets. RichTooltip assigns this
+       theme to FlyoutPresenterTheme when the application has not chosen one.
+       Avalonia forbids child/descendant selectors directly inside a ControlTheme, so the
+       action-button and text-wrapping rules live in RichTooltip's programmatic presenter. -->
+  <ControlTheme x:Key="MaterialRichTooltipPresenter" TargetType="FlyoutPresenter">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="0,0,0,8" />
+    <Setter Property="MinWidth" Value="40" />
+    <Setter Property="MinHeight" Value="24" />
+    <!-- The source component is a fixed 312 DIP card. A consumer can override Width. -->
+    <Setter Property="Width" Value="312" />
+    <Setter Property="MaxWidth" Value="312" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyMediumFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyMediumFontWeight}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Top" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
+                BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
+          <ContentPresenter Name="PART_ContentPresenter" Padding="{TemplateBinding Padding}"
+                            Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>

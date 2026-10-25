@@ -1,0 +1,363 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
+  <!-- Material 3 cards. Geometry, colors and state layering follow the assigned source packages:
+       Stacked card (local-004836) and Horizontal card (local-001649) for the anatomy, and
+       .Building Blocks/Card states Outlined (local-000209), Elevated (local-000197) and
+       Filled (local-000203) for the enabled/hovered/focused/pressed/dragged states.
+
+       Container roles: Outlined = surface + 1 dp outline, no resting elevation;
+       Elevated = surface-container-low + level 1; Filled = surface-container-highest.
+       Elevation by state: Elevated 1 -> hover 2 -> pressed/focused 1 -> dragged 4;
+       Filled 0 -> hover/focus/pressed 1 -> dragged 3; Outlined 0 -> hover 1 -> dragged 3.
+       State layer: hover 0.08, focus 0.10, pressed 0.10, dragged 0.16 of on-surface.
+       Focus indicator: 3 dp secondary ring, 2 dp outside the container, radius + 2.
+
+       Stacked anatomy: header 16/12/4/12 with a 40 dp avatar, 16 dp gap and a 48 dp trailing
+       action; media band 188 high; text block padding 16 with 32 between headline, supporting
+       text and actions. Horizontal anatomy: 16 dp padding around a 280 wide header and an
+       80 x 80 outlined media square, matching the source 360 x 80 package.
+
+       Transitions resolve their durations through the md.sys.motion tokens, so the theme's
+       reduced-motion mode collapses them to zero; no card animation is scripted separately. -->
+  <ControlTemplate x:Key="MaterialCardStackedTemplate" TargetType="controls:MaterialCard">
+    <Panel Name="PART_Root">
+      <!-- Rounded clipping keeps media and the state layer inside the 12 dp container. -->
+      <Border Name="PART_Card"
+              Background="{TemplateBinding Background}"
+              BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="{TemplateBinding CornerRadius}"
+              ClipToBounds="True">
+        <Panel>
+          <Border Name="StateLayer" Background="{TemplateBinding Foreground}" IsHitTestVisible="False" />
+          <Grid Name="PART_Anatomy" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*">
+            <!-- Header: 40 dp avatar, 16 dp gap, header/subhead, trailing action. -->
+            <Border Name="PART_Header" Grid.Row="0" Padding="16,12,4,12"
+                    IsVisible="{TemplateBinding HasHeader}">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Name="PART_Avatar" Width="40" Height="40" CornerRadius="999"
+                        Background="{DynamicResource MaterialPrimaryContainerBrush}"
+                        VerticalAlignment="Center"
+                        IsVisible="{TemplateBinding HasAvatar}">
+                  <Panel>
+                    <TextBlock Text="{TemplateBinding AvatarInitial}"
+                               IsVisible="{TemplateBinding HasAvatarInitial}"
+                               FontSize="{DynamicResource MaterialTitleMediumFontSize}"
+                               FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
+                               LineHeight="{DynamicResource MaterialTitleMediumLineHeight}"
+                               LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
+                               Foreground="{DynamicResource MaterialOnPrimaryContainerBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <ContentPresenter Content="{TemplateBinding Avatar}"
+                                      HorizontalContentAlignment="Center"
+                                      VerticalContentAlignment="Center" />
+                  </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                  <TextBlock Text="{TemplateBinding Header}"
+                             Foreground="{TemplateBinding Foreground}"
+                             FontSize="{DynamicResource MaterialTitleMediumFontSize}"
+                             FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
+                             LineHeight="{DynamicResource MaterialTitleMediumLineHeight}"
+                             LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
+                             TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{TemplateBinding Subhead}"
+                             Foreground="{TemplateBinding Foreground}"
+                             FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                             FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
+                             LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                             LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
+                             TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <ContentPresenter Name="PART_HeaderAction" Grid.Column="2" Margin="8,0,0,0"
+                                  Content="{TemplateBinding HeaderAction}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  IsVisible="{TemplateBinding HasHeaderAction}" />
+              </Grid>
+            </Border>
+            <!-- Media band. The source media rectangle uses surface-container-high. -->
+            <Border Name="PART_Media" Grid.Row="1" Height="188" ClipToBounds="True"
+                    Background="{DynamicResource MaterialSurfaceContainerHighBrush}"
+                    IsVisible="{TemplateBinding HasMedia}">
+              <ContentPresenter Content="{TemplateBinding Media}"
+                                HorizontalContentAlignment="Stretch"
+                                VerticalContentAlignment="Stretch" />
+            </Border>
+            <!-- Text content: 16 dp padding and 32 dp between headline, supporting text, actions. -->
+            <StackPanel Name="PART_TextContent" Grid.Row="2" Margin="16" Spacing="32">
+              <StackPanel Name="PART_Headline" IsVisible="{TemplateBinding HasHeadline}">
+                <TextBlock Text="{TemplateBinding Title}"
+                           Foreground="{TemplateBinding Foreground}"
+                           FontSize="{DynamicResource MaterialBodyLargeFontSize}"
+                           FontWeight="{DynamicResource MaterialBodyLargeFontWeight}"
+                           LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                           LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{TemplateBinding Subtitle}"
+                           Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                           FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                           FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
+                           LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                           LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+              <TextBlock Text="{TemplateBinding SupportingText}"
+                         Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                         FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                         FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
+                         LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
+                         TextWrapping="Wrap"
+                         IsVisible="{TemplateBinding HasSupportingText}" />
+              <StackPanel Name="PART_Actions" Orientation="Horizontal" Spacing="8"
+                          IsVisible="{TemplateBinding HasActions}">
+                <Button Name="PART_SecondaryAction"
+                        theming:MaterialAssist.ButtonVariant="Outlined"
+                        theming:MaterialAssist.ControlSize="Small"
+                        Content="{TemplateBinding SecondaryAction}"
+                        Command="{TemplateBinding SecondaryActionCommand}"
+                        CommandParameter="{TemplateBinding SecondaryActionCommandParameter}"
+                        IsVisible="{TemplateBinding HasSecondaryAction}" />
+                <Button Name="PART_PrimaryAction"
+                        theming:MaterialAssist.ButtonVariant="Filled"
+                        theming:MaterialAssist.ControlSize="Small"
+                        Content="{TemplateBinding PrimaryAction}"
+                        Command="{TemplateBinding PrimaryActionCommand}"
+                        CommandParameter="{TemplateBinding PrimaryActionCommandParameter}"
+                        IsVisible="{TemplateBinding HasPrimaryAction}" />
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        </Panel>
+      </Border>
+      <!-- Focus indicator sits 2 dp outside the container, matching the source 364 x 364 ring. -->
+      <Border Name="FocusRing" Margin="-2" IsHitTestVisible="False"
+              CornerRadius="{TemplateBinding FocusRingCornerRadius}"
+              BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+              BorderThickness="3" />
+    </Panel>
+  </ControlTemplate>
+
+  <ControlTemplate x:Key="MaterialCardHorizontalTemplate" TargetType="controls:MaterialCard">
+    <Panel Name="PART_Root">
+      <Border Name="PART_Card"
+              Background="{TemplateBinding Background}"
+              BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="{TemplateBinding CornerRadius}"
+              ClipToBounds="True">
+        <Panel>
+          <Border Name="StateLayer" Background="{TemplateBinding Foreground}" IsHitTestVisible="False" />
+          <!-- 280 header + 80 media square = the source 360 x 80 card. The package has no
+               trailing header action, no headline block and no action row. -->
+          <Grid Name="PART_Anatomy" ColumnDefinitions="*,Auto">
+            <Border Name="PART_Header" Grid.Column="0" Padding="16"
+                    IsVisible="{TemplateBinding HasHeader}">
+              <Grid ColumnDefinitions="Auto,*">
+                <Border Name="PART_Avatar" Width="40" Height="40" CornerRadius="999"
+                        Background="{DynamicResource MaterialPrimaryContainerBrush}"
+                        VerticalAlignment="Center"
+                        IsVisible="{TemplateBinding HasAvatar}">
+                  <Panel>
+                    <TextBlock Text="{TemplateBinding AvatarInitial}"
+                               IsVisible="{TemplateBinding HasAvatarInitial}"
+                               FontSize="{DynamicResource MaterialTitleMediumFontSize}"
+                               FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
+                               LineHeight="{DynamicResource MaterialTitleMediumLineHeight}"
+                               LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
+                               Foreground="{DynamicResource MaterialOnPrimaryContainerBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <ContentPresenter Content="{TemplateBinding Avatar}"
+                                      HorizontalContentAlignment="Center"
+                                      VerticalContentAlignment="Center" />
+                  </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                  <TextBlock Text="{TemplateBinding Header}"
+                             Foreground="{TemplateBinding Foreground}"
+                             FontSize="{DynamicResource MaterialTitleMediumFontSize}"
+                             FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
+                             LineHeight="{DynamicResource MaterialTitleMediumLineHeight}"
+                             LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
+                             TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{TemplateBinding Subhead}"
+                             Foreground="{TemplateBinding Foreground}"
+                             FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                             FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
+                             LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                             LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
+                             TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </Grid>
+            </Border>
+            <Border Name="PART_Media" Grid.Column="1" Width="80" Height="80"
+                    VerticalAlignment="Center" ClipToBounds="True"
+                    Background="{DynamicResource MaterialSurfaceContainerHighBrush}"
+                    BorderBrush="{DynamicResource MaterialOutlineBrush}"
+                    BorderThickness="1"
+                    IsVisible="{TemplateBinding HasMedia}">
+              <ContentPresenter Content="{TemplateBinding Media}"
+                                HorizontalContentAlignment="Stretch"
+                                VerticalContentAlignment="Stretch" />
+            </Border>
+          </Grid>
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        </Panel>
+      </Border>
+      <Border Name="FocusRing" Margin="-2" IsHitTestVisible="False"
+              CornerRadius="{TemplateBinding FocusRingCornerRadius}"
+              BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+              BorderThickness="3" />
+    </Panel>
+  </ControlTemplate>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialCard}" TargetType="controls:MaterialCard">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeMediumCornerRadius}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="Template" Value="{StaticResource MaterialCardStackedTemplate}" />
+
+    <!-- The source Orientation axis selects the anatomy template, exactly like the design's
+         separate Stacked card and Horizontal card components. -->
+    <Style Selector="^[Orientation=Horizontal]">
+      <Setter Property="Template" Value="{StaticResource MaterialCardHorizontalTemplate}" />
+    </Style>
+
+    <!-- Resting container per source Style axis. -->
+    <Style Selector="^[Variant=Elevated]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="^[Variant=Filled]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="^[Variant=Outlined]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <!-- Container visuals and their transitions. -->
+    <Style Selector="^ /template/ Border#PART_Card">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^[Variant=Elevated] /template/ Border#PART_Card">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+    </Style>
+
+    <!-- State layer and focus ring defaults. -->
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^ /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^[ShowFocusIndicator=True] /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+
+    <!-- The source card states apply to interactive cards only. -->
+    <Style Selector="^[IsInteractive=True]">
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Focusable" Value="True" />
+      <Style Selector="^:disabled">
+        <Setter Property="Cursor" Value="Arrow" />
+      </Style>
+      <Style Selector="^:pointerover /template/ Border#StateLayer">
+        <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+      </Style>
+      <Style Selector="^:focus-visible /template/ Border#StateLayer">
+        <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
+      </Style>
+      <Style Selector="^:pressed /template/ Border#StateLayer">
+        <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+      </Style>
+      <Style Selector="^:dragged /template/ Border#StateLayer">
+        <Setter Property="Opacity" Value="{DynamicResource MaterialDraggedStateLayerOpacity}" />
+      </Style>
+      <Style Selector="^:focus-visible /template/ Border#FocusRing">
+        <Setter Property="IsVisible" Value="True" />
+      </Style>
+      <Style Selector="^[Variant=Elevated]:pointerover:not(:pressed):not(:dragged) /template/ Border#PART_Card">
+        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel2Shadow}" />
+      </Style>
+      <Style Selector="^[Variant=Elevated]:pressed /template/ Border#PART_Card">
+        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+      </Style>
+      <Style Selector="^[Variant=Elevated]:dragged /template/ Border#PART_Card">
+        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel4Shadow}" />
+      </Style>
+      <Style Selector="^[Variant=Filled]:pointerover:not(:pressed):not(:dragged) /template/ Border#PART_Card">
+        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+      </Style>
+      <Style Selector="^[Variant=Filled]:focus-visible:not(:pressed):not(:dragged) /template/ Border#PART_Card">
+        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+      </Style>
+      <Style Selector="^[Variant=Filled]:pressed /template/ Border#PART_Card">
+        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+      </Style>
+      <Style Selector="^[Variant=Filled]:dragged /template/ Border#PART_Card">
+        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel3Shadow}" />
+      </Style>
+      <Style Selector="^[Variant=Outlined]:pointerover:not(:pressed):not(:dragged) /template/ Border#PART_Card">
+        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+      </Style>
+      <Style Selector="^[Variant=Outlined]:dragged /template/ Border#PART_Card">
+        <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel3Shadow}" />
+      </Style>
+    </Style>
+
+    <Style Selector="^:disabled /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_Card">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+
+    <!-- Layout axis: the slot variant presents Content and hides the fixed anatomy. -->
+    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^[Layout=Slot] /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^[Layout=Slot] /template/ Grid#PART_Anatomy">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

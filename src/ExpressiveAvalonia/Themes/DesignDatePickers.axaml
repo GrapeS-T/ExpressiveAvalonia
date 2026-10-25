@@ -1,0 +1,726 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
+  <!--
+    Material Design 3 date picker family: calendar cells, month/year choices, the picker surface
+    (docked, modal, full-screen range and text-input presentations) and the docked desktop field.
+
+    Source anatomy (AndroidX date picker tokens and the anonymized design system):
+    - day cell 48x48 with a 40x40 round container, 1px today ring, primary selected circle,
+      secondary-container range highlights, 0.08/0.10 state layers and a 3px focus indicator;
+    - year chip 72x36 inside a 52-high cell, 3 columns; docked month/year rows are 56 high;
+    - modal surface radius 28, docked surface radius 16, header supporting text labelLarge
+      and a 32/40 headline, local actions labelLarge text buttons.
+
+    All motion uses the shared duration tokens, which MaterialTheme zeroes under reduced motion,
+    so state-layer fades and selection transitions collapse instead of being suppressed in code.
+  -->
+  <StreamGeometry x:Key="MaterialDatePickerCalendarGeometry">M19,3h-1V1h-2v2H8V1H6v2H5C3.9,3 3,3.9 3,5v14c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2V5C21,3.9 20.1,3 19,3zM19,19H5V8h14V19z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialDatePickerEditGeometry">M3,17.25V21h3.75L17.81,9.94l-3.75,-3.75L3,17.25zM20.71,7.04c0.39,-0.39 0.39,-1.02 0,-1.41l-2.34,-2.34c-0.39,-0.39 -1.02,-0.39 -1.41,0l-1.83,1.83 3.75,3.75 1.83,-1.83z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialDatePickerCloseGeometry">M19,6.41L17.59,5 12,10.59 6.41,5 5,6.41 10.59,12 5,17.59 6.41,19 12,13.41 17.59,19 19,17.59 13.41,12z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialDatePickerChevronGeometry">M7,10l5,5 5,-5z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialDatePickerPreviousGeometry">M15.41,7.41L14,6l-6,6 6,6 1.41,-1.41L10.83,12z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialDatePickerNextGeometry">M8.59,16.59L10,18l6,-6 -6,-6 -1.41,1.41L13.17,12z</StreamGeometry>
+  <StreamGeometry x:Key="MaterialDatePickerClearGeometry">M19,6.41L17.59,5 12,10.59 6.41,5 5,6.41 10.59,12 5,17.59 6.41,19 12,13.41 17.59,19 19,17.59 13.41,12z</StreamGeometry>
+
+  <!-- Template strings. Override these keys to localize the whole family. -->
+  <x:String x:Key="MaterialDatePickerSelectDateText">Select date</x:String>
+  <x:String x:Key="MaterialDatePickerEnterDateText">Enter date</x:String>
+  <x:String x:Key="MaterialDatePickerNoDateText">No date selected</x:String>
+  <x:String x:Key="MaterialDatePickerDateText">Date</x:String>
+  <x:String x:Key="MaterialDatePickerStartDateText">Start date</x:String>
+  <x:String x:Key="MaterialDatePickerEndDateText">End date</x:String>
+  <x:String x:Key="MaterialDatePickerOkText">OK</x:String>
+  <x:String x:Key="MaterialDatePickerCancelText">Cancel</x:String>
+  <x:String x:Key="MaterialDatePickerClearText">Clear</x:String>
+  <x:String x:Key="MaterialDatePickerSaveText">Save</x:String>
+  <x:String x:Key="MaterialDatePickerCloseText">Close</x:String>
+  <x:String x:Key="MaterialDatePickerEditDateText">Switch to text input</x:String>
+  <x:String x:Key="MaterialDatePickerSwitchToCalendarText">Switch to calendar</x:String>
+  <x:String x:Key="MaterialDatePickerOpenCalendarText">Open calendar</x:String>
+  <x:String x:Key="MaterialDatePickerChooseMonthText">Choose month</x:String>
+  <x:String x:Key="MaterialDatePickerChooseYearText">Choose year</x:String>
+  <x:String x:Key="MaterialDatePickerMonthYearText">Choose date</x:String>
+  <x:String x:Key="MaterialDatePickerPreviousMonthText">Previous month</x:String>
+  <x:String x:Key="MaterialDatePickerNextMonthText">Next month</x:String>
+  <x:String x:Key="MaterialDatePickerPreviousYearText">Previous year</x:String>
+  <x:String x:Key="MaterialDatePickerNextYearText">Next year</x:String>
+  <x:String x:Key="MaterialDatePickerTodayText">Today</x:String>
+  <x:String x:Key="MaterialDatePickerInRangeText">In selected range</x:String>
+  <x:String x:Key="MaterialDatePickerRangeEndpointText">Selected range endpoint</x:String>
+  <x:String x:Key="MaterialDatePickerOutsideMonthText">Outside month</x:String>
+  <x:String x:Key="MaterialDatePickerInvalidDateText">Enter a valid date</x:String>
+  <x:String x:Key="MaterialDatePickerOutOfRangeText">Date is outside the allowed range</x:String>
+
+  <!-- 48x48 icon button with a 40x40 round state layer, used for navigation and header actions. -->
+  <ControlTheme x:Key="MaterialDatePickerIconButton" TargetType="Button">
+    <Setter Property="Width" Value="48" />
+    <Setter Property="Height" Value="48" />
+    <Setter Property="Padding" Value="12" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="StateLayer" Margin="4" CornerRadius="{TemplateBinding CornerRadius}"
+                  Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            TextElement.Foreground="{TemplateBinding Foreground}" />
+          <Border Name="FocusRing" Margin="2" CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Local text action (Clear/Cancel/OK/Save): labelLarge, 40-high pill. -->
+  <ControlTheme x:Key="MaterialDatePickerTextButton" TargetType="Button">
+    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="Padding" Value="16,10" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    <Setter Property="LetterSpacing" Value="{DynamicResource MaterialLabelLargeLetterSpacing}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="StateLayer" CornerRadius="{TemplateBinding CornerRadius}"
+                  Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            TextElement.Foreground="{TemplateBinding Foreground}"
+                            TextElement.FontSize="{TemplateBinding FontSize}"
+                            TextElement.FontWeight="{TemplateBinding FontWeight}"
+                            TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}" />
+          <Border Name="FocusRing" Margin="-4" CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Month/year dropdown trigger: labelLarge + 18px chevron, 40 high. -->
+  <ControlTheme x:Key="MaterialDatePickerMenuButton" TargetType="Button">
+    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="Padding" Value="8,10,4,10" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    <Setter Property="LetterSpacing" Value="{DynamicResource MaterialLabelLargeLetterSpacing}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="StateLayer" CornerRadius="{TemplateBinding CornerRadius}"
+                  Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="{TemplateBinding Padding}"
+                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              VerticalAlignment="Center"
+                              TextElement.Foreground="{TemplateBinding Foreground}"
+                              TextElement.FontSize="{TemplateBinding FontSize}"
+                              TextElement.FontWeight="{TemplateBinding FontWeight}"
+                              TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}" />
+            <PathIcon Width="18" Height="18" VerticalAlignment="Center"
+                      Foreground="{TemplateBinding Foreground}"
+                      Data="{StaticResource MaterialDatePickerChevronGeometry}" />
+          </StackPanel>
+          <Border Name="FocusRing" Margin="0" CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Calendar day: 48 touch target, 40 circle, today ring, range halves and preview halves. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialDateCell}" TargetType="controls:MaterialDateCell">
+    <Setter Property="Width" Value="48" />
+    <Setter Property="Height" Value="48" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
+    <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodyLargeLetterSpacing}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="HighlightMiddle" Height="40" VerticalAlignment="Center"
+                  Background="{DynamicResource MaterialSecondaryContainerBrush}" IsVisible="False" />
+          <Border Name="HighlightLeft" Width="24" Height="40" HorizontalAlignment="Left" VerticalAlignment="Center"
+                  Background="{DynamicResource MaterialSecondaryContainerBrush}" IsVisible="False" />
+          <Border Name="HighlightRight" Width="24" Height="40" HorizontalAlignment="Right" VerticalAlignment="Center"
+                  Background="{DynamicResource MaterialSecondaryContainerBrush}" IsVisible="False" />
+          <Border Name="TodayRing" Margin="4" CornerRadius="{DynamicResource MaterialShapeFullCornerRadius}"
+                  BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="1" IsVisible="False" />
+          <Border Name="Selection" Margin="4" CornerRadius="{DynamicResource MaterialShapeFullCornerRadius}"
+                  Background="{DynamicResource MaterialPrimaryBrush}" IsVisible="False" />
+          <Border Name="StateLayer" Margin="4" CornerRadius="{DynamicResource MaterialShapeFullCornerRadius}"
+                  Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            TextElement.Foreground="{TemplateBinding Foreground}"
+                            TextElement.FontSize="{TemplateBinding FontSize}"
+                            TextElement.FontWeight="{TemplateBinding FontWeight}"
+                            TextBlock.LineHeight="{DynamicResource MaterialBodyLargeLineHeight}" />
+          <Border Name="FocusRing" Width="44" Height="44" HorizontalAlignment="Center" VerticalAlignment="Center"
+                  CornerRadius="8" BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:today">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:today /template/ Border#TodayRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:outside">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+    <Style Selector="^:outside /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:empty">
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <Style Selector="^:empty /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:selected">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#Selection">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#TodayRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:range-start /template/ Border#HighlightRight">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:range-end /template/ Border#HighlightLeft">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:range-middle">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:range-middle /template/ Border#HighlightMiddle">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:range-preview-start /template/ Border#HighlightRight">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:range-preview-end /template/ Border#HighlightLeft">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:range-preview-start, ^:range-preview-end">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:range-preview-middle">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:range-preview-middle /template/ Border#HighlightMiddle">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Month/year chip: 52-high cell with a 36-high pill, three per row in the modal grids. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialDateChoiceChip}" TargetType="controls:MaterialDateChoiceChip">
+    <Setter Property="Height" Value="52" />
+    <Setter Property="MinWidth" Value="72" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="Surface" Margin="0,8" CornerRadius="{TemplateBinding CornerRadius}"
+                  Background="{TemplateBinding Background}" />
+          <Border Name="StateLayer" Margin="0,8" CornerRadius="{TemplateBinding CornerRadius}"
+                  Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            TextElement.Foreground="{TemplateBinding Foreground}"
+                            TextElement.FontSize="{TemplateBinding FontSize}"
+                            TextElement.FontWeight="{TemplateBinding FontWeight}" />
+          <Border Name="FocusRing" Margin="0,6" CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Month/year row for the docked list: full width, 56 high, 16 start padding. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialDateChoiceRow}" TargetType="controls:MaterialDateChoiceRow">
+    <Setter Property="Height" Value="56" />
+    <Setter Property="Padding" Value="16,8" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="Transparent">
+          <Border Name="Surface" Background="{TemplateBinding Background}" CornerRadius="4" Margin="8,0" />
+          <Border Name="StateLayer" Background="{TemplateBinding Foreground}" CornerRadius="4" Margin="8,0"
+                  Opacity="0" IsHitTestVisible="False" />
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            TextElement.Foreground="{TemplateBinding Foreground}"
+                            TextElement.FontSize="{TemplateBinding FontSize}"
+                            TextElement.FontWeight="{TemplateBinding FontWeight}" />
+          <Border Name="FocusRing" Margin="8,2" CornerRadius="4"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ /template/ Border#StateLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Picker surface: header, selection rows, day/month/year views, input view and local actions. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialDatePicker}" TargetType="controls:MaterialDatePicker">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraLargeCornerRadius}" />
+    <Setter Property="MinWidth" Value="360" />
+    <Setter Property="Focusable" Value="True" />
+    <Setter Property="IsTabStop" Value="True" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Surface" Background="{TemplateBinding Background}"
+                CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
+          <Grid RowDefinitions="Auto,Auto,*,Auto">
+            <!-- Header: modal/input supporting label + headline + edit, or full-screen close/save. -->
+            <Border Name="PART_Header" Grid.Row="0" Padding="24,16,12,12"
+                    BorderBrush="{DynamicResource MaterialOutlineVariantBrush}" BorderThickness="0,0,0,1">
+              <Panel>
+                <Grid Name="PART_ModalHeader" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                  <StackPanel Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Name="PART_HeaderLabel" Text="{TemplateBinding EffectiveLabel}"
+                               FontSize="{DynamicResource MaterialLabelLargeFontSize}"
+                               FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
+                               LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
+                               LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}"
+                               Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+                    <TextBlock Name="PART_HeaderHeadline" Text="{TemplateBinding Headline}"
+                               FontSize="{DynamicResource MaterialHeadlineLargeFontSize}"
+                               LineHeight="{DynamicResource MaterialHeadlineLargeLineHeight}"
+                               LetterSpacing="{DynamicResource MaterialHeadlineLargeLetterSpacing}"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Button Name="PART_EditButton" Grid.Column="1" Theme="{StaticResource MaterialDatePickerIconButton}"
+                          AutomationProperties.Name="{DynamicResource MaterialDatePickerEditDateText}"
+                          ToolTip.Tip="{DynamicResource MaterialDatePickerEditDateText}">
+                    <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerEditGeometry}" />
+                  </Button>
+                </Grid>
+                <Grid Name="PART_FullScreenHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto"
+                      IsVisible="False">
+                  <Button Name="PART_CloseButton" Grid.Row="0" Grid.Column="0" Theme="{StaticResource MaterialDatePickerIconButton}"
+                          HorizontalAlignment="Left"
+                          AutomationProperties.Name="{DynamicResource MaterialDatePickerCloseText}"
+                          ToolTip.Tip="{DynamicResource MaterialDatePickerCloseText}">
+                    <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerCloseGeometry}" />
+                  </Button>
+                  <Button Name="PART_SaveButton" Grid.Row="0" Grid.Column="1" Theme="{StaticResource MaterialDatePickerTextButton}"
+                          Content="{DynamicResource MaterialDatePickerSaveText}" HorizontalAlignment="Right" />
+                  <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="64,0,0,4" Spacing="4">
+                    <TextBlock Text="{TemplateBinding EffectiveLabel}"
+                               FontSize="{DynamicResource MaterialLabelLargeFontSize}"
+                               FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
+                               Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+                    <TextBlock Text="{TemplateBinding Headline}" TextWrapping="Wrap"
+                               FontSize="{DynamicResource MaterialTitleLargeFontSize}"
+                               LineHeight="{DynamicResource MaterialTitleLargeLineHeight}" />
+                  </StackPanel>
+                </Grid>
+              </Panel>
+            </Border>
+
+            <!-- Docked navigation: independent month and year dropdown groups. -->
+            <Grid Name="PART_DockedSelectionRow" Grid.Row="1" Height="64" IsVisible="False"
+                  ColumnDefinitions="Auto,*,Auto" Margin="4,0">
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                <Button Name="PART_PrevMonthButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                        AutomationProperties.Name="{DynamicResource MaterialDatePickerPreviousMonthText}"
+                        ToolTip.Tip="{DynamicResource MaterialDatePickerPreviousMonthText}">
+                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerPreviousGeometry}" />
+                </Button>
+                <Button Name="PART_MonthMenuButton" Theme="{StaticResource MaterialDatePickerMenuButton}"
+                        AutomationProperties.Name="{DynamicResource MaterialDatePickerChooseMonthText}" />
+                <Button Name="PART_NextMonthButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                        AutomationProperties.Name="{DynamicResource MaterialDatePickerNextMonthText}"
+                        ToolTip.Tip="{DynamicResource MaterialDatePickerNextMonthText}">
+                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerNextGeometry}" />
+                </Button>
+              </StackPanel>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Name="PART_PrevYearButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                        AutomationProperties.Name="{DynamicResource MaterialDatePickerPreviousYearText}"
+                        ToolTip.Tip="{DynamicResource MaterialDatePickerPreviousYearText}">
+                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerPreviousGeometry}" />
+                </Button>
+                <Button Name="PART_YearMenuButton" Theme="{StaticResource MaterialDatePickerMenuButton}"
+                        AutomationProperties.Name="{DynamicResource MaterialDatePickerChooseYearText}" />
+                <Button Name="PART_NextYearButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                        AutomationProperties.Name="{DynamicResource MaterialDatePickerNextYearText}"
+                        ToolTip.Tip="{DynamicResource MaterialDatePickerNextYearText}">
+                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerNextGeometry}" />
+                </Button>
+              </StackPanel>
+            </Grid>
+
+            <!-- Modal navigation: one month/year caption with previous/next controls. -->
+            <Grid Name="PART_ModalSelectionRow" Grid.Row="1" Height="56" ColumnDefinitions="Auto,*,Auto"
+                  Margin="12,0">
+              <Button Name="PART_MonthYearButton" Theme="{StaticResource MaterialDatePickerMenuButton}"
+                      HorizontalAlignment="Left" VerticalAlignment="Center"
+                      AutomationProperties.Name="{DynamicResource MaterialDatePickerMonthYearText}" />
+              <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Name="PART_PrevButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                        AutomationProperties.Name="{DynamicResource MaterialDatePickerPreviousMonthText}"
+                        ToolTip.Tip="{DynamicResource MaterialDatePickerPreviousMonthText}">
+                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerPreviousGeometry}" />
+                </Button>
+                <Button Name="PART_NextButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                        AutomationProperties.Name="{DynamicResource MaterialDatePickerNextMonthText}"
+                        ToolTip.Tip="{DynamicResource MaterialDatePickerNextMonthText}">
+                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerNextGeometry}" />
+                </Button>
+              </StackPanel>
+            </Grid>
+
+            <!-- Day, month, year, full-screen and text-input content. -->
+            <Grid Grid.Row="2">
+              <Grid Name="PART_DayView" RowDefinitions="Auto,Auto" Margin="12,0"
+                    Background="{DynamicResource MaterialSurfaceContainerLowestBrush}">
+                <UniformGrid Name="PART_WeekdayRow" Grid.Row="0" Columns="7" />
+                <UniformGrid Name="PART_DayGrid" Grid.Row="1" Columns="7" />
+              </Grid>
+
+              <ScrollViewer Name="PART_ChoiceScroll" IsVisible="False" MaxHeight="336"
+                            HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <Panel Name="PART_ChoiceHost" Margin="12,0" />
+              </ScrollViewer>
+
+              <Grid Name="PART_FullScreenView" RowDefinitions="Auto,*" IsVisible="False"
+                    Background="{DynamicResource MaterialSurfaceContainerLowestBrush}">
+                <UniformGrid Name="PART_FullScreenWeekdayRow" Grid.Row="0" Columns="7" Margin="12,0" />
+                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                  <StackPanel Name="PART_MonthGroup" />
+                </ScrollViewer>
+              </Grid>
+
+              <Panel Name="PART_InputPanel" IsVisible="False" Margin="24,18,24,16">
+                <StackPanel Spacing="12">
+                  <TextBox Name="PART_StartInput" PlaceholderText="{TemplateBinding Placeholder}"
+                           theming:MaterialTextField.Label="{DynamicResource MaterialDatePickerDateText}" />
+                  <TextBox Name="PART_EndInput" PlaceholderText="{TemplateBinding Placeholder}"
+                           theming:MaterialTextField.Label="{DynamicResource MaterialDatePickerEndDateText}" />
+                  <TextBlock Name="PART_InputError" TextWrapping="Wrap" IsVisible="False"
+                             Foreground="{DynamicResource MaterialErrorBrush}"
+                             FontSize="{DynamicResource MaterialBodySmallFontSize}"
+                             AutomationProperties.LiveSetting="Assertive" />
+                </StackPanel>
+              </Panel>
+            </Grid>
+
+            <!-- Local actions. -->
+            <Border Name="PART_Actions" Grid.Row="3" Padding="12,4,12,8" MinHeight="56">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Name="PART_ClearButton" Theme="{StaticResource MaterialDatePickerTextButton}"
+                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <PathIcon Width="20" Height="20" Data="{StaticResource MaterialDatePickerClearGeometry}"
+                              Foreground="{DynamicResource MaterialPrimaryBrush}" />
+                    <TextBlock Text="{DynamicResource MaterialDatePickerClearText}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                  <Button Name="PART_CancelButton" Theme="{StaticResource MaterialDatePickerTextButton}"
+                          Content="{DynamicResource MaterialDatePickerCancelText}" />
+                  <Button Name="PART_OkButton" Theme="{StaticResource MaterialDatePickerTextButton}"
+                          Content="{DynamicResource MaterialDatePickerOkText}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- Presentation and view visibility. Local code controls action and edit-button visibility. -->
+    <Style Selector="^:docked /template/ Border#PART_Surface">
+      <Setter Property="CornerRadius" Value="16" />
+    </Style>
+    <Style Selector="^:docked /template/ Border#PART_Header">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:docked /template/ Grid#PART_DockedSelectionRow">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:docked /template/ Grid#PART_ModalSelectionRow">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:text-input /template/ Grid#PART_ModalSelectionRow">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:text-input /template/ Grid#PART_DockedSelectionRow">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:fullscreen /template/ Grid#PART_ModalSelectionRow">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:fullscreen /template/ Grid#PART_DockedSelectionRow">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:fullscreen /template/ Grid#PART_ModalHeader">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:fullscreen /template/ Grid#PART_FullScreenHeader">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:fullscreen /template/ Border#PART_Header">
+      <Setter Property="Padding" Value="0,12,12,0" />
+    </Style>
+    <Style Selector="^:view-month /template/ Grid#PART_DayView">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:view-year /template/ Grid#PART_DayView">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:text-input /template/ Grid#PART_DayView">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:fullscreen /template/ Grid#PART_DayView">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:view-month /template/ ScrollViewer#PART_ChoiceScroll">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:view-year /template/ ScrollViewer#PART_ChoiceScroll">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:text-input /template/ ScrollViewer#PART_ChoiceScroll">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:fullscreen /template/ ScrollViewer#PART_ChoiceScroll">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:text-input /template/ Panel#PART_InputPanel">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:fullscreen /template/ Grid#PART_FullScreenView">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Docked desktop field: Material TextBox with a calendar trigger and a popup picker. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialDatePickerField}" TargetType="controls:MaterialDatePickerField">
+    <Setter Property="MinWidth" Value="280" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid RowDefinitions="Auto,Auto">
+          <Panel>
+            <TextBox Name="PART_Input" Padding="16,16,56,16"
+                     PlaceholderText="{TemplateBinding PlaceholderText}"
+                     IsReadOnly="{Binding !IsEditable, RelativeSource={RelativeSource TemplatedParent}}"
+                     theming:MaterialTextField.Label="{TemplateBinding Label}"
+                     theming:MaterialTextField.SupportingText="{TemplateBinding SupportingText}" />
+            <Button Name="PART_OpenButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                    Width="40" Height="40" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,8,8,0"
+                    AutomationProperties.Name="{DynamicResource MaterialDatePickerOpenCalendarText}"
+                    ToolTip.Tip="{DynamicResource MaterialDatePickerOpenCalendarText}">
+              <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerCalendarGeometry}" />
+            </Button>
+            <Popup Name="PART_Popup" Placement="BottomEdgeAlignedLeft" IsLightDismissEnabled="True" />
+          </Panel>
+          <TextBlock Name="PART_Error" Grid.Row="1" Margin="16,4,16,0" TextWrapping="Wrap" IsVisible="False"
+                     Foreground="{DynamicResource MaterialErrorBrush}"
+                     FontSize="{DynamicResource MaterialBodySmallFontSize}"
+                     AutomationProperties.LiveSetting="Assertive" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>

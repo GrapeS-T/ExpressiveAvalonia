@@ -1,0 +1,459 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
+  <!-- App bars, bottom app bars, toolbars and the design-system header blocks.
+       Anatomy is taken from the design system's app-bar (small, small-centred, small-image,
+       search, medium, large), bottom-app-bar (1-4 icons), toolbar (docked/floating,
+       horizontal/vertical, standard/vibrant), section-header and header packages.
+
+       Shared contract: the first MaxVisibleActions actions are icon buttons in the 48-unit
+       target with the 40-unit visual container from the button theme; the rest move into the
+       overflow flyout, which also hosts OverflowContent. Actions are MaterialBarAction objects,
+       so a single template serves all three bars and the flyout.
+
+       Reduced motion: the container shadow transitions through MaterialDurationShort4, which
+       MaterialTheme zeroes when Motion="Reduced". -->
+
+  <StreamGeometry x:Key="MaterialBarOverflowIcon">M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z</StreamGeometry>
+
+  <!-- Localizable strings. Override these keys in an application dictionary to translate. -->
+  <x:String x:Key="MaterialBarOverflowText">More options</x:String>
+
+  <!-- Inline action: icon button with the bar's own tooltip and accessible name. Bindings are
+       compiled, so the item type must be declared for the item template. -->
+  <DataTemplate x:Key="MaterialBarActionTemplate" x:DataType="controls:MaterialBarAction">
+    <Button theming:MaterialAssist.IsIconButton="True"
+            Background="Transparent" BorderThickness="0" Padding="0" MinWidth="48" MinHeight="48"
+            Command="{Binding Command}" CommandParameter="{Binding CommandParameter}"
+            IsEnabled="{Binding IsEnabled}"
+            AutomationProperties.Name="{Binding EffectiveAutomationName}"
+            ToolTip.Tip="{Binding Text}">
+      <PathIcon Data="{Binding Icon}" />
+    </Button>
+  </DataTemplate>
+
+  <!-- Overflow flyout: menu-like density instead of the 16-unit default flyout padding. -->
+  <ControlTheme x:Key="MaterialBarOverflowPresenter" TargetType="FlyoutPresenter">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="8" />
+    <Setter Property="MinWidth" Value="200" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}"
+                BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialAppBar}" TargetType="controls:MaterialAppBar">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="MinHeight" Value="64" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Container" Background="{TemplateBinding Background}"
+                CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+          <Grid RowDefinitions="Auto,Auto">
+            <!-- Leading / middle / trailing row. The middle slot holds the small title, the
+                 thumbnail or the search field depending on Configuration. -->
+            <Grid Grid.Row="0" Name="PART_TopRow" ColumnDefinitions="Auto,*,Auto">
+              <Panel Grid.Column="0" Width="48" Height="48" Margin="4,0,0,0" VerticalAlignment="Center">
+                <ContentPresenter Name="PART_LeadingContent" Width="48" Height="48"
+                                  Content="{TemplateBinding LeadingContent}"
+                                  IsVisible="{Binding LeadingContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <Button Name="PART_LeadingButton"
+                        theming:MaterialAssist.IsIconButton="True"
+                        Background="Transparent" BorderThickness="0" Padding="0" MinWidth="48" MinHeight="48"
+                        Command="{TemplateBinding LeadingCommand}"
+                        AutomationProperties.Name="{TemplateBinding LeadingText}"
+                        ToolTip.Tip="{TemplateBinding LeadingText}"
+                        IsVisible="{TemplateBinding HasLeadingIcon}">
+                  <PathIcon Data="{TemplateBinding LeadingIcon}" Foreground="{DynamicResource MaterialOnSurfaceBrush}" />
+                </Button>
+              </Panel>
+
+              <Grid Grid.Column="1" Margin="4,0" VerticalAlignment="Center">
+                <StackPanel Name="PART_SmallTitle" VerticalAlignment="Center"
+                            IsVisible="{TemplateBinding HasSmallTitle}">
+                  <ContentPresenter Name="PART_SmallTitleText" Content="{TemplateBinding Title}"
+                                    TextAlignment="{TemplateBinding TitleAlignment}"
+                                    TextTrimming="CharacterEllipsis"
+                                    FontSize="{DynamicResource MaterialTitleLargeFontSize}"
+                                    FontWeight="{DynamicResource MaterialTitleLargeFontWeight}"
+                                    LineHeight="{DynamicResource MaterialTitleLargeLineHeight}"
+                                    LetterSpacing="{DynamicResource MaterialTitleLargeLetterSpacing}" />
+                  <ContentPresenter Name="PART_SmallSubtitle" Content="{TemplateBinding Subtitle}"
+                                    TextAlignment="{TemplateBinding TitleAlignment}"
+                                    TextTrimming="CharacterEllipsis"
+                                    Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                                    FontSize="{DynamicResource MaterialLabelMediumFontSize}"
+                                    FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
+                                    LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
+                                    LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}"
+                                    IsVisible="{TemplateBinding HasSubtitle}" />
+                </StackPanel>
+
+                <ContentPresenter Name="PART_Thumbnail" Content="{TemplateBinding Thumbnail}"
+                                  Height="40" VerticalAlignment="Center"
+                                  IsVisible="{TemplateBinding HasThumbnail}" />
+
+                <Grid Name="PART_SearchHost" ColumnDefinitions="*,Auto" Margin="0,4"
+                      IsVisible="{TemplateBinding IsSearchLayout}">
+                  <!-- Filled in code with the built-in search field unless SearchContent is set. -->
+                  <Panel Name="PART_DefaultSearchHost" Grid.Column="0"
+                         IsVisible="{Binding SearchContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNull}}" />
+                  <ContentPresenter Name="PART_SearchContent" Grid.Column="0"
+                                    Content="{TemplateBinding SearchContent}"
+                                    IsVisible="{Binding SearchContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </Grid>
+              </Grid>
+
+              <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
+                <ItemsControl Name="PART_Actions" ItemsSource="{TemplateBinding VisibleActions}"
+                              ItemTemplate="{StaticResource MaterialBarActionTemplate}" VerticalAlignment="Center">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <ContentPresenter Name="PART_TrailingContent" Content="{TemplateBinding TrailingContent}"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding TrailingContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <Panel Name="PART_AvatarHost" Width="48" Height="48" IsVisible="{TemplateBinding HasAvatar}">
+                  <ContentPresenter Name="PART_AvatarContent" Width="32" Height="32"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Content="{TemplateBinding AvatarContent}"
+                                    IsVisible="{Binding AvatarContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                  <Border Name="PART_AvatarMonogram" Width="32" Height="32" CornerRadius="999"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Background="{DynamicResource MaterialPrimaryBrush}"
+                          IsVisible="{Binding AvatarText, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{TemplateBinding AvatarText}"
+                               Foreground="{DynamicResource MaterialOnPrimaryBrush}"
+                               FontSize="{DynamicResource MaterialTitleMediumFontSize}"
+                               FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                </Panel>
+                <Button Name="PART_OverflowButton"
+                        theming:MaterialAssist.IsIconButton="True"
+                        Background="Transparent" BorderThickness="0" Padding="0" MinWidth="48" MinHeight="48"
+                        AutomationProperties.Name="{DynamicResource MaterialBarOverflowText}"
+                        ToolTip.Tip="{DynamicResource MaterialBarOverflowText}"
+                        IsVisible="{TemplateBinding HasOverflow}">
+                  <PathIcon Data="{StaticResource MaterialBarOverflowIcon}" />
+                </Button>
+              </StackPanel>
+            </Grid>
+
+            <!-- Medium and large arrangements place the headline under the icon row. -->
+            <StackPanel Grid.Row="1" Name="PART_ExtendedTitle" Margin="16,8,16,12"
+                        IsVisible="{TemplateBinding IsExtendedLayout}">
+              <ContentPresenter Name="PART_ExtendedTitleText" Content="{TemplateBinding Title}"
+                                TextAlignment="{TemplateBinding TitleAlignment}"
+                                TextTrimming="CharacterEllipsis" />
+              <ContentPresenter Name="PART_ExtendedSubtitle" Content="{TemplateBinding Subtitle}"
+                                TextAlignment="{TemplateBinding TitleAlignment}"
+                                TextTrimming="CharacterEllipsis"
+                                Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                                IsVisible="{TemplateBinding HasSubtitle}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+
+    <Style Selector="^ /template/ Border#PART_Container">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+
+    <!-- Small-centred centres the title; the other arrangements stay left-aligned. -->
+    <Style Selector="^[Configuration=SmallCentered]">
+      <Setter Property="TitleAlignment" Value="Center" />
+    </Style>
+
+    <!-- On-scroll containers carry the surface container fill at rest and gain a level 2
+         shadow once the attached scroll viewer reports an offset. -->
+    <Style Selector="^[Elevation=OnScroll]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    </Style>
+    <Style Selector="^:scrolled /template/ Border#PART_Container">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel2Shadow}" />
+    </Style>
+
+    <Style Selector="^[Configuration=Small], ^[Configuration=SmallCentered], ^[Configuration=SmallImage]">
+      <Setter Property="Padding" Value="0,8" />
+    </Style>
+    <!-- The search variant reserves the full 64 units for its 56-unit field. -->
+    <Style Selector="^[Configuration=Search]">
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="^[Configuration=Medium]">
+      <Setter Property="MinHeight" Value="112" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="^[Configuration=Large]">
+      <Setter Property="MinHeight" Value="120" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <!-- The extended arrangements reserve the 56-unit icon row from the design. -->
+    <Style Selector="^[Configuration=Medium] /template/ Grid#PART_TopRow">
+      <Setter Property="MinHeight" Value="56" />
+    </Style>
+    <Style Selector="^[Configuration=Large] /template/ Grid#PART_TopRow">
+      <Setter Property="MinHeight" Value="56" />
+    </Style>
+
+    <Style Selector="^[Configuration=Medium] /template/ StackPanel#PART_ExtendedTitle">
+      <Setter Property="Spacing" Value="4" />
+    </Style>
+    <Style Selector="^[Configuration=Large] /template/ StackPanel#PART_ExtendedTitle">
+      <Setter Property="Spacing" Value="8" />
+    </Style>
+    <Style Selector="^[Configuration=Medium] /template/ ContentPresenter#PART_ExtendedTitleText">
+      <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineMediumFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineMediumFontWeight}" />
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineMediumLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineMediumLetterSpacing}" />
+    </Style>
+    <Style Selector="^[Configuration=Large] /template/ ContentPresenter#PART_ExtendedTitleText">
+      <Setter Property="FontSize" Value="{DynamicResource MaterialDisplaySmallFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialDisplaySmallFontWeight}" />
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialDisplaySmallLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialDisplaySmallLetterSpacing}" />
+    </Style>
+    <Style Selector="^[Configuration=Medium] /template/ ContentPresenter#PART_ExtendedSubtitle">
+      <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialLabelLargeLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialLabelLargeLetterSpacing}" />
+    </Style>
+    <Style Selector="^[Configuration=Large] /template/ ContentPresenter#PART_ExtendedSubtitle">
+      <Setter Property="FontSize" Value="{DynamicResource MaterialTitleMediumFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleMediumFontWeight}" />
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialTitleMediumLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialTitleMediumLetterSpacing}" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialBottomAppBar}" TargetType="controls:MaterialBottomAppBar">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="MinHeight" Value="80" />
+    <Setter Property="Padding" Value="4,0,16,0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Container" Background="{TemplateBinding Background}"
+                CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+          <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="80">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <ItemsControl Name="PART_Actions" ItemsSource="{TemplateBinding VisibleActions}"
+                            ItemTemplate="{StaticResource MaterialBarActionTemplate}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
+              <Button Name="PART_OverflowButton"
+                      theming:MaterialAssist.IsIconButton="True"
+                      Background="Transparent" BorderThickness="0" Padding="0" MinWidth="48" MinHeight="48"
+                      AutomationProperties.Name="{DynamicResource MaterialBarOverflowText}"
+                      ToolTip.Tip="{DynamicResource MaterialBarOverflowText}"
+                      IsVisible="{TemplateBinding HasOverflow}">
+                <PathIcon Data="{StaticResource MaterialBarOverflowIcon}" />
+              </Button>
+            </StackPanel>
+            <!-- The FAB slot is 56 units; the content supplies its own container and elevation. -->
+            <ContentPresenter Name="PART_Fab" Grid.Column="2" Content="{TemplateBinding Fab}"
+                              MinWidth="56" MinHeight="56" Margin="8,0,0,0"
+                              HorizontalAlignment="Right" VerticalAlignment="Center"
+                              IsVisible="{TemplateBinding HasFab}" />
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialToolbar}" TargetType="controls:MaterialToolbar">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="MinHeight" Value="64" />
+    <Setter Property="Padding" Value="16,8" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Container" Background="{TemplateBinding Background}"
+                CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+          <!-- DockPanel keeps one layout for both orientations: the overflow button docks to the
+               right (horizontal) or bottom (vertical) and the actions fill the remaining slot. -->
+          <DockPanel Name="PART_Layout" LastChildFill="True">
+            <Button Name="PART_OverflowButton" DockPanel.Dock="{TemplateBinding OverflowDock}"
+                    theming:MaterialAssist.IsIconButton="True"
+                    Background="Transparent" BorderThickness="0" Padding="0" MinWidth="48" MinHeight="48"
+                    AutomationProperties.Name="{DynamicResource MaterialBarOverflowText}"
+                    ToolTip.Tip="{DynamicResource MaterialBarOverflowText}"
+                    IsVisible="{TemplateBinding HasOverflow}">
+              <PathIcon Data="{StaticResource MaterialBarOverflowIcon}" />
+            </Button>
+            <ItemsControl Name="PART_Actions" ItemsSource="{TemplateBinding VisibleActions}"
+                          ItemTemplate="{StaticResource MaterialBarActionTemplate}" />
+          </DockPanel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- ItemsPanel is set from styles, not inline in the template: template values outrank
+         style values, so an inline panel could not be replaced by the orientation variants. -->
+    <Style Selector="^ /template/ ItemsControl#PART_Actions">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate>
+          <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center"
+                      VerticalAlignment="Center" />
+        </ItemsPanelTemplate>
+      </Setter>
+    </Style>
+
+    <!-- Floating: full corner radius, 8-unit inset and level 3 elevation. -->
+    <Style Selector="^[Configuration=Floating]">
+      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+      <Setter Property="Padding" Value="8" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="MinWidth" Value="64" />
+    </Style>
+    <Style Selector="^[Configuration=Floating] /template/ Border#PART_Container">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel3Shadow}" />
+    </Style>
+
+    <!-- Docked: spans its slot and spreads the actions across the available width. -->
+    <Style Selector="^[Configuration=Docked][Orientation=Horizontal] /template/ ItemsControl#PART_Actions">
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate>
+          <UniformGrid Rows="1" />
+        </ItemsPanelTemplate>
+      </Setter>
+    </Style>
+
+    <Style Selector="^[Orientation=Vertical]">
+      <Setter Property="MinWidth" Value="64" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="^[Orientation=Vertical] /template/ ItemsControl#PART_Actions">
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate>
+          <StackPanel Orientation="Vertical" Spacing="4" HorizontalAlignment="Center"
+                      VerticalAlignment="Center" />
+        </ItemsPanelTemplate>
+      </Setter>
+    </Style>
+
+    <Style Selector="^[Color=Vibrant]">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <!-- The button theme colors an icon button's own Foreground; the icon itself is repainted
+         here so vibrant toolbars use the on-container role. -->
+    <Style Selector="^[Color=Vibrant] /template/ ItemsControl#PART_Actions Button PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[Color=Vibrant] /template/ Button#PART_OverflowButton PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialSectionHeader}" TargetType="controls:MaterialSectionHeader">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="Padding" Value="16,18" />
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}">
+          <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <ContentPresenter Name="PART_LeadingContent" Content="{TemplateBinding LeadingContent}"
+                              VerticalAlignment="Center"
+                              IsVisible="{Binding LeadingContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <TextBlock Name="PART_Label" Text="{TemplateBinding Label}"
+                       Foreground="{TemplateBinding Foreground}"
+                       FontSize="{DynamicResource MaterialTitleSmallFontSize}"
+                       FontWeight="{DynamicResource MaterialTitleSmallFontWeight}"
+                       LineHeight="{DynamicResource MaterialTitleSmallLineHeight}"
+                       LetterSpacing="{DynamicResource MaterialTitleSmallLetterSpacing}"
+                       VerticalAlignment="Center"
+                       AutomationProperties.HeadingLevel="2" />
+            <ContentPresenter Name="PART_TrailingContent" Content="{TemplateBinding TrailingContent}"
+                              VerticalAlignment="Center"
+                              IsVisible="{Binding TrailingContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </StackPanel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialPageHeader}" TargetType="controls:MaterialPageHeader">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="Padding" Value="52" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+          <Grid>
+            <!-- Decorative artwork sits behind the content at the design's 30% opacity. -->
+            <ContentPresenter Name="PART_Decoration" Content="{TemplateBinding Decoration}"
+                              Opacity="0.3" IsHitTestVisible="False"
+                              HorizontalAlignment="Right" VerticalAlignment="Top"
+                              IsVisible="{Binding Decoration, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <StackPanel Spacing="60">
+              <ContentPresenter Name="PART_Logo" Content="{TemplateBinding Logo}"
+                                Width="40" Height="40" HorizontalAlignment="Left"
+                                IsVisible="{Binding Logo, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              <StackPanel Spacing="24">
+                <TextBlock Text="{TemplateBinding Title}" FontSize="80" LineHeight="94"
+                           TextWrapping="Wrap" Foreground="{TemplateBinding Foreground}"
+                           AutomationProperties.HeadingLevel="1" />
+                <Button Name="PART_Link" Content="{TemplateBinding LinkText}"
+                        Command="{TemplateBinding LinkCommand}"
+                        theming:MaterialAssist.ButtonVariant="Text"
+                        Foreground="{DynamicResource MaterialPrimaryBrush}"
+                        FontSize="24" Padding="0" MinHeight="32" HorizontalAlignment="Left"
+                        IsVisible="{Binding LinkText, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <TextBlock Text="{TemplateBinding Definition}" FontSize="18" LineHeight="24"
+                           TextWrapping="Wrap" Foreground="{TemplateBinding Foreground}" />
+              </StackPanel>
+              <Border Name="PART_Divider" Height="1"
+                      Background="{DynamicResource MaterialOutlineVariantBrush}"
+                      IsVisible="{TemplateBinding ShowDivider}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>
