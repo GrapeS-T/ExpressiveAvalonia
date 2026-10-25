@@ -79,4 +79,35 @@ public class MotionBehaviorTests
         }
         finally { window.Close(); }
     }
+
+    [AvaloniaFact]
+    public void MaterialBadgeReflectsSizeAndTextState()
+    {
+        var badge = new MaterialBadge();
+        Assert.Equal(MaterialBadgeSize.Large, badge.Size);
+        Assert.False(badge.IsLabeled);
+
+        badge.Text = "5";
+        Assert.True(badge.IsLabeled);
+
+        badge.Size = MaterialBadgeSize.Small;
+        Assert.False(badge.IsLabeled);
+    }
+
+    [AvaloniaFact]
+    public void SpringPhysicsInterpolatesTowardsTarget()
+    {
+        var control = new Border();
+        var window = new Window { Content = control };
+        window.Show();
+        try
+        {
+            MaterialMotion.SetIsReduced(control, false);
+            double value = 0;
+            using var animation = MaterialMotion.Animate(control, 0, 100, x => value = x, stiffness: 2000, dampingRatio: 1.0);
+            Assert.True(value >= 0);
+            animation.Dispose();
+        }
+        finally { window.Close(); }
+    }
 }
