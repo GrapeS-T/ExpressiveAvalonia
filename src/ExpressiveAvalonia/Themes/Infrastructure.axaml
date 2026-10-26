@@ -3,6 +3,15 @@
   <!-- Popup, Track and presenters retain their native layout and input implementations. -->
   <!-- Native contracts verified against AvaloniaUI/Avalonia tag 12.1.4:
        src/Avalonia.Controls and src/Avalonia.Themes.Simple/Controls. No stock theme is loaded. -->
+  <ControlTheme x:Key="{x:Type PathIcon}" TargetType="PathIcon">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Viewbox Stretch="Uniform">
+          <Path Data="{TemplateBinding Data}" Fill="{TemplateBinding Foreground}" />
+        </Viewbox>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
   <ControlTheme x:Key="{x:Type Window}" TargetType="Window">
     <Setter Property="Template">
       <ControlTemplate>
