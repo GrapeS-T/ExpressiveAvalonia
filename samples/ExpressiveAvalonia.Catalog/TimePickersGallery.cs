@@ -6,192 +6,207 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>
-/// Gallery for the Material time picker family: both input modes, both formats, both
-/// orientations, and the standalone building blocks (clock face, period selector, time cell).
-/// </summary>
+/// <summary>One live time picker with its mode, format, orientation, step and validation exposed in the inspector.</summary>
 public static class TimePickersGallery
 {
-    public static Control Create()
+    public static Control Create() => new TimePickerPlayground();
+}
+
+internal sealed class TimePickerPlayground : Grid, IComponentPlayground
+{
+    private static readonly string[] MinuteSteps = { "1", "5", "10", "15", "30" };
+
+    private readonly MaterialTimePicker _picker = new()
     {
-        var root = new StackPanel { Spacing = 24, Margin = new Thickness(24) };
-        var status = new TextBlock { Text = "No time confirmed yet." };
+        Time = new TimeSpan(9, 45, 0),
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly TextBlock _status = new()
+    {
+        Text = "Время ещё не подтверждено.",
+        HorizontalAlignment = HorizontalAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly ComboBox _mode = new() { ItemsSource = Enum.GetNames<MaterialTimeInputMode>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _format = new() { ItemsSource = Enum.GetNames<MaterialTimeFormat>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _orientation = new() { ItemsSource = Enum.GetNames<Orientation>(), SelectedIndex = 1, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _increment = new() { ItemsSource = MinuteSteps, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Slider _hour;
+    private readonly Slider _minute;
+    private readonly Slider _width;
+    private readonly ToggleSwitch _actions;
+    private readonly ToggleSwitch _limit;
+    private readonly TextBox _headline;
+    private readonly Button _dialog;
+    private bool _syncing;
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
-        root.Children.Add(new TextBlock
+    internal TimePickerPlayground()
+    {
+        RowDefinitions = new RowDefinitions("*,Auto");
+        var stage = new StackPanel
         {
-            Text = "Time picker",
-            FontSize = 24,
-            FontWeight = FontWeight.Medium,
-        });
-        root.Children.Add(new TextBlock
+            Spacing = 20,
+            Margin = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        stage.Children.Add(_picker);
+        _dialog = new Button { Content = "Открыть модальный диалог", HorizontalAlignment = HorizontalAlignment.Center };
+        MaterialAssist.SetButtonVariant(_dialog, MaterialButtonVariant.Tonal);
+        MaterialAssist.SetControlSize(_dialog, MaterialControlSize.Small);
+        _dialog.Click += async (_, _) =>
         {
-            Text = "Dial and keyboard entry, 12 and 24 hour. The dial accepts pointer drags, the cells "
-                   + "accept typing, arrows and Enter. Each picker below reports Confirmed and Cancelled.",
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 720,
-        });
-
-        var row = new WrapPanel { Orientation = Orientation.Horizontal };
-        row.Children.Add(Card("Dial · 12 hour · vertical", Dial(TimeSpan.FromHours(7), MaterialTimeFormat.Hour12,
-            MaterialTimeInputMode.Dial, Orientation.Vertical, status)));
-        row.Children.Add(Card("Dial · 24 hour · vertical", Dial(TimeSpan.FromHours(20) + TimeSpan.FromMinutes(15),
-            MaterialTimeFormat.Hour24, MaterialTimeInputMode.Dial, Orientation.Vertical, status)));
-        row.Children.Add(Card("Keyboard · 12 hour", Dial(TimeSpan.FromHours(9) + TimeSpan.FromMinutes(45),
-            MaterialTimeFormat.Hour12, MaterialTimeInputMode.Keyboard, Orientation.Vertical, status)));
-        row.Children.Add(Card("Keyboard · 24 hour", Dial(TimeSpan.FromHours(23) + TimeSpan.FromMinutes(5),
-            MaterialTimeFormat.Hour24, MaterialTimeInputMode.Keyboard, Orientation.Vertical, status)));
-        root.Children.Add(row);
-        root.Children.Add(Card("Dial · 12 hour · horizontal",
-            Dial(TimeSpan.FromHours(18) + TimeSpan.FromMinutes(30), MaterialTimeFormat.Hour12,
-                MaterialTimeInputMode.Dial, Orientation.Horizontal, status)));
-
-        var validated = Dial(TimeSpan.FromHours(10), MaterialTimeFormat.Hour12,
-            MaterialTimeInputMode.Keyboard, Orientation.Vertical, status);
-        validated.MinTime = TimeSpan.FromHours(9);
-        validated.MaxTime = TimeSpan.FromHours(17);
-        validated.Headline = "Office hours only";
-        root.Children.Add(Card("Validation · 09:00-17:00", validated));
-
-        root.Children.Add(new TextBlock
-        {
-            Text = "Building blocks",
-            FontSize = 20,
-            FontWeight = FontWeight.Medium,
-            Margin = new Thickness(0, 8, 0, 0),
-        });
-        root.Children.Add(Blocks(status));
-
-        var modal = new Button { Content = "Open modal dialog" };
-        modal.Click += async (_, _) =>
-        {
-            if (TopLevel.GetTopLevel(modal) is not Window owner) return;
-            var picker = new MaterialTimePicker
+            try
             {
-                Time = TimeSpan.FromHours(16) + TimeSpan.FromMinutes(30),
-                Format = MaterialTimeFormat.Hour12,
-            };
-            var result = await MaterialTimePickerDialog.ShowAsync(owner, picker);
-            status.Text = result.IsConfirmed
-                ? $"Dialog confirmed {Format(result.Time)}"
-                : $"Dialog cancelled at {Format(result.Time)}";
+                if (TopLevel.GetTopLevel(_dialog) is not Window owner) return;
+                var picker = new MaterialTimePicker
+                {
+                    Time = _picker.Time,
+                    Format = _picker.Format,
+                    InputMode = _picker.InputMode,
+                    Orientation = _picker.Orientation,
+                    MinuteIncrement = _picker.MinuteIncrement,
+                    Headline = _picker.Headline,
+                    MinTime = _picker.MinTime,
+                    MaxTime = _picker.MaxTime,
+                };
+                var result = await MaterialTimePickerDialog.ShowAsync(owner, picker);
+                _status.Text = result.IsConfirmed
+                    ? $"Диалог подтверждён: {Format(result.Time)}"
+                    : $"Диалог отменён, значение {Format(result.Time)}";
+            }
+            catch (Exception exception)
+            {
+                _status.Text = $"Диалог недоступен: {exception.Message}";
+            }
         };
-        root.Children.Add(modal);
-        root.Children.Add(status);
+        stage.Children.Add(_dialog);
+        Children.Add(stage);
+        Grid.SetRow(_status, 1);
+        _status.Margin = new Thickness(24, 0, 24, 20);
+        Children.Add(_status);
 
-        return new ScrollViewer
+        Settings.Children.Add(Caption("Режим ввода"));
+        Settings.Children.Add(_mode);
+        Settings.Children.Add(Caption("Формат"));
+        Settings.Children.Add(_format);
+        Settings.Children.Add(Caption("Ориентация"));
+        Settings.Children.Add(_orientation);
+        Settings.Children.Add(Caption("Шаг минут"));
+        Settings.Children.Add(_increment);
+        _hour = Number(Settings, "Часы", 0, 23, 9, 1, "ч");
+        _minute = Number(Settings, "Минуты", 0, 59, 45, 1, "мин");
+        _width = Number(Settings, "Ширина", 280, 720, 360, 8, "dp");
+        _actions = Toggle(Settings, "Показывать действия Cancel/OK", true);
+        _limit = Toggle(Settings, "Ограничить 09:00–17:00", false);
+        Settings.Children.Add(Caption("Заголовок"));
+        _headline = new TextBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        MaterialTextField.SetVariant(_headline, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(_headline, "Заголовок");
+        Settings.Children.Add(_headline);
+
+        Settings.Children.Add(new TextBlock
         {
-            Content = root,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-        };
+            Text = "Циферблат принимает перетаскивание указателя, ячейки — ввод, стрелки и Enter. " +
+                   "Подтверждение и отмена сообщаются в строке состояния; при ограничении времени " +
+                   "выход за диапазон блокирует OK.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+        });
+
+        AutomationProperties.SetName(_mode, "Режим ввода времени");
+        AutomationProperties.SetName(_format, "Формат времени");
+        AutomationProperties.SetName(_orientation, "Ориентация времени");
+        AutomationProperties.SetName(_increment, "Шаг минут");
+        AutomationProperties.SetName(_headline, "Заголовок времени");
+
+        _mode.SelectionChanged += (_, _) => { if (!_syncing) ApplyOptions(); };
+        _format.SelectionChanged += (_, _) => { if (!_syncing) ApplyOptions(); };
+        _orientation.SelectionChanged += (_, _) => { if (!_syncing) ApplyOptions(); };
+        _increment.SelectionChanged += (_, _) => { if (!_syncing) ApplyOptions(); };
+        _width.PropertyChanged += (_, e) => { if (!_syncing && e.Property == RangeBase.ValueProperty) ApplyOptions(); };
+        _actions.IsCheckedChanged += (_, _) => { if (!_syncing) ApplyOptions(); };
+        _limit.IsCheckedChanged += (_, _) => { if (!_syncing) ApplyOptions(); };
+        _headline.TextChanged += (_, _) => { if (!_syncing) ApplyOptions(); };
+        _hour.PropertyChanged += (_, e) => { if (!_syncing && e.Property == RangeBase.ValueProperty) ApplyTime(); };
+        _minute.PropertyChanged += (_, e) => { if (!_syncing && e.Property == RangeBase.ValueProperty) ApplyTime(); };
+        _picker.PropertyChanged += (_, e) => { if (!_syncing && e.Property == MaterialTimePicker.TimeProperty) SyncTime(); };
+        _picker.Confirmed += (_, e) => _status.Text = $"Подтверждено: {Format(e.Time)}";
+        _picker.Cancelled += (_, _) => _status.Text = $"Отменено, значение {Format(_picker.Time)}";
+
+        ApplyOptions();
     }
 
-    private static Control Card(string caption, Control content)
+    private void ApplyOptions()
     {
-        var panel = new StackPanel { Spacing = 12, Margin = new Thickness(0, 0, 24, 24) };
-        panel.Children.Add(new TextBlock { Text = caption, FontWeight = FontWeight.Medium });
-        panel.Children.Add(content);
-        return panel;
+        _syncing = true;
+        _picker.InputMode = (MaterialTimeInputMode)Math.Clamp(_mode.SelectedIndex, 0, 1);
+        _picker.Format = (MaterialTimeFormat)Math.Clamp(_format.SelectedIndex, 0, 1);
+        _picker.Orientation = (Orientation)Math.Clamp(_orientation.SelectedIndex, 0, 1);
+        _picker.MinuteIncrement = int.Parse(MinuteSteps[Math.Clamp(_increment.SelectedIndex, 0, MinuteSteps.Length - 1)]);
+        _picker.Width = _width.Value;
+        _picker.ShowActions = _actions.IsChecked == true;
+        _picker.MinTime = _limit.IsChecked == true ? TimeSpan.FromHours(9) : null;
+        _picker.MaxTime = _limit.IsChecked == true ? TimeSpan.FromHours(17) : null;
+        _picker.Headline = string.IsNullOrWhiteSpace(_headline.Text) ? null : _headline.Text;
+        _syncing = false;
+        SyncTime();
     }
 
-    private static MaterialTimePicker Dial(TimeSpan time, MaterialTimeFormat format,
-        MaterialTimeInputMode mode, Orientation orientation, TextBlock status)
+    private void ApplyTime()
     {
-        var picker = new MaterialTimePicker
-        {
-            Time = time,
-            Format = format,
-            InputMode = mode,
-            Orientation = orientation,
-        };
+        _syncing = true;
+        var hour = (int)Math.Round(_hour.Value);
+        var minute = (int)Math.Round(_minute.Value);
+        _picker.Time = new TimeSpan(hour, minute, 0);
+        _syncing = false;
+    }
 
-        picker.Confirmed += (_, e) => status.Text = $"Confirmed {Format(e.Time)}";
-        picker.Cancelled += (_, _) => status.Text = $"Cancelled, value kept at {Format(picker.Time)}";
-        return picker;
+    private void SyncTime()
+    {
+        _syncing = true;
+        _hour.Value = _picker.Time.Hours;
+        _minute.Value = _picker.Time.Minutes;
+        _syncing = false;
     }
 
     private static string Format(TimeSpan time) => $"{(int)time.TotalHours:00}:{time.Minutes:00}";
 
-    private static Control Blocks(TextBlock status)
+    private static TextBlock Caption(string text) => new() { Text = text };
+
+    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
     {
-        var dial = new MaterialClockDial
-        {
-            Value = 4,
-            Selection = MaterialClockDialSelection.Hour,
-        };
-        AutomationProperties.SetName(dial, "Hour clock face");
-
-        var minutes = new MaterialClockDial
-        {
-            Value = 20,
-            Selection = MaterialClockDialSelection.Minute,
-        };
-        AutomationProperties.SetName(minutes, "Minute clock face");
-
-        var face24 = new MaterialClockDial
-        {
-            Value = 20,
-            Selection = MaterialClockDialSelection.Hour,
-            Is24Hour = true,
-        };
-        AutomationProperties.SetName(face24, "24 hour clock face");
-
-        var readout = new TextBlock { Text = "Hour 4" };
-        dial.ValueChanged += (_, _) => readout.Text = $"Hour {dial.Value}";
-        minutes.ValueChanged += (_, _) => readout.Text = $"Minute {minutes.Value}";
-        face24.ValueChanged += (_, _) => readout.Text = $"24-hour {face24.Value:00}";
-
-        var periods = new MaterialPeriodSelector { IsPm = true };
-        periods.IsPmChanged += (_, _) => readout.Text = periods.IsPm ? "PM" : "AM";
-
-        var horizontalPeriods = new MaterialPeriodSelector
-        {
-            Orientation = Orientation.Horizontal,
-            Width = 216,
-            Height = 38,
-        };
-
-        var hourCell = new MaterialTimeInputSegment
-        {
-            Value = 7,
-            Minimum = 0,
-            Maximum = 12,
-            Label = "Hour",
-            HelpText = "Enter a value between 1 and 12",
-        };
-        var minuteCell = new MaterialTimeInputSegment
-        {
-            Value = 30,
-            Minimum = 0,
-            Maximum = 59,
-            Variant = MaterialTimeSegmentVariant.Keyboard,
-            Label = "Minute",
-        };
-        hourCell.ValueChanged += (_, _) => readout.Text = $"Cell hour {hourCell.Value}";
-        minuteCell.ValueChanged += (_, _) => readout.Text = $"Cell minute {minuteCell.Value:00}";
-        minuteCell.EntryCompleted += (_, _) => status.Text = $"Minute entry completed: {minuteCell.Value:00}";
-
-        var cells = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-        cells.Children.Add(hourCell);
-        cells.Children.Add(minuteCell);
-
-        var grid = new WrapPanel { Orientation = Orientation.Horizontal };
-        grid.Children.Add(new StackPanel { Spacing = 8, Margin = new Thickness(0, 0, 24, 16) }.With(dial));
-        grid.Children.Add(new StackPanel { Spacing = 8, Margin = new Thickness(0, 0, 24, 16) }.With(minutes));
-        grid.Children.Add(new StackPanel { Spacing = 8, Margin = new Thickness(0, 0, 24, 16) }.With(face24));
-        grid.Children.Add(new StackPanel { Spacing = 8, Margin = new Thickness(0, 0, 24, 16) }.With(periods));
-        grid.Children.Add(new StackPanel { Spacing = 8, Margin = new Thickness(0, 0, 24, 16) }.With(horizontalPeriods));
-        grid.Children.Add(new StackPanel { Spacing = 8, Margin = new Thickness(0, 0, 24, 16) }.With(cells));
-        grid.Children.Add(readout);
-
-        return grid;
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        host.Children.Add(toggle);
+        return toggle;
     }
 
-    private static StackPanel With(this StackPanel panel, Control child)
+    private static Slider Number(StackPanel host, string label, double min, double max, double value, double step, string unit)
     {
-        panel.Children.Add(child);
-        return panel;
+        var caption = new TextBlock { Text = $"{label}: {value:0} {unit}" };
+        host.Children.Add(caption);
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            TickFrequency = step,
+            IsSnapToTickEnabled = true,
+        };
+        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(slider, false);
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0} {unit}";
+        };
+        AutomationProperties.SetName(slider, label);
+        host.Children.Add(slider);
+        return slider;
     }
 }

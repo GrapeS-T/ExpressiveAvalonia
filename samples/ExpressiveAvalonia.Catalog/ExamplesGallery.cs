@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -12,216 +11,426 @@ using ExpressiveAvalonia.Theming;
 namespace ExpressiveAvalonia.Catalog;
 
 /// <summary>
-/// The examples family gallery: the fourteen exported screens, the adaptive layout grid, the
-/// on-screen keyboard, the status bar and device frame, the content/slot/general-item building
-/// blocks, and the color-role schematic.
+/// One selected example from the source screens, the adaptive layout grid, the keyboard, the
+/// building blocks, the device chrome or the color schematic, with its configuration in the inspector.
 /// </summary>
-/// <remarks>
-/// Each page exercises the control the way the source composes it: real breakpoints, real key
-/// insertion into a text field, real theme-variant swatches. Nothing is a screenshot: the screens
-/// are built from the same controls an application would use, so they resize, focus, scroll and
-/// follow light/dark and reduced-motion changes.
-/// </remarks>
 public static class ExamplesGallery
 {
-    /// <summary>Builds the examples family gallery.</summary>
-    public static Control Create()
-    {
-        var tabs = new TabControl();
-        tabs.Items.Add(new TabItem { Header = "Screens", Content = new DeferredGallery(() => ScreensPage()) });
-        tabs.Items.Add(new TabItem { Header = "Layout grid", Content = new DeferredGallery(() => LayoutPage()) });
-        tabs.Items.Add(new TabItem { Header = "Keyboard", Content = new DeferredGallery(() => KeyboardPage()) });
-        tabs.Items.Add(new TabItem { Header = "Building blocks", Content = new DeferredGallery(() => BlocksPage()) });
-        tabs.Items.Add(new TabItem { Header = "Device chrome", Content = new DeferredGallery(() => ChromePage()) });
-        tabs.Items.Add(new TabItem { Header = "Color schematic", Content = new DeferredGallery(() => SchematicPage()) });
-        return tabs;
-    }
+    public static Control Create() => new ExamplesPlayground();
+}
 
-    private static StackPanel Page() => new() { Spacing = 16, Margin = new Thickness(24) };
-
-    private static Control Section(string caption, string? description, Control content)
+internal sealed class ExamplesPlayground : Grid, IComponentPlayground
+{
+    private static readonly string[] ScreenNames =
     {
-        var stack = new StackPanel { Spacing = 8 };
-        var title = new TextBlock { Text = caption };
-        MaterialTypography.SetStyle(title, MaterialTypeStyle.TitleMedium);
-        stack.Children.Add(title);
-        if (description is not null)
-        {
-            var text = new TextBlock { Text = description, TextWrapping = TextWrapping.Wrap, MaxWidth = 760 };
-            MaterialTypography.SetStyle(text, MaterialTypeStyle.BodyMedium);
-            text.Bind(TextBlock.ForegroundProperty, text.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
-            stack.Children.Add(text);
-        }
-        stack.Children.Add(content);
-        return stack;
-    }
-
-    private static Control Scroll(Control content) => new ScrollViewer
-    {
-        Content = content,
-        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        "Home", "Upcoming", "Detailed view", "Reviews", "Library", "Gallery", "Messaging",
     };
+
+    private static readonly string[] SizeClassNames =
+    {
+        "Compact 0–599", "Medium 600–839", "Expanded 840–1199", "Large 1200–1599", "Extra-large 1600+",
+    };
+
+    private static readonly string[] NavigationNames =
+    {
+        "None", "Navigation region", "Navigation expanded",
+    };
+
+    private static readonly string[] BlockNames =
+    {
+        "Content (local-000221)",
+        ".Building Blocks/Content (local-000218)",
+        "Slot (local-004633)",
+        "General item (local-000261)",
+    };
+
+    private static readonly string[] ChromeNames =
+    {
+        "Status bar (local-000697)", "Device frame (local-001331)",
+    };
+
+    private readonly ContentControl _stage = new()
+    {
+        Margin = new Thickness(24),
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly TextBlock _status = new()
+    {
+        Text = "Выберите пример в инспекторе.",
+        HorizontalAlignment = HorizontalAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly ComboBox _category = new()
+    {
+        ItemsSource = new[] { "Screens", "Layout grid", "Keyboard", "Building blocks", "Device chrome", "Color schematic" },
+        SelectedIndex = 0,
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+    };
+    private readonly StackPanel _screensSettings = new() { Spacing = 16 };
+    private readonly StackPanel _layoutSettings = new() { Spacing = 16 };
+    private readonly StackPanel _keyboardSettings = new() { Spacing = 16 };
+    private readonly StackPanel _blocksSettings = new() { Spacing = 16 };
+    private readonly StackPanel _chromeSettings = new() { Spacing = 16 };
+    private readonly StackPanel _schematicSettings = new() { Spacing = 16 };
+
+    private readonly ComboBox _screen = new() { ItemsSource = ScreenNames, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _form = new() { ItemsSource = new[] { "Phone", "Browser" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Slider _screenScale;
+    private Viewbox? _screenViewbox;
+    private double _screenNativeWidth = 428;
+    private double _screenNativeHeight = 960;
+
+    private readonly ComboBox _layoutKind = new() { ItemsSource = new[] { "Адаптивная сетка", "Вариант источника" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _sizeClass = new() { ItemsSource = SizeClassNames, SelectedIndex = 2, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _navigation = new() { ItemsSource = NavigationNames, SelectedIndex = 1, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Slider _layoutWidth;
+    private readonly ToggleSwitch _autoNavigation;
+
+    private readonly MaterialKeyboard _keyboard = new() { Width = 412 };
+    private Viewbox? _keyboardStage;
+    private readonly ComboBox _keyboardConfig = new() { ItemsSource = Enum.GetNames<MaterialKeyboardConfiguration>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _keyboardStyle = new() { ItemsSource = Enum.GetNames<MaterialKeyboardStyle>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _keyboardLayer = new() { ItemsSource = Enum.GetNames<MaterialKeyboardLayer>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ToggleSwitch _shift;
+    private readonly ToggleSwitch _caps;
+    private readonly ToggleSwitch _chromeBar;
+    private readonly ToggleSwitch _bottomBar;
+    private readonly ToggleSwitch _keyboardOpen;
+
+    private readonly ComboBox _block = new() { ItemsSource = BlockNames, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ToggleSwitch _overline;
+    private readonly ToggleSwitch _blockSupporting;
+    private readonly ToggleSwitch _slotFilled;
+    private readonly ToggleSwitch _tileSelected;
+    private readonly ToggleSwitch _tileText;
+
+    private readonly ComboBox _chrome = new() { ItemsSource = ChromeNames, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ToggleSwitch _barCutout;
+    private readonly ToggleSwitch _barClock;
+    private readonly TextBox _barTime;
+    private readonly ToggleSwitch _frameStatus;
+    private readonly ToggleSwitch _frameGesture;
+    private readonly ToggleSwitch _frameCutout;
+    private readonly ToggleSwitch _frameScroll;
+    private readonly TextBox _frameTime;
+
+    private readonly MaterialSchematicGroup _schematic = new() { ShowDarkPreview = true, ShowFixedColors = true, SwatchWidth = 180 };
+    private readonly ScrollViewer _schematicStage = new()
+    {
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+    };
+    private readonly ToggleSwitch _darkPreview;
+    private readonly ToggleSwitch _fixedColors;
+    private readonly Slider _swatchWidth;
+
+    private bool _syncing;
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    internal ExamplesPlayground()
+    {
+        RowDefinitions = new RowDefinitions("*,Auto");
+        Children.Add(_stage);
+        Grid.SetRow(_status, 1);
+        _status.Margin = new Thickness(24, 0, 24, 20);
+        Children.Add(_status);
+
+        Settings.Children.Add(Caption("Семейство"));
+        Settings.Children.Add(_category);
+
+        // ---- screens ----
+        _screensSettings.Children.Add(Caption("Экран"));
+        _screensSettings.Children.Add(_screen);
+        _screensSettings.Children.Add(Caption("Форм-фактор"));
+        _screensSettings.Children.Add(_form);
+        _screenScale = Number(_screensSettings, "Масштаб", 0.3, 1.0, 0.5, 0.05, "×");
+        Settings.Children.Add(_screensSettings);
+
+        // ---- layout ----
+        _layoutSettings.Children.Add(Caption("Пример"));
+        _layoutSettings.Children.Add(_layoutKind);
+        _layoutWidth = Number(_layoutSettings, "Ширина окна", 320, 1680, 900, 20, "dp");
+        _layoutSettings.Children.Add(Caption("Класс размера (вариант источника)"));
+        _layoutSettings.Children.Add(_sizeClass);
+        _layoutSettings.Children.Add(Caption("Navigation region"));
+        _layoutSettings.Children.Add(_navigation);
+        _autoNavigation = Toggle(_layoutSettings, "Адаптивная навигация", true);
+        Settings.Children.Add(_layoutSettings);
+
+        // ---- keyboard ----
+        _keyboardSettings.Children.Add(Caption("Конфигурация"));
+        _keyboardSettings.Children.Add(_keyboardConfig);
+        _keyboardSettings.Children.Add(Caption("Presentation"));
+        _keyboardSettings.Children.Add(_keyboardStyle);
+        _keyboardSettings.Children.Add(Caption("Слой"));
+        _keyboardSettings.Children.Add(_keyboardLayer);
+        _shift = Toggle(_keyboardSettings, "Shift", false);
+        _caps = Toggle(_keyboardSettings, "Caps lock", false);
+        _chromeBar = Toggle(_keyboardSettings, "Chrome bar", true);
+        _bottomBar = Toggle(_keyboardSettings, "Bottom bar", true);
+        _keyboardOpen = Toggle(_keyboardSettings, "Клавиатура открыта", true);
+        Settings.Children.Add(_keyboardSettings);
+
+        // ---- building blocks ----
+        _blocksSettings.Children.Add(Caption("Building block"));
+        _blocksSettings.Children.Add(_block);
+        _overline = Toggle(_blocksSettings, "Overline", true);
+        _blockSupporting = Toggle(_blocksSettings, "Поддерживающий текст", true);
+        _slotFilled = Toggle(_blocksSettings, "Заполнить слот", false);
+        _tileSelected = Toggle(_blocksSettings, "Выбранная плитка", false);
+        _tileText = Toggle(_blocksSettings, "Текст на плитке", true);
+        Settings.Children.Add(_blocksSettings);
+
+        // ---- chrome ----
+        _chromeSettings.Children.Add(Caption("Chrome"));
+        _chromeSettings.Children.Add(_chrome);
+        _barCutout = Toggle(_chromeSettings, "Status bar: камера-вырез", true);
+        _barClock = Toggle(_chromeSettings, "Status bar: живые часы", true);
+        _barTime = Text(_chromeSettings, "Status bar: время", "9:41");
+        _frameStatus = Toggle(_chromeSettings, "Frame: status bar", true);
+        _frameGesture = Toggle(_chromeSettings, "Frame: gesture bar", true);
+        _frameCutout = Toggle(_chromeSettings, "Frame: камера-вырез", true);
+        _frameScroll = Toggle(_chromeSettings, "Frame: прокрутка содержимого", true);
+        _frameTime = Text(_chromeSettings, "Frame: время", "9:41");
+        Settings.Children.Add(_chromeSettings);
+
+        // ---- schematic ----
+        _darkPreview = Toggle(_schematicSettings, "Тёмный предпросмотр", true);
+        _fixedColors = Toggle(_schematicSettings, "Fixed colors", true);
+        _swatchWidth = Number(_schematicSettings, "Ширина образца", 120, 240, 180, 10, "dp");
+        Settings.Children.Add(_schematicSettings);
+
+        Settings.Children.Add(new TextBlock
+        {
+            Text = "Экраны собраны из тех же контролов, что использует приложение: они масштабируются, " +
+                   "фокусируются и прокручиваются. Сетка меряется по реальным breakpoint'ам 600/840/1200/1600, " +
+                   "клавиатура вводит текст в собственный буфер, схема копирует hex по нажатию.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+        });
+
+        AutomationProperties.SetName(_category, "Семейство примеров");
+        AutomationProperties.SetName(_screen, "Экран");
+        AutomationProperties.SetName(_form, "Форм-фактор экрана");
+        AutomationProperties.SetName(_layoutKind, "Пример сетки");
+        AutomationProperties.SetName(_sizeClass, "Класс размера");
+        AutomationProperties.SetName(_navigation, "Navigation region");
+        AutomationProperties.SetName(_keyboardConfig, "Конфигурация клавиатуры");
+        AutomationProperties.SetName(_keyboardStyle, "Presentation клавиатуры");
+        AutomationProperties.SetName(_keyboardLayer, "Слой клавиатуры");
+        AutomationProperties.SetName(_block, "Building block");
+        AutomationProperties.SetName(_chrome, "Chrome пример");
+        AutomationProperties.SetName(_barTime, "Время status bar");
+        AutomationProperties.SetName(_frameTime, "Время device frame");
+
+        _category.SelectionChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            UpdateCategory();
+            Render();
+        };
+        _screen.SelectionChanged += (_, _) => { if (!_syncing && _screensSettings.IsVisible) RenderScreens(); };
+        _form.SelectionChanged += (_, _) => { if (!_syncing && _screensSettings.IsVisible) RenderScreens(); };
+        _screenScale.PropertyChanged += (_, e) => { if (!_syncing && e.Property == RangeBase.ValueProperty && _screensSettings.IsVisible) UpdateScreenScale(); };
+        _layoutKind.SelectionChanged += (_, _) => { if (!_syncing && _layoutSettings.IsVisible) RenderLayout(); };
+        _sizeClass.SelectionChanged += (_, _) => { if (!_syncing && _layoutSettings.IsVisible) RenderLayout(); };
+        _navigation.SelectionChanged += (_, _) => { if (!_syncing && _layoutSettings.IsVisible) RenderLayout(); };
+        _layoutWidth.PropertyChanged += (_, e) => { if (!_syncing && e.Property == RangeBase.ValueProperty && _layoutSettings.IsVisible) RenderLayout(); };
+        _autoNavigation.IsCheckedChanged += (_, _) => { if (!_syncing && _layoutSettings.IsVisible) RenderLayout(); };
+        _keyboardConfig.SelectionChanged += (_, _) => { if (!_syncing && _keyboardSettings.IsVisible) ApplyKeyboard(); };
+        _keyboardStyle.SelectionChanged += (_, _) => { if (!_syncing && _keyboardSettings.IsVisible) ApplyKeyboard(); };
+        _keyboardLayer.SelectionChanged += (_, _) => { if (!_syncing && _keyboardSettings.IsVisible) ApplyKeyboard(); };
+        foreach (var toggle in new[] { _shift, _caps, _chromeBar, _bottomBar, _keyboardOpen })
+            toggle.IsCheckedChanged += (_, _) => { if (!_syncing && _keyboardSettings.IsVisible) ApplyKeyboard(); };
+        _block.SelectionChanged += (_, _) => { if (!_syncing && _blocksSettings.IsVisible) RenderBlocks(); };
+        foreach (var toggle in new[] { _overline, _blockSupporting, _slotFilled, _tileSelected, _tileText })
+            toggle.IsCheckedChanged += (_, _) => { if (!_syncing && _blocksSettings.IsVisible) RenderBlocks(); };
+        _chrome.SelectionChanged += (_, _) => { if (!_syncing && _chromeSettings.IsVisible) RenderChrome(); };
+        foreach (var toggle in new[] { _barCutout, _barClock, _frameStatus, _frameGesture, _frameCutout, _frameScroll })
+            toggle.IsCheckedChanged += (_, _) => { if (!_syncing && _chromeSettings.IsVisible) RenderChrome(); };
+        foreach (var text in new[] { _barTime, _frameTime })
+            text.TextChanged += (_, _) => { if (!_syncing && _chromeSettings.IsVisible) RenderChrome(); };
+        foreach (var toggle in new[] { _darkPreview, _fixedColors })
+            toggle.IsCheckedChanged += (_, _) => { if (!_syncing && _schematicSettings.IsVisible) RenderSchematic(); };
+        _swatchWidth.PropertyChanged += (_, e) => { if (!_syncing && e.Property == RangeBase.ValueProperty && _schematicSettings.IsVisible) RenderSchematic(); };
+
+        _keyboard.TextEntered += (_, e) => _status.Text = $"Введено {Describe(e.Text)}";
+        _keyboard.ReturnPressed += (_, _) => _status.Text = "Return: буфер не принимает переводы строк";
+        _keyboard.Dismissed += (_, _) =>
+        {
+            _status.Text = "Клавиатура скрыта";
+            _syncing = true;
+            _keyboardOpen.IsChecked = false;
+            _syncing = false;
+        };
+        _keyboard.ChromeInvoked += (_, e) => _status.Text = $"Chrome: {e.Action}";
+        _keyboard.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != MaterialKeyboard.IsOpenProperty || _syncing) return;
+            _syncing = true;
+            _keyboardOpen.IsChecked = _keyboard.IsOpen;
+            _syncing = false;
+        };
+
+        _schematic.SwatchCopied += (_, e) => _status.Text = $"Скопирован {e.Role} ({e.Token}) — {e.Hex}";
+        _schematicStage.Content = _schematic;
+
+        UpdateCategory();
+        Render();
+    }
+
+    private void UpdateCategory()
+    {
+        var category = Math.Clamp(_category.SelectedIndex, 0, 5);
+        _screensSettings.IsVisible = category == 0;
+        _layoutSettings.IsVisible = category == 1;
+        _keyboardSettings.IsVisible = category == 2;
+        _blocksSettings.IsVisible = category == 3;
+        _chromeSettings.IsVisible = category == 4;
+        _schematicSettings.IsVisible = category == 5;
+        _stage.HorizontalContentAlignment = category == 5 ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
+        _stage.VerticalContentAlignment = category == 5 ? VerticalAlignment.Stretch : VerticalAlignment.Center;
+    }
+
+    private void Render()
+    {
+        switch (Math.Clamp(_category.SelectedIndex, 0, 5))
+        {
+            case 1:
+                RenderLayout();
+                break;
+            case 2:
+                RenderKeyboard();
+                break;
+            case 3:
+                RenderBlocks();
+                break;
+            case 4:
+                RenderChrome();
+                break;
+            case 5:
+                RenderSchematic();
+                break;
+            default:
+                RenderScreens();
+                break;
+        }
+    }
 
     // ---- screens ------------------------------------------------------------------------
 
-    private static Control ScreensPage()
+    private void RenderScreens()
     {
-        var tabs = new TabControl();
-        tabs.Items.Add(new TabItem { Header = "Phone", Content = new DeferredGallery(() => PhoneScreens()) });
-        tabs.Items.Add(new TabItem { Header = "Browser", Content = new DeferredGallery(() => WebScreens()) });
-        return tabs;
-    }
-
-    private static Control PhoneScreens()
-    {
-        var strip = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24, Margin = new Thickness(24) };
-        void Add(string name, Func<Control> build)
+        var form = Math.Clamp(_form.SelectedIndex, 0, 1);
+        var index = Math.Clamp(_screen.SelectedIndex, 0, ScreenNames.Length - 1);
+        Control content;
+        if (form == 0)
         {
-            var column = new StackPanel { Spacing = 8 };
-            var label = new TextBlock { Text = name };
-            MaterialTypography.SetStyle(label, MaterialTypeStyle.LabelLarge);
-            column.Children.Add(label);
-            column.Children.Add(build());
-            strip.Children.Add(column);
-        }
-
-        Add("Home", ExamplesScreens.HomeMobile);
-        Add("Upcoming", ExamplesScreens.UpcomingMobile);
-        Add("Detailed view", ExamplesScreens.DetailedMobile);
-        Add("Reviews", ExamplesScreens.ReviewsMobile);
-        Add("Library", ExamplesScreens.LibraryMobile);
-        Add("Gallery", ExamplesScreens.GalleryMobile);
-        Add("Messaging", ExamplesScreens.MessagingMobile);
-
-        return new ScrollViewer
-        {
-            Content = strip,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
-    }
-
-    private static Control WebScreens()
-    {
-        var strip = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24, Margin = new Thickness(24) };
-        void Add(string name, Func<Control> build)
-        {
-            var column = new StackPanel { Spacing = 8 };
-            var label = new TextBlock { Text = name };
-            MaterialTypography.SetStyle(label, MaterialTypeStyle.LabelLarge);
-            column.Children.Add(label);
-            var surface = new Border
+            content = index switch
             {
-                Width = 905,
-                Height = 680,
-                ClipToBounds = true,
-                Child = build()
+                0 => ExamplesScreens.HomeMobile(),
+                1 => ExamplesScreens.UpcomingMobile(),
+                2 => ExamplesScreens.DetailedMobile(),
+                3 => ExamplesScreens.ReviewsMobile(),
+                4 => ExamplesScreens.LibraryMobile(),
+                5 => ExamplesScreens.GalleryMobile(),
+                _ => ExamplesScreens.MessagingMobile(),
             };
-            surface.Bind(Border.BackgroundProperty, surface.GetResourceObservable("MaterialSurfaceBrush"));
-            column.Children.Add(surface);
-            strip.Children.Add(column);
+            _screenNativeWidth = 428;
+            _screenNativeHeight = double.IsFinite(content.Height) ? content.Height : 960;
+        }
+        else
+        {
+            content = index switch
+            {
+                0 => ExamplesScreens.HomeWeb(),
+                1 => ExamplesScreens.UpcomingWeb(),
+                2 => ExamplesScreens.DetailedWeb(),
+                3 => ExamplesScreens.ReviewsWeb(),
+                4 => ExamplesScreens.LibraryWeb(),
+                5 => ExamplesScreens.GalleryWeb(),
+                _ => ExamplesScreens.MessagingWeb(),
+            };
+            _screenNativeWidth = 905;
+            _screenNativeHeight = 680;
+            content = new Border { Width = 905, Height = 680, ClipToBounds = true, Child = content };
         }
 
-        Add("Home", ExamplesScreens.HomeWeb);
-        Add("Upcoming", ExamplesScreens.UpcomingWeb);
-        Add("Detailed view", ExamplesScreens.DetailedWeb);
-        Add("Reviews", ExamplesScreens.ReviewsWeb);
-        Add("Library", ExamplesScreens.LibraryWeb);
-        Add("Gallery", ExamplesScreens.GalleryWeb);
-        Add("Messaging", ExamplesScreens.MessagingWeb);
-
-        return new ScrollViewer
+        _screenViewbox = new Viewbox
         {
-            Content = strip,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+            Stretch = Stretch.Uniform,
+            Child = content,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
+        UpdateScreenScale();
+        _stage.Content = _screenViewbox;
+        _status.Text = $"{ScreenNames[index]} · {(form == 0 ? "Phone 428 dp" : "Browser 905 dp")}";
+    }
+
+    private void UpdateScreenScale()
+    {
+        if (_screenViewbox is null) return;
+        var scale = _screenScale.Value;
+        _screenViewbox.Width = _screenNativeWidth * scale;
+        _screenViewbox.Height = _screenNativeHeight * scale;
+        _status.Text = $"{ScreenNames[Math.Clamp(_screen.SelectedIndex, 0, ScreenNames.Length - 1)]} · масштаб {scale:0.00}×";
     }
 
     // ---- layout grid --------------------------------------------------------------------
 
-    private static Control LayoutPage()
+    private void RenderLayout()
     {
-        var panel = Page();
-
-        var sizeText = new TextBlock();
-        MaterialTypography.SetStyle(sizeText, MaterialTypeStyle.TitleSmall);
-        var regionText = new TextBlock();
-        MaterialTypography.SetStyle(regionText, MaterialTypeStyle.BodyMedium);
-        regionText.Bind(TextBlock.ForegroundProperty,
-            regionText.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
-
-        var live = new MaterialLayoutGrid
+        var adaptive = _layoutKind.SelectedIndex == 0;
+        var width = adaptive ? _layoutWidth.Value : SizeClassWidth(Math.Clamp(_sizeClass.SelectedIndex, 0, 4));
+        var region = (MaterialNavigationRegion)Math.Clamp(_navigation.SelectedIndex, 0, 2);
+        var grid = new MaterialLayoutGrid
         {
+            Width = width,
             Height = 320,
-            RequestedNavigation = MaterialNavigationRegion.NavigationRegion,
-            AutoNavigation = true,
+            AutoNavigation = adaptive && _autoNavigation.IsChecked == true,
+            RequestedNavigation = region,
             NavigationContent = CompactNavigation(),
-            ExpandedNavigationContent = ExpandedNavigation()
+            ExpandedNavigationContent = ExpandedNavigation(),
+            Content = VariantContent(),
         };
-        live.SizeClassChanged += (_, e) =>
+        grid.SizeClassChanged += (_, e) =>
+            _status.Text = $"{Describe(e.NewClass)} · navigation: {grid.NavigationRegion}";
+        grid.NavigationRegionChanged += (_, _) =>
+            _status.Text = $"Ширина {width:0} dp · navigation: {grid.NavigationRegion}";
+        _stage.Content = new Viewbox
         {
-            sizeText.Text = $"{e.NewClass} ({WidthRange(e.NewClass)})";
-            regionText.Text = $"Resolved navigation: {live.NavigationRegion}";
+            Width = 720,
+            Height = 360,
+            Stretch = Stretch.Uniform,
+            Child = grid,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-
-        var widthSlider = new Slider { Minimum = 320, Maximum = 1680, Value = 900, Width = 520 };
-        var host = new Border { Child = live, HorizontalAlignment = HorizontalAlignment.Left };
-        host.Bind(Border.BoxShadowProperty, host.GetResourceObservable("MaterialElevationLevel1Shadow"));
-        widthSlider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == Slider.ValueProperty) host.Width = widthSlider.Value;
-        };
-        host.Width = widthSlider.Value;
-
-        var navChoice = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        foreach (var region in Enum.GetValues<MaterialNavigationRegion>())
-        {
-            var button = new Button { Content = region.ToString() };
-            MaterialAssist.SetButtonVariant(button, MaterialButtonVariant.Tonal);
-            MaterialAssist.SetControlSize(button, MaterialControlSize.Small);
-            button.Click += (_, _) =>
-            {
-                live.AutoNavigation = false;
-                live.RequestedNavigation = region;
-                regionText.Text = $"Forced navigation: {live.NavigationRegion}";
-            };
-            navChoice.Children.Add(button);
-        }
-        var auto = new Button { Content = "Adapt automatically" };
-        MaterialAssist.SetButtonVariant(auto, MaterialButtonVariant.Filled);
-        MaterialAssist.SetControlSize(auto, MaterialControlSize.Small);
-        auto.Click += (_, _) =>
-        {
-            live.AutoNavigation = true;
-            live.RequestedNavigation = MaterialNavigationRegion.NavigationRegion;
-            regionText.Text = $"Resolved navigation: {live.NavigationRegion}";
-        };
-        navChoice.Children.Add(auto);
-
-        var sliderRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-        sliderRow.Children.Add(new TextBlock { Text = "Window width", VerticalAlignment = VerticalAlignment.Center });
-        sliderRow.Children.Add(widthSlider);
-
-        panel.Children.Add(Section("Adaptive layout",
-            "The grid measures its own width against the Material breakpoints 600, 840, 1200 and 1600 dp. " +
-            "Below 840 dp the navigation region becomes a bottom bar; from 840 dp it is a 72 dp rail; at " +
-            "extra-large widths an expanded column replaces the rail when one is supplied.",
-            new StackPanel { Spacing = 8, Children = { sliderRow, navChoice, sizeText, regionText, host } }));
-
-        panel.Children.Add(Section("All eleven source variants",
-            "Each preview is a live layout grid pinned to the width of its source window-size class and to " +
-            "its source navigation mode. The extra-large expanded variant only appears when the expanded " +
-            "column is available.",
-            VariantMatrix()));
-        return Scroll(panel);
+        _autoNavigation.IsEnabled = adaptive;
+        _layoutWidth.IsEnabled = adaptive;
+        _sizeClass.IsEnabled = !adaptive;
+        _status.Text = $"Ширина {width:0} dp · {Describe(MaterialLayoutGrid.FromWidth(width))} · " +
+                       (adaptive ? "адаптивная навигация" : "вариант источника");
     }
 
-    private static string WidthRange(MaterialWindowSizeClass sizeClass) => sizeClass switch
+    private static double SizeClassWidth(int index) => index switch
     {
-        MaterialWindowSizeClass.Compact => "0-599 dp",
-        MaterialWindowSizeClass.Medium => "600-839 dp",
-        MaterialWindowSizeClass.Expanded => "840-1199 dp",
-        MaterialWindowSizeClass.Large => "1200-1599 dp",
-        _ => "1600+ dp"
+        0 => 360,
+        1 => 700,
+        2 => 900,
+        3 => 1300,
+        _ => 1700,
+    };
+
+    private static string Describe(MaterialWindowSizeClass sizeClass) => sizeClass switch
+    {
+        MaterialWindowSizeClass.Compact => "Compact 0–599 dp",
+        MaterialWindowSizeClass.Medium => "Medium 600–839 dp",
+        MaterialWindowSizeClass.Expanded => "Expanded 840–1199 dp",
+        MaterialWindowSizeClass.Large => "Large 1200–1599 dp",
+        _ => "Extra-large 1600+ dp",
     };
 
     private static Control CompactNavigation()
@@ -254,62 +463,6 @@ public static class ExamplesGallery
         return panel;
     }
 
-    private static Control VariantMatrix()
-    {
-        var wrap = new WrapPanel { ItemSpacing = 16, LineSpacing = 16 };
-        // Window-size class representative widths, exactly as the source names them.
-        var classes = new (MaterialWindowSizeClass Class, double Width, string Name)[]
-        {
-            (MaterialWindowSizeClass.Compact, 360, "Compact 0-599dp"),
-            (MaterialWindowSizeClass.Medium, 700, "Medium 600-839dp"),
-            (MaterialWindowSizeClass.Expanded, 900, "Expanded 840-1199dp"),
-            (MaterialWindowSizeClass.Large, 1300, "Large 1200-1599dp"),
-            (MaterialWindowSizeClass.ExtraLarge, 1700, "Extra-large 1600+dp")
-        };
-        var regions = new (MaterialNavigationRegion Region, string Name)[]
-        {
-            (MaterialNavigationRegion.None, "None"),
-            (MaterialNavigationRegion.NavigationRegion, "Navigation region"),
-            (MaterialNavigationRegion.NavigationExpanded, "Navigation expanded")
-        };
-
-        foreach (var (sizeClass, width, name) in classes)
-        {
-            foreach (var (region, regionName) in regions)
-            {
-                // The source has no compact/medium expanded variant, and no large expanded variant.
-                if (region == MaterialNavigationRegion.NavigationExpanded &&
-                    sizeClass != MaterialWindowSizeClass.ExtraLarge)
-                    continue;
-
-                var grid = new MaterialLayoutGrid
-                {
-                    Width = width,
-                    Height = 320,
-                    AutoNavigation = false,
-                    RequestedNavigation = region,
-                    NavigationContent = CompactNavigation(),
-                    ExpandedNavigationContent = ExpandedNavigation(),
-                    Content = VariantContent()
-                };
-                var preview = new Viewbox
-                {
-                    Width = 300,
-                    Height = 190,
-                    Stretch = Stretch.Uniform,
-                    Child = grid
-                };
-                var card = new StackPanel { Spacing = 6 };
-                card.Children.Add(preview);
-                var caption = new TextBlock { Text = $"{name} \u2022 {regionName}" };
-                MaterialTypography.SetStyle(caption, MaterialTypeStyle.LabelSmall);
-                card.Children.Add(caption);
-                wrap.Children.Add(card);
-            }
-        }
-        return wrap;
-    }
-
     private static Control VariantContent()
     {
         var panel = new StackPanel { Spacing = 8, Margin = new Thickness(12) };
@@ -328,332 +481,171 @@ public static class ExamplesGallery
 
     // ---- keyboard -----------------------------------------------------------------------
 
-    private static Control KeyboardPage()
+    private void RenderKeyboard()
     {
-        var panel = Page();
-
-        var input = new TextBox
+        _keyboardStage ??= new Viewbox
         {
-            Width = 420,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            PlaceholderText = "Type with the keyboard below or your hardware keys"
+            Width = 600,
+            Height = 340,
+            Stretch = Stretch.Uniform,
+            Child = _keyboard,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        MaterialTextField.SetLabel(input, "Message");
-        MaterialTextField.SetSupportingText(input, "Insertion, selection replacement and backspace all use the TextBox caret");
+        _stage.Content = _keyboardStage;
+        ApplyKeyboard();
+    }
 
-        var status = new TextBlock { Text = "Ready." };
-        MaterialTypography.SetStyle(status, MaterialTypeStyle.BodyMedium);
-        status.Bind(TextBlock.ForegroundProperty, status.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
-        AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
-
-        var live = new MaterialKeyboard
+    private void ApplyKeyboard()
+    {
+        _keyboard.Configuration = (MaterialKeyboardConfiguration)Math.Clamp(_keyboardConfig.SelectedIndex, 0, 3);
+        _keyboard.Presentation = (MaterialKeyboardStyle)Math.Clamp(_keyboardStyle.SelectedIndex, 0, 2);
+        _keyboard.Layer = (MaterialKeyboardLayer)Math.Clamp(_keyboardLayer.SelectedIndex, 0, 2);
+        _keyboard.IsShifted = _shift.IsChecked == true;
+        _keyboard.IsCapsLocked = _caps.IsChecked == true;
+        _keyboard.ShowChromeBar = _chromeBar.IsChecked == true;
+        _keyboard.ShowBottomBar = _bottomBar.IsChecked == true;
+        _keyboard.IsOpen = _keyboardOpen.IsChecked == true;
+        _keyboard.Width = _keyboard.Presentation switch
         {
-            Width = 412,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            InputTarget = input,
-            Configuration = MaterialKeyboardConfiguration.Base,
-            Presentation = MaterialKeyboardStyle.Portrait
+            MaterialKeyboardStyle.Landscape => 868,
+            MaterialKeyboardStyle.Floating => 342,
+            _ => 412,
         };
-        live.TextEntered += (_, e) => status.Text = $"Inserted {Describe(e.Text)}";
-        live.ChromeInvoked += (_, e) => status.Text = $"Chrome action: {e.Action}";
-        live.ReturnPressed += (_, _) => status.Text = "Return pressed (target does not accept newlines)";
-        live.Dismissed += (_, _) => status.Text = "Keyboard dismissed; press Show to reopen";
-
-        var controls = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        void Add(string label, Action action)
-        {
-            var button = new Button { Content = label };
-            MaterialAssist.SetButtonVariant(button, MaterialButtonVariant.Tonal);
-            MaterialAssist.SetControlSize(button, MaterialControlSize.Small);
-            button.Click += (_, _) => action();
-            controls.Children.Add(button);
-        }
-        Add("Letters", () => live.Layer = MaterialKeyboardLayer.Letters);
-        Add("Symbols", () => live.Layer = MaterialKeyboardLayer.Symbols);
-        Add("Emoji", () => live.Layer = MaterialKeyboardLayer.Emoji);
-        Add("Toggle shift", () => live.IsShifted = !live.IsShifted);
-        Add("Caps lock", () =>
-        {
-            live.IsCapsLocked = !live.IsCapsLocked;
-            live.IsShifted = live.IsCapsLocked;
-        });
-        Add("Press Q", () => live.PressKey("Q"));
-        Add("Press space", () => live.PressKey("space"));
-        Add("Hide", live.Dismiss);
-        Add("Show", live.Show);
-
-        var stage = new StackPanel { Spacing = 8 };
-        stage.Children.Add(input);
-        stage.Children.Add(controls);
-        stage.Children.Add(status);
-        stage.Children.Add(live);
-
-        panel.Children.Add(Section("Live keyboard",
-            "Keys are real buttons: pointer, Space and Enter activation, focus visuals and automation come from " +
-            "Avalonia. Shift double-tap locks caps, arrow keys move focus between keys, Backspace repeats while " +
-            "held, and the emoji layer inserts surrogate pairs. Chrome keys report through ChromeInvoked because " +
-            "GIF, settings, translation and voice input belong to the host system.",
-            stage));
-
-        panel.Children.Add(Section("All twelve source variants",
-            "Four configurations by three presentations. Portrait rows are 46 dp with a gesture bar, landscape " +
-            "rows are 34 dp, and the floating card is draggable by its chrome bar and dismisses on Escape.",
-            KeyboardMatrix()));
-        return Scroll(panel);
+        _status.Text = $"{_keyboard.Configuration} · {_keyboard.Presentation} · {_keyboard.Layer}";
     }
 
     private static string Describe(string text) => text switch
     {
-        " " => "a space",
-        "\n" or "\r\n" => "a newline",
-        _ => $"\"{text}\""
+        " " => "пробел",
+        "\n" or "\r\n" => "перевод строки",
+        _ => $"\"{text}\"",
     };
-
-    private static Control KeyboardMatrix()
-    {
-        var tabs = new TabControl();
-        foreach (var configuration in Enum.GetValues<MaterialKeyboardConfiguration>())
-        {
-            tabs.Items.Add(new TabItem { Header = configuration.ToString(), Content = new DeferredGallery(() =>
-            {
-            var strip = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 24,
-                Margin = new Thickness(16)
-            };
-            foreach (var presentation in Enum.GetValues<MaterialKeyboardStyle>())
-            {
-                var keyboard = new MaterialKeyboard
-                {
-                    Configuration = configuration,
-                    Presentation = presentation,
-                    Width = presentation switch
-                    {
-                        MaterialKeyboardStyle.Landscape => 868,
-                        MaterialKeyboardStyle.Floating => 342,
-                        _ => 412
-                    }
-                };
-                var column = new StackPanel { Spacing = 8 };
-                var label = new TextBlock { Text = presentation.ToString() };
-                MaterialTypography.SetStyle(label, MaterialTypeStyle.LabelLarge);
-                column.Children.Add(label);
-                var preview = new Viewbox
-                {
-                    Width = 380,
-                    Height = 300,
-                    Stretch = Stretch.Uniform,
-                    Child = keyboard
-                };
-                column.Children.Add(preview);
-                strip.Children.Add(column);
-            }
-            var scroll = new ScrollViewer
-            {
-                Content = strip,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
-            };
-                return scroll;
-            }) });
-        }
-        return tabs;
-    }
 
     // ---- building blocks ----------------------------------------------------------------
 
-    private static Control BlocksPage()
+    private void RenderBlocks()
     {
-        var panel = Page();
-
-        var contentBlock = new MaterialContentBlock
+        var block = Math.Clamp(_block.SelectedIndex, 0, 3);
+        _overline.IsEnabled = block <= 1;
+        _blockSupporting.IsEnabled = block != 2;
+        _slotFilled.IsEnabled = block == 2;
+        _tileSelected.IsEnabled = block == 3;
+        _tileText.IsEnabled = block == 3;
+        Control content;
+        switch (block)
         {
-            Overline = "Overline",
-            Label = "Label text",
-            SupportingText = "Supporting line text, lorem ipsum dolor",
-            Width = 400,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        panel.Children.Add(Section("Building blocks/Content (local-000221)",
-            "Overline, label and supporting text. The source toggles each line independently.",
-            new StackPanel
+            case 1:
             {
-                Spacing = 12,
-                Children =
+                content = new MaterialContentBlock
                 {
-                    contentBlock,
-                    Toggle("Show overline", true, value => contentBlock.ShowOverline = value),
-                    Toggle("Show supporting text", true, value => contentBlock.ShowSupportingText = value)
-                }
-            }));
-
-        var compactBlock = new MaterialContentBlock
-        {
-            Label = "Label",
-            SupportingText = "Supporting text",
-            ShowOverline = false,
-            ShowSupportingText = false,
-            Width = 320,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        panel.Children.Add(Section(".Building Blocks/Content (local-000218)",
-            "Label and supporting text without an overline; the supporting line starts hidden, matching the source default.",
-            new StackPanel
+                    Label = "Label",
+                    SupportingText = "Supporting text",
+                    ShowOverline = false,
+                    ShowSupportingText = _blockSupporting.IsChecked == true,
+                    Width = 320,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                };
+                _status.Text = ".Building Blocks/Content: label и supporting text без overline.";
+                break;
+            }
+            case 2:
             {
-                Spacing = 12,
-                Children =
+                var slot = new MaterialSlotHost
                 {
-                    compactBlock,
-                    Toggle("Show supporting text", false, value => compactBlock.ShowSupportingText = value)
-                }
-            }));
-
-        var emptySlot = new MaterialSlotHost
-        {
-            Width = 360,
-            Height = 240,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        var filledSlot = new MaterialSlotHost
-        {
-            Width = 360,
-            Height = 240,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Content = new Border
-            {
-                CornerRadius = new CornerRadius(12),
-                Child = ExamplesScreens.Artwork()
+                    Width = 360,
+                    Height = 240,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                };
+                if (_slotFilled.IsChecked == true)
+                    slot.Content = new Border { CornerRadius = new CornerRadius(12), Child = ExamplesScreens.Artwork() };
+                content = slot;
+                _status.Text = _slotFilled.IsChecked == true
+                    ? "Слот заполнен: подсказка пустого состояния скрыта."
+                    : "Пустой слот: safety zone и подсказка замены.";
+                break;
             }
-        };
-        var slotToggle = new Button { Content = "Fill the empty slot" };
-        MaterialAssist.SetButtonVariant(slotToggle, MaterialButtonVariant.Tonal);
-        MaterialAssist.SetControlSize(slotToggle, MaterialControlSize.Small);
-        slotToggle.Click += (_, _) =>
-        {
-            if (emptySlot.Content is null)
+            case 3:
             {
-                emptySlot.Content = ExamplesScreens.Artwork();
-                slotToggle.Content = "Empty the slot again";
+                var tile = ExamplesScreens.Tile("Label", 316, 204,
+                    _blockSupporting.IsChecked == true ? "Supporting Text" : null, _tileSelected.IsChecked == true);
+                tile.ShowCarouselText = _tileText.IsChecked == true;
+                tile.Invoked += (_, _) => _status.Text = "Плитка активирована.";
+                content = tile;
+                _status.Text = "General item: активируется указателем, Enter и Space.";
+                break;
             }
-            else
+            default:
             {
-                emptySlot.Content = null;
-                slotToggle.Content = "Fill the empty slot";
-            }
-        };
-        panel.Children.Add(Section("Shared slot component (local-004633)",
-            "The dashed safety zone, swap glyph and replacement instructions are the component's empty state. " +
-            "Assign Content and the prompt disappears; the slot keeps whatever control an application supplies.",
-            new StackPanel
-            {
-                Spacing = 12,
-                Orientation = Orientation.Horizontal,
-                Children = { emptySlot, filledSlot, slotToggle }
-            }));
-
-        var general = ExamplesScreens.Tile("Label", 316, 204, "Supporting Text");
-        var plain = ExamplesScreens.Tile("Label", 316, 204);
-        plain.ShowCarouselText = false;
-        var selected = ExamplesScreens.Tile("Label", 316, 204, "Supporting Text", selected: true);
-        var invokeStatus = new TextBlock { Text = "Activate a tile with the pointer, Enter or Space." };
-        MaterialTypography.SetStyle(invokeStatus, MaterialTypeStyle.BodySmall);
-        general.Invoked += (_, _) => invokeStatus.Text = "Tile invoked.";
-        selected.Invoked += (_, _) => invokeStatus.Text = "Selected tile invoked.";
-        panel.Children.Add(Section("Building blocks/General item (local-000261)",
-            "Artwork with an optional scrim caption. The tile is focusable and reports Invoked on pointer " +
-            "release, Enter and Space; the selected variant adds the primary outline.",
-            new StackPanel
-            {
-                Spacing = 12,
-                Children =
+                content = new MaterialContentBlock
                 {
-                    new StackPanel
-                    {
-                        Orientation = Orientation.Horizontal,
-                        Spacing = 12,
-                        Children = { general, plain, selected }
-                    },
-                    invokeStatus
-                }
-            }));
-        return Scroll(panel);
-    }
-
-    private static Control Toggle(string label, bool initial, Action<bool> onChanged)
-    {
-        var box = new CheckBox { Content = label, IsChecked = initial };
-        box.IsCheckedChanged += (_, _) => onChanged(box.IsChecked == true);
-        return box;
+                    Overline = "Overline",
+                    Label = "Label text",
+                    SupportingText = "Supporting line text, lorem ipsum dolor",
+                    ShowOverline = _overline.IsChecked == true,
+                    ShowSupportingText = _blockSupporting.IsChecked == true,
+                    Width = 400,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                };
+                _status.Text = "Content: overline, label и supporting text.";
+                break;
+            }
+        }
+        _stage.Content = content;
     }
 
     // ---- chrome -------------------------------------------------------------------------
 
-    private static Control ChromePage()
+    private void RenderChrome()
     {
-        var panel = Page();
-
-        var live = new MaterialStatusBar { ShowCameraCutout = true, Width = 412, HorizontalAlignment = HorizontalAlignment.Left };
-        var fixedTime = new MaterialStatusBar
+        if (_chrome.SelectedIndex == 1)
         {
-            ShowCameraCutout = true,
-            TimeText = "9:41",
-            ShowClock = false,
-            Width = 412,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        var noCutout = new MaterialStatusBar
-        {
-            ShowCameraCutout = false,
-            TimeText = "12:00",
-            ShowClock = false,
-            Width = 412,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        panel.Children.Add(Section("Status bar (local-000697)",
-            "The clock ticks while the bar is on screen and stops when it is detached. The camera cutout is the " +
-            "source boolean property; the wifi, signal and battery glyphs are the exported vectors.",
-            new StackPanel { Spacing = 12, Children = { live, fixedTime, noCutout } }));
-
-        var full = new MaterialDeviceFrame
-        {
-            Width = 260,
-            Height = 420,
-            TopContent = new TextBlock { Text = "Pinned top content", Margin = new Thickness(16, 12) },
-            BottomContent = new TextBlock { Text = "Pinned bottom content", Margin = new Thickness(16, 12) },
-            Content = Filler()
-        };
-        var noStatus = new MaterialDeviceFrame
-        {
-            Width = 260,
-            Height = 420,
-            ShowStatusBar = false,
-            Content = Filler()
-        };
-        var noGesture = new MaterialDeviceFrame
-        {
-            Width = 260,
-            Height = 420,
-            ShowGestureBar = false,
-            Content = Filler()
-        };
-        var fixedHeight = new MaterialDeviceFrame
-        {
-            Width = 260,
-            Height = 420,
-            IsScrollable = false,
-            Content = Filler()
-        };
-        panel.Children.Add(Section("Device frame (local-001331)",
-            "An 8 dp outline around a 28 dp screen. TopContent and BottomContent stay pinned while Content " +
-            "scrolls, which is how the source screens keep their app bar and navigation bar in place. Turn " +
-            "scrolling off for surfaces that must lay out at their natural height.",
-            new StackPanel
+            var frame = new MaterialDeviceFrame
             {
-                Orientation = Orientation.Horizontal,
-                Spacing = 24,
-                Children = { full, noStatus, noGesture, fixedHeight }
-            }));
-        return Scroll(panel);
+                Width = 280,
+                Height = 460,
+                ShowStatusBar = _frameStatus.IsChecked == true,
+                ShowGestureBar = _frameGesture.IsChecked == true,
+                ShowCameraCutout = _frameCutout.IsChecked == true,
+                TimeText = _frameTime.Text,
+                IsScrollable = _frameScroll.IsChecked == true,
+                TopContent = new TextBlock { Text = "Pinned top content", Margin = new Thickness(16, 12) },
+                BottomContent = new TextBlock { Text = "Pinned bottom content", Margin = new Thickness(16, 12) },
+                Content = Filler(),
+            };
+            _barCutout.IsEnabled = false;
+            _barClock.IsEnabled = false;
+            _barTime.IsEnabled = false;
+            _frameStatus.IsEnabled = true;
+            _frameGesture.IsEnabled = true;
+            _frameCutout.IsEnabled = true;
+            _frameScroll.IsEnabled = true;
+            _frameTime.IsEnabled = true;
+            _stage.Content = frame;
+            _status.Text = "Device frame: 8 dp контур, pinned top/bottom, прокручиваемый Content.";
+            return;
+        }
+
+        var bar = new MaterialStatusBar
+        {
+            Width = 412,
+            ShowCameraCutout = _barCutout.IsChecked == true,
+            ShowClock = _barClock.IsChecked == true,
+            TimeText = _barClock.IsChecked == true ? null : _barTime.Text,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        _barCutout.IsEnabled = true;
+        _barClock.IsEnabled = true;
+        _barTime.IsEnabled = _barClock.IsChecked != true;
+        _frameStatus.IsEnabled = false;
+        _frameGesture.IsEnabled = false;
+        _frameCutout.IsEnabled = false;
+        _frameScroll.IsEnabled = false;
+        _frameTime.IsEnabled = false;
+        _stage.Content = bar;
+        _status.Text = _barClock.IsChecked == true
+            ? "Status bar: часы тикают, пока бар на экране."
+            : $"Status bar: фиксированное время {_barTime.Text}.";
     }
 
     private static Control Filler()
@@ -670,25 +662,56 @@ public static class ExamplesGallery
 
     // ---- schematic ----------------------------------------------------------------------
 
-    private static Control SchematicPage()
+    private void RenderSchematic()
     {
-        var panel = Page();
-        var status = new TextBlock { Text = "Select a swatch to copy its hex value." };
-        MaterialTypography.SetStyle(status, MaterialTypeStyle.BodyMedium);
-        status.Bind(TextBlock.ForegroundProperty, status.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
+        _schematic.ShowDarkPreview = _darkPreview.IsChecked == true;
+        _schematic.ShowFixedColors = _fixedColors.IsChecked == true;
+        _schematic.SwatchWidth = _swatchWidth.Value;
+        _stage.Content = _schematicStage;
+        _status.Text = "Color-role schematic: нажатие на образец копирует hex.";
+    }
 
-        var schematic = new MaterialSchematicGroup
+    // ---- helpers ------------------------------------------------------------------------
+
+    private static TextBlock Caption(string text) => new() { Text = text };
+
+    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
+    {
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        host.Children.Add(toggle);
+        return toggle;
+    }
+
+    private static TextBox Text(StackPanel host, string label, string value)
+    {
+        host.Children.Add(Caption(label));
+        var box = new TextBox { Text = value, HorizontalAlignment = HorizontalAlignment.Stretch };
+        MaterialTextField.SetVariant(box, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(box, label);
+        host.Children.Add(box);
+        return box;
+    }
+
+    private static Slider Number(StackPanel host, string label, double min, double max, double value, double step, string unit)
+    {
+        var caption = new TextBlock { Text = $"{label}: {value:0.##} {unit}" };
+        host.Children.Add(caption);
+        var slider = new Slider
         {
-            ShowDarkPreview = true,
-            ShowFixedColors = true,
-            SwatchWidth = 180
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            TickFrequency = step,
+            IsSnapToTickEnabled = true,
         };
-        schematic.SwatchCopied += (_, e) =>
-            status.Text = $"Copied {e.Role} ({e.Token}) as {e.Hex}";
-        panel.Children.Add(Section("Color-role schematic (local-004522)",
-            "Every Material role with its source token label, in the current scheme and in a dark preview. " +
-            "Swatch colors are resource bindings, so a seed or contrast change repaints them in place.",
-            new StackPanel { Spacing = 12, Children = { status, schematic } }));
-        return Scroll(panel);
+        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(slider, false);
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0.##} {unit}";
+        };
+        AutomationProperties.SetName(slider, label);
+        host.Children.Add(slider);
+        return slider;
     }
 }

@@ -1,474 +1,245 @@
+using System;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>
-/// Catalogue page for the shape family: <see cref="MaterialShape"/>, <see cref="MaterialDivider"/>,
-/// <see cref="MaterialScrim"/>, <see cref="MaterialFocusIndicator"/> and
-/// <see cref="MaterialStateLayer"/>.
-/// </summary>
+/// <summary>One live Material shape with its geometry, size, stretch and paint exposed.</summary>
 public static class ShapesGallery
 {
-    public static Control Create()
-    {
-        var pages = new TabControl();
-        pages.Items.Add(new TabItem { Header = "Shapes", Content = new DeferredGallery(() => Shapes()) });
-        pages.Items.Add(new TabItem { Header = "Dividers", Content = new DeferredGallery(() => Dividers()) });
-        pages.Items.Add(new TabItem { Header = "Scrim", Content = new DeferredGallery(() => Scrim()) });
-        pages.Items.Add(new TabItem { Header = "Focus indicator", Content = new DeferredGallery(() => FocusIndicator()) });
-        pages.Items.Add(new TabItem { Header = "State layers", Content = new DeferredGallery(() => StateLayers()) });
-        return pages;
-    }
+    public static Control Create() => new ShapesPlayground();
+}
 
-    private static StackPanel Panel() => new() { Spacing = 16, Margin = new Thickness(24) };
+internal sealed class ShapesPlayground : Grid, IComponentPlayground
+{
+    private static readonly MaterialShapeKind[] Named = Array.FindAll(
+        Enum.GetValues<MaterialShapeKind>(),
+        kind => !MaterialShapeGeometries.IsExpressive(kind));
 
-    private static Control Scroll(Control content) => new ScrollViewer
+    private static readonly MaterialShapeKind[] Numbered = Array.FindAll(
+        Enum.GetValues<MaterialShapeKind>(),
+        MaterialShapeGeometries.IsExpressive);
+
+    private static readonly string[] FillKeys =
     {
-        Content = content,
-        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        "MaterialPrimaryBrush",
+        "MaterialPrimaryContainerBrush",
+        "MaterialSecondaryBrush",
+        "MaterialTertiaryBrush",
+        "MaterialErrorBrush",
+        "MaterialOutlineBrush",
     };
 
-    private static TextBlock Heading(string text) => new()
+    private readonly MaterialShape _shape = new()
     {
-        Text = text,
-        FontSize = 20,
-        FontWeight = FontWeight.Medium,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
     };
-
-    private static TextBlock Caption(string text) => new()
+    private readonly TextBlock _caption = new()
     {
-        Text = text,
+        HorizontalAlignment = HorizontalAlignment.Center,
         FontSize = 13,
-        Foreground = new SolidColorBrush(Color.Parse("#49454F")),
         TextWrapping = TextWrapping.Wrap,
-        MaxWidth = 760,
+        TextAlignment = TextAlignment.Center,
     };
+    private readonly MaterialButtonGroup _family;
+    private readonly ComboBox _kind;
+    private readonly Slider _size;
+    private readonly Slider _height;
+    private readonly ComboBox _stretch;
+    private readonly ComboBox _fill;
+    private readonly ToggleSwitch _outline;
+    private readonly Slider _thickness;
+    private readonly StackPanel _thicknessPanel = new() { Spacing = 8 };
+    private readonly TextBlock _sizeCaption = new();
+    private readonly TextBlock _heightCaption = new();
+    private readonly TextBlock _thicknessCaption = new();
+    private bool _syncing;
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
-    // ------------------------------------------------------------------ shapes
-
-    private static Control Shapes()
+    internal ShapesPlayground()
     {
-        var panel = Panel();
-        panel.Children.Add(Heading("Shape Set (local-004595)"));
-        panel.Children.Add(Caption(
-            "35 named geometries with verbatim source path data. The slider resizes every shape; " +
-            "Stretch=Uniform keeps each source aspect ratio."));
-
-        var named = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        var shapes = new List<MaterialShape>();
-        foreach (var kind in Enum.GetValues<MaterialShapeKind>())
-        {
-            if (MaterialShapeGeometries.IsExpressive(kind))
-                continue;
-
-            var shape = new MaterialShape { Kind = kind, Width = 64, Height = 64 };
-            shapes.Add(shape);
-            named.Children.Add(Tile(shape, kind.ToString()));
-        }
-
-        var size = new Slider
-        {
-            Minimum = 32,
-            Maximum = 96,
-            Value = 64,
-            Width = 320,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            TickFrequency = 8,
-            IsSnapToTickEnabled = true,
-        };
-        size.PropertyChanged += (_, e) =>
-        {
-            if (e.Property != RangeBase.ValueProperty)
-                return;
-            foreach (var shape in shapes)
-            {
-                shape.Width = size.Value;
-                shape.Height = size.Value;
-            }
-        };
-        panel.Children.Add(size);
-        panel.Children.Add(named);
-
-        panel.Children.Add(Heading(".Shape (local-004585)"));
-        panel.Children.Add(Caption(
-            "Nine numbered source geometries. The source paints them with the primary-container " +
-            "role, so they look different from the named set by default."));
-        var numbered = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        foreach (var kind in Enum.GetValues<MaterialShapeKind>())
-        {
-            if (!MaterialShapeGeometries.IsExpressive(kind))
-                continue;
-            numbered.Children.Add(Tile(new MaterialShape { Kind = kind, Width = 64, Height = 64 }, kind.ToString()));
-        }
-        panel.Children.Add(numbered);
-
-        panel.Children.Add(Heading("Overrides"));
-        panel.Children.Add(Caption(
-            "MaterialShape is an Avalonia Shape: Fill, Stroke, StrokeThickness and Stretch are the " +
-            "stock properties, and Stretch=None reproduces the source's untransformed path."));
-        var overrides = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
-        overrides.Children.Add(new MaterialShape
-        {
-            Kind = MaterialShapeKind.Burst,
-            Width = 72,
-            Height = 72,
-            Fill = Brushes.Transparent,
-            Stroke = new SolidColorBrush(Color.Parse("#6750A4")),
-            StrokeThickness = 3,
-        });
-        overrides.Children.Add(new MaterialShape
-        {
-            Kind = MaterialShapeKind.Heart,
-            Width = 120,
-            Height = 72,
-            Stretch = Stretch.None,
-            Fill = new SolidColorBrush(Color.Parse("#7D5260")),
-        });
-        overrides.Children.Add(new MaterialShape
-        {
-            Kind = MaterialShapeKind.Flower,
-            Width = 72,
-            Height = 72,
-            Fill = new SolidColorBrush(Color.Parse("#386A20")),
-        });
-        panel.Children.Add(overrides);
-        return Scroll(panel);
-    }
-
-    private static Control Tile(MaterialShape shape, string label)
-    {
-        shape.HorizontalAlignment = HorizontalAlignment.Center;
-        var tile = new StackPanel { Spacing = 4, Width = 88 };
-        tile.Children.Add(shape);
-        tile.Children.Add(new TextBlock
-        {
-            Text = label,
-            FontSize = 11,
-            TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        });
-        return tile;
-    }
-
-    // ---------------------------------------------------------------- dividers
-
-    private static Control Dividers()
-    {
-        var panel = Panel();
-        panel.Children.Add(Heading("Live divider"));
-        panel.Children.Add(Caption(
-            "Variant selects the source inset; Orientation switches to the vertical packages. " +
-            "Subheader reproduces Horizontal/Divider with subhead (use MiddleInset for the exact " +
-            "16 dp line and label insets of the 320 dp source frame)."));
-
-        var divider = new MaterialDivider { Width = 320, HorizontalAlignment = HorizontalAlignment.Left };
         var frame = new Border
         {
-            Child = divider,
-            Padding = new Thickness(0),
-            HorizontalAlignment = HorizontalAlignment.Left,
+            Width = 360,
+            Height = 360,
+            CornerRadius = new CornerRadius(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = _shape,
         };
+        frame.Bind(Border.BackgroundProperty, frame.GetResourceObservable("MaterialSurfaceContainerLowBrush"));
 
-        var variants = new ComboBox
+        var stage = new StackPanel
         {
-            ItemsSource = Enum.GetValues<MaterialDividerVariant>(),
+            Spacing = 16,
+            Margin = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        stage.Children.Add(frame);
+        stage.Children.Add(_caption);
+        Children.Add(stage);
+
+        _family = Choice("Семейство", new[] { "Shape Set (35)", ".Shape (9)" }, 0);
+
+        Settings.Children.Add(new TextBlock { Text = "Геометрия" });
+        _kind = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        AutomationProperties.SetName(_kind, "Геометрия фигуры");
+        Settings.Children.Add(_kind);
+
+        _sizeCaption.Text = "Размер: 96 dp";
+        Settings.Children.Add(_sizeCaption);
+        _size = new Slider { Minimum = 32, Maximum = 192, Value = 96, TickFrequency = 8, IsSnapToTickEnabled = true };
+        MaterialAssist.SetControlSize(_size, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(_size, false);
+        AutomationProperties.SetName(_size, "Размер фигуры");
+        Settings.Children.Add(_size);
+
+        _heightCaption.Text = "Высота: ×1.0";
+        Settings.Children.Add(_heightCaption);
+        _height = new Slider { Minimum = 0.5, Maximum = 1.5, Value = 1, TickFrequency = 0.1, IsSnapToTickEnabled = true };
+        MaterialAssist.SetControlSize(_height, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(_height, false);
+        AutomationProperties.SetName(_height, "Высота фигуры");
+        Settings.Children.Add(_height);
+
+        Settings.Children.Add(new TextBlock { Text = "Растяжение (Stretch)" });
+        _stretch = new ComboBox
+        {
+            ItemsSource = new[] { "Uniform", "Fill", "None" },
             SelectedIndex = 0,
-            Width = 220,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        variants.SelectionChanged += (_, _) =>
+        AutomationProperties.SetName(_stretch, "Растяжение фигуры");
+        Settings.Children.Add(_stretch);
+
+        Settings.Children.Add(new TextBlock { Text = "Заливка" });
+        _fill = new ComboBox
         {
-            if (variants.SelectedItem is MaterialDividerVariant variant)
-                divider.Variant = variant;
+            ItemsSource = new[] { "Как в источнике", "Primary", "Primary container", "Secondary", "Tertiary", "Error", "Outline" },
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
+        AutomationProperties.SetName(_fill, "Заливка фигуры");
+        Settings.Children.Add(_fill);
 
-        var subheader = new TextBox { PlaceholderText = "Subheader", Width = 220 };
-        subheader.PropertyChanged += (_, e) =>
+        _outline = Toggle("Только обводка", false);
+        _thicknessPanel.Children.Add(_thicknessCaption);
+        _thicknessCaption.Text = "Толщина обводки: 3 dp";
+        _thickness = new Slider { Minimum = 1, Maximum = 8, Value = 3, TickFrequency = 1, IsSnapToTickEnabled = true };
+        MaterialAssist.SetControlSize(_thickness, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(_thickness, false);
+        AutomationProperties.SetName(_thickness, "Толщина обводки");
+        _thicknessPanel.Children.Add(_thickness);
+        Settings.Children.Add(_thicknessPanel);
+
+        Settings.Children.Add(new TextBlock
         {
-            if (e.Property == TextBox.TextProperty)
-                divider.Subheader = string.IsNullOrEmpty(subheader.Text) ? null : subheader.Text;
-        };
-
-        var vertical = new ToggleSwitch { Content = "Vertical" };
-        vertical.PropertyChanged += (_, e) =>
-        {
-            if (e.Property != ToggleSwitch.IsCheckedProperty)
-                return;
-            var isVertical = vertical.IsChecked == true;
-            divider.Orientation = isVertical ? Orientation.Vertical : Orientation.Horizontal;
-            divider.Width = isVertical ? double.NaN : 320;
-            divider.Height = isVertical ? 120 : double.NaN;
-            frame.Width = isVertical ? 40 : double.NaN;
-            frame.Height = isVertical ? 120 : double.NaN;
-        };
-
-        var controls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-        controls.Children.Add(variants);
-        controls.Children.Add(subheader);
-        controls.Children.Add(vertical);
-        panel.Children.Add(controls);
-        panel.Children.Add(frame);
-
-        panel.Children.Add(Heading("Source variants"));
-        panel.Children.Add(Caption(
-            "Horizontal: Full-width, Inset (16 dp leading), Middle-inset (16 dp both ends), " +
-            "Divider with subhead. Vertical uses the same 16 dp insets and no subheader."));
-
-        var horizontal = new StackPanel { Spacing = 12, Width = 320 };
-        foreach (var variant in Enum.GetValues<MaterialDividerVariant>())
-        {
-            horizontal.Children.Add(new TextBlock { Text = "Horizontal/" + variant, FontSize = 12 });
-            horizontal.Children.Add(new MaterialDivider { Variant = variant });
-        }
-        horizontal.Children.Add(new TextBlock { Text = "Horizontal/Divider with subhead", FontSize = 12 });
-        horizontal.Children.Add(new MaterialDivider
-        {
-            Variant = MaterialDividerVariant.MiddleInset,
-            Subheader = "Subheader",
-        });
-
-        var verticalRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 32,
-            Height = 120,
-        };
-        foreach (var variant in Enum.GetValues<MaterialDividerVariant>())
-        {
-            var column = new StackPanel { Spacing = 8, Width = 96 };
-            column.Children.Add(new TextBlock { Text = "Vertical/" + variant, FontSize = 12 });
-            column.Children.Add(new MaterialDivider
-            {
-                Orientation = Orientation.Vertical,
-                Variant = variant,
-                Height = 88,
-            });
-            verticalRow.Children.Add(column);
-        }
-
-        var examples = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 40 };
-        examples.Children.Add(horizontal);
-        examples.Children.Add(verticalRow);
-        panel.Children.Add(examples);
-
-        panel.Children.Add(Heading("In a list"));
-        panel.Children.Add(Caption("Full-width dividers between rows, middle-inset before a section subheader."));
-        var list = new StackPanel { Width = 320 };
-        list.Children.Add(new TextBlock { Text = "Inbox", Margin = new Thickness(16, 8) });
-        list.Children.Add(new MaterialDivider());
-        list.Children.Add(new TextBlock { Text = "Drafts", Margin = new Thickness(16, 8) });
-        list.Children.Add(new MaterialDivider());
-        list.Children.Add(new MaterialDivider
-        {
-            Variant = MaterialDividerVariant.MiddleInset,
-            Subheader = "More labels",
-        });
-        list.Children.Add(new TextBlock { Text = "Sent", Margin = new Thickness(16, 8) });
-        panel.Children.Add(list);
-        return Scroll(panel);
-    }
-
-    // ------------------------------------------------------------------- scrim
-
-    private static Control Scrim()
-    {
-        var panel = Panel();
-        panel.Children.Add(Heading("Scrim"));
-        panel.Children.Add(Caption(
-            "The scrim covers this 260 dp surface at 32% of the scrim role. Click it or press " +
-            "Escape to dismiss; the status line shows the dismissal request. Turn off " +
-            "Dismissible to require an explicit action from the host."));
-
-        var status = new TextBlock { Text = "Scrim closed.", FontSize = 13 };
-
-        var surface = new Border
-        {
-            Height = 260,
-            Width = 420,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Background = new SolidColorBrush(Color.Parse("#FEF7FF")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#CAC4D0")),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-        };
-
-        var content = new StackPanel { Spacing = 12, Margin = new Thickness(24) };
-        content.Children.Add(new TextBlock { Text = "Modal content behind the scrim", FontSize = 16 });
-        content.Children.Add(new Button { Content = "Underlying action" });
-        content.Children.Add(new TextBlock
-        {
-            Text = "While the scrim is open this button cannot be clicked and the scrim holds focus.",
-            FontSize = 12,
+            Text = "MaterialShape — настоящая Avalonia Shape: Kind выбирает исходную геометрию, Stretch и " +
+                   "локальная заливка переопределяют тему. Без явной заливки Shape Set рисуется ролью primary, " +
+                   "а .Shape — primary-container, как в исходнике. Обводка снимает заливку и рисует контур secondary.",
             TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 320,
+            FontSize = 13,
         });
 
-        var scrim = new MaterialScrim();
-        scrim.DismissRequested += (_, _) => status.Text = "DismissRequested handled by the gallery.";
+        _family.SelectionChanged += (_, _) => { if (!_syncing) PopulateKinds(); };
+        _kind.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _size.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_syncing) Apply(); };
+        _height.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_syncing) Apply(); };
+        _stretch.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _fill.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _outline.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
+        _thickness.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_syncing) Apply(); };
 
-        var host = new Panel();
-        host.Children.Add(content);
-        host.Children.Add(scrim);
-        surface.Child = host;
-
-        var open = new Button { Content = "Open scrim" };
-        open.Click += (_, _) =>
-        {
-            scrim.IsOpen = true;
-            status.Text = "Scrim open.";
-        };
-
-        var dismissible = new ToggleSwitch { Content = "Dismissible", IsChecked = true };
-        dismissible.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == ToggleSwitch.IsCheckedProperty)
-                scrim.IsDismissEnabled = dismissible.IsChecked == true;
-        };
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
-        actions.Children.Add(open);
-        actions.Children.Add(dismissible);
-        panel.Children.Add(actions);
-        panel.Children.Add(surface);
-        panel.Children.Add(status);
-        return Scroll(panel);
+        PopulateKinds();
     }
 
-    // --------------------------------------------------------- focus indicator
+    private MaterialShapeKind[] CurrentKinds => _family.SelectedIndex == 1 ? Numbered : Named;
 
-    private static Control FocusIndicator()
+    private void PopulateKinds()
     {
-        var panel = Panel();
-        panel.Children.Add(Heading("Focus indicator"));
-        panel.Children.Add(Caption(
-            "A 3 dp outside ring in the secondary role. FocusTarget mirrors the decorated " +
-            "control's keyboard focus, so Tab moves the ring between the two buttons below."));
-
-        var first = new Button { Content = "Tab to me", CornerRadius = new CornerRadius(20) };
-        var firstIndicator = new MaterialFocusIndicator
-        {
-            FocusTarget = first,
-            CornerRadius = new CornerRadius(20),
-            Margin = new Thickness(-3),
-        };
-        var firstHost = new Grid { Width = 160, Height = 56 };
-        firstHost.Children.Add(first);
-        firstHost.Children.Add(firstIndicator);
-
-        var second = new Button { Content = "Then me", CornerRadius = new CornerRadius(20) };
-        var secondIndicator = new MaterialFocusIndicator
-        {
-            FocusTarget = second,
-            CornerRadius = new CornerRadius(20),
-            Margin = new Thickness(-3),
-        };
-        var secondHost = new Grid { Width = 160, Height = 56 };
-        secondHost.Children.Add(second);
-        secondHost.Children.Add(secondIndicator);
-
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24 };
-        row.Children.Add(firstHost);
-        row.Children.Add(secondHost);
-        panel.Children.Add(row);
-
-        panel.Children.Add(Heading("Forced state"));
-        panel.Children.Add(Caption(
-            "IsActive shows the ring without focus, which is how a static preview or a " +
-            "non-focusable custom surface demonstrates the indicator."));
-        var forced = new Grid { Width = 120, Height = 120 };
-        forced.Children.Add(new Border
-        {
-            Background = new SolidColorBrush(Color.Parse("#EADDFF")),
-            CornerRadius = new CornerRadius(16),
-        });
-        forced.Children.Add(new MaterialFocusIndicator
-        {
-            IsActive = true,
-            CornerRadius = new CornerRadius(16),
-            Margin = new Thickness(-3),
-        });
-        panel.Children.Add(forced);
-        return Scroll(panel);
+        _syncing = true;
+        var kinds = CurrentKinds;
+        _kind.ItemsSource = Array.ConvertAll(kinds, kind => kind.ToString());
+        _kind.SelectedIndex = 0;
+        _syncing = false;
+        Apply();
     }
 
-    // ------------------------------------------------------------ state layers
-
-    private static Control StateLayers()
+    private void Apply()
     {
-        var panel = Panel();
-        panel.Children.Add(Heading("State layers"));
-        panel.Children.Add(Caption(
-            "The five source states. Opacities come from the Material state-layer tokens: " +
-            "hover 8%, focus 10%, pressed 10%, dragged 16% over a surface fill with elevation 5."));
+        var kinds = CurrentKinds;
+        var index = Math.Clamp(_kind.SelectedIndex, 0, kinds.Length - 1);
+        var kind = kinds[index];
 
-        var states = new WrapPanel { ItemSpacing = 20, LineSpacing = 12 };
-        foreach (var state in Enum.GetValues<MaterialStateLayerState>())
+        _shape.Kind = kind;
+        _shape.Width = _size.Value;
+        _shape.Height = _size.Value * _height.Value;
+        _shape.Stretch = _stretch.SelectedIndex switch
         {
-            var layer = new MaterialStateLayer
-            {
-                State = state,
-                Width = 48,
-                Height = 48,
-                CornerRadius = new CornerRadius(8),
-            };
-            var host = new Border
-            {
-                Background = new SolidColorBrush(Color.Parse("#FEF7FF")),
-                CornerRadius = new CornerRadius(8),
-                Child = layer,
-            };
-            var tile = new StackPanel { Spacing = 6 };
-            tile.Children.Add(host);
-            tile.Children.Add(new TextBlock { Text = state.ToString(), FontSize = 12 });
-            states.Children.Add(tile);
+            1 => Stretch.Fill,
+            2 => Stretch.None,
+            _ => Stretch.Uniform,
+        };
+
+        var outline = _outline.IsChecked == true;
+        _thicknessPanel.IsVisible = outline;
+        if (outline)
+        {
+            _shape.ClearValue(Shape.FillProperty);
+            _shape.Fill = null;
+            _shape.ClearValue(Shape.StrokeProperty);
+            _shape.Bind(Shape.StrokeProperty, _shape.GetResourceObservable("MaterialSecondaryBrush"));
+            _shape.StrokeThickness = _thickness.Value;
         }
-        panel.Children.Add(states);
-
-        panel.Children.Add(Heading("Interactive layer"));
-        panel.Children.Add(Caption(
-            "IsInteractive tracks the pointer and keyboard itself: hover, then press, then focus " +
-            "with Tab. IsDragging overrides everything with the dragged state."));
-
-        var interactive = new MaterialStateLayer
+        else
         {
-            IsInteractive = true,
-            Focusable = true,
-            Width = 160,
-            Height = 48,
-            CornerRadius = new CornerRadius(8),
-        };
-        var interactiveHost = new Border
-        {
-            Background = new SolidColorBrush(Color.Parse("#FEF7FF")),
-            CornerRadius = new CornerRadius(8),
-            Child = interactive,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
+            _shape.Stroke = null;
+            _shape.StrokeThickness = 0;
+            _shape.ClearValue(Shape.FillProperty);
+            if (_fill.SelectedIndex > 0)
+                _shape.Bind(Shape.FillProperty, _shape.GetResourceObservable(
+                    FillKeys[Math.Clamp(_fill.SelectedIndex - 1, 0, FillKeys.Length - 1)]));
+        }
 
-        var effective = new TextBlock { Text = "EffectiveState: Enabled", FontSize = 13 };
-        interactive.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == MaterialStateLayer.EffectiveStateProperty)
-                effective.Text = "EffectiveState: " + interactive.EffectiveState;
-        };
+        _sizeCaption.Text = $"Размер: {_size.Value:0} dp";
+        _heightCaption.Text = $"Высота: ×{_height.Value:0.0}";
+        _thicknessCaption.Text = $"Толщина обводки: {_thickness.Value:0} dp";
+        _caption.Text = $"{kind} · {_size.Value:0}×{_shape.Height:0} dp · {_shape.Stretch}";
+    }
 
-        var dragging = new ToggleSwitch { Content = "IsDragging" };
-        dragging.PropertyChanged += (_, e) =>
+    private MaterialButtonGroup Choice(string label, string[] options, int selected)
+    {
+        var panel = new StackPanel { Spacing = 8 };
+        panel.Children.Add(new TextBlock { Text = label });
+        var group = new MaterialButtonGroup
         {
-            if (e.Property == ToggleSwitch.IsCheckedProperty)
-                interactive.IsDragging = dragging.IsChecked == true;
+            Kind = MaterialButtonGroupKind.Connected,
+            ButtonShape = MaterialButtonShape.Round,
+            ControlSize = MaterialControlSize.Small,
+            SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true,
         };
+        foreach (var option in options)
+            group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        group.SelectedIndex = selected;
+        panel.Children.Add(group);
+        Settings.Children.Add(panel);
+        return group;
+    }
 
-        var controls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24 };
-        controls.Children.Add(interactiveHost);
-        controls.Children.Add(dragging);
-        panel.Children.Add(controls);
-        panel.Children.Add(effective);
-        return Scroll(panel);
+    private ToggleSwitch Toggle(string label, bool value)
+    {
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        Settings.Children.Add(toggle);
+        return toggle;
     }
 }

@@ -15,7 +15,7 @@ public static class SearchGallery
     public static Control CreateClassic() => new SearchPlayground(false);
 }
 
-internal sealed class SearchPlayground : Grid
+internal sealed class SearchPlayground : Grid, IComponentPlayground
 {
     private static readonly string[] Catalogue = { "Search bar", "Search view", "Navigation rail", "Navigation bar", "Bottom app bar", "Range slider", "Rich tooltip", "Circular progress", "Segmented button", "Text field", "Menu", "Chips" };
     private readonly MaterialSearchBar _bar = new() { PlaceholderText = "Search components", AutoFocus = false };
@@ -35,7 +35,7 @@ internal sealed class SearchPlayground : Grid
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _rtl;
     private bool _syncing;
-    internal StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
     internal SearchPlayground(bool expressive)
     {

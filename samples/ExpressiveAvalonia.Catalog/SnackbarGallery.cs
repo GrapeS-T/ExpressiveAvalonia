@@ -1,191 +1,278 @@
 using System;
 using System.Threading;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
 /// <summary>
-/// Catalog page for <see cref="MaterialSnackbar"/> and <see cref="MaterialSnackbarHost"/>.
+/// One live <see cref="MaterialSnackbar"/> queued by an embedded <see cref="MaterialSnackbarHost"/>.
 /// </summary>
 /// <remarks>
-/// The buttons reproduce the ten exported source configurations (three action configurations by
-/// two line counts by two close-affordance settings, where "longer action" only exists in the
-/// two-line layout). Every snackbar is 344 DIP wide, the source component width. Interact with the
-/// action and close affordances to exercise the hover, focus and pressed state layers.
+/// The inspector edits the message, the action label, the line count, the action placement, the
+/// close affordance and the duration of the single snackbar; changes reach a snackbar that is
+/// already on screen. The demo buttons exercise the real host queue, the programmatic dismissal
+/// and the window overlay host.
 /// </remarks>
 public static class SnackbarGallery
 {
+    public static Control Create() => new SnackbarPlayground();
+}
+
+internal sealed class SnackbarPlayground : Grid, IComponentPlayground
+{
     private const string ShortText = "Snackbar supporting text";
-    private const string LongText =
-        "This message is deliberately long so it wraps, reaches the two-line limit and is trimmed with an ellipsis";
 
-    private sealed record SnackbarCase(
-        string Name,
-        string Text,
-        string? Action,
-        MaterialSnackbarLineCount Lines,
-        bool Close,
-        MaterialSnackbarActionPlacement Placement);
-
-    private static readonly SnackbarCase[] Cases =
-    [
-        new("Text only, 1 line", ShortText, null, MaterialSnackbarLineCount.OneLine, false, MaterialSnackbarActionPlacement.Inline),
-        new("Text only, 1 line + close", ShortText, null, MaterialSnackbarLineCount.OneLine, true, MaterialSnackbarActionPlacement.Inline),
-        new("Text only, 2 lines", ShortText, null, MaterialSnackbarLineCount.TwoLines, false, MaterialSnackbarActionPlacement.Inline),
-        new("Text only, 2 lines + close", ShortText, null, MaterialSnackbarLineCount.TwoLines, true, MaterialSnackbarActionPlacement.Inline),
-        new("Action, 1 line", ShortText, "Action", MaterialSnackbarLineCount.OneLine, false, MaterialSnackbarActionPlacement.Inline),
-        new("Action, 1 line + close", ShortText, "Action", MaterialSnackbarLineCount.OneLine, true, MaterialSnackbarActionPlacement.Inline),
-        new("Action, 2 lines", ShortText, "Action", MaterialSnackbarLineCount.TwoLines, false, MaterialSnackbarActionPlacement.Inline),
-        new("Action, 2 lines + close", ShortText, "Action", MaterialSnackbarLineCount.TwoLines, true, MaterialSnackbarActionPlacement.Inline),
-        new("Longer action, 2 lines", ShortText, "Longer action", MaterialSnackbarLineCount.TwoLines, false, MaterialSnackbarActionPlacement.Below),
-        new("Longer action, 2 lines + close", ShortText, "Longer action", MaterialSnackbarLineCount.TwoLines, true, MaterialSnackbarActionPlacement.Below),
-    ];
-
-    public static Control Create()
+    private readonly MaterialSnackbarHost _host = new();
+    private readonly Border _surface;
+    private readonly TextBlock _status = new()
     {
-        var status = new TextBlock
-        {
-            Text = "No snackbar has closed yet.",
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.8,
-        };
+        Text = "Snackbar ещё не показывался.",
+        TextWrapping = TextWrapping.Wrap,
+        TextAlignment = TextAlignment.Center,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        Opacity = 0.8,
+    };
 
-        var host = new MaterialSnackbarHost { Name = "SnackbarHost" };
+    private readonly TextBox _message;
+    private readonly TextBox _action;
+    private readonly MaterialButtonGroup _lines;
+    private readonly MaterialButtonGroup _placement;
+    private readonly StackPanel _placementGroup;
+    private readonly ToggleSwitch _close;
+    private readonly ComboBox _duration;
+    private MaterialSnackbar? _open;
 
-        var page = new StackPanel { Spacing = 16, Margin = new Thickness(24) };
-        page.Children.Add(new TextBlock
-        {
-            Text = "Snackbar",
-            FontSize = 28,
-            FontWeight = FontWeight.SemiBold,
-        });
-        page.Children.Add(new TextBlock
-        {
-            Text = "Material 3 snackbar on the inverse surface. Each button replays one exported source " +
-                   "configuration; snackbars queue one at a time in the host below. Action and close " +
-                   "support hover, focus and pressed state layers, Escape dismisses a focused snackbar, " +
-                   "and automatic dismissal pauses while keyboard focus is inside it.",
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 760,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        });
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
-        var buttons = new WrapPanel { ItemSpacing = 8, LineSpacing = 8, MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left };
-        foreach (var item in Cases)
-        {
-            var caseButton = new Button { Content = item.Name };
-            caseButton.Click += (_, _) => ShowCase(host, item, status);
-            buttons.Children.Add(caseButton);
-        }
-
-        var longMessage = new Button { Content = "Long message (trimmed)" };
-        longMessage.Click += (_, _) =>
-        {
-            var snackbar = CreateSnackbar(new SnackbarCase(
-                "Long", LongText, null, MaterialSnackbarLineCount.TwoLines, true,
-                MaterialSnackbarActionPlacement.Inline));
-            Show(host, snackbar, status);
-        };
-        buttons.Children.Add(longMessage);
-
-        var keepOpen = new Button { Content = "Keep open to inspect states" };
-        keepOpen.Click += (_, _) =>
-        {
-            var snackbar = CreateSnackbar(
-                new SnackbarCase("Inspect", ShortText, "Action", MaterialSnackbarLineCount.OneLine, true,
-                    MaterialSnackbarActionPlacement.Inline));
-            snackbar.Duration = Timeout.InfiniteTimeSpan;
-            Show(host, snackbar, status);
-        };
-        buttons.Children.Add(keepOpen);
-
-        var overlay = new Button { Content = "Show in window overlay" };
-        overlay.Click += (_, _) => ShowInOverlay(overlay, status);
-        buttons.Children.Add(overlay);
-
-        page.Children.Add(buttons);
-        page.Children.Add(CreateDemoSurface(host));
-        page.Children.Add(status);
-        return new ScrollViewer
-        {
-            Content = page,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-        };
-    }
-
-    private static Control CreateDemoSurface(MaterialSnackbarHost host)
+    internal SnackbarPlayground()
     {
         var hint = new TextBlock
         {
-            Text = "Snackbars appear at the bottom of this surface.",
+            Text = "Snackbar появляется внизу этой области.",
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
             Opacity = 0.6,
         };
         hint.Bind(TextBlock.ForegroundProperty, hint.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
 
-        var surface = new Border { CornerRadius = new CornerRadius(12) };
-        surface.Bind(Border.BackgroundProperty, surface.GetResourceObservable("MaterialSurfaceContainerBrush"));
-        surface.Child = hint;
+        _surface = new Border
+        {
+            Height = 320,
+            MinWidth = 360,
+            MaxWidth = 640,
+            CornerRadius = new CornerRadius(16),
+            ClipToBounds = true,
+        };
+        _surface.Bind(Border.BackgroundProperty, _surface.GetResourceObservable("MaterialSurfaceContainerBrush"));
+        var surface = new Grid { Children = { hint, _host } };
+        _surface.Child = surface;
 
-        var demo = new Grid { Height = 280, MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left };
-        demo.Children.Add(surface);
-        demo.Children.Add(host);
-        return demo;
+        var show = new Button { Content = "Показать snackbar" };
+        MaterialAssist.SetButtonVariant(show, MaterialButtonVariant.Filled);
+        show.Click += (_, _) => ShowEmbedded();
+
+        var dismiss = new Button { Content = "Закрыть" };
+        MaterialAssist.SetButtonVariant(dismiss, MaterialButtonVariant.Text);
+        dismiss.Click += (_, _) => _host.DismissCurrent();
+
+        var overlay = new Button { Content = "В оверлее окна" };
+        MaterialAssist.SetButtonVariant(overlay, MaterialButtonVariant.Outlined);
+        overlay.Click += (_, _) => ShowInOverlay(overlay);
+
+        var buttons = new WrapPanel
+        {
+            ItemSpacing = 8,
+            LineSpacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Children = { show, dismiss, overlay },
+        };
+
+        var stage = new StackPanel
+        {
+            Spacing = 16,
+            MaxWidth = 720,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { _surface, buttons, _status },
+        };
+        Children.Add(stage);
+
+        _message = new TextBox
+        {
+            Text = ShortText,
+            TextWrapping = TextWrapping.Wrap,
+            AcceptsReturn = true,
+            MinHeight = 88,
+        };
+        MaterialTextField.SetVariant(_message, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(_message, "Текст сообщения");
+        AutomationProperties.SetName(_message, "Текст сообщения");
+        Settings.Children.Add(_message);
+
+        _action = new TextBox { Text = "Отменить" };
+        MaterialTextField.SetVariant(_action, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(_action, "Действие (пусто — без действия)");
+        AutomationProperties.SetName(_action, "Текст действия");
+        Settings.Children.Add(_action);
+
+        _lines = Choice(Settings, "Строк текста", ["1 строка", "2 строки"]);
+        _placementGroup = new StackPanel { Spacing = 6 };
+        _placementGroup.Children.Add(new TextBlock { Text = "Размещение действия" });
+        _placement = Group(_placementGroup, ["В строке текста", "Под текстом"]);
+        Settings.Children.Add(_placementGroup);
+
+        _close = new ToggleSwitch { Content = "Кнопка закрытия", IsChecked = true };
+        Settings.Children.Add(_close);
+
+        Settings.Children.Add(new TextBlock { Text = "Длительность" });
+        _duration = new ComboBox
+        {
+            ItemsSource = new[] { "По умолчанию", "4 секунды", "10 секунд", "Бесконечно" },
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_duration, "Длительность показа");
+        Settings.Children.Add(_duration);
+
+        Settings.Children.Add(new TextBlock
+        {
+            Text = "Escape закрывает snackbar с клавиатурным фокусом, а автоматическое закрытие " +
+                   "приостанавливается, пока фокус внутри. Несколько вызовов встают в очередь host.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+        });
+
+        _message.TextChanged += (_, _) => Apply();
+        _action.TextChanged += (_, _) => Apply();
+        _lines.SelectionChanged += (_, _) => Apply();
+        _placement.SelectionChanged += (_, _) => Apply();
+        _close.IsCheckedChanged += (_, _) => Apply();
+        _duration.SelectionChanged += (_, _) => Apply();
+        Apply();
     }
 
-    private static void ShowCase(MaterialSnackbarHost host, SnackbarCase item, TextBlock status)
+    private void Apply()
     {
-        var snackbar = CreateSnackbar(item);
-        // Defaults: 4 s for a plain one-line message, 10 s for two lines or an action.
-        Show(host, snackbar, status);
+        var hasAction = !string.IsNullOrWhiteSpace(_action.Text);
+        _placementGroup.IsVisible = hasAction;
+
+        if (_open is not { IsOpen: true } snackbar)
+            return;
+
+        snackbar.Text = _message.Text;
+        snackbar.ActionContent = hasAction ? _action.Text : null;
+        snackbar.LineCount = Lines();
+        snackbar.ActionPlacement = Placement();
+        snackbar.IsCloseButtonVisible = _close.IsChecked == true;
+        snackbar.Duration = Duration();
     }
 
-    private static MaterialSnackbar CreateSnackbar(SnackbarCase item) => new()
+    private MaterialSnackbarLineCount Lines() =>
+        _lines.SelectedIndex == 1 ? MaterialSnackbarLineCount.TwoLines : MaterialSnackbarLineCount.OneLine;
+
+    private MaterialSnackbarActionPlacement Placement() =>
+        _placement.SelectedIndex == 1 ? MaterialSnackbarActionPlacement.Below : MaterialSnackbarActionPlacement.Inline;
+
+    private TimeSpan? Duration() => _duration.SelectedIndex switch
     {
-        Text = item.Text,
-        ActionContent = item.Action,
-        LineCount = item.Lines,
-        IsCloseButtonVisible = item.Close,
-        ActionPlacement = item.Placement,
-        Width = 344,
+        1 => TimeSpan.FromSeconds(4),
+        2 => TimeSpan.FromSeconds(10),
+        3 => Timeout.InfiniteTimeSpan,
+        _ => null,
     };
 
-    private static void Show(MaterialSnackbarHost host, MaterialSnackbar snackbar, TextBlock status)
+    private MaterialSnackbar Build()
     {
-        snackbar.ActionInvoked += (_, _) => status.Text = "Action invoked.";
-        snackbar.Closed += (_, e) => status.Text = $"Snackbar closed: {e.Reason}.";
-        _ = host.Show(snackbar);
+        var hasAction = !string.IsNullOrWhiteSpace(_action.Text);
+        return new MaterialSnackbar
+        {
+            Text = _message.Text,
+            ActionContent = hasAction ? _action.Text : null,
+            LineCount = Lines(),
+            ActionPlacement = Placement(),
+            IsCloseButtonVisible = _close.IsChecked == true,
+            Duration = Duration(),
+            Width = 344,
+        };
     }
 
-    private static void ShowInOverlay(Control anchor, TextBlock status)
+    private void ShowEmbedded()
     {
-        var topLevel = TopLevel.GetTopLevel(anchor);
-        if (topLevel is null)
+        var snackbar = Build();
+        Track(snackbar);
+        _open = snackbar;
+        _ = _host.Show(snackbar);
+        _status.Text = "Показан во встроенном host.";
+    }
+
+    private void ShowInOverlay(Control anchor)
+    {
+        if (TopLevel.GetTopLevel(anchor) is not { } topLevel)
         {
-            status.Text = "The window is not attached yet; try again once it is open.";
+            _status.Text = "Окно ещё не создано; попробуйте после открытия страницы.";
             return;
         }
 
-        var snackbar = CreateSnackbar(new SnackbarCase(
-            "Overlay", ShortText, "Undo", MaterialSnackbarLineCount.OneLine, true,
-            MaterialSnackbarActionPlacement.Inline));
-        snackbar.ActionInvoked += (_, _) => status.Text = "Overlay action invoked.";
-        snackbar.Closed += (_, e) => status.Text = $"Overlay snackbar closed: {e.Reason}.";
-
+        var snackbar = Build();
+        Track(snackbar);
         try
         {
             _ = MaterialSnackbarHost.Show(topLevel, snackbar);
+            _status.Text = "Показан в оверлее окна.";
         }
         catch (InvalidOperationException exception)
         {
-            // The window has no overlay layer yet; the embedded host still works.
-            status.Text = exception.Message;
+            _status.Text = exception.Message;
         }
+    }
+
+    private void Track(MaterialSnackbar snackbar)
+    {
+        snackbar.ActionInvoked += (_, _) => _status.Text = $"Действие «{snackbar.ActionContent}» выполнено.";
+        snackbar.Closed += (_, e) =>
+        {
+            if (ReferenceEquals(_open, snackbar))
+                _open = null;
+            _status.Text = $"Snackbar закрыт: {Describe(e.Reason)}.";
+        };
+    }
+
+    private static string Describe(MaterialSnackbarCloseReason reason) => reason switch
+    {
+        MaterialSnackbarCloseReason.Timeout => "истекло время",
+        MaterialSnackbarCloseReason.UserDismiss => "закрыт пользователем",
+        MaterialSnackbarCloseReason.Action => "после действия",
+        _ => "программно",
+    };
+
+    private static MaterialButtonGroup Choice(StackPanel target, string label, string[] options)
+    {
+        target.Children.Add(new TextBlock { Text = label });
+        var group = Group(target, options);
+        return group;
+    }
+
+    private static MaterialButtonGroup Group(StackPanel target, string[] options)
+    {
+        var group = new MaterialButtonGroup
+        {
+            Kind = MaterialButtonGroupKind.Connected,
+            SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true,
+            ControlSize = MaterialControlSize.Small,
+        };
+        foreach (var option in options)
+            group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        group.SelectedIndex = 0;
+        target.Children.Add(group);
+        return group;
     }
 }

@@ -15,7 +15,7 @@ public static class SelectionGallery
     public static Control CreateClassic() => new SelectionPlayground(false);
 }
 
-internal sealed class SelectionPlayground : Grid
+internal sealed class SelectionPlayground : Grid, IComponentPlayground
 {
     private static int _instances;
     private readonly bool _expressive;
@@ -43,7 +43,7 @@ internal sealed class SelectionPlayground : Grid
     private string _switchLabel = "Тёмная тема";
     private int _type;
     private bool _syncing;
-    internal StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
     internal SelectionPlayground(bool expressive)
     {

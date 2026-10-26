@@ -17,7 +17,7 @@ public static class ProgressGallery
     public static Control CreateClassic() => new ProgressPlayground(false);
 }
 
-internal sealed class ProgressPlayground : Grid
+internal sealed class ProgressPlayground : Grid, IComponentPlayground
 {
     private readonly bool _expressive;
     private readonly ProgressBar _linear = new() { Value = 50, Width = 320 };
@@ -45,7 +45,7 @@ internal sealed class ProgressPlayground : Grid
     private long _lastFrame;
     private double _completionHold;
     private readonly List<Visual> _visibilityAncestors = new();
-    internal StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
     internal ProgressPlayground(bool expressive)
     {

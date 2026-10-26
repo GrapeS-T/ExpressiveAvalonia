@@ -15,7 +15,7 @@ public static class TextFieldsGallery
     public static Control CreateClassic() => new TextFieldPlayground(false);
 }
 
-internal sealed class TextFieldPlayground : Grid
+internal sealed class TextFieldPlayground : Grid, IComponentPlayground
 {
     private readonly TextBox _field = new() { Width = 320, Text = "Input text", VerticalAlignment = VerticalAlignment.Center };
     private readonly MaterialButtonGroup _variant;
@@ -34,7 +34,7 @@ internal sealed class TextFieldPlayground : Grid
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _readOnly;
     private readonly ToggleSwitch _rtl;
-    internal StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
     internal TextFieldPlayground(bool expressive)
     {

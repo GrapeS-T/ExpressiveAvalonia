@@ -23,15 +23,9 @@ internal sealed class CatalogInspector : ScrollViewer
     private double _previewWidth = double.NaN;
     private double _previewHeight;
     private Control? _page;
-    private MaterialFabMenu[] _menus = [];
-    private readonly Dictionary<MaterialFabMenu, object[]> _originalItems = new();
     private Slider _width = null!;
-    private Slider? _count;
     private CheckBox _autoWidth = null!;
-    private TextBlock _feedback = new() { TextWrapping = TextWrapping.Wrap };
     private Action? _restorePage;
-    private Action? _exerciseCards;
-    private static readonly Geometry Star = Geometry.Parse("M12,2 L15,8 L22,9 L17,14 L18,21 L12,18 L6,21 L7,14 L2,9 L9,8 Z");
 
     internal CatalogInspector(MaterialTheme theme, Window window)
     {
@@ -77,41 +71,21 @@ internal sealed class CatalogInspector : ScrollViewer
     {
         _restorePage?.Invoke();
         _restorePage = null;
-        _exerciseCards = null;
-        foreach (var menu in _menus)
-            if (_originalItems.Remove(menu, out var items))
-            {
-                menu.IsExpanded = false;
-                menu.Items.Clear();
-                foreach (var item in items) menu.Items.Add(item);
-            }
         _page = page;
         _pageSettings.Children.Clear();
-        _count = null;
         Offset = default;
         page.Width = _previewWidth;
         page.MinHeight = _previewHeight;
         page.IsEnabled = _previewEnabled;
         page.FlowDirection = _previewFlow;
         var descendants = page.GetLogicalDescendants().OfType<Control>().Prepend(page).ToArray();
-        if (descendants.OfType<SliderPlayground>().FirstOrDefault() is { } sliders)
-            _pageSettings.Children.Add(sliders.Settings);
-        if (descendants.OfType<TextFieldPlayground>().FirstOrDefault() is { } fields)
-            _pageSettings.Children.Add(fields.Settings);
-        if (descendants.OfType<TabsPlayground>().FirstOrDefault() is { } tabs)
-            _pageSettings.Children.Add(tabs.Settings);
-        if (descendants.OfType<SearchPlayground>().FirstOrDefault() is { } search)
-            _pageSettings.Children.Add(search.Settings);
-        if (descendants.OfType<ProgressPlayground>().FirstOrDefault() is { } progress)
-            _pageSettings.Children.Add(progress.Settings);
-        if (descendants.OfType<ButtonPlayground>().FirstOrDefault() is { } buttons)
-            _pageSettings.Children.Add(buttons.Settings);
-        if (descendants.OfType<SelectionPlayground>().FirstOrDefault() is { } selection)
-            _pageSettings.Children.Add(selection.Settings);
-        _menus = descendants.OfType<MaterialFabMenu>().ToArray();
-        if (_menus.Length > 0) BuildMenus();
+        if (descendants.OfType<IComponentPlayground>().FirstOrDefault() is { } playground)
+        {
+            _pageSettings.Children.Add(playground.Settings);
+            return;
+        }
         var hasButtons = descendants.OfType<Button>().Any(b => b is not MaterialFabBase) || descendants.OfType<ViewportGallery>().Any();
-        if (hasButtons && _menus.Length == 0 && !descendants.OfType<ButtonPlayground>().Any() && !descendants.OfType<SelectionPlayground>().Any())
+        if (hasButtons)
         {
             var sizes = Section("Размер кнопок", true);
             var size = new ComboBox { ItemsSource = new[] { "Как в примере", "ExtraSmall", "Small", "Medium", "Large", "ExtraLarge" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -132,50 +106,6 @@ internal sealed class CatalogInspector : ScrollViewer
                 ApplySize();
             };
             sizes.Children.Add(size);
-        }
-        var cards = descendants.OfType<MaterialCard>().ToArray();
-        if (cards.Length > 0)
-        {
-            var section = Section("Размеры карточек", true);
-            var originalSizes = cards.Select(card => (card.Width, card.Height)).ToArray();
-            var previousRestore = _restorePage;
-            _restorePage = () =>
-            {
-                previousRestore?.Invoke();
-                for (var i = 0; i < cards.Length; i++)
-                {
-                    cards[i].Width = originalSizes[i].Width;
-                    cards[i].Height = originalSizes[i].Height;
-                }
-            };
-            var cardWidth = new Slider { Minimum = 200, Maximum = 600, Value = 320, TickFrequency = 20, IsSnapToTickEnabled = true };
-            var cardHeight = new Slider { Minimum = 120, Maximum = 640, Value = 320, TickFrequency = 20, IsSnapToTickEnabled = true };
-            var widthText = new TextBlock { Text = "Ширина блока: как в примере" };
-            var heightText = new TextBlock { Text = "Высота блока: как в примере" };
-            cardWidth.PropertyChanged += (_, e) =>
-            {
-                if (e.Property != RangeBase.ValueProperty) return;
-                foreach (var card in cards) card.Width = cardWidth.Value;
-                widthText.Text = $"Ширина блока: {cardWidth.Value:0} dp";
-            };
-            cardHeight.PropertyChanged += (_, e) =>
-            {
-                if (e.Property != RangeBase.ValueProperty) return;
-                foreach (var card in cards) card.Height = cardHeight.Value;
-                heightText.Text = $"Высота блока: {cardHeight.Value:0} dp";
-            };
-            section.Children.Add(widthText);
-            section.Children.Add(cardWidth);
-            section.Children.Add(heightText);
-            section.Children.Add(cardHeight);
-            _exerciseCards = () =>
-            {
-                cardWidth.Value = 400;
-                cardHeight.Value = 360;
-                if (cards.Any(card => card.Width != 400 || card.Height != 360))
-                    throw new InvalidOperationException("Card dimensions did not update.");
-                Console.WriteLine("INSPECTOR PASS: card blocks resized to 400 × 360 dp.");
-            };
         }
     }
     private void BuildSharedSettings()
@@ -226,57 +156,4 @@ internal sealed class CatalogInspector : ScrollViewer
         layout.Children.Add(rtl);
     }
 
-    private void BuildMenus()
-    {
-        foreach (var menu in _menus) _originalItems[menu] = menu.Items.Cast<object>().ToArray();
-        var section = Section("FAB menu / действия", true);
-        _feedback = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        var countLabel = new TextBlock { Text = "Количество: как в примере" };
-        _count = new Slider { Minimum = 2, Maximum = 6, Value = 3, TickFrequency = 1, IsSnapToTickEnabled = true };
-        var icons = new ToggleSwitch { Content = "Иконки действий", IsChecked = true };
-        var open = new ToggleSwitch { Content = "Раскрыть меню" };
-        void Populate()
-        {
-            var count = (int)Math.Round(_count.Value);
-            countLabel.Text = $"Действий в каждом меню: {count}";
-            foreach (var menu in _menus)
-            {
-                menu.Items.Clear();
-                for (var i = 0; i < count; i++)
-                {
-                    var number = i + 1;
-                    var segment = new MaterialFabMenuSegment { Label = $"Действие {number}", Icon = icons.IsChecked == true ? Star : null, HorizontalAlignment = HorizontalAlignment.Right };
-                    segment.Click += (_, _) => _feedback.Text = $"Выполнено действие {number}";
-                    menu.Items.Add(segment);
-                }
-                menu.IsExpanded = open.IsChecked == true;
-            }
-        }
-        _count.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Populate(); };
-        icons.IsCheckedChanged += (_, _) =>
-        {
-            foreach (var segment in _menus.SelectMany(m => m.Items.OfType<MaterialFabMenuSegment>()))
-                segment.Icon = icons.IsChecked == true ? Star : null;
-        };
-        open.IsCheckedChanged += (_, _) => { foreach (var menu in _menus) menu.IsExpanded = open.IsChecked == true; };
-        section.Children.Add(countLabel);
-        section.Children.Add(_count);
-        section.Children.Add(icons);
-        section.Children.Add(open);
-        section.Children.Add(_feedback);
-        Populate();
-    }
-
-    internal void ExerciseSmoke()
-    {
-        if (_exerciseCards is not null) { _exerciseCards(); return; }
-        if (_page is null || _menus.Length == 0 || _count is null) throw new InvalidOperationException("FAB inspector has no menus.");
-        _count.Value = 6;
-        if (_menus.Any(m => m.ItemCount != 6)) throw new InvalidOperationException("FAB action count did not change.");
-        _autoWidth.IsChecked = false;
-        _width.Value = 960;
-        if (_page.Width != 960) throw new InvalidOperationException("Preview width did not change.");
-        foreach (var menu in _menus) menu.IsExpanded = true;
-        Console.WriteLine("INSPECTOR PASS: six real FAB actions per menu; preview width 960 dp.");
-    }
 }

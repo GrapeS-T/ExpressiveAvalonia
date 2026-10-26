@@ -1,3 +1,4 @@
+using System;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
@@ -11,272 +12,206 @@ using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>Gallery for the Material 3 card family: containers, anatomies, layouts and states.</summary>
-/// <remarks>
-/// Covers the five assigned source packages: Stacked card (local-004836), Horizontal card
-/// (local-001649) and the .Building Blocks/Card states Outlined (local-000209),
-/// Elevated (local-000197) and Filled (local-000203).
-/// </remarks>
+/// <summary>One live card with its family, anatomy, actions and dimensions exposed in the inspector.</summary>
 public static class CardsGallery
 {
-    public static Control Create()
+    public static Control Create() => new CardsPlayground();
+}
+
+internal sealed class CardsPlayground : Grid, IComponentPlayground
+{
+    private static readonly string[] Anatomies = { "Stacked", "Horizontal", "Slot" };
+
+    private readonly MaterialCard _card = new()
     {
-        var clicks = new TextBlock { FontSize = 14 };
-        var commands = new TextBlock { FontSize = 14 };
-        var drags = new TextBlock { FontSize = 14 };
-        var clickCount = 0;
-        var commandCount = 0;
-        var dragCount = 0;
-        clicks.Text = "Нажатий по карточке: 0";
-        commands.Text = "Команд из карточки: 0";
-        drags.Text = "Перетаскиваний: 0";
-
-        var panel = new StackPanel { Spacing = 32, Margin = new Thickness(32) };
-        panel.Children.Add(new TextBlock { Text = "Карточки", FontSize = 32, FontWeight = FontWeight.Bold });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Filled, elevated и outlined контейнеры; stacked и horizontal анатомия; Layout=Slot заменяет анатомию слотом. " +
-                 "Интерактивная карточка получает фокус, состояния hover/pressed/focused/dragged, Enter/Space и команду; " +
-                 "вложенные кнопки сохраняют собственный ввод. Фокусное кольцо — 3 dp secondary, 2 dp снаружи контейнера.",
-            FontSize = 14,
-            TextWrapping = TextWrapping.Wrap
-        });
-        panel.Children.Add(clicks);
-        panel.Children.Add(commands);
-        panel.Children.Add(drags);
-
-        // 1. The three container treatments on a short card (no media, no actions).
-        var containers = new WrapPanel { ItemSpacing = 24, LineSpacing = 24 };
-        foreach (var variant in Enum.GetValues<MaterialCardVariant>())
-        {
-            containers.Children.Add(Demo(
-                $"Контейнер · {variant}",
-                variant switch
-                {
-                    MaterialCardVariant.Outlined => "Surface + 1 dp outline, без тени в покое.",
-                    MaterialCardVariant.Elevated => "Surface-container-low + elevation level 1.",
-                    _ => "Surface-container-highest, без обводки и тени.",
-                },
-                ContainerCard(variant)));
-        }
-        panel.Children.Add(Section("Стили контейнера", containers));
-
-        // 2. Stacked · media & text for each style (source Layout=Media & text).
-        var stacked = new WrapPanel { ItemSpacing = 24, LineSpacing = 24 };
-        foreach (var variant in Enum.GetValues<MaterialCardVariant>())
-            stacked.Children.Add(FullCard(variant));
-        var singleAction = FullCard(MaterialCardVariant.Elevated);
-        singleAction.ShowSecondaryAction = false;
-        stacked.Children.Add(Demo(
-            "Show secondary action = false",
-            "Булев параметр источника скрывает вторичное действие.",
-            singleAction));
-        panel.Children.Add(Section("Stacked · Media & text", stacked));
-
-        // 3. Horizontal · media & text for each style.
-        var horizontal = new WrapPanel { ItemSpacing = 24, LineSpacing = 24 };
-        foreach (var variant in Enum.GetValues<MaterialCardVariant>())
-            horizontal.Children.Add(HorizontalCard(variant));
-        panel.Children.Add(Section("Horizontal · Media & text", horizontal));
-
-        // 4. Layout=Slot for each style, with a nested interactive button.
-        var slots = new WrapPanel { ItemSpacing = 24, LineSpacing = 24 };
-        foreach (var variant in Enum.GetValues<MaterialCardVariant>())
-        {
-            slots.Children.Add(Demo(
-                $"Slot · {variant}",
-                "Layout=Slot: анатомия скрыта, содержимое задаёт всю поверхность.",
-                SlotCard(variant)));
-        }
-        panel.Children.Add(Section("Layout · Slot", slots));
-
-        // 5. Real interaction: click, command, keyboard, drag and disabled.
-        var interactive = new WrapPanel { ItemSpacing = 24, LineSpacing = 24 };
-        var clickable = new MaterialCard
-        {
-            Width = 320,
-            IsInteractive = true,
-            Variant = MaterialCardVariant.Elevated,
-            Header = "Нажмите или нажмите Enter",
-            Subhead = "Клик по карточке",
-            AvatarInitial = "A",
-            Title = "Интерактивная карточка",
-            SupportingText = "Фокус по Tab, активация Enter или Space, состояние :pressed и слой 0.10.",
-        };
-        clickable.Click += (_, _) =>
-        {
-            clickCount++;
-            clicks.Text = $"Нажатий по карточке: {clickCount}";
-        };
-        interactive.Children.Add(Demo("Интерактивность", "Click, клавиатура и команда.", clickable));
-
-        var commanded = new MaterialCard
-        {
-            Width = 320,
-            IsInteractive = true,
-            Variant = MaterialCardVariant.Filled,
-            Header = "Команда",
-            Subhead = "ICommand",
-            AvatarInitial = "C",
-            Title = "Command",
-            Command = new DelegateCommand(_ =>
-            {
-                commandCount++;
-                commands.Text = $"Команд из карточки: {commandCount}";
-            }),
-            PrimaryAction = "Основное",
-            SecondaryAction = "Второе",
-            PrimaryActionCommand = new DelegateCommand(_ =>
-            {
-                commandCount++;
-                commands.Text = $"Команд из карточки: {commandCount} (primary)";
-            }),
-            SecondaryActionCommand = new DelegateCommand(_ =>
-            {
-                commandCount++;
-                commands.Text = $"Команд из карточки: {commandCount} (secondary)";
-            }),
-        };
-        interactive.Children.Add(Demo("Команды и действия", "Command карточки и кнопки действий с токенами Filled/Outlined Small.", commanded));
-
-        var focused = new MaterialCard
-        {
-            Width = 320,
-            Variant = MaterialCardVariant.Outlined,
-            ShowFocusIndicator = true,
-            Header = "Фокусное кольцо",
-            Subhead = "ShowFocusIndicator",
-            AvatarInitial = "F",
-            Title = "Состояние Focused",
-            SupportingText = "3 dp secondary, радиус + 2, вне контейнера.",
-        };
-        interactive.Children.Add(Demo("Focused", "Статический снимок состояния Focused из source-блока.", focused));
-
-        var disabled = new MaterialCard
-        {
-            Width = 320,
-            IsInteractive = true,
-            IsEnabled = false,
-            Variant = MaterialCardVariant.Outlined,
-            Header = "Недоступно",
-            Subhead = "Disabled",
-            AvatarInitial = "D",
-            Title = "Disabled",
-            SupportingText = "Слой состояний не рисуется, контейнер приглушён до 0.38.",
-        };
-        interactive.Children.Add(Demo("Disabled", "Карточка не получает фокус и не активируется.", disabled));
-
-        var draggable = new MaterialCard
-        {
-            Width = 320,
-            IsInteractive = true,
-            Variant = MaterialCardVariant.Filled,
-            Header = "Перетащите карточку",
-            Subhead = "DragData",
-            AvatarInitial = "G",
-            Title = "Состояние Dragged",
-            SupportingText = "Порог 4 dp; во время переноса слой 0.16 и поднятая тень.",
-            DragData = TextTransfer("Material card"),
-        };
-        draggable.DragStarted += (_, _) => drags.Text = "Перетаскивание началось";
-        draggable.DragCompleted += (_, e) =>
-        {
-            dragCount++;
-            drags.Text = $"Перетаскиваний: {dragCount} · результат {e.Effects}";
-        };
-        interactive.Children.Add(Demo("Dragged", "Реальный drag-and-drop платформы, состояние :dragged.", draggable));
-        panel.Children.Add(Section("Состояния", interactive));
-
-        // 6. Header action slot: a 48 dp icon button inside the stacked header.
-        var withAction = new MaterialCard
-        {
-            Width = 360,
-            Variant = MaterialCardVariant.Elevated,
-            Header = "Заголовок",
-            Subhead = "Подзаголовок",
-            AvatarInitial = "M",
-            Title = "Заголовок карточки",
-            SupportingText = "Действие в шапке — обычная иконочная кнопка 48 dp.",
-            HeaderAction = new Button
-            {
-                Content = new MaterialIcon { IconName = "more_vert", IsDecorative = true },
-                Width = 48,
-                Height = 48,
-            },
-            PrimaryAction = "Открыть",
-            SecondaryAction = "Позже",
-        };
-        MaterialAssist.SetIsIconButton((Button)withAction.HeaderAction!, true);
-        MaterialAssist.SetButtonVariant((Button)withAction.HeaderAction!, MaterialButtonVariant.Standard);
-        AutomationProperties.SetName((Button)withAction.HeaderAction!, "Дополнительно");
-        panel.Children.Add(Section("Действие в шапке", Demo("HeaderAction", "Слот шапки принимает любой контрол; здесь — standard icon button.", withAction)));
-
-        return new ScrollViewer
-        {
-            Content = panel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-        };
-    }
-
-    private static MaterialCard ContainerCard(MaterialCardVariant variant) => new()
-    {
-        Width = 320,
-        Variant = variant,
-        Header = "Заголовок",
-        Subhead = "Подзаголовок",
-        AvatarInitial = "A",
-        Title = "Title",
-        Subtitle = "Subtitle",
-        SupportingText = "Короткая карточка: шапка, заголовок и поддерживающий текст.",
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
     };
-
-    private static MaterialCard FullCard(MaterialCardVariant variant) => new()
+    private readonly TextBlock _status = new()
     {
-        Width = 360,
-        Variant = variant,
-        Header = "Заголовок",
-        Subhead = "Подзаголовок",
-        AvatarInitial = "A",
-        Media = Media("Медиа 188"),
-        Title = "Title",
-        Subtitle = "Subtitle",
-        SupportingText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor",
-        SecondaryAction = "Второе",
-        PrimaryAction = "Основное",
+        Text = "Нажатий: 0 · команд карточки: 0 · команд действий: 0 · перетаскиваний: 0",
+        HorizontalAlignment = HorizontalAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
     };
+    private readonly ComboBox _variant = new() { ItemsSource = Enum.GetNames<MaterialCardVariant>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _anatomy = new() { ItemsSource = Anatomies, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Slider _width;
+    private readonly Slider _radius;
+    private readonly ToggleSwitch _avatar;
+    private readonly ToggleSwitch _headerAction;
+    private readonly ToggleSwitch _secondary;
+    private readonly ToggleSwitch _interactive;
+    private readonly ToggleSwitch _focus;
+    private readonly ToggleSwitch _drag;
+    private readonly ToggleSwitch _enabled;
+    private readonly TextBox _header;
+    private readonly TextBox _title;
+    private readonly TextBox _supporting;
+    private readonly Button _headerButton;
+    private readonly StackPanel _slotContent;
+    private int _clicks;
+    private int _commands;
+    private int _actions;
+    private int _drags;
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
-    private static MaterialCard HorizontalCard(MaterialCardVariant variant) => new()
+    internal CardsPlayground()
     {
-        Width = 360,
-        Variant = variant,
-        Orientation = MaterialCardOrientation.Horizontal,
-        Header = "Header",
-        Subhead = "Subhead",
-        AvatarInitial = "A",
-        Media = Media(null),
-    };
-
-    private static MaterialCard SlotCard(MaterialCardVariant variant)
-    {
-        var card = new MaterialCard
+        RowDefinitions = new RowDefinitions("*,Auto");
+        var stage = new StackPanel
         {
-            Width = 280,
-            Variant = variant,
-            Layout = MaterialCardLayout.Slot,
-            Padding = new Thickness(16),
+            Spacing = 24,
+            Margin = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        var content = new StackPanel { Spacing = 12 };
-        content.Children.Add(new TextBlock { Text = "Слот содержимого", FontSize = 16, FontWeight = FontWeight.Medium });
-        content.Children.Add(new TextBlock
+        stage.Children.Add(_card);
+        Children.Add(stage);
+        Grid.SetRow(_status, 1);
+        _status.Margin = new Thickness(24, 0, 24, 20);
+        Children.Add(_status);
+
+        _headerButton = new Button
+        {
+            Content = new MaterialIcon { IconName = "more_vert", IsDecorative = true },
+            Width = 48,
+            Height = 48,
+        };
+        MaterialAssist.SetIsIconButton(_headerButton, true);
+        MaterialAssist.SetButtonVariant(_headerButton, MaterialButtonVariant.Standard);
+        AutomationProperties.SetName(_headerButton, "Дополнительно");
+        _headerButton.Click += (_, _) => SetStatus("Нажато действие в шапке.");
+
+        _slotContent = new StackPanel { Spacing = 12 };
+        _slotContent.Children.Add(new TextBlock { Text = "Слот содержимого", FontSize = 16, FontWeight = FontWeight.Medium });
+        _slotContent.Children.Add(new TextBlock
         {
             Text = "Анатомия скрыта: содержимое задаёт всю поверхность карточки.",
             FontSize = 14,
             TextWrapping = TextWrapping.Wrap,
         });
-        content.Children.Add(new Button { Content = "Действие в слоте", HorizontalAlignment = HorizontalAlignment.Left });
-        card.Content = content;
-        return card;
+        var slotButton = new Button { Content = "Действие в слоте", HorizontalAlignment = HorizontalAlignment.Left };
+        slotButton.Click += (_, _) => SetStatus("Нажато действие в слоте; карточка не активировалась.");
+        _slotContent.Children.Add(slotButton);
+
+        Settings.Children.Add(Caption("Вид контейнера"));
+        Settings.Children.Add(_variant);
+        Settings.Children.Add(Caption("Анатомия"));
+        Settings.Children.Add(_anatomy);
+        _width = Number(Settings, "Ширина", 240, 520, 360, 8, "dp");
+        _radius = Number(Settings, "Радиус", 0, 32, 12, 1, "dp");
+
+        _header = Text(Settings, "Шапка", "Заголовок");
+        _title = Text(Settings, "Заголовок", "Title");
+        _supporting = Text(Settings, "Поддерживающий текст", "Короткое описание карточки.");
+
+        _avatar = Toggle(Settings, "Аватар в шапке", true);
+        _headerAction = Toggle(Settings, "Действие в шапке", false);
+        _secondary = Toggle(Settings, "Вторичное действие", true);
+        _interactive = Toggle(Settings, "Интерактивная карточка", false);
+        _focus = Toggle(Settings, "Показывать фокусное кольцо", false);
+        _drag = Toggle(Settings, "Перетаскивание (DragData)", false);
+        _enabled = Toggle(Settings, "Доступна", true);
+
+        Settings.Children.Add(new TextBlock
+        {
+            Text = "Интерактивная карточка получает фокус, состояния hover/pressed/focused/dragged, " +
+                   "активацию Enter/Space и команду. Вложенные кнопки сохраняют собственный ввод. " +
+                   "Layout=Slot заменяет анатомию слотом содержимого.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+        });
+
+        AutomationProperties.SetName(_variant, "Вид карточки");
+        AutomationProperties.SetName(_anatomy, "Анатомия карточки");
+        AutomationProperties.SetName(_header, "Шапка карточки");
+        AutomationProperties.SetName(_title, "Заголовок карточки");
+        AutomationProperties.SetName(_supporting, "Поддерживающий текст карточки");
+
+        _variant.SelectionChanged += (_, _) => Apply();
+        _anatomy.SelectionChanged += (_, _) => Apply();
+        foreach (var slider in new[] { _width, _radius })
+            slider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
+        foreach (var toggle in new[] { _avatar, _headerAction, _secondary, _interactive, _focus, _drag, _enabled })
+            toggle.IsCheckedChanged += (_, _) => Apply();
+        foreach (var text in new[] { _header, _title, _supporting })
+            text.TextChanged += (_, _) => Apply();
+
+        _card.Click += (_, _) =>
+        {
+            _clicks++;
+            UpdateStatus();
+        };
+        _card.Command = new DelegateCommand(_ =>
+        {
+            _commands++;
+            UpdateStatus();
+        });
+        _card.DragStarted += (_, _) => SetStatus("Перетаскивание началось.");
+        _card.DragCompleted += (_, e) =>
+        {
+            _drags++;
+            UpdateStatus($"Перетаскиваний: {_drags} · результат {e.Effects}");
+        };
+
+        Apply();
     }
+
+    private void Apply()
+    {
+        var anatomy = _anatomy.SelectedIndex;
+        var slot = anatomy == 2;
+        _card.Variant = (MaterialCardVariant)Math.Clamp(_variant.SelectedIndex, 0, 2);
+        _card.Orientation = anatomy == 1 ? MaterialCardOrientation.Horizontal : MaterialCardOrientation.Stacked;
+        _card.Layout = slot ? MaterialCardLayout.Slot : MaterialCardLayout.MediaText;
+        _card.Width = _width.Value;
+        _card.CornerRadius = new CornerRadius(_radius.Value);
+        _card.Padding = slot ? new Thickness(16) : new Thickness(0);
+        _card.Content = slot ? _slotContent : null;
+
+        _card.Header = _header.Text;
+        _card.Subhead = "Подзаголовок";
+        _card.AvatarInitial = "A";
+        _card.ShowAvatar = _avatar.IsChecked == true;
+        _card.HeaderAction = _headerAction.IsChecked == true ? _headerButton : null;
+        _card.Title = _title.Text;
+        _card.Subtitle = anatomy == 1 ? null : "Subtitle";
+        _card.SupportingText = _supporting.Text;
+        _card.Media = slot ? null : Media(anatomy == 1 ? null : "Медиа 188");
+        _card.PrimaryAction = slot ? null : "Основное";
+        _card.SecondaryAction = slot ? null : "Второе";
+        _card.ShowSecondaryAction = _secondary.IsChecked == true;
+        _card.PrimaryActionCommand = new DelegateCommand(_ =>
+        {
+            _actions++;
+            UpdateStatus();
+        });
+        _card.SecondaryActionCommand = new DelegateCommand(_ =>
+        {
+            _actions++;
+            UpdateStatus();
+        });
+        _card.IsInteractive = _interactive.IsChecked == true;
+        _card.ShowFocusIndicator = _focus.IsChecked == true;
+        _card.DragData = _interactive.IsChecked == true && _drag.IsChecked == true
+            ? TextTransfer("Material card")
+            : null;
+        _card.IsEnabled = _enabled.IsChecked == true;
+        _drag.IsEnabled = _interactive.IsChecked == true;
+        _focus.IsEnabled = _interactive.IsChecked == true;
+
+        var name = slot ? "Slot" : anatomy == 1 ? "Horizontal card" : "Stacked card";
+        AutomationProperties.SetName(_card, name);
+    }
+
+    private void UpdateStatus(string? prefix = null)
+    {
+        _status.Text = prefix ?? string.Empty;
+        if (_status.Text.Length > 0) _status.Text += " · ";
+        _status.Text += $"Нажатий: {_clicks} · команд карточки: {_commands} · команд действий: {_actions} · перетаскиваний: {_drags}";
+    }
+
+    private void SetStatus(string text) => _status.Text = text;
 
     private static Control Media(string? caption)
     {
@@ -318,28 +253,53 @@ public static class CardsGallery
         return new Border { Child = panel };
     }
 
-    private static Control Section(string title, Control content)
-    {
-        var stack = new StackPanel { Spacing = 12 };
-        stack.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeight.Medium });
-        stack.Children.Add(content);
-        return stack;
-    }
-
-    private static Control Demo(string title, string description, Control content)
-    {
-        var stack = new StackPanel { Spacing = 8 };
-        stack.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeight.Medium });
-        stack.Children.Add(new TextBlock { Text = description, FontSize = 13, TextWrapping = TextWrapping.Wrap, MaxWidth = 360 });
-        stack.Children.Add(content);
-        return stack;
-    }
-
     private static IDataTransfer TextTransfer(string text)
     {
         var transfer = new DataTransfer();
         transfer.Add(DataTransferItem.CreateText(text));
         return transfer;
+    }
+
+    private static TextBlock Caption(string text) => new() { Text = text };
+
+    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
+    {
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        host.Children.Add(toggle);
+        return toggle;
+    }
+
+    private static TextBox Text(StackPanel host, string label, string value)
+    {
+        host.Children.Add(Caption(label));
+        var box = new TextBox { Text = value, HorizontalAlignment = HorizontalAlignment.Stretch };
+        MaterialTextField.SetVariant(box, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(box, label);
+        host.Children.Add(box);
+        return box;
+    }
+
+    private static Slider Number(StackPanel host, string label, double min, double max, double value, double step, string unit)
+    {
+        var caption = new TextBlock { Text = $"{label}: {value:0} {unit}" };
+        host.Children.Add(caption);
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            TickFrequency = step,
+            IsSnapToTickEnabled = true,
+        };
+        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(slider, false);
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0} {unit}";
+        };
+        AutomationProperties.SetName(slider, label);
+        host.Children.Add(slider);
+        return slider;
     }
 
     private sealed class DelegateCommand : ICommand

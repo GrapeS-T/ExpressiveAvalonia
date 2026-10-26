@@ -37,11 +37,6 @@ internal sealed partial class CatalogWindow
                 {
                     SelectPage(expressive, i);
                     await Task.Delay(!expressive && i == 3 ? 15000 : 300);
-                    if (expressive && (i == 4 || i == 25))
-                    {
-                        Inspector.ExerciseSmoke();
-                        await Task.Delay(300);
-                    }
                     Capture($"{(expressive ? "design-" : "")}{(variant == ThemeVariant.Dark ? "dark" : "light")}-{(expressive ? "" : "page-")}{i}");
                     Console.WriteLine($"Rendered {(expressive ? "Expressive" : "Classic")} {i}: {((TabItem)pages.Items[i]!).Header}");
                 }

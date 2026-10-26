@@ -1,263 +1,310 @@
-using System;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
-using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>Gallery for the navigation drawer family: drawer, items, headers, dividers, host and drag handle.</summary>
 public static class NavigationDrawerGallery
 {
-    public static Control Create()
+    public static Control Create() => new NavigationDrawerPlayground();
+}
+
+/// <summary>
+/// One live navigation drawer hosted by <see cref="MaterialNavigationDrawerHost"/>: docked and
+/// modal presentations, group headers, dividers, badges, disabled destinations and the real
+/// open/close lifecycle (scrim, Escape, focus return, close on selection).
+/// </summary>
+internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
+{
+    private readonly MaterialNavigationDrawer _drawer = new();
+    private readonly MaterialNavigationDrawerHost _host = new();
+    private readonly Border _card;
+    private readonly Border _page;
+    private readonly TextBlock _pageTitle = new();
+    private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _hostState = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Button _open = new() { Content = "Открыть меню", HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly Button _close = new() { Content = "Закрыть", HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly MaterialButtonGroup _mode;
+    private readonly ToggleSwitch _openToggle;
+    private readonly ToggleSwitch _closeOnSelection;
+    private readonly ToggleSwitch _lightDismiss;
+    private readonly ToggleSwitch _headers;
+    private readonly ToggleSwitch _dividers;
+    private readonly ToggleSwitch _badges;
+    private readonly ToggleSwitch _icons;
+    private readonly ToggleSwitch _disabled;
+    private readonly Slider _width;
+    private readonly Slider _scrim;
+    private readonly Slider _margin;
+    private readonly ComboBox _selected;
+    private readonly MaterialNavigationSectionHeader[] _headerItems;
+    private readonly MaterialNavigationDivider[] _dividerItems;
+    private readonly MaterialNavigationItem[] _destinations;
+    private readonly object?[] _destinationIcons;
+    private bool? _lastModal;
+    private double _lastWidth = double.NaN;
+    private bool _sync;
+
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    internal NavigationDrawerPlayground()
     {
-        var panel = new StackPanel { Spacing = 28, Margin = new Thickness(24) };
-        panel.Children.Add(Header(
-            "Navigation drawer",
-            "Single-selection destination list with grouped headers and dividers. The host docks the drawer inline or floats it as a modal overlay with scrim, Escape and focus trapping."));
-        panel.Children.Add(DockedDemo());
-        panel.Children.Add(ModalDemo());
-        panel.Children.Add(ItemStatesDemo());
-        panel.Children.Add(DragHandleDemo());
-        return new ScrollViewer
+        _pageTitle.Text = "Входящие";
+        MaterialTypography.SetStyle(_pageTitle, MaterialTypeStyle.HeadlineSmall);
+        var body = new TextBlock
         {
-            Content = panel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-        };
-    }
-
-    private static Control DockedDemo()
-    {
-        var status = new TextBlock { Text = "Selected: Inbox" };
-        MaterialTypography.SetStyle(status, MaterialTypeStyle.BodyMedium);
-
-        var drawer = CreateMailDrawer();
-        drawer.SelectionChanged += (_, e) =>
-            status.Text = $"Selected: {Describe(e.AddedItem)} (index {drawer.SelectedIndex})";
-
-        var host = new MaterialNavigationDrawerHost
-        {
-            Height = 420,
-            IsModal = false,
-            IsDrawerOpen = true,
-            Drawer = drawer,
-            Content = Page("Inbox", status),
-        };
-
-        return Section(
-            "Inline drawer · docked and pushes content",
-            "Arrow keys move focus with wrap-around, Home/End jump to the ends, Space or Enter selects. The content is inset by the drawer width.",
-            host);
-    }
-
-    private static Control ModalDemo()
-    {
-        var status = new TextBlock { Text = "Drawer closed" };
-        MaterialTypography.SetStyle(status, MaterialTypeStyle.BodyMedium);
-
-        var drawer = CreateMailDrawer();
-        var host = new MaterialNavigationDrawerHost
-        {
-            Height = 420,
-            IsModal = true,
-            Drawer = drawer,
-        };
-
-        drawer.SelectionChanged += (_, e) =>
-            status.Text = $"Selected: {Describe(e.AddedItem)} — modal closed on selection";
-        host.DrawerOpened += (_, _) =>
-            status.Text = "Open · Escape, scrim tap or a selection closes it; Tab stays inside";
-        host.DrawerClosed += (_, _) => status.Text = "Closed · focus returned to the opener";
-
-        var open = new Button { Content = "Open modal drawer", HorizontalAlignment = HorizontalAlignment.Left };
-        open.Click += (_, _) => host.OpenDrawer();
-
-        var dismiss = new Button { Content = "Close with API", HorizontalAlignment = HorizontalAlignment.Left };
-        dismiss.Click += (_, _) => host.CloseDrawer();
-
-        var actions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 12,
-            Margin = new Thickness(24, 0, 24, 24),
-        };
-        actions.Children.Add(open);
-        actions.Children.Add(dismiss);
-
-        var content = new DockPanel();
-        DockPanel.SetDock(actions, Dock.Bottom);
-        content.Children.Add(actions);
-        content.Children.Add(Page("Modal drawer host", status));
-
-        host.Content = content;
-
-        return Section(
-            "Modal drawer · scrim, light dismiss, Escape, focus trap",
-            "Opening remembers focus and moves it to the selected destination; Tab and Shift+Tab cycle inside the drawer; closing restores the previous focus.",
-            host);
-    }
-
-    private static Control ItemStatesDemo()
-    {
-        var drawer = new MaterialNavigationDrawer { Height = 470 };
-        drawer.Items.Add(new MaterialNavigationSectionHeader { Content = "States" });
-        drawer.Items.Add(Item("Selected with badge", Icons.Inbox, "24", selected: true));
-        drawer.Items.Add(Item("Hovered or focused here", Icons.Send, "100+"));
-        drawer.Items.Add(new MaterialNavigationItem
-        {
-            Content = "Badge hidden (ShowBadge false)",
-            Icon = IconOf(Icons.Favorite),
-            BadgeText = "99+",
-            ShowBadge = false,
-        });
-        drawer.Items.Add(new MaterialNavigationItem
-        {
-            Content = "No icon, longer label that trims when the drawer narrows",
-            BadgeText = "New",
-        });
-        drawer.Items.Add(new MaterialNavigationItem
-        {
-            Content = "Disabled destination",
-            Icon = IconOf(Icons.Delete),
-            BadgeText = "12",
-            IsEnabled = false,
-        });
-        drawer.Items.Add(new MaterialNavigationDivider());
-        drawer.Items.Add(new MaterialNavigationSectionHeader { Content = "Trailing group" });
-        drawer.Items.Add(Item("Third destination", Icons.Folder, "3"));
-        drawer.Items.Add(Item("Fourth destination", Icons.Folder, null));
-
-        var note = new TextBlock
-        {
-            Text = "Source axes covered: Selected True/False, State Enabled/Hovered/Focused/Pressed, Show icon True/False. Disabled is the standard Avalonia state extension.",
+            Text = "Содержимое страницы. Встроенный drawer сдвигает его вправо; модальный — " +
+                   "перекрывает затемнением и удерживает фокус внутри панели.",
             TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 420,
+            MaxWidth = 520,
         };
-        MaterialTypography.SetStyle(note, MaterialTypeStyle.BodySmall);
+        MaterialTypography.SetStyle(body, MaterialTypeStyle.BodyMedium);
+        MaterialTypography.SetStyle(_hostState, MaterialTypeStyle.BodySmall);
+        _hostState.Foreground = Brushes.Gray;
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24 };
-        row.Children.Add(drawer);
-        row.Children.Add(note);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        actions.Children.Add(_open);
+        actions.Children.Add(_close);
 
-        return Section(
-            "Item anatomy and states",
-            "56 DIP full-radius pills, 24 DIP icon slot, 12 DIP gaps, emphasized label and secondary-container fill when selected.",
-            row);
-    }
+        var pageStack = new StackPanel { Spacing = 12 };
+        pageStack.Children.Add(_pageTitle);
+        pageStack.Children.Add(body);
+        pageStack.Children.Add(actions);
+        pageStack.Children.Add(_status);
+        pageStack.Children.Add(_hostState);
+        _page = new Border { Padding = new Thickness(24), Child = pageStack };
+        _page.Bind(Border.BackgroundProperty, _page.GetResourceObservable("MaterialSurfaceContainerLowestBrush"));
 
-    private static Control DragHandleDemo()
-    {
-        var transform = new TranslateTransform();
-        var status = new TextBlock { Text = "Drag the handle down; release past 96 DIP dismisses the surface." };
-        MaterialTypography.SetStyle(status, MaterialTypeStyle.BodyMedium);
-
-        var handle = new MaterialDragHandle();
-
-        var sheetStack = new StackPanel { Spacing = 8 };
-        sheetStack.Children.Add(handle);
-        sheetStack.Children.Add(new TextBlock { Text = "Navigation surface", FontSize = 20 });
-        sheetStack.Children.Add(new TextBlock
+        _card = new Border
         {
-            Text = "Building Blocks/navigation handle: 108x4 DIP pill in a 24 DIP grab area.",
-            TextWrapping = TextWrapping.Wrap,
-        });
-
-        var sheet = new Border
-        {
-            Child = sheetStack,
-            Padding = new Thickness(16, 8, 16, 16),
-            CornerRadius = new CornerRadius(28, 28, 0, 0),
-            VerticalAlignment = VerticalAlignment.Bottom,
-            RenderTransform = transform,
+            Height = 520,
+            MaxWidth = 900,
+            CornerRadius = new CornerRadius(28),
+            ClipToBounds = true,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center,
+            BorderThickness = new Thickness(1),
         };
-        sheet.Bind(Border.BackgroundProperty, sheet.GetResourceObservable("MaterialSurfaceContainerHighBrush"));
+        _card.Bind(Border.BorderBrushProperty, _card.GetResourceObservable("MaterialOutlineVariantBrush"));
+        _card.Child = _host;
 
-        var restore = new Button
+        _host.Content = _page;
+        _host.Drawer = _drawer;
+        _host.IsModal = false;
+        _host.IsDrawerOpen = true;
+
+        var stage = new Border { Margin = new Thickness(24), Child = _card };
+        Children.Add(stage);
+
+        _mode = Choice("Режим", ["Встроенный", "Модальный"]);
+        _openToggle = Toggle("Drawer открыт", true);
+        _closeOnSelection = Toggle("Закрывать при выборе", true);
+        _lightDismiss = Toggle("Закрытие по scrim", true);
+        _headers = Toggle("Заголовки групп", true);
+        _dividers = Toggle("Разделители", true);
+        _badges = Toggle("Бейджи", true);
+        _icons = Toggle("Иконки пунктов", true);
+        _disabled = Toggle("«Корзина» недоступна", false);
+        _width = Number("Ширина drawer", 280, 400, 360, 10);
+        _scrim = Number("Плотность scrim", 0, 0.8, 0.32, 0.04);
+        _margin = Number("Отступ модального drawer", 0, 48, 12, 4);
+
+        Settings.Children.Add(new TextBlock { Text = "Выбранный пункт" });
+        _selected = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        AutomationProperties.SetName(_selected, "Выбранный пункт");
+        Settings.Children.Add(_selected);
+
+        var (headers, dividers, destinations) = BuildDrawer();
+        _headerItems = headers;
+        _dividerItems = dividers;
+        _destinations = destinations;
+        _destinationIcons = destinations.Select(destination => destination.Icon).ToArray();
+        foreach (var destination in destinations)
+            _selected.Items.Add(destination.Content);
+        _drawer.SelectedIndex = 0;
+
+        _open.Click += (_, _) => _host.OpenDrawer();
+        _close.Click += (_, _) => _host.CloseDrawer();
+        _drawer.SelectionChanged += (_, e) =>
         {
-            Content = "Restore surface",
-            IsVisible = false,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 12, 0, 0),
+            _status.Text = $"Выбрано: {Describe(e.AddedItem)} (индекс {_drawer.SelectedIndex})";
+            if (!_sync)
+                SyncSelectedChoice();
         };
-        restore.Click += (_, _) =>
+        _host.DrawerOpened += (_, _) =>
         {
-            transform.Y = 0;
-            sheet.IsVisible = true;
-            restore.IsVisible = false;
-            status.Text = "Surface restored.";
+            _hostState.Text = "Drawer открыт · Escape, scrim или выбор пункта закрывают его";
+            SetOpenVisual(true);
+        };
+        _host.DrawerClosed += (_, _) =>
+        {
+            _hostState.Text = "Drawer закрыт · фокус возвращён на элемент-открыватель";
+            SetOpenVisual(false);
         };
 
-        handle.DragDelta += (_, e) => transform.Y = Math.Max(0, e.Offset.Y);
-        handle.DragCompleted += (_, e) =>
+        _mode.SelectionChanged += (_, _) => { if (!_sync) Apply(); };
+        foreach (var toggle in new[] { _openToggle, _closeOnSelection, _lightDismiss, _headers, _dividers, _badges, _icons, _disabled })
+            toggle.IsCheckedChanged += (_, _) => { if (!_sync) Apply(); };
+        _width.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_sync) Apply(); };
+        _scrim.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_sync) Apply(); };
+        _margin.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_sync) Apply(); };
+        _selected.SelectionChanged += (_, _) =>
         {
-            if (!e.IsCanceled && e.Offset.Y >= 96)
+            if (_sync || _selected.SelectedIndex < 0 || _selected.SelectedIndex >= _destinations.Length)
+                return;
+            var target = _destinations[_selected.SelectedIndex];
+            if (!target.IsEnabled)
             {
-                transform.Y = 0;
-                sheet.IsVisible = false;
-                restore.IsVisible = true;
-                status.Text = $"Dismissed after {e.Offset.Y:0} DIP.";
+                SyncSelectedChoice();
                 return;
             }
-
-            MaterialMotion.Animate(sheet, transform.Y, 0, value => transform.Y = value, MaterialSpring.SpatialDefault);
-            status.Text = e.IsCanceled
-                ? "Pointer capture lost - surface returned."
-                : $"Returned from {e.Offset.Y:0} DIP.";
+            _drawer.SelectedIndex = _selected.SelectedIndex;
         };
 
-        var stage = new Panel { Height = 240, ClipToBounds = true };
-        stage.Children.Add(sheet);
-
-        var stack = new StackPanel { Spacing = 8 };
-        stack.Children.Add(status);
-        stack.Children.Add(restore);
-        stack.Children.Add(stage);
-
-        return Section(
-            "Drag handle",
-            "MaterialDragHandle reports DragStarted, DragDelta and DragCompleted; the surface decides what a drag means. Snap-back uses the Material spring, which collapses under reduced motion.",
-            stack);
+        Apply();
     }
 
-    private static MaterialNavigationDrawer CreateMailDrawer()
+    private (MaterialNavigationSectionHeader[] Headers, MaterialNavigationDivider[] Dividers, MaterialNavigationItem[] Destinations) BuildDrawer()
     {
-        var drawer = new MaterialNavigationDrawer();
+        var mail = new MaterialNavigationSectionHeader { Content = "Почта" };
+        var labels = new MaterialNavigationSectionHeader { Content = "Метки" };
+        var divider = new MaterialNavigationDivider();
+        var trailingDivider = new MaterialNavigationDivider();
 
-        drawer.Items.Add(new MaterialNavigationSectionHeader { Content = "Mail" });
-        drawer.Items.Add(Item("Inbox", Icons.Inbox, "24", selected: true));
-        drawer.Items.Add(Item("Outbox", Icons.Send, "100+"));
-        drawer.Items.Add(Item("Favorites", Icons.Favorite, "7"));
-        drawer.Items.Add(Item("Trash", Icons.Delete, null));
-        drawer.Items.Add(new MaterialNavigationDivider());
+        var inbox = Item("Входящие", Icons.Inbox, "24");
+        var outbox = Item("Исходящие", Icons.Send, "100+");
+        var favorites = Item("Избранное", Icons.Favorite, "7");
+        var trash = Item("Корзина", Icons.Delete, null);
+        var label1 = Item("Метка 1", Icons.Folder, null);
+        var label2 = Item("Метка 2", Icons.Folder, null);
+        var label3 = Item("Длинная метка проекта", Icons.Folder, null);
 
-        drawer.Items.Add(new MaterialNavigationSectionHeader { Content = "Labels" });
-        drawer.Items.Add(Item("Label", Icons.Folder, null));
-        drawer.Items.Add(Item("Label", Icons.Folder, null));
-        drawer.Items.Add(Item("Label", Icons.Folder, null));
-        drawer.Items.Add(new MaterialNavigationDivider());
+        _drawer.Items.Add(mail);
+        _drawer.Items.Add(inbox);
+        _drawer.Items.Add(outbox);
+        _drawer.Items.Add(favorites);
+        _drawer.Items.Add(trash);
+        _drawer.Items.Add(divider);
+        _drawer.Items.Add(labels);
+        _drawer.Items.Add(label1);
+        _drawer.Items.Add(label2);
+        _drawer.Items.Add(label3);
+        _drawer.Items.Add(trailingDivider);
 
-        drawer.Items.Add(new MaterialNavigationSectionHeader { Content = "Labels" });
-        drawer.Items.Add(Item("Label", Icons.Folder, null));
-        drawer.Items.Add(Item("Label", Icons.Folder, null));
-        drawer.Items.Add(Item("Label", Icons.Folder, null));
-
-        return drawer;
+        return ([mail, labels], [divider, trailingDivider], [inbox, outbox, favorites, trash, label1, label2, label3]);
     }
 
-    private static MaterialNavigationItem Item(string label, string iconId, string? badge, bool selected = false) => new()
+    private void Apply()
+    {
+        var modal = _mode.SelectedIndex == 1;
+        _sync = true;
+        try
+        {
+            if (_lastModal != modal)
+            {
+                _lastModal = modal;
+                _host.IsModal = modal;
+                // Switching presentation starts from the natural state: docked is always open,
+                // modal starts closed so the opener and the focus lifecycle stay observable.
+                _host.IsDrawerOpen = !modal;
+                _hostState.Text = modal
+                    ? "Модальный режим · откройте drawer кнопкой; Escape, scrim или выбор закроют его"
+                    : "Встроенный режим · открытый drawer сдвигает содержимое страницы";
+            }
+            else if (_openToggle.IsChecked != _host.IsDrawerOpen)
+            {
+                _host.IsDrawerOpen = _openToggle.IsChecked == true;
+            }
+
+            _host.IsLightDismissEnabled = _lightDismiss.IsChecked == true;
+            _host.CloseOnSelection = _closeOnSelection.IsChecked == true;
+            _host.ScrimOpacity = _scrim.Value;
+            _host.DrawerMargin = new Thickness(_margin.Value);
+            var width = _width.Value;
+            _drawer.Width = width;
+            if (!_lastWidth.Equals(width))
+            {
+                _lastWidth = width;
+                // The host measures the docked inset when the drawer is presented, so a width
+                // change while docked needs a fresh presentation pass. Re-applying the current
+                // modal flag does that without detaching the drawer (which would reset focus).
+                var modalNow = _host.IsModal;
+                _host.IsModal = !modalNow;
+                _host.IsModal = modalNow;
+            }
+
+            foreach (var header in _headerItems)
+                header.IsVisible = _headers.IsChecked == true;
+            foreach (var divider in _dividerItems)
+                divider.IsVisible = _dividers.IsChecked == true;
+
+            var showBadges = _badges.IsChecked == true;
+            foreach (var destination in _destinations)
+                destination.ShowBadge = showBadges;
+
+            var showIcons = _icons.IsChecked == true;
+            for (var i = 0; i < _destinations.Length; i++)
+                _destinations[i].Icon = showIcons ? _destinationIcons[i] : null;
+
+            _destinations[3].IsEnabled = _disabled.IsChecked != true;
+            if (!_destinations[3].IsEnabled && _drawer.SelectedIndex == 3)
+                _drawer.SelectedIndex = 0;
+
+            _closeOnSelection.IsVisible = modal;
+            _lightDismiss.IsVisible = modal;
+            _scrim.IsVisible = modal;
+            _margin.IsVisible = modal;
+            _openToggle.IsChecked = _host.IsDrawerOpen;
+            _open.IsVisible = modal && !_host.IsDrawerOpen;
+            _close.IsVisible = modal && _host.IsDrawerOpen;
+            SyncSelectedChoice();
+        }
+        finally
+        {
+            _sync = false;
+        }
+    }
+
+    private void SetOpenVisual(bool open)
+    {
+        var previous = _sync;
+        _sync = true;
+        try
+        {
+            _openToggle.IsChecked = open;
+            SyncSelectedChoice();
+        }
+        finally
+        {
+            _sync = previous;
+        }
+
+        _open.IsVisible = _host.IsModal && !open;
+        _close.IsVisible = _host.IsModal && open;
+    }
+
+    private void SyncSelectedChoice()
+    {
+        var index = _drawer.SelectedIndex;
+        if (index >= 0 && index < _selected.ItemCount && _selected.SelectedIndex != index)
+            _selected.SelectedIndex = index;
+    }
+
+    private static string Describe(MaterialNavigationItem? item) => item?.Content?.ToString() ?? "нет";
+
+    private static MaterialNavigationItem Item(string label, string iconId, string? badge) => new()
     {
         Content = label,
         Icon = IconOf(iconId),
         BadgeText = badge,
-        IsSelected = selected,
     };
 
-    // Icons are the exact glyphs the source drawer instances use (inbox, send, favorite,
-    // delete and folder), addressed by their design source ids.
     private static MaterialIcon IconOf(string sourceId) => new()
     {
         SourceId = sourceId,
@@ -266,44 +313,51 @@ public static class NavigationDrawerGallery
         IsDecorative = true,
     };
 
-    private static string Describe(MaterialNavigationItem? item) => item?.Content?.ToString() ?? "none";
-
-    private static Control Header(string title, string description)
+    private MaterialButtonGroup Choice(string label, string[] options)
     {
-        var stack = new StackPanel { Spacing = 6 };
-        stack.Children.Add(new TextBlock { Text = title, FontSize = 28, FontWeight = FontWeight.SemiBold });
-        var text = new TextBlock { Text = description, TextWrapping = TextWrapping.Wrap, MaxWidth = 720 };
-        MaterialTypography.SetStyle(text, MaterialTypeStyle.BodyMedium);
-        stack.Children.Add(text);
-        return stack;
-    }
-
-    private static Control Section(string title, string description, Control content)
-    {
-        var stack = new StackPanel { Spacing = 8 };
-        stack.Children.Add(new TextBlock { Text = title, FontSize = 20, FontWeight = FontWeight.SemiBold });
-        var text = new TextBlock { Text = description, TextWrapping = TextWrapping.Wrap, MaxWidth = 720 };
-        MaterialTypography.SetStyle(text, MaterialTypeStyle.BodySmall);
-        stack.Children.Add(text);
-        stack.Children.Add(content);
-        return stack;
-    }
-
-    private static Control Page(string heading, TextBlock status)
-    {
-        var stack = new StackPanel { Spacing = 12, Margin = new Thickness(24) };
-        stack.Children.Add(new TextBlock { Text = heading, FontSize = 26 });
-        stack.Children.Add(new TextBlock
+        Settings.Children.Add(new TextBlock { Text = label });
+        var group = new MaterialButtonGroup
         {
-            Text = "Hosted content. The drawer surface is a separate control; this page never overlaps it while docked.",
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 420,
-        });
-        stack.Children.Add(status);
+            Kind = MaterialButtonGroupKind.Connected,
+            ButtonShape = MaterialButtonShape.Round,
+            ControlSize = MaterialControlSize.Small,
+            SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true,
+        };
+        foreach (var option in options)
+            group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        group.SelectedIndex = 0;
+        Settings.Children.Add(group);
+        return group;
+    }
 
-        var border = new Border { Child = stack };
-        border.Bind(Border.BackgroundProperty, border.GetResourceObservable("MaterialSurfaceContainerLowestBrush"));
-        return border;
+    private ToggleSwitch Toggle(string label, bool value)
+    {
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        Settings.Children.Add(toggle);
+        return toggle;
+    }
+
+    private Slider Number(string label, double min, double max, double value, double step)
+    {
+        var caption = new TextBlock { Text = $"{label}: {value:0.##}" };
+        Settings.Children.Add(caption);
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            TickFrequency = step,
+            IsSnapToTickEnabled = true,
+        };
+        AutomationProperties.SetName(slider, label);
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty)
+                caption.Text = $"{label}: {slider.Value:0.##}";
+        };
+        Settings.Children.Add(slider);
+        return slider;
     }
 
     private static class Icons
