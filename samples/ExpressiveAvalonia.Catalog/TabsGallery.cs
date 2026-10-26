@@ -16,7 +16,7 @@ public static class TabsGallery
     public static Control CreateClassic() => new TabsPlayground(false);
 }
 
-internal sealed class TabsPlayground : Grid
+internal sealed class TabsPlayground : Grid, IComponentPlayground
 {
     private static readonly Geometry Icon = Geometry.Parse("M12,3 L14.8,8.7 L21,9.6 L16.5,14 L17.6,20.2 L12,17.3 L6.4,20.2 L7.5,14 L3,9.6 L9.2,8.7 Z");
     private readonly TabControl _tabs = new() { Width = 480, MinHeight = 220 };
@@ -31,7 +31,7 @@ internal sealed class TabsPlayground : Grid
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _rtl;
     private readonly TextBlock _readout = new() { Text = "Выбрана вкладка: 1", HorizontalAlignment = HorizontalAlignment.Center };
-    internal StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
     internal TabsPlayground(bool expressive)
     {

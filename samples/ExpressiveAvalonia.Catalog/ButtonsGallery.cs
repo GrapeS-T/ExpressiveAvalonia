@@ -16,7 +16,7 @@ public static class ButtonsGallery
     public static Control CreateClassic() => new ButtonPlayground(false);
 }
 
-internal sealed class ButtonPlayground : Grid
+internal sealed class ButtonPlayground : Grid, IComponentPlayground
 {
     private const string StarIcon = "star";
     private const string StarFilledIcon = "star_filled";
@@ -73,7 +73,7 @@ internal sealed class ButtonPlayground : Grid
     private readonly ToggleSwitch _rtl;
     private int _clicks;
     private bool _syncing;
-    internal StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
     internal ButtonPlayground(bool expressive)
     {

@@ -14,7 +14,7 @@ public static class SlidersGallery
     public static Control Create() => new SliderPlayground();
 }
 
-internal sealed class SliderPlayground : Grid
+internal sealed class SliderPlayground : Grid, IComponentPlayground
 {
     private readonly Border _host = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Slider _single = new() { Minimum = 0, Maximum = 100, Value = 50 };
@@ -35,7 +35,7 @@ internal sealed class SliderPlayground : Grid
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _rtl;
     private bool _syncing;
-    internal StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
     internal SliderPlayground()
     {

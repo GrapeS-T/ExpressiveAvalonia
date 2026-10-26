@@ -1,19 +1,25 @@
 using System;
-using System.Windows.Input;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>
-/// Navigation bar family: horizontal and vertical destinations, vertical bar layout,
-/// badges, hidden labels, disabled destinations and keyboard selection.
-/// </summary>
 public static class NavigationBarGallery
+{
+    public static Control Create() => new NavigationBarPlayground();
+}
+
+/// <summary>
+/// One live navigation bar with horizontal/vertical destinations, a real destination strip,
+/// badges, labels, disabled destinations and native keyboard selection.
+/// </summary>
+internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
 {
     private const string HomeIcon = "M12,3 L2,12 L5,12 L5,21 L10,21 L10,15 L14,15 L14,21 L19,21 L19,12 L22,12 Z";
     private const string SearchIcon = "M15.5,14 L14.71,14 L14.43,13.73 C15.41,12.59 16,11.11 16,9.5 C16,5.91 13.09,3 9.5,3 C5.91,3 3,5.91 3,9.5 C3,13.09 5.91,16 9.5,16 C11.11,16 12.59,15.41 13.73,14.43 L14,14.71 L14,15.5 L19,20.5 L20.5,19 Z M9.5,14 C7.01,14 5,11.99 5,9.5 C5,7.01 7.01,5 9.5,5 C11.99,5 14,7.01 14,9.5 C14,11.99 11.99,14 9.5,14 Z";
@@ -23,153 +29,261 @@ public static class NavigationBarGallery
     private const string PersonIcon = "M12,12 C14.21,12 16,10.21 16,8 C16,5.79 14.21,4 12,4 C9.79,4 8,5.79 8,8 C8,10.21 9.79,12 12,12 Z M12,14 C9.33,14 4,15.34 4,18 L4,20 L20,20 L20,18 C20,15.34 14.67,14 12,14 Z";
     private const string FolderIcon = "M4,20 C3.45,20 2.98,19.8 2.59,19.41 C2.2,19.02 2,18.55 2,18 L2,6 C2,5.45 2.2,4.98 2.59,4.59 C2.98,4.2 3.45,4 4,4 L10,4 L12,6 L20,6 C20.55,6 21.02,6.2 21.41,6.59 C21.8,6.98 22,7.45 22,8 L22,18 C22,18.55 21.8,19.02 21.41,19.41 C21.02,19.8 20.55,20 20,20 Z";
 
-    public static Control Create()
+    private static readonly string[] Names = ["Главная", "Поиск", "Избранное", "Почта", "Профиль", "Архив"];
+    private static readonly string[] Icons =
+    [
+        HomeIcon, SearchIcon, StarOutlineIcon, MailIcon, PersonIcon, FolderIcon,
+    ];
+
+    private readonly MaterialNavigationBar _bar = new();
+    private readonly Border _card;
+    private readonly DockPanel _dock = new() { LastChildFill = true };
+    private readonly Border _page;
+    private readonly TextBlock _pageTitle = new();
+    private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly MaterialButtonGroup _axis;
+    private readonly MaterialButtonGroup _itemOrientation;
+    private readonly MaterialButtonGroup _badge;
+    private readonly ToggleSwitch _labels;
+    private readonly ToggleSwitch _disabledLast;
+    private readonly Slider _count;
+    private readonly TextBox _badgeText;
+    private readonly ComboBox _selected;
+    private bool _sync;
+
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    internal NavigationBarPlayground()
     {
-        var status = new TextBlock { Text = "Selected: Home", FontSize = 14 };
-        var panel = new StackPanel { Margin = new Thickness(24), Spacing = 24 };
-        panel.Children.Add(new TextBlock { Text = "Navigation bar", FontSize = 28 });
-        panel.Children.Add(new TextBlock
+        var stage = new StackPanel
         {
-            Text = "Horizontal destinations (icon beside label in a pill) and vertical destinations (icon above label). " +
-                   "Arrow keys move the selection with wrapping, Home/End jump to the first or last destination, " +
-                   "and Enter/Space invokes it. Badges show counts or a dot. The bar is one tab stop.",
-            FontSize = 14,
-            TextWrapping = TextWrapping.Wrap
-        });
-        panel.Children.Add(status);
-
-        panel.Children.Add(Section("Horizontal items", HorizontalBar(status)));
-        panel.Children.Add(Section("Vertical items", VerticalItemsBar(status)));
-        panel.Children.Add(Section("Icon-only destinations", IconOnlyBar(status)));
-        panel.Children.Add(Section("Vertical bar (extension: bar orientation axis)", SideBar(status)));
-        panel.Children.Add(Section("Badges", BadgeRow()));
-
-        return new ScrollViewer { Content = panel, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-    }
-
-    private static Control Section(string caption, Control content)
-    {
-        var stack = new StackPanel { Spacing = 8 };
-        stack.Children.Add(new TextBlock { Text = caption, FontSize = 14, FontWeight = FontWeight.Medium });
-        stack.Children.Add(content);
-        return stack;
-    }
-
-    private static MaterialNavigationBar HorizontalBar(TextBlock status)
-    {
-        var bar = new MaterialNavigationBar { ItemOrientation = MaterialNavigationBarItemOrientation.Horizontal };
-        bar.Items.Add(Item("Home", HomeIcon));
-        bar.Items.Add(Item("Search", SearchIcon, badge: MaterialNavigationBarBadge.Small));
-        bar.Items.Add(Item("Favorites", StarOutlineIcon, StarFilledIcon, MaterialNavigationBarBadge.Large, "3"));
-        bar.Items.Add(Item("Mail", MailIcon, badge: MaterialNavigationBarBadge.Large, badgeText: "99+"));
-        var person = Item("Person", PersonIcon);
-        person.IsEnabled = false;
-        bar.Items.Add(person);
-        bar.SelectedIndex = 0;
-        Wire(bar, status, "Horizontal");
-        return bar;
-    }
-
-    private static MaterialNavigationBar VerticalItemsBar(TextBlock status)
-    {
-        var bar = new MaterialNavigationBar { ItemOrientation = MaterialNavigationBarItemOrientation.Vertical };
-        bar.Items.Add(Item("Home", HomeIcon));
-        bar.Items.Add(Item("Search", SearchIcon));
-        var favorites = Item("Favorites", StarOutlineIcon, StarFilledIcon, MaterialNavigationBarBadge.Large, "3");
-        favorites.Command = new DelegateCommand(() => status.Text = "Vertical items: Favorites command executed");
-        bar.Items.Add(favorites);
-        bar.Items.Add(Item("Mail", MailIcon, badge: MaterialNavigationBarBadge.Small));
-        bar.SelectedIndex = 2;
-        Wire(bar, status, "Vertical items");
-        return bar;
-    }
-
-    private static MaterialNavigationBar IconOnlyBar(TextBlock status)
-    {
-        var bar = new MaterialNavigationBar();
-        bar.Items.Add(Item("Home", HomeIcon, showLabel: false));
-        bar.Items.Add(Item("Folder", FolderIcon, showLabel: false, badge: MaterialNavigationBarBadge.Large, badgeText: "12"));
-        bar.Items.Add(Item("Person", PersonIcon, showLabel: false, badge: MaterialNavigationBarBadge.Small));
-        bar.SelectedIndex = 1;
-        Wire(bar, status, "Icon-only");
-        return bar;
-    }
-
-    private static MaterialNavigationBar SideBar(TextBlock status)
-    {
-        var bar = new MaterialNavigationBar
-        {
-            Orientation = Orientation.Vertical,
-            Width = 220,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            CornerRadius = new CornerRadius(16)
+            Spacing = 16,
+            Margin = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        bar.Items.Add(Item("Home", HomeIcon));
-        bar.Items.Add(Item("Search", SearchIcon));
-        bar.Items.Add(Item("Favorites", StarOutlineIcon, StarFilledIcon, MaterialNavigationBarBadge.Large, "3"));
-        bar.Items.Add(Item("Person", PersonIcon, badge: MaterialNavigationBarBadge.Small));
-        bar.SelectedIndex = 0;
-        Wire(bar, status, "Vertical bar");
-        return bar;
-    }
 
-    private static Control BadgeRow()
-    {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24, VerticalAlignment = VerticalAlignment.Center };
-        row.Children.Add(new MaterialBadge { Size = MaterialBadgeSize.Large, Text = "3", VerticalAlignment = VerticalAlignment.Center });
-        row.Children.Add(new MaterialBadge { Size = MaterialBadgeSize.Large, Text = "99+", VerticalAlignment = VerticalAlignment.Center });
-        row.Children.Add(new MaterialBadge { Size = MaterialBadgeSize.Large, VerticalAlignment = VerticalAlignment.Center });
-        row.Children.Add(new MaterialBadge { Size = MaterialBadgeSize.Small, VerticalAlignment = VerticalAlignment.Center });
-        var caption = new TextBlock
+        _pageTitle.FontSize = 24;
+        MaterialTypography.SetStyle(_pageTitle, MaterialTypeStyle.HeadlineSmall);
+        var body = new TextBlock
         {
-            Text = "Large with text, large without text (degrades to a dot), small dot.",
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center
+            Text = "Содержимое выбранного пункта.",
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 360,
         };
-        var stack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
-        stack.Children.Add(row);
-        stack.Children.Add(caption);
-        return stack;
-    }
+        MaterialTypography.SetStyle(body, MaterialTypeStyle.BodyMedium);
+        _status.FontSize = 14;
 
-    private static MaterialNavigationBarItem Item(
-        string label,
-        string icon,
-        string? selectedIcon = null,
-        MaterialNavigationBarBadge badge = MaterialNavigationBarBadge.None,
-        string? badgeText = null,
-        bool showLabel = true)
-    {
-        var item = new MaterialNavigationBarItem
+        var pageStack = new StackPanel { Spacing = 12 };
+        pageStack.Children.Add(_pageTitle);
+        pageStack.Children.Add(body);
+        pageStack.Children.Add(_status);
+        _page = new Border { Padding = new Thickness(24), Child = pageStack };
+
+        _card = new Border
         {
-            Content = label,
-            Icon = Geometry.Parse(icon),
-            Badge = badge,
-            BadgeText = badgeText,
-            ShowLabel = showLabel
+            CornerRadius = new CornerRadius(28),
+            ClipToBounds = true,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        if (selectedIcon is not null)
-            item.SelectedIcon = Geometry.Parse(selectedIcon);
-        return item;
-    }
+        _card.Bind(Border.BackgroundProperty, _card.GetResourceObservable("MaterialSurfaceContainerLowBrush"));
+        _card.BorderThickness = new Thickness(1);
+        _card.Bind(Border.BorderBrushProperty, _card.GetResourceObservable("MaterialOutlineVariantBrush"));
 
-    private static void Wire(MaterialNavigationBar bar, TextBlock status, string name)
-    {
-        bar.SelectionChanged += (_, _) =>
+        _dock.Children.Add(_bar);
+        _dock.Children.Add(_page);
+        _card.Child = _dock;
+        stage.Children.Add(_card);
+        Children.Add(stage);
+
+        _axis = Choice("Ось полосы", ["Горизонтальная", "Вертикальная"]);
+        _itemOrientation = Choice("Расположение пунктов", ["Авто", "В ряд", "В столбец"]);
+        _count = Number("Количество пунктов", 3, 6, 4, 1);
+        _labels = Toggle("Подписи пунктов", true);
+        _badge = Choice("Badge «Избранное»", ["Нет", "Точка", "Число"]);
+        _badgeText = new TextBox { Text = "3", HorizontalAlignment = HorizontalAlignment.Stretch };
+        MaterialTextField.SetLabel(_badgeText, "Текст badge");
+        MaterialTextField.SetVariant(_badgeText, MaterialTextFieldVariant.Outlined);
+        AutomationProperties.SetName(_badgeText, "Текст badge");
+        Settings.Children.Add(_badgeText);
+        _disabledLast = Toggle("Последний пункт недоступен", false);
+
+        Settings.Children.Add(new TextBlock { Text = "Выбранный пункт" });
+        _selected = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        AutomationProperties.SetName(_selected, "Выбранный пункт");
+        Settings.Children.Add(_selected);
+
+        foreach (var group in new[] { _axis, _itemOrientation, _badge })
+            group.SelectionChanged += (_, _) => Apply();
+        foreach (var toggle in new[] { _labels, _disabledLast })
+            toggle.IsCheckedChanged += (_, _) => Apply();
+        _count.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
+        _badgeText.TextChanged += (_, _) => Apply();
+        _selected.SelectionChanged += (_, _) =>
         {
-            if (bar.SelectedItem is MaterialNavigationBarItem item)
-                status.Text = $"{name}: selected {item.LabelText} (index {bar.SelectedIndex})";
+            if (_sync || _selected.SelectedIndex < 0 || _selected.SelectedIndex >= _bar.ItemCount)
+                return;
+            _bar.SelectedIndex = _selected.SelectedIndex;
         };
-        bar.ItemInvoked += (_, e) =>
-            status.Text = $"{name}: invoked {e.Item.LabelText ?? "item"} (index {e.Index})";
+
+        _bar.SelectionChanged += (_, _) =>
+        {
+            if (_sync)
+                return;
+            SyncSelectedChoice();
+            ShowSelection("Выбрано");
+        };
+        _bar.ItemInvoked += (_, e) =>
+        {
+            _status.Text = $"Открыто: {e.Item.Content} (индекс {e.Index})";
+        };
+
+        Apply();
     }
 
-    private sealed class DelegateCommand : ICommand
+    private void Apply()
     {
-        private readonly Action _execute;
-        public DelegateCommand(Action execute) => _execute = execute;
-        public event EventHandler? CanExecuteChanged { add { } remove { } }
-        public bool CanExecute(object? parameter) => true;
-        public void Execute(object? parameter) => _execute();
+        var vertical = _axis.SelectedIndex == 1;
+        _sync = true;
+        try
+        {
+            _bar.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
+            _bar.ItemOrientation = _itemOrientation.SelectedIndex switch
+            {
+                1 => MaterialNavigationBarItemOrientation.Horizontal,
+                2 => MaterialNavigationBarItemOrientation.Vertical,
+                _ => MaterialNavigationBarItemOrientation.Auto,
+            };
+            DockPanel.SetDock(_bar, vertical ? Dock.Left : Dock.Bottom);
+            _bar.Width = vertical ? 240 : double.NaN;
+            _card.Width = vertical ? 620 : 560;
+            _card.Height = 440;
+
+            var count = (int)Math.Round(_count.Value);
+            EnsureItems(count);
+            ApplyItemProperties(count);
+            _badgeText.IsVisible = _badge.SelectedIndex == 2;
+
+            if (_bar.SelectedIndex < 0 || _bar.SelectedIndex >= count)
+                _bar.SelectedIndex = 0;
+            else if (_bar.Items[_bar.SelectedIndex] is MaterialNavigationBarItem { IsEnabled: false })
+                _bar.SelectedIndex = 0;
+
+            SyncSelectedChoice();
+        }
+        finally
+        {
+            _sync = false;
+        }
+
+        ShowSelection("Выбрано");
+    }
+
+    private void EnsureItems(int count)
+    {
+        while (_bar.Items.Count > count)
+        {
+            _bar.Items.RemoveAt(_bar.Items.Count - 1);
+            _selected.Items.RemoveAt(_selected.Items.Count - 1);
+        }
+        while (_bar.Items.Count < count)
+        {
+            var index = _bar.Items.Count;
+            _bar.Items.Add(new MaterialNavigationBarItem
+            {
+                Content = Names[index],
+                Icon = Geometry.Parse(Icons[index]),
+            });
+            _selected.Items.Add(Names[index]);
+        }
+    }
+
+    private void ApplyItemProperties(int count)
+    {
+        var badge = _badge.SelectedIndex switch
+        {
+            1 => MaterialNavigationBarBadge.Small,
+            2 => MaterialNavigationBarBadge.Large,
+            _ => MaterialNavigationBarBadge.None,
+        };
+        var showLabels = _labels.IsChecked == true;
+        for (var i = 0; i < count; i++)
+        {
+            if (_bar.Items[i] is not MaterialNavigationBarItem item)
+                continue;
+            item.ShowLabel = showLabels;
+            item.IsEnabled = !(i == count - 1 && _disabledLast.IsChecked == true);
+            item.SelectedIcon = i == 2 ? Geometry.Parse(StarFilledIcon) : null;
+            item.Badge = i == 2 ? badge : MaterialNavigationBarBadge.None;
+            item.BadgeText = i == 2 ? _badgeText.Text : null;
+        }
+    }
+
+    private void SyncSelectedChoice()
+    {
+        var index = Math.Clamp(_bar.SelectedIndex, 0, Math.Max(0, _selected.ItemCount - 1));
+        if (index >= 0 && _selected.SelectedIndex != index)
+            _selected.SelectedIndex = index;
+    }
+
+    private void ShowSelection(string prefix)
+    {
+        if (_bar.SelectedItem is MaterialNavigationBarItem item)
+        {
+            _pageTitle.Text = item.Content?.ToString() ?? "—";
+            _status.Text = $"{prefix}: {item.Content} (индекс {_bar.SelectedIndex})";
+        }
+        else
+        {
+            _status.Text = "Ничего не выбрано";
+        }
+    }
+
+    private MaterialButtonGroup Choice(string label, string[] options)
+    {
+        Settings.Children.Add(new TextBlock { Text = label });
+        var group = new MaterialButtonGroup
+        {
+            Kind = MaterialButtonGroupKind.Connected,
+            ButtonShape = MaterialButtonShape.Round,
+            ControlSize = MaterialControlSize.Small,
+            SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true,
+        };
+        foreach (var option in options)
+            group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        group.SelectedIndex = 0;
+        Settings.Children.Add(group);
+        return group;
+    }
+
+    private ToggleSwitch Toggle(string label, bool value)
+    {
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        Settings.Children.Add(toggle);
+        return toggle;
+    }
+
+    private Slider Number(string label, double min, double max, double value, double step)
+    {
+        var caption = new TextBlock { Text = $"{label}: {value:0}" };
+        Settings.Children.Add(caption);
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            TickFrequency = step,
+            IsSnapToTickEnabled = true,
+        };
+        AutomationProperties.SetName(slider, label);
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty)
+                caption.Text = $"{label}: {slider.Value:0}";
+        };
+        Settings.Children.Add(slider);
+        return slider;
     }
 }

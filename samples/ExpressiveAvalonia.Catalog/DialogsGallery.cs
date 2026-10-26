@@ -1,194 +1,259 @@
+using System;
 using System.Windows.Input;
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>
-/// Gallery for the dialog family: basic dialog, list dialog and scrollable list dialog.
-/// </summary>
-/// <remarks>
-/// The inline previews are ordinary <see cref="MaterialDialog"/> instances, so the same template
-/// is shown without a modal host. The launch buttons present fresh instances with
-/// <see cref="MaterialDialog.ShowAsync(TopLevel, MaterialDialog)"/> and report the returned result.
-/// </remarks>
+/// <summary>A live dialog with its family, content and actions exposed in the inspector.</summary>
 public static class DialogsGallery
 {
-    private const string SupportingCopy =
-        "A dialog is a type of modal window that appears in front of app content to provide critical information, or prompt for a decision to be made.";
+    public static Control Create() => new DialogPlayground();
+}
 
-    public static Control Create()
+internal sealed class DialogPlayground : Grid, IComponentPlayground
+{
+    private enum DialogFamily { Basic, Icon, List, ScrollableList, Input, NonDismissible }
+
+    private readonly MaterialDialog _preview;
+    private readonly MaterialDialogList _list = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly TextBox _field = new() { PlaceholderText = "Введите имя", Margin = new Thickness(0) };
+    private readonly Control _dialogIcon = MaterialDialog.CreateIcon();
+    private readonly MaterialDialogAction _primaryAction;
+    private readonly MaterialDialogAction _secondaryAction;
+    private readonly TextBlock _readout = new()
     {
-        var status = new TextBlock
+        Text = "Диалог показан встроенно. «Показать модально» открывает настоящий модальный экземпляр: " +
+               "Escape и клик по scrim закрывают его, Enter активирует действие по умолчанию, " +
+               "фокус возвращается на кнопку.",
+        TextWrapping = TextWrapping.Wrap,
+        MaxWidth = 640,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        FontSize = 13,
+    };
+    private readonly Button _show = new() { HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly ComboBox _family;
+    private readonly TextBox _title;
+    private readonly TextBox _supporting;
+    private readonly TextBox _primaryText;
+    private readonly TextBox _secondaryText;
+    private readonly ToggleSwitch _icon;
+    private readonly ToggleSwitch _divider;
+    private readonly ToggleSwitch _threeLine;
+    private readonly ToggleSwitch _scrollable;
+    private readonly ToggleSwitch _dismissible;
+    private readonly ToggleSwitch _scrim;
+    private readonly Slider _rows;
+    private readonly Slider _width;
+    private readonly StackPanel _rowsSettings = new() { Spacing = 16 };
+    private readonly StackPanel _threeLineSettings = new() { Spacing = 16 };
+    private readonly StackPanel _scrollableSettings = new() { Spacing = 16 };
+    private readonly StackPanel _dismissibleSettings = new() { Spacing = 16 };
+    private readonly StackPanel _scrimSettings = new() { Spacing = 16 };
+    private bool _built;
+    private bool _syncing;
+
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    internal DialogPlayground()
+    {
+        MaterialTextField.SetVariant(_field, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(_field, "Имя");
+        AutomationProperties.SetName(_field, "Имя");
+
+        // The command captures the action instance, so it is created first and the command is
+        // attached afterwards; a lambda inside the initializer would read the field before its
+        // own assignment and the compiler flags the dereference as possibly null.
+        var secondaryAction = new MaterialDialogAction("Отмена", "cancelled") { IsCancel = true };
+        secondaryAction.Command = new DelegateCommand(() =>
+            _readout.Text = $"Вызвано «{secondaryAction.Text}» · результат 'cancelled'");
+        _secondaryAction = secondaryAction;
+
+        var primaryAction = new MaterialDialogAction("Сохранить", "saved") { IsDefault = true };
+        primaryAction.Command = new DelegateCommand(() =>
+            _readout.Text = CurrentFamily == DialogFamily.Input
+                ? $"Сохранено «{_field.Text}»"
+                : $"Вызвано «{primaryAction.Text}» · результат 'saved'");
+        _primaryAction = primaryAction;
+        _preview = new MaterialDialog
         {
-            Text = "No dialog has been closed yet. Escape dismisses, Enter activates the default action and focus returns to the opener.",
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 760,
+            Width = 312,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Actions = new AvaloniaList<MaterialDialogAction> { _secondaryAction, _primaryAction },
         };
-        MaterialTypography.SetStyle(status, MaterialTypeStyle.BodyMedium);
-        status.Bind(TextBlock.ForegroundProperty, status.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
+        AutomationProperties.SetName(_preview, "Предпросмотр диалога");
 
-        var page = new StackPanel { Spacing = 24, Margin = new Thickness(24) };
-        page.Children.Add(new TextBlock
+        MaterialAssist.SetButtonVariant(_show, MaterialButtonVariant.Filled);
+        MaterialAssist.SetControlSize(_show, MaterialControlSize.Small);
+        _show.Content = "Показать модально";
+        AutomationProperties.SetName(_show, "Показать модальный диалог");
+        _show.Click += (_, _) => ShowModal();
+
+        var stage = new StackPanel
         {
-            Text = "Dialogs",
-            FontSize = 32,
-            FontWeight = FontWeight.Medium,
-        });
-        page.Children.Add(new TextBlock
-        {
-            Text = "Material 3 dialog family from the source design packages: basic dialog, list dialog and scrollable list dialog. "
-                 + "The overlay blocks the page, Tab and Shift+Tab cycle inside the dialog, Escape and scrim clicks dismiss it, "
-                 + "Enter activates the default action, and closing restores focus to the element that opened it.",
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 820,
-        });
-
-        var launchers = new WrapPanel { ItemSpacing = 12, LineSpacing = 12 };
-        launchers.Children.Add(Launch("Open basic dialog", status, () => BasicDialog(status)));
-        launchers.Children.Add(Launch("Open icon dialog", status, () => IconDialog(status)));
-        launchers.Children.Add(Launch("Open list dialog", status, () => ListDialog(status, 3, false, threeLine: false)));
-        launchers.Children.Add(Launch("Open scrollable list dialog", status, () => ListDialog(status, 9, true, threeLine: false)));
-        launchers.Children.Add(Launch("Open non-dismissible dialog", status, () => NonDismissibleDialog(status)));
-        launchers.Children.Add(Launch("Open text field dialog", status, () => InputDialog(status)));
-        page.Children.Add(launchers);
-        page.Children.Add(status);
-
-        var previews = new WrapPanel { ItemSpacing = 24, LineSpacing = 24 };
-        previews.Children.Add(Preview("Basic dialog · no icon", BasicDialog(status)));
-        previews.Children.Add(Preview("Basic dialog · icon and divider", IconDialog(status)));
-        previews.Children.Add(Preview("List dialog · checkbox rows", ListDialog(status, 3, false, threeLine: false)));
-        previews.Children.Add(Preview("Scrollable list dialog · 9 rows", ListDialog(status, 9, true, threeLine: false)));
-        previews.Children.Add(Preview("List dialog · three-line rows", ListDialog(status, 3, false, threeLine: true)));
-        previews.Children.Add(Preview("Content slot · text field", InputDialog(status)));
-        page.Children.Add(previews);
-
-        return new ScrollViewer { Content = page, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-    }
-
-    private static Button Launch(string label, TextBlock status, Func<MaterialDialog> factory)
-    {
-        var button = new Button { Content = label };
-        button.Click += async (_, _) =>
-        {
-            if (TopLevel.GetTopLevel(button) is not { } owner)
-                return;
-            var dialog = factory();
-            var result = await MaterialDialog.ShowAsync(owner, dialog);
-            status.Text = $"Last result: {result ?? "(dismissed)"} · {label} · focus returned to the opener.";
+            Spacing = 20,
+            Margin = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        return button;
-    }
-
-    private static Control Preview(string caption, MaterialDialog dialog)
-    {
-        var label = new TextBlock { Text = caption };
-        MaterialTypography.SetStyle(label, MaterialTypeStyle.LabelLarge);
-        label.Bind(TextBlock.ForegroundProperty, label.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
-        return new StackPanel
+        stage.Children.Add(_preview);
+        stage.Children.Add(_show);
+        stage.Children.Add(_readout);
+        Children.Add(new ScrollViewer
         {
-            Spacing = 8,
-            Children =
+            Content = stage,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        });
+
+        _family = Field(Settings, "Семейство", new ComboBox
+        {
+            ItemsSource = new[]
             {
-                label,
-                dialog,
+                "Базовый", "С иконкой", "Список", "Прокручиваемый список", "Поле ввода", "Без закрытия",
             },
-        };
-    }
-
-    private static MaterialDialog BasicDialog(TextBlock status)
-    {
-        var dialog = new MaterialDialog
-        {
-            Title = "Basic dialog title",
-            SupportingText = SupportingCopy,
-            Width = 312,
-        };
-        dialog.AddAction(PreviewAction("Action 2", "secondary", status, isCancel: true));
-        dialog.AddAction(PreviewAction("Action 1", "primary", status, isDefault: true));
-        return dialog;
-    }
-
-    private static MaterialDialog IconDialog(TextBlock status)
-    {
-        var dialog = new MaterialDialog
-        {
-            Title = "Basic dialog title",
-            SupportingText = SupportingCopy,
-            Icon = MaterialDialog.CreateIcon(),
-            ShowDivider = true,
-            Width = 312,
-        };
-        dialog.AddAction(PreviewAction("Action 2", "secondary", status, isCancel: true));
-        dialog.AddAction(PreviewAction("Action 1", "primary", status, isDefault: true));
-        return dialog;
-    }
-
-    private static MaterialDialog ListDialog(TextBlock status, int count, bool scrollable, bool threeLine)
-    {
-        var dialog = new MaterialDialog
-        {
-            Title = "Dialog title",
-            SupportingText = SupportingCopy,
-            Icon = MaterialDialog.CreateIcon(),
-            List = CreateList(count, scrollable, threeLine),
-            Width = 312,
-        };
-        dialog.AddAction(PreviewAction("Action 2", "secondary", status, isCancel: true));
-        dialog.AddAction(PreviewAction("Action 1", "primary", status, isDefault: true));
-        return dialog;
-    }
-
-    private static MaterialDialog InputDialog(TextBlock status)
-    {
-        var field = new TextBox { PlaceholderText = "Type a name", Margin = new Thickness(0) };
-        var dialog = new MaterialDialog
-        {
-            Title = "Rename item",
-            SupportingText = "The body slot accepts any control. Enter activates the default action while the field has focus.",
-            Content = field,
-            Width = 312,
-        };
-        dialog.AddAction(new MaterialDialogAction("Cancel", "cancelled")
-        {
-            IsCancel = true,
-            Command = new DelegateCommand(() => status.Text = "Rename cancelled."),
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         });
-        // CloseOnInvoke is false: the command decides when to close and with which result.
-        dialog.AddAction(new MaterialDialogAction("Save", "saved")
+
+        _title = TextField(Settings, "Заголовок", "Заголовок диалога");
+        _supporting = TextField(Settings, "Текст поддержки",
+            "Диалог появляется поверх содержимого приложения и требует решения или подтверждения.");
+        _icon = Toggle(Settings, "Иконка", false);
+        _divider = Toggle(Settings, "Разделитель", false);
+
+        _rows = Number(_rowsSettings, "Строк в списке", 1, 12, 3, 1);
+        Settings.Children.Add(_rowsSettings);
+
+        _threeLine = Toggle(_threeLineSettings, "Трёхстрочные строки", false);
+        Settings.Children.Add(_threeLineSettings);
+
+        _scrollable = Toggle(_scrollableSettings, "Прокручиваемый список", false);
+        Settings.Children.Add(_scrollableSettings);
+
+        _width = Number(Settings, "Ширина диалога", 280, 560, 312, 8);
+        _primaryText = TextField(Settings, "Действие по умолчанию", "Сохранить");
+        _secondaryText = TextField(Settings, "Действие отмены", "Отмена");
+
+        _dismissible = Toggle(_dismissibleSettings, "Закрытие по Escape", true);
+        Settings.Children.Add(_dismissibleSettings);
+
+        _scrim = Toggle(_scrimSettings, "Закрытие по клику на scrim", true);
+        Settings.Children.Add(_scrimSettings);
+
+        Settings.Children.Add(new TextBlock
         {
-            IsDefault = true,
-            CloseOnInvoke = false,
-            Command = new DelegateCommand(() =>
+            Text = "Семейство задаёт набор слотов: базовый, с иконкой и разделителем, список, " +
+                   "прокручиваемый список, поле ввода и диалог без закрытия. Предпросмотр — обычный " +
+                   "MaterialDialog: действия настоящие, строки списка переключаются мышью и Space. " +
+                   "Модальная копия собирается из текущих настроек и возвращает результат.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+        });
+
+        AutomationProperties.SetName(_title, "Заголовок диалога");
+        AutomationProperties.SetName(_supporting, "Текст поддержки диалога");
+        AutomationProperties.SetName(_primaryText, "Текст основного действия");
+        AutomationProperties.SetName(_secondaryText, "Текст действия отмены");
+
+        _list.SelectionChanged += (_, _) =>
+        {
+            if (!_syncing) _readout.Text = $"Выбрано строк: {_list.SelectedItems?.Count ?? 0}";
+        };
+
+        _family.SelectionChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            // The family picks the preset of the optional slots; each one stays editable afterwards.
+            _syncing = true;
+            var family = CurrentFamily;
+            _icon.IsChecked = family is DialogFamily.Icon or DialogFamily.List or DialogFamily.ScrollableList;
+            _divider.IsChecked = family == DialogFamily.Icon;
+            _syncing = false;
+            Apply();
+        };
+        foreach (var toggle in new[] { _icon, _divider, _threeLine, _scrollable, _dismissible, _scrim })
+            toggle.IsCheckedChanged += (_, _) => Apply();
+        foreach (var slider in new[] { _rows, _width })
+            slider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
+        foreach (var field in new[] { _title, _supporting, _primaryText, _secondaryText })
+            field.TextChanged += (_, _) => Apply();
+
+        _built = true;
+        Apply();
+    }
+
+    private DialogFamily CurrentFamily =>
+        (DialogFamily)Math.Clamp(_family.SelectedIndex, 0, 5);
+
+    private void Apply()
+    {
+        if (!_built || _syncing) return;
+
+        var family = CurrentFamily;
+        var usesList = family is DialogFamily.List or DialogFamily.ScrollableList;
+        var dismissible = family != DialogFamily.NonDismissible && _dismissible.IsChecked == true;
+
+        _rowsSettings.IsVisible = usesList;
+        _threeLineSettings.IsVisible = usesList;
+        _scrollableSettings.IsVisible = family == DialogFamily.List;
+        _dismissibleSettings.IsVisible = family != DialogFamily.NonDismissible;
+        _scrimSettings.IsVisible = family != DialogFamily.NonDismissible && dismissible;
+
+        _preview.Title = string.IsNullOrWhiteSpace(_title.Text) ? "Заголовок диалога" : _title.Text;
+        _preview.SupportingText = _supporting.Text;
+        _preview.Icon = _icon.IsChecked == true ? _dialogIcon : null;
+        _preview.ShowDivider = _divider.IsChecked == true;
+        _preview.Width = _width.Value;
+        _preview.IsDismissible = dismissible;
+        _preview.CloseOnScrimClick = _scrim.IsChecked == true;
+        _preview.List = usesList ? _list : null;
+        _preview.Content = family == DialogFamily.Input ? _field : null;
+
+        _list.IsScrollable = family == DialogFamily.ScrollableList || _scrollable.IsChecked == true;
+        SyncList((int)Math.Round(_rows.Value), _threeLine.IsChecked == true);
+
+        _secondaryAction.Text = string.IsNullOrWhiteSpace(_secondaryText.Text) ? "Отмена" : _secondaryText.Text;
+        _primaryAction.Text = string.IsNullOrWhiteSpace(_primaryText.Text) ? "OK" : _primaryText.Text;
+        _primaryAction.CloseOnInvoke = family != DialogFamily.Input;
+    }
+
+    private void SyncList(int count, bool threeLine)
+    {
+        while (_list.Items.Count > count)
+            _list.Items.RemoveAt(_list.Items.Count - 1);
+
+        while (_list.Items.Count < count)
+        {
+            var index = _list.Items.Count;
+            var item = new MaterialDialogListItem
             {
-                var result = $"saved '{field.Text}'";
-                status.Text = $"Save invoked · result '{result}'.";
-                dialog.Close(result);
-            }),
-        });
-        return dialog;
-    }
+                Initial = "A",
+                Headline = $"Элемент {index + 1}",
+                TrailingText = "100+",
+                IsSelected = index < 2,
+            };
+            AutomationProperties.SetName(item, $"Элемент {index + 1}");
+            _list.Items.Add(item);
+        }
 
-    private static MaterialDialog NonDismissibleDialog(TextBlock status)
-    {
-        var dialog = new MaterialDialog
+        for (var i = 0; i < _list.Items.Count; i++)
         {
-            Title = "Confirm update",
-            SupportingText = "Escape and scrim clicks are disabled for this dialog. Choose an action to continue.",
-            IsDismissible = false,
-            CloseOnScrimClick = false,
-            Width = 312,
-        };
-        dialog.AddAction(PreviewAction("Later", "later", status));
-        dialog.AddAction(PreviewAction("Update", "updated", status, isDefault: true));
-        return dialog;
+            var item = (MaterialDialogListItem)_list.Items[i]!;
+            item.Overline = threeLine ? "Надзаголовок" : null;
+            item.SupportingText = threeLine ? "Поддерживающая строка" : null;
+            MaterialList.SetLineCount(item, threeLine ? 3 : 1);
+        }
     }
 
-    private static MaterialDialogList CreateList(int count, bool scrollable, bool threeLine)
+    private MaterialDialogList BuildList(int count, bool threeLine, bool scrollable)
     {
         var list = new MaterialDialogList { IsScrollable = scrollable };
         for (var index = 0; index < count; index++)
@@ -196,11 +261,10 @@ public static class DialogsGallery
             var item = new MaterialDialogListItem
             {
                 Initial = "A",
-                Overline = threeLine ? "Overline" : null,
-                Headline = "List item",
-                SupportingText = threeLine ? "Supporting line text" : null,
+                Overline = threeLine ? "Надзаголовок" : null,
+                Headline = $"Элемент {index + 1}",
+                SupportingText = threeLine ? "Поддерживающая строка" : null,
                 TrailingText = "100+",
-                IsSelected = true,
             };
             MaterialList.SetLineCount(item, threeLine ? 3 : 1);
             list.Items.Add(item);
@@ -208,19 +272,129 @@ public static class DialogsGallery
         return list;
     }
 
-    private static MaterialDialogAction PreviewAction(
-        string text,
-        object result,
-        TextBlock status,
-        bool isDefault = false,
-        bool isCancel = false)
+    private MaterialDialog BuildModalDialog()
     {
-        return new MaterialDialogAction(text, result)
+        var family = CurrentFamily;
+        var dialog = new MaterialDialog
         {
-            IsDefault = isDefault,
-            IsCancel = isCancel,
-            Command = new DelegateCommand(() => status.Text = $"Action '{text}' invoked · result '{result}'."),
+            Title = string.IsNullOrWhiteSpace(_title.Text) ? "Заголовок диалога" : _title.Text,
+            SupportingText = _supporting.Text,
+            Icon = _icon.IsChecked == true ? MaterialDialog.CreateIcon() : null,
+            ShowDivider = _divider.IsChecked == true,
+            Width = _width.Value,
+            IsDismissible = family != DialogFamily.NonDismissible && _dismissible.IsChecked == true,
+            CloseOnScrimClick = _scrim.IsChecked == true,
         };
+
+        if (family is DialogFamily.List or DialogFamily.ScrollableList)
+        {
+            dialog.List = BuildList((int)Math.Round(_rows.Value), _threeLine.IsChecked == true,
+                family == DialogFamily.ScrollableList || _scrollable.IsChecked == true);
+        }
+
+        TextBox? field = null;
+        if (family == DialogFamily.Input)
+        {
+            field = new TextBox { PlaceholderText = "Введите имя", Text = _field.Text };
+            MaterialTextField.SetVariant(field, MaterialTextFieldVariant.Outlined);
+            MaterialTextField.SetLabel(field, "Имя");
+            dialog.Content = field;
+        }
+
+        var secondaryText = string.IsNullOrWhiteSpace(_secondaryText.Text) ? "Отмена" : _secondaryText.Text;
+        var primaryText = string.IsNullOrWhiteSpace(_primaryText.Text) ? "OK" : _primaryText.Text;
+
+        dialog.AddAction(new MaterialDialogAction(secondaryText, "cancelled")
+        {
+            IsCancel = true,
+            Command = new DelegateCommand(() => _readout.Text = $"Вызвано «{secondaryText}» · результат 'cancelled'"),
+        });
+
+        var primary = new MaterialDialogAction(primaryText, "saved") { IsDefault = true };
+        if (field is not null)
+        {
+            // The command owns the close so the result carries the edited text.
+            primary.CloseOnInvoke = false;
+            primary.Command = new DelegateCommand(() =>
+            {
+                _readout.Text = $"Сохранено «{field.Text}»";
+                dialog.Close($"saved '{field.Text}'");
+            });
+        }
+        else
+        {
+            primary.Command = new DelegateCommand(() =>
+                _readout.Text = $"Вызвано «{primaryText}» · результат 'saved'");
+        }
+        dialog.AddAction(primary);
+        return dialog;
+    }
+
+    private async void ShowModal()
+    {
+        try
+        {
+            if (TopLevel.GetTopLevel(this) is not { } owner)
+                return;
+            var dialog = BuildModalDialog();
+            _readout.Text = "Диалог открыт";
+            var result = await dialog.ShowAsync(owner);
+            _readout.Text = $"Результат: {result ?? "(закрыт)"}";
+        }
+        catch (Exception exception)
+        {
+            _readout.Text = "Не удалось открыть диалог: " + exception.Message;
+        }
+    }
+
+    private static T Field<T>(StackPanel host, string label, T control) where T : Control
+    {
+        host.Children.Add(new TextBlock { Text = label });
+        host.Children.Add(control);
+        return control;
+    }
+
+    private static TextBox TextField(StackPanel host, string label, string value)
+    {
+        var field = Field(host, label, new TextBox
+        {
+            Text = value,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        });
+        MaterialTextField.SetVariant(field, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(field, label);
+        return field;
+    }
+
+    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
+    {
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        host.Children.Add(toggle);
+        return toggle;
+    }
+
+    private static Slider Number(
+        StackPanel host, string label, double min, double max, double value, double step)
+    {
+        var caption = new TextBlock { Text = $"{label}: {value:0}" };
+        host.Children.Add(caption);
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            TickFrequency = step,
+            IsSnapToTickEnabled = true,
+        };
+        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(slider, false);
+        AutomationProperties.SetName(slider, label);
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0}";
+        };
+        host.Children.Add(slider);
+        return slider;
     }
 
     private sealed class DelegateCommand(Action execute) : ICommand

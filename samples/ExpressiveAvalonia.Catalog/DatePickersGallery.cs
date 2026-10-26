@@ -1,5 +1,7 @@
+using System;
 using System.Globalization;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
@@ -9,11 +11,17 @@ using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>
-/// Catalog entry for the Material date picker family: docked field, docked surface,
-/// modal surface, text-input presentation and the full-screen range view.
-/// </summary>
 public static class DatePickersGallery
+{
+    public static Control Create() => new DatePickersPlayground();
+}
+
+/// <summary>
+/// One live date picker demo. The presentation selector swaps the docked field, the docked
+/// calendar, the modal surface and the full-screen range surface; selection, range endpoints,
+/// culture, bounds, typed input and the calendar itself stay real.
+/// </summary>
+internal sealed class DatePickersPlayground : Grid, IComponentPlayground
 {
     private static readonly DateTime Today = DateTime.Today;
 
@@ -26,409 +34,350 @@ public static class DatePickersGallery
         ("العربية", new CultureInfo("ar-SA")),
     ];
 
-    public static Control Create()
+    private readonly MaterialDatePicker _picker;
+    private readonly MaterialDatePickerField _field;
+    private readonly Border _card;
+    private readonly ContentControl _stage = new() { HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 460 };
+    private readonly MaterialButtonGroup _presentation;
+    private readonly MaterialButtonGroup _selection;
+    private readonly ToggleSwitch _input;
+    private readonly ToggleSwitch _bounds;
+    private readonly ToggleSwitch _actions;
+    private readonly ToggleSwitch _clear;
+    private readonly ToggleSwitch _adjacent;
+    private readonly ComboBox _culture;
+    private readonly Slider _months;
+    private readonly TextBox _label;
+    private readonly TextBlock _cultureSample = new() { TextWrapping = TextWrapping.Wrap };
+    private int _lastMode = -1;
+    private bool? _lastRange;
+    private bool _sync;
+
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    internal DatePickersPlayground()
     {
-        var root = new StackPanel { Spacing = 28, Margin = new Thickness(24) };
-        root.Children.Add(Header(
-            "Date pickers",
-            "Docked text field, docked calendar, modal dialog, typed input and full-screen range. " +
-            "Arrow keys move focus, PageUp/PageDown change month, Home/End move to the week edges, " +
-            "Enter selects and Escape cancels. Text input accepts the culture short date pattern or ISO yyyy-MM-dd."));
-
-        var culturePickers = new List<MaterialDatePicker>();
-        var cultureFields = new List<MaterialDatePickerField>();
-
-        var dockedField = BuildDockedField(cultureFields);
-        root.Children.Add(Section("Docked input date picker", dockedField));
-
-        var dockedSurface = BuildDockedSurface(culturePickers);
-        root.Children.Add(Section("Docked calendar surface", dockedSurface));
-
-        var modal = BuildModalSurface(culturePickers);
-        root.Children.Add(Section("Modal and text input", modal));
-
-        var input = BuildInputModes(culturePickers);
-        root.Children.Add(Section("Typed input: single and range", input));
-
-        var fullScreen = BuildFullScreenRange(culturePickers);
-        root.Children.Add(Section("Full-screen range", fullScreen));
-
-        var bounds = BuildBounds();
-        root.Children.Add(Section("Bounds, disabled state and culture", bounds));
-
-        root.Children.Add(Section("Culture", BuildCultureRow(culturePickers, cultureFields)));
-
-        root.Children.Add(Section("Modal dialog", BuildDialogSection()));
-        return new ScrollViewer
-        {
-            Content = root,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-        };
-    }
-
-    private static Control BuildDockedField(List<MaterialDatePickerField> cultureFields)
-    {
-        var status = Status();
-        var field = new MaterialDatePickerField
-        {
-            Label = "Departure",
-            SupportingText = "Type a date or open the calendar",
-            SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(3)),
-            MinimumDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(-30)),
-            MaximumDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(90)),
-            Width = 360,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        field.SelectionCommitted += (_, _) => ShowFieldStatus(status, field);
-        field.Opened += (_, _) => status.Text = "Calendar open";
-        field.Closed += (_, _) => ShowFieldStatus(status, field);
-        ShowFieldStatus(status, field);
-        cultureFields.Add(field);
-
-        var disabled = new MaterialDatePickerField
-        {
-            Label = "Disabled",
-            SupportingText = "The trigger and text entry are unavailable",
-            SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today),
-            IsEnabled = false,
-            Width = 360,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-
-        var row = new WrapPanel { ItemSpacing = 24, LineSpacing = 16 };
-        row.Children.Add(Column("Single date", field, status));
-        row.Children.Add(Column("Disabled", disabled));
-        return row;
-    }
-
-    private static Control BuildDockedSurface(List<MaterialDatePicker> culturePickers)
-    {
-        var status = Status();
-        var picker = new MaterialDatePicker
-        {
-            Mode = MaterialDatePickerMode.Docked,
-            SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(17)),
-            DisplayDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(17)),
-            MinimumDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(-45)),
-            MaximumDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(120)),
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        picker.SelectionChanged += (_, _) => ShowPickerStatus(status, picker);
-        ShowPickerStatus(status, picker);
-        culturePickers.Add(picker);
-
-        var controls = new StackPanel { Spacing = 8 };
-        controls.Children.Add(ViewButton("Day view", picker, MaterialDatePickerView.Day));
-        controls.Children.Add(ViewButton("Month list", picker, MaterialDatePickerView.Month));
-        controls.Children.Add(ViewButton("Year list", picker, MaterialDatePickerView.Year));
-        controls.Children.Add(Hint("Month and year menus open the docked lists; the calendar keeps the selection."));
-
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24 };
-        row.Children.Add(picker);
-        row.Children.Add(Column("Views", controls, status));
-        return row;
-    }
-
-    private static Control BuildModalSurface(List<MaterialDatePicker> culturePickers)
-    {
-        var status = Status();
-        var picker = new MaterialDatePicker
+        _picker = new MaterialDatePicker
         {
             Mode = MaterialDatePickerMode.Modal,
-            Label = "Select date",
+            SelectionMode = MaterialDateSelectionMode.Single,
+            Label = "Дата",
             SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(9)),
-            DisplayDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(9)),
-            AllowInputMode = true,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        picker.SelectionChanged += (_, _) => ShowPickerStatus(status, picker);
-        picker.Confirmed += (_, _) => status.Text = "Confirmed: " + Describe(picker);
-        picker.Cancelled += (_, _) => status.Text = "Cancelled";
-        picker.Cleared += (_, _) => status.Text = "Cleared";
-        ShowPickerStatus(status, picker);
-        culturePickers.Add(picker);
-
-        var controls = new StackPanel { Spacing = 8 };
-        controls.Children.Add(ActionButton("Edit icon / text input", () => picker.IsInputMode = !picker.IsInputMode));
-        controls.Children.Add(ActionButton("Switch to range", () => picker.SelectionMode = picker.SelectionMode == MaterialDateSelectionMode.Range
-            ? MaterialDateSelectionMode.Single
-            : MaterialDateSelectionMode.Range));
-        controls.Children.Add(ActionButton("Clear", picker.ClearSelection));
-        controls.Children.Add(ActionButton("Today", picker.GoToToday));
-        controls.Children.Add(Hint("The header edit button switches to the typed presentation."));
-
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24 };
-        row.Children.Add(picker);
-        row.Children.Add(Column("Actions", controls, status));
-        return row;
-    }
-
-    private static Control BuildInputModes(List<MaterialDatePicker> culturePickers)
-    {
-        var single = new MaterialDatePicker
-        {
-            Mode = MaterialDatePickerMode.Modal,
-            IsInputMode = true,
-            Label = "Select date",
-            SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(2)),
-            Width = 360,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        var singleStatus = Status();
-        single.SelectionChanged += (_, _) => ShowPickerStatus(singleStatus, single);
-        ShowPickerStatus(singleStatus, single);
-        culturePickers.Add(single);
-
-        var range = new MaterialDatePicker
-        {
-            Mode = MaterialDatePickerMode.Modal,
-            IsInputMode = true,
-            SelectionMode = MaterialDateSelectionMode.Range,
-            Label = "Depart - Return dates",
-            SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(4)),
-            SelectedEndDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(11)),
-            Width = 360,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        var rangeStatus = Status();
-        range.SelectionChanged += (_, _) => ShowPickerStatus(rangeStatus, range);
-        range.Confirmed += (_, _) => rangeStatus.Text = "Confirmed: " + Describe(range);
-        ShowPickerStatus(rangeStatus, range);
-        culturePickers.Add(range);
-
-        var row = new WrapPanel { ItemSpacing = 24, LineSpacing = 16 };
-        row.Children.Add(Column("Single input", single, singleStatus));
-        row.Children.Add(Column("Range input", range, rangeStatus));
-        return row;
-    }
-
-    private static Control BuildFullScreenRange(List<MaterialDatePicker> culturePickers)
-    {
-        var status = Status();
-        var picker = new MaterialDatePicker
-        {
-            Mode = MaterialDatePickerMode.FullScreen,
-            SelectionMode = MaterialDateSelectionMode.Range,
-            MonthCount = 6,
-            Label = "Depart - Return dates",
-            SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(10)),
             SelectedEndDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(16)),
-            DisplayDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(-10)),
-            Width = 420,
-            Height = 560,
-            HorizontalAlignment = HorizontalAlignment.Left,
+            DisplayDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(9)),
+            MonthCount = 6,
+            AllowInputMode = true,
+            Width = 360,
         };
-        picker.SelectionChanged += (_, _) => ShowPickerStatus(status, picker);
-        picker.Confirmed += (_, _) => status.Text = "Saved: " + Describe(picker);
-        picker.Cancelled += (_, _) => status.Text = "Closed without saving";
-        ShowPickerStatus(status, picker);
-        culturePickers.Add(picker);
-
-        var column = new StackPanel { Spacing = 8, Width = 320 };
-        column.Children.Add(status);
-        column.Children.Add(Hint("Six consecutive months scroll vertically; the weekday row stays fixed. " +
-                                 "Range endpoints use the primary circle and the span uses the secondary container."));
-        column.Children.Add(ActionButton("Show today", picker.GoToToday));
-
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24 };
-        row.Children.Add(picker);
-        row.Children.Add(column);
-        return row;
-    }
-
-    private static Control BuildBounds()
-    {
-        var boundsStatus = Status();
-        var bounded = new MaterialDatePicker
+        _field = new MaterialDatePickerField
         {
-            Mode = MaterialDatePickerMode.Modal,
-            Label = "Within the next 14 days",
-            SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(3)),
-            MinimumDate = MaterialDatePicker.ToDateTimeOffset(Today),
-            MaximumDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(14)),
-            AllowInputMode = false,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        bounded.SelectionChanged += (_, _) => boundsStatus.Text = Describe(bounded) +
-            $" (allowed {bounded.MinimumDate?.ToString("d", CultureInfo.CurrentCulture)} - " +
-            $"{bounded.MaximumDate?.ToString("d", CultureInfo.CurrentCulture)})";
-        boundsStatus.Text = Describe(bounded);
-
-        var disabled = new MaterialDatePicker
-        {
-            Mode = MaterialDatePickerMode.Modal,
-            Label = "Disabled",
-            SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today),
-            IsEnabled = false,
+            Label = "Дата",
+            SupportingText = "Введите дату или откройте календарь",
+            SelectedDate = _picker.SelectedDate,
+            Width = 360,
             HorizontalAlignment = HorizontalAlignment.Left,
         };
 
-        var row = new WrapPanel { ItemSpacing = 24, LineSpacing = 16 };
-        row.Children.Add(Column("Bounded", bounded, boundsStatus));
-        row.Children.Add(Column("Disabled", disabled));
-        return row;
-    }
-
-    private static Control BuildCultureRow(
-        List<MaterialDatePicker> pickers,
-        List<MaterialDatePickerField> fields)
-    {
-        var combo = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
-        foreach (var (name, _) in Cultures)
-            combo.Items.Add(new ComboBoxItem { Content = name });
-        combo.SelectedIndex = 0;
-
-        var sample = new TextBlock
+        _card = new Border
         {
+            Padding = new Thickness(24),
+            CornerRadius = new CornerRadius(28),
+            BorderThickness = new Thickness(1),
+            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Foreground = Brushes.Gray,
         };
-        combo.SelectionChanged += (_, _) =>
-        {
-            var index = Math.Clamp(combo.SelectedIndex, 0, Cultures.Length - 1);
-            var culture = Cultures[index].Culture;
-            foreach (var picker in pickers)
-                picker.Culture = culture;
-            foreach (var field in fields)
-                field.Culture = culture;
-            sample.Text = "Week starts on " + culture.DateTimeFormat.FirstDayOfWeek +
-                          "; short pattern " + culture.DateTimeFormat.ShortDatePattern;
-        };
+        _card.Bind(Border.BackgroundProperty, _card.GetResourceObservable("MaterialSurfaceContainerLowBrush"));
+        _card.Bind(Border.BorderBrushProperty, _card.GetResourceObservable("MaterialOutlineVariantBrush"));
+        MaterialTypography.SetStyle(_status, MaterialTypeStyle.BodyMedium);
+        _status.Foreground = Brushes.Gray;
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
-        row.Children.Add(combo);
-        row.Children.Add(sample);
-        return row;
+        var inner = new StackPanel { Spacing = 12 };
+        inner.Children.Add(_stage);
+        inner.Children.Add(_status);
+        _card.Child = inner;
+
+        var stage = new StackPanel
+        {
+            Spacing = 16,
+            Margin = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        stage.Children.Add(_card);
+        Children.Add(stage);
+
+        _presentation = Choice("Представление", ["Поле", "Dock", "Modal", "Full"]);
+        _presentation.SelectedIndex = 2;
+        _selection = Choice("Выбор", ["Один день", "Диапазон"]);
+        _input = Toggle("Текстовый ввод", false);
+        _bounds = Toggle("Ограничить 14 днями", false);
+        _actions = Toggle("Кнопки OK / Cancel", true);
+        _clear = Toggle("Кнопка очистки", true);
+        _adjacent = Toggle("Соседние дни", true);
+
+        Settings.Children.Add(new TextBlock { Text = "Культура" });
+        _culture = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        foreach (var (name, _) in Cultures)
+            _culture.Items.Add(name);
+        _culture.SelectedIndex = 1;
+        AutomationProperties.SetName(_culture, "Культура");
+        Settings.Children.Add(_culture);
+        _cultureSample.FontSize = 12;
+        _cultureSample.Foreground = Brushes.Gray;
+        Settings.Children.Add(_cultureSample);
+
+        _months = Number("Месяцев на экране", 1, 6, 6, 1);
+
+        _label = new TextBox { Text = "Дата", HorizontalAlignment = HorizontalAlignment.Stretch };
+        MaterialTextField.SetLabel(_label, "Заголовок");
+        MaterialTextField.SetVariant(_label, MaterialTextFieldVariant.Outlined);
+        AutomationProperties.SetName(_label, "Заголовок");
+        Settings.Children.Add(_label);
+
+        var actions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
+        actions.Children.Add(ActionButton("Сегодня", () => _picker.GoToToday()));
+        actions.Children.Add(ActionButton("Очистить", ClearSelection));
+        actions.Children.Add(ActionButton("Диалог…", OpenDialog));
+        Settings.Children.Add(actions);
+
+        _picker.SelectionChanged += (_, _) =>
+        {
+            if (_sync)
+                return;
+            if (_field.SelectedDate != _picker.SelectedDate)
+            {
+                _sync = true;
+                try
+                {
+                    _field.SelectedDate = _picker.SelectedDate;
+                }
+                finally
+                {
+                    _sync = false;
+                }
+            }
+            ShowStatus();
+        };
+        _picker.Confirmed += (_, _) => ShowStatus("Подтверждено");
+        _picker.Cancelled += (_, _) => _status.Text = "Отменено без сохранения";
+        _picker.Cleared += (_, _) => _status.Text = "Выбор очищен";
+        _field.SelectionCommitted += (_, _) =>
+        {
+            _sync = true;
+            try
+            {
+                _picker.SelectedDate = _field.SelectedDate;
+            }
+            finally
+            {
+                _sync = false;
+            }
+            _status.Text = "Поле: " + DescribeField();
+        };
+        _field.Opened += (_, _) => _status.Text = "Календарь поля открыт";
+        _field.Closed += (_, _) => _status.Text = "Поле: " + DescribeField();
+
+        _presentation.SelectionChanged += (_, _) => { if (!_sync) Apply(); };
+        _selection.SelectionChanged += (_, _) => { if (!_sync) Apply(); };
+        foreach (var toggle in new[] { _input, _bounds, _actions, _clear, _adjacent })
+            toggle.IsCheckedChanged += (_, _) => { if (!_sync) Apply(); };
+        _months.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_sync) Apply(); };
+        _label.TextChanged += (_, _) => { if (!_sync) Apply(); };
+        _culture.SelectionChanged += (_, _) => { if (!_sync) Apply(); };
+
+        Apply();
     }
 
-    private static Control BuildDialogSection()
+    private void Apply()
     {
-        var status = Status();
-        status.Text = "The dialog blocks its owner and restores focus when closed.";
-        var button = new Button { Content = "Open modal date picker", HorizontalAlignment = HorizontalAlignment.Left };
-        button.Click += async (_, _) =>
+        var mode = _presentation.SelectedIndex;
+        var culture = Cultures[Math.Clamp(_culture.SelectedIndex, 0, Cultures.Length - 1)].Culture;
+        var bounds = _bounds.IsChecked == true;
+        var label = string.IsNullOrWhiteSpace(_label.Text) ? "Дата" : _label.Text;
+
+        _sync = true;
+        try
         {
-            if (TopLevel.GetTopLevel(button) is not Window owner)
+            if (mode != _lastMode)
             {
-                status.Text = "A window owner is required.";
+                if (_lastMode == 0)
+                {
+                    if (_field.SelectedDate != _picker.SelectedDate)
+                        _picker.SelectedDate = _field.SelectedDate;
+                }
+                else if (_field.SelectedDate != _picker.SelectedDate)
+                {
+                    _field.SelectedDate = _picker.SelectedDate;
+                }
+                _lastMode = mode;
+            }
+
+            var range = _selection.SelectedIndex == 1;
+            if (range && _lastRange != true && _picker.SelectedEndDate is null && _picker.SelectedDate is { } start)
+                _picker.SelectedEndDate = start.AddDays(7);
+            _lastRange = range;
+
+            _picker.SelectionMode = range ? MaterialDateSelectionMode.Range : MaterialDateSelectionMode.Single;
+            _picker.Mode = mode switch
+            {
+                1 => MaterialDatePickerMode.Docked,
+                3 => MaterialDatePickerMode.FullScreen,
+                _ => MaterialDatePickerMode.Modal,
+            };
+            _picker.MonthCount = (int)Math.Round(_months.Value);
+            _picker.ShowActions = _actions.IsChecked == true;
+            _picker.ShowClearButton = _clear.IsChecked == true;
+            _picker.ShowAdjacentDays = _adjacent.IsChecked == true;
+            // The full-screen surface is a scrolling month range; the typed input presentation
+            // belongs to the docked and modal surfaces.
+            _picker.IsInputMode = _input.IsChecked == true && mode != 3;
+            _picker.AllowInputMode = true;
+            _picker.Label = label;
+            _picker.Culture = culture;
+            _picker.MinimumDate = bounds ? MaterialDatePicker.ToDateTimeOffset(Today) : null;
+            _picker.MaximumDate = bounds ? MaterialDatePicker.ToDateTimeOffset(Today.AddDays(14)) : null;
+            _picker.Width = mode == 3 ? 420 : 360;
+            _picker.Height = mode == 3 ? 560 : double.NaN;
+
+            _field.Label = label;
+            _field.Culture = culture;
+            _field.IsEditable = _input.IsChecked == true;
+            _field.MinimumDate = _picker.MinimumDate;
+            _field.MaximumDate = _picker.MaximumDate;
+            _field.SelectedDate = _picker.SelectedDate;
+
+            _stage.Content = mode == 0 ? _field : _picker;
+            _cultureSample.Text = "Неделя начинается с " + culture.DateTimeFormat.FirstDayOfWeek +
+                                  "; короткий формат " + culture.DateTimeFormat.ShortDatePattern;
+        }
+        finally
+        {
+            _sync = false;
+        }
+
+        ShowStatus();
+    }
+
+    private void ShowStatus(string? prefix = null)
+    {
+        var text = ReferenceEquals(_stage.Content, _field) ? DescribeField() : DescribePicker();
+        _status.Text = prefix is null ? text : $"{prefix}: {text}";
+    }
+
+    private string DescribePicker()
+    {
+        if (_picker.SelectedDate is not { } start)
+            return "Дата не выбрана";
+        if (_picker.SelectionMode == MaterialDateSelectionMode.Range && _picker.SelectedEndDate is { } end)
+            return $"Диапазон {Format(start)} — {Format(end)}";
+        return "Выбрано: " + Format(start);
+    }
+
+    private string DescribeField() =>
+        _field.SelectedDate is { } value ? "Выбрано: " + Format(value) : "Дата не выбрана";
+
+    private string Format(DateTimeOffset value) => value.Date.ToString("d", CurrentCulture);
+
+    private CultureInfo CurrentCulture =>
+        Cultures[Math.Clamp(_culture.SelectedIndex, 0, Cultures.Length - 1)].Culture;
+
+    private async void OpenDialog()
+    {
+        try
+        {
+            if (TopLevel.GetTopLevel(this) is not Window owner)
+            {
+                _status.Text = "Для диалога нужно окно-владелец";
                 return;
             }
+
             var picker = new MaterialDatePicker
             {
                 Mode = MaterialDatePickerMode.Modal,
-                Label = "Select date",
-                SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(1)),
-                MinimumDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(-365)),
-                MaximumDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(365)),
+                SelectionMode = _picker.SelectionMode,
+                Label = _picker.Label,
+                SelectedDate = _picker.SelectedDate,
+                SelectedEndDate = _picker.SelectedEndDate,
+                MinimumDate = _picker.MinimumDate,
+                MaximumDate = _picker.MaximumDate,
+                Culture = _picker.Culture,
+                AllowInputMode = true,
             };
             var result = await MaterialDatePickerDialog.ShowAsync(owner, picker);
-            status.Text = result.IsConfirmed
-                ? $"Confirmed {Format(result.Start)}" + (result.End is { } end ? $" - {Format(end)}" : string.Empty)
-                : "Cancelled";
-        };
-
-        var column = new StackPanel { Spacing = 12 };
-        column.Children.Add(button);
-        column.Children.Add(status);
-        return column;
-    }
-
-    private static Control Header(string title, string description)
-    {
-        var stack = new StackPanel { Spacing = 8 };
-        var heading = new TextBlock { Text = title };
-        MaterialTypography.SetStyle(heading, MaterialTypeStyle.HeadlineMedium);
-        var body = new TextBlock
+            if (!result.IsConfirmed)
+            {
+                _status.Text = "Диалог отменён";
+                return;
+            }
+            var start = result.Start is { } value ? Format(value) : "нет даты";
+            var end = result.End is { } last ? " — " + Format(last) : string.Empty;
+            _status.Text = "Диалог: " + start + end;
+        }
+        catch (Exception exception)
         {
-            Text = description,
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 820,
-            Foreground = Brushes.Gray,
-        };
-        MaterialTypography.SetStyle(body, MaterialTypeStyle.BodyMedium);
-        stack.Children.Add(heading);
-        stack.Children.Add(body);
-        return stack;
+            _status.Text = "Диалог недоступен: " + exception.Message;
+        }
     }
 
-    private static Control Section(string title, Control content)
+    private void ClearSelection()
     {
-        var stack = new StackPanel { Spacing = 12 };
-        var heading = new TextBlock { Text = title };
-        MaterialTypography.SetStyle(heading, MaterialTypeStyle.TitleMedium);
-        stack.Children.Add(heading);
-        stack.Children.Add(content);
-        return stack;
+        _picker.ClearSelection();
+        _field.SelectedDate = null;
+        _status.Text = "Выбор очищен";
     }
 
-    private static Control Column(string caption, params Control[] content)
+    private Button ActionButton(string content, Action action)
     {
-        var stack = new StackPanel { Spacing = 8 };
-        var label = new TextBlock { Text = caption, Foreground = Brushes.Gray };
-        MaterialTypography.SetStyle(label, MaterialTypeStyle.LabelMedium);
-        stack.Children.Add(label);
-        foreach (var child in content)
-            stack.Children.Add(child);
-        return stack;
-    }
-
-    private static TextBlock Status() => new()
-    {
-        Text = string.Empty,
-        TextWrapping = TextWrapping.Wrap,
-        Foreground = Brushes.Gray,
-        MaxWidth = 420,
-    };
-
-    private static TextBlock Hint(string text) => new()
-    {
-        Text = text,
-        TextWrapping = TextWrapping.Wrap,
-        MaxWidth = 320,
-        Foreground = Brushes.Gray,
-        FontSize = 12,
-    };
-
-    private static Button ActionButton(string content, Action action)
-    {
-        var button = new Button
-        {
-            Content = content,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
+        var button = new Button { Content = content };
         button.Click += (_, _) => action();
         return button;
     }
 
-    private static Button ViewButton(string content, MaterialDatePicker picker, MaterialDatePickerView view)
+    private MaterialButtonGroup Choice(string label, string[] options)
     {
-        var button = new Button
+        Settings.Children.Add(new TextBlock { Text = label });
+        var group = new MaterialButtonGroup
         {
-            Content = content,
-            HorizontalAlignment = HorizontalAlignment.Left,
+            Kind = MaterialButtonGroupKind.Connected,
+            ButtonShape = MaterialButtonShape.Round,
+            ControlSize = MaterialControlSize.Small,
+            SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true,
         };
-        button.Click += (_, _) => picker.View = view;
-        return button;
+        foreach (var option in options)
+            group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        group.SelectedIndex = 0;
+        Settings.Children.Add(group);
+        return group;
     }
 
-    private static void ShowPickerStatus(TextBlock target, MaterialDatePicker picker) =>
-        target.Text = Describe(picker);
-
-    private static void ShowFieldStatus(TextBlock target, MaterialDatePickerField field) =>
-        target.Text = field.SelectedDate is { } value
-            ? "Selected " + Format(value)
-            : "No date selected";
-
-    private static string Describe(MaterialDatePicker picker)
+    private ToggleSwitch Toggle(string label, bool value)
     {
-        if (picker.SelectedDate is not { } start)
-            return "No date selected";
-        if (picker.SelectionMode == MaterialDateSelectionMode.Range && picker.SelectedEndDate is { } end)
-            return $"Range {Format(start)} - {Format(end)}";
-        return "Selected " + Format(start);
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        Settings.Children.Add(toggle);
+        return toggle;
     }
 
-    private static string Format(DateTimeOffset? value) =>
-        value is { } date ? date.Date.ToString("d", CultureInfo.CurrentCulture) : "no date";
+    private Slider Number(string label, double min, double max, double value, double step)
+    {
+        var caption = new TextBlock { Text = $"{label}: {value:0}" };
+        Settings.Children.Add(caption);
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            TickFrequency = step,
+            IsSnapToTickEnabled = true,
+        };
+        AutomationProperties.SetName(slider, label);
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty)
+                caption.Text = $"{label}: {slider.Value:0}";
+        };
+        Settings.Children.Add(slider);
+        return slider;
+    }
 }

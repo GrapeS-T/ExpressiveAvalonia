@@ -1,5 +1,6 @@
 using System;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
@@ -7,177 +8,195 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using ExpressiveAvalonia.Controls;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>
-/// Carousel family: the five source layouts on both contexts, the full-screen variant, the
-/// multi-ratio building blocks, paging snap, keyboard paging, selection and item activation.
-/// </summary>
+/// <summary>One live carousel with its layout, ladder, card count and sizing exposed in the inspector.</summary>
 public static class CarouselGallery
+{
+    public static Control Create() => new CarouselPlayground();
+}
+
+internal sealed class CarouselPlayground : Grid, IComponentPlayground
 {
     private static readonly Uri SourceImageUri =
         new("avares://ExpressiveAvalonia/Assets/DesignSystem/Carousel/carousel-item.png");
 
-    public static Control Create()
+    private static readonly string[] Layouts =
     {
-        var image = new Bitmap(AssetLoader.Open(SourceImageUri));
-        var status = new TextBlock { Text = "Selected: none", FontSize = 14 };
-        var panel = new StackPanel { Margin = new Thickness(24), Spacing = 20 };
-        panel.Children.Add(new TextBlock { Text = "Carousel", FontSize = 28 });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Source layouts: hero, center-aligned hero, multi-browse, uncontained, multi-aspect ratio and full screen, on the mobile and tablet ladders. "
-                 + "Cards page with a wheel or touch pan and snap to card starts; Left/Right move selection, Home/End jump, Enter/Space invoke the focused card. "
-                 + "Selection scrolls the card into view with the expressive spatial spring, or instantly under reduced motion.",
-            FontSize = 14,
-            TextWrapping = TextWrapping.Wrap
-        });
-        panel.Children.Add(status);
+        "Hero",
+        "Center-aligned hero",
+        "Multi-browse",
+        "Uncontained",
+        "Multi-aspect ratio",
+        "Full screen",
+    };
 
-        var hero = Build(image, status, MaterialCarouselLayout.Hero, 5);
-        panel.Children.Add(Section("Hero · Mobile · 316 + 56",
-            "The source frame shows the first two cards; cards 4 and 5 are the source \"Show 4th/5th item\" toggles.",
-            hero));
+    private static readonly Lazy<Bitmap> SourceImage = new(() => new Bitmap(AssetLoader.Open(SourceImageUri)));
 
-        var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var overlay = new Button { Content = "Toggle card text" };
-        var showText = true;
-        overlay.Click += (_, _) =>
+    private readonly MaterialCarousel _carousel = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+        SelectedIndex = 0,
+    };
+    private readonly TextBlock _status = new()
+    {
+        Text = "Selected: none",
+        HorizontalAlignment = HorizontalAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly ComboBox _layout = new() { ItemsSource = Layouts, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _context = new() { ItemsSource = Enum.GetNames<MaterialCarouselContext>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Slider _count;
+    private readonly Slider _height;
+    private readonly Slider _spacing;
+    private readonly Slider _width;
+    private readonly Slider _fullHeight;
+    private readonly ToggleSwitch _fourth;
+    private readonly ToggleSwitch _fifth;
+    private readonly ToggleSwitch _text;
+    private readonly ToggleSwitch _snap;
+    private readonly ToggleSwitch _disableLast;
+    private MaterialCarouselLayout _builtLayout = (MaterialCarouselLayout)(-1);
+    private bool _rebuilding;
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    internal CarouselPlayground()
+    {
+        RowDefinitions = new RowDefinitions("*,Auto");
+        var stage = new StackPanel
         {
-            showText = !showText;
-            foreach (var container in hero.GetRealizedContainers())
-                if (container is MaterialCarouselItem card)
-                    card.ShowContent = showText;
-            status.Text = $"Card text (source \"Show carousel text\"): {showText}";
+            Spacing = 20,
+            Margin = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        var fourth = new Button { Content = "Show 4th card" };
-        fourth.Click += (_, _) =>
+        stage.Children.Add(_carousel);
+        Children.Add(stage);
+        Grid.SetRow(_status, 1);
+        _status.Margin = new Thickness(24, 0, 24, 20);
+        Children.Add(_status);
+
+        Settings.Children.Add(Caption("Layout"));
+        Settings.Children.Add(_layout);
+        Settings.Children.Add(Caption("Context"));
+        Settings.Children.Add(_context);
+        _count = Number(Settings, "Количество карточек", 1, 8, 5, 1, "");
+        _height = Number(Settings, "Высота карточки", 120, 320, 204, 4, "dp");
+        _spacing = Number(Settings, "Промежуток", 0, 32, 8, 1, "dp");
+        _width = Number(Settings, "Ширина", 320, 900, 520, 10, "dp");
+        _fullHeight = Number(Settings, "Высота full screen", 320, 760, 560, 20, "dp");
+        _fourth = Toggle(Settings, "Показывать 4-ю карточку", true);
+        _fifth = Toggle(Settings, "Показывать 5-ю карточку", true);
+        _text = Toggle(Settings, "Текст на карточках", true);
+        _snap = Toggle(Settings, "Привязка прокрутки к карточкам", true);
+        _disableLast = Toggle(Settings, "Последняя карточка недоступна", false);
+
+        Settings.Children.Add(new TextBlock
         {
-            hero.ShowFourthItem = !hero.ShowFourthItem;
-            status.Text = $"Show 4th card: {hero.ShowFourthItem}";
-        };
-        var fifth = new Button { Content = "Show 5th card" };
-        fifth.Click += (_, _) =>
-        {
-            hero.ShowFifthItem = !hero.ShowFifthItem;
-            status.Text = $"Show 5th card: {hero.ShowFifthItem}";
-        };
-        var next = new Button { Content = "Next" };
-        next.Click += (_, _) => Step(hero, 1);
-        var previous = new Button { Content = "Previous" };
-        previous.Click += (_, _) => Step(hero, -1);
-        var last = new Button { Content = "Last" };
-        last.Click += (_, _) => hero.ScrollToIndex(hero.ItemCount - 1);
-        toolbar.Children.Add(overlay);
-        toolbar.Children.Add(fourth);
-        toolbar.Children.Add(fifth);
-        toolbar.Children.Add(previous);
-        toolbar.Children.Add(next);
-        toolbar.Children.Add(last);
-        panel.Children.Add(toolbar);
-
-        panel.Children.Add(Section("Center-aligned hero · Mobile · 56 + 252 + 56",
-            "A peek, the centered card, and a trailing peek.",
-            Build(image, status, MaterialCarouselLayout.CenterAlignedHero, 3)));
-
-        panel.Children.Add(Section("Multi-browse · Mobile · 188 + 120 + 56",
-            "One medium card followed by progressively narrower peeks; the last card is disabled to show that keyboard paging skips it.",
-            Build(image, status, MaterialCarouselLayout.MultiBrowse, 3, disableLast: true)));
-
-        panel.Children.Add(Section("Uncontained · Mobile · 154 + 154 + 72, no trailing inset",
-            "Equal medium cards that bleed off both edges.",
-            Build(image, status, MaterialCarouselLayout.Uncontained, 3)));
-
-        panel.Children.Add(Section("Multi-aspect ratio · 16:9, 4:3, 1:1, 3:4, 9:16",
-            "Each card derives its width from its ratio at the 204 unit card height: 362, 271, 204, 153, 116.",
-            Build(image, status, MaterialCarouselLayout.MultiAspectRatio, 5)));
-
-        var tabletRow = new WrapPanel { ItemSpacing = 24, LineSpacing = 24 };
-        tabletRow.Children.Add(Section("Hero · Tablet · 184 + 184 + 120 + 56",
-            "The tablet ladder inside the source 600 unit width.",
-            Build(image, status, MaterialCarouselLayout.Hero, 4, MaterialCarouselContext.Tablet, 600)));
-        tabletRow.Children.Add(Section("Multi-browse · Tablet · 184 + 184 + 120 + 56",
-            "Same ladder as the tablet hero; only mobile distinguishes these two layouts.",
-            Build(image, status, MaterialCarouselLayout.MultiBrowse, 4, MaterialCarouselContext.Tablet, 600)));
-        panel.Children.Add(tabletRow);
-
-        var full = new MaterialCarouselFullScreen
-        {
-            Width = 320,
-            Height = 560,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        full.Items.Add(Card(image, "Full screen", "One card fills the viewport", 16d / 9d));
-        full.Items.Add(Card(image, "Second page", "Paging snaps card by card", 16d / 9d));
-        full.SelectionChanged += (_, _) => status.Text = $"Full screen selected: {full.SelectedIndex}";
-        full.ItemInvoked += (_, e) => status.Text = $"Full screen invoked: {e.Item.Label} (index {e.Index})";
-        panel.Children.Add(Section("Full screen · Mobile (source 412 x 892)",
-            "MaterialCarouselFullScreen fills the viewport with one card per page. The source keeps the card text hidden; these cards opt in through ShowContent.",
-            full));
-
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Cards are ListBoxItem containers: selection, disabled cards, focus and SelectionPattern are native. "
-                 + "Disabled cards are skipped by keyboard paging; hidden 4th/5th cards are skipped as well.",
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap
+            Text = "Карточки листаются колесом или панорамированием и привязываются к началу карточки; " +
+                   "Left/Right меняют выбор, Home/End прыгают к краям, Enter/Space активируют карточку. " +
+                   "Выбор прокручивает карточку в вид. Полноэкранный layout заполняет viewport одной карточкой.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
         });
 
-        return new ScrollViewer
+        AutomationProperties.SetName(_layout, "Layout карусели");
+        AutomationProperties.SetName(_context, "Context карусели");
+
+        _layout.SelectionChanged += (_, _) => { if (!_rebuilding) Apply(); };
+        _context.SelectionChanged += (_, _) => { if (!_rebuilding) Apply(); };
+        foreach (var slider in new[] { _count, _height, _spacing, _width, _fullHeight })
+            slider.PropertyChanged += (_, e) => { if (!_rebuilding && e.Property == RangeBase.ValueProperty) Apply(); };
+        foreach (var toggle in new[] { _fourth, _fifth, _text, _snap, _disableLast })
+            toggle.IsCheckedChanged += (_, _) => { if (!_rebuilding) Apply(); };
+
+        _carousel.SelectionChanged += (_, _) =>
         {
-            Content = panel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+            if (_rebuilding) return;
+            _status.Text = _carousel.SelectedIndex >= 0
+                ? $"Выбрана карточка {_carousel.SelectedIndex + 1} из {_carousel.ItemCount}"
+                : "Selected: none";
         };
+        _carousel.ItemInvoked += (_, e) =>
+            _status.Text = $"Активирована {e.Item.Label} (index {e.Index})";
+
+        Apply();
     }
 
-    private static void Step(MaterialCarousel carousel, int delta)
+    private void Apply()
     {
-        var count = carousel.ItemCount;
-        if (count == 0)
-            return;
-        var index = Math.Clamp(carousel.SelectedIndex + delta, 0, count - 1);
-        carousel.SelectedIndex = index;
-        carousel.ScrollToIndex(index);
+        _rebuilding = true;
+        var layout = (MaterialCarouselLayout)Math.Clamp(_layout.SelectedIndex, 0, Layouts.Length - 1);
+        var full = layout == MaterialCarouselLayout.FullScreen;
+        _carousel.Layout = layout;
+        _carousel.Context = (MaterialCarouselContext)Math.Clamp(_context.SelectedIndex, 0, 1);
+        _carousel.ItemHeight = _height.Value;
+        _carousel.ItemSpacing = _spacing.Value;
+        _carousel.Width = _width.Value;
+        _carousel.Height = full ? _fullHeight.Value : double.NaN;
+        _carousel.ShowFourthItem = _fourth.IsChecked == true;
+        _carousel.ShowFifthItem = _fifth.IsChecked == true;
+        _carousel.IsSnapToItems = _snap.IsChecked == true;
+        _context.IsEnabled = !full;
+        _height.IsEnabled = !full;
+        _fullHeight.IsEnabled = full;
+
+        var count = (int)Math.Round(_count.Value);
+        if (_carousel.ItemCount != count || _builtLayout != layout)
+            RebuildItems(layout, count);
+        else
+            UpdateItems();
+
+        _rebuilding = false;
+        _status.Text = _carousel.SelectedIndex >= 0
+            ? $"Выбрана карточка {_carousel.SelectedIndex + 1} из {_carousel.ItemCount}"
+            : $"Карточек: {_carousel.ItemCount}";
     }
 
-    private static MaterialCarousel Build(
-        Bitmap image,
-        TextBlock status,
-        MaterialCarouselLayout layout,
-        int count,
-        MaterialCarouselContext context = MaterialCarouselContext.Mobile,
-        double width = double.NaN,
-        bool disableLast = false)
+    private void RebuildItems(MaterialCarouselLayout layout, int count)
     {
-        var carousel = new MaterialCarousel
-        {
-            Layout = layout,
-            Context = context,
-            Width = width,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-
+        var previous = _carousel.SelectedIndex;
+        _carousel.Items.Clear();
         for (var i = 0; i < count; i++)
         {
-            var ratio = layout == MaterialCarouselLayout.MultiAspectRatio
-                ? SourceRatio(i)
-                : 16d / 9d;
-            carousel.Items.Add(Card(image, $"Card {i + 1}", $"{layout} · card {i + 1}", ratio));
+            var ratio = layout == MaterialCarouselLayout.MultiAspectRatio ? SourceRatio(i) : 16d / 9d;
+            _carousel.Items.Add(Card(i, ratio));
         }
+        _builtLayout = layout;
+        _carousel.SelectedIndex = count > 0 ? Math.Clamp(previous, 0, count - 1) : -1;
+    }
 
-        if (disableLast && carousel.Items[count - 1] is MaterialCarouselItem disabled)
-            disabled.IsEnabled = false;
-
-        carousel.SelectedIndex = 0;
-        carousel.SelectionChanged += (_, _) =>
+    private void UpdateItems()
+    {
+        var showText = _text.IsChecked == true;
+        var disableLast = _disableLast.IsChecked == true;
+        for (var i = 0; i < _carousel.ItemCount; i++)
         {
-            if (carousel.SelectedIndex >= 0)
-                status.Text = $"{layout}: selected card {carousel.SelectedIndex + 1} of {carousel.ItemCount}";
+            if (_carousel.Items[i] is not MaterialCarouselItem item) continue;
+            item.ShowContent = showText;
+            item.ShowSupportingText = showText;
+            item.IsEnabled = !(disableLast && i == _carousel.ItemCount - 1);
+        }
+    }
+
+    private MaterialCarouselItem Card(int index, double ratio)
+    {
+        var showText = _text.IsChecked == true;
+        var item = new MaterialCarouselItem
+        {
+            ImageSource = SourceImage.Value,
+            Label = $"Card {index + 1}",
+            SupportingText = $"{Layouts[Math.Clamp(_layout.SelectedIndex, 0, Layouts.Length - 1)]} · card {index + 1}",
+            ShowContent = showText,
+            ShowSupportingText = showText,
+            AspectRatio = ratio,
         };
-        carousel.ItemInvoked += (_, e) =>
-            status.Text = $"{layout}: invoked {e.Item.Label} (index {e.Index})";
-        return carousel;
+        if (_disableLast.IsChecked == true && index == (int)Math.Round(_count.Value) - 1)
+            item.IsEnabled = false;
+        return item;
     }
 
     private static double SourceRatio(int index) => index switch
@@ -189,21 +208,35 @@ public static class CarouselGallery
         _ => 9d / 16d,
     };
 
-    private static MaterialCarouselItem Card(Bitmap image, string label, string supporting, double ratio) => new()
-    {
-        ImageSource = image,
-        Label = label,
-        SupportingText = supporting,
-        ShowContent = true,
-        AspectRatio = ratio
-    };
+    private static TextBlock Caption(string text) => new() { Text = text };
 
-    private static Control Section(string caption, string description, Control content)
+    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
     {
-        var stack = new StackPanel { Spacing = 8 };
-        stack.Children.Add(new TextBlock { Text = caption, FontSize = 16, FontWeight = FontWeight.Medium });
-        stack.Children.Add(new TextBlock { Text = description, FontSize = 12, TextWrapping = TextWrapping.Wrap });
-        stack.Children.Add(content);
-        return stack;
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        host.Children.Add(toggle);
+        return toggle;
+    }
+
+    private static Slider Number(StackPanel host, string label, double min, double max, double value, double step, string unit)
+    {
+        var caption = new TextBlock { Text = $"{label}: {value:0} {unit}" };
+        host.Children.Add(caption);
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            TickFrequency = step,
+            IsSnapToTickEnabled = true,
+        };
+        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(slider, false);
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0} {unit}";
+        };
+        AutomationProperties.SetName(slider, label);
+        host.Children.Add(slider);
+        return slider;
     }
 }

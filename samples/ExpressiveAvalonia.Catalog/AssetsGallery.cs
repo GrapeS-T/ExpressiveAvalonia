@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -13,192 +14,257 @@ using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>
-/// Gallery for the icon and auxiliary-asset families: the 140 exported 24 dp glyphs looked up by
-/// design source identity (local-000031…local-005658) and the .Tonal palettes board
-/// (local-005641) rendered as a live palette control.
-/// </summary>
+/// <summary>One selected asset — an exported icon glyph or the tonal-palette board — with its sizing in the inspector.</summary>
 public static class AssetsGallery
 {
-    public static Control Create()
+    public static Control Create() => new AssetsPlayground();
+}
+
+internal sealed class AssetsPlayground : Grid, IComponentPlayground
+{
+    private static readonly (string Label, Color Color)[] Seeds =
     {
-        var tabs = new TabControl();
-        tabs.Items.Add(new TabItem { Header = "Icons", Content = new DeferredGallery(() => IconsPage()) });
-        tabs.Items.Add(new TabItem { Header = "Tonal palettes", Content = new DeferredGallery(() => PalettePage()) });
-        return tabs;
+        ("Baseline purple", Color.Parse("#6750A4")),
+        ("Green", Color.Parse("#386A20")),
+        ("Blue", Color.Parse("#0061A4")),
+        ("Orange", Color.Parse("#8B5000")),
+    };
+
+    private static readonly string[] IconCategories = { "Все глифы", "Общие имена", "Уникальные имена" };
+    private static readonly string[] PaletteCategories = { "Живые палитры", "Доска источника" };
+
+    private readonly MaterialIcon _glyph = new()
+    {
+        IsDecorative = true,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly TextBlock _glyphName = new() { HorizontalAlignment = HorizontalAlignment.Center, FontSize = 20 };
+    private readonly TextBlock _glyphId = new() { HorizontalAlignment = HorizontalAlignment.Center, FontSize = 13 };
+    private readonly Button _copy = new() { Content = "Копировать source id", HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly MaterialTonalPalette _palette = new()
+    {
+        Title = "Tonal palettes",
+        HorizontalAlignment = HorizontalAlignment.Center,
+        SwatchHeight = 72,
+        RowSpacing = 12,
+        GroupSpacing = 24,
+    };
+    private readonly StackPanel _iconStage = new()
+    {
+        Spacing = 12,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly ScrollViewer _paletteStage = new()
+    {
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+    };
+    private readonly TextBlock _status = new()
+    {
+        Text = "Выберите глиф или палитру в инспекторе.",
+        HorizontalAlignment = HorizontalAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly ComboBox _type = new() { ItemsSource = new[] { "Иконки", "Тональные палитры" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _category = new() { ItemsSource = IconCategories, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _resource = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly StackPanel _iconSettings = new() { Spacing = 16 };
+    private readonly StackPanel _paletteSettings = new() { Spacing = 16 };
+    private readonly Slider _glyphSize;
+    private readonly Slider _swatchWidth;
+    private readonly Slider _swatchHeight;
+    private readonly Slider _labelWidth;
+    private readonly ToggleSwitch _showName;
+    private readonly ToggleSwitch _showTitle;
+    private readonly ToggleSwitch _toneLabels;
+    private readonly ToggleSwitch _copyOnClick;
+    private List<MaterialIconInfo> _icons = [];
+    private bool _syncing;
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    internal AssetsPlayground()
+    {
+        RowDefinitions = new RowDefinitions("*,Auto");
+        _iconStage.Children.Add(_glyph);
+        _iconStage.Children.Add(_glyphName);
+        _iconStage.Children.Add(_glyphId);
+        _iconStage.Children.Add(_copy);
+        MaterialAssist.SetButtonVariant(_copy, MaterialButtonVariant.Tonal);
+        MaterialAssist.SetControlSize(_copy, MaterialControlSize.Small);
+        _paletteStage.Content = _palette;
+        var stage = new Grid { Margin = new Thickness(24) };
+        stage.Children.Add(_iconStage);
+        stage.Children.Add(_paletteStage);
+        Children.Add(stage);
+        Grid.SetRow(_status, 1);
+        _status.Margin = new Thickness(24, 0, 24, 20);
+        Children.Add(_status);
+
+        Settings.Children.Add(Caption("Тип"));
+        Settings.Children.Add(_type);
+        Settings.Children.Add(Caption("Категория"));
+        Settings.Children.Add(_category);
+        Settings.Children.Add(Caption("Ресурс"));
+        Settings.Children.Add(_resource);
+        Settings.Children.Add(_iconSettings);
+        Settings.Children.Add(_paletteSettings);
+
+        _glyphSize = Number(_iconSettings, "Размер глифа", 24, 240, 96, 8, "dp");
+        _showName = Toggle(_iconSettings, "Подписывать имя и source id", true);
+
+        _swatchWidth = Number(_paletteSettings, "Ширина образца", 40, 100, 61, 1, "dp");
+        _swatchHeight = Number(_paletteSettings, "Высота образца", 40, 140, 72, 4, "dp");
+        _labelWidth = Number(_paletteSettings, "Ширина подписи строки", 80, 220, 140, 10, "dp");
+        _showTitle = Toggle(_paletteSettings, "Заголовок палитры", true);
+        _toneLabels = Toggle(_paletteSettings, "Подписи тонов", true);
+        _copyOnClick = Toggle(_paletteSettings, "Копировать hex по нажатию", true);
+
+        Settings.Children.Add(new TextBlock
+        {
+            Text = "Глифы адресуются по design source id: восемнадцать имён экспортированы дважды, " +
+                   "поэтому «Общие имена» показывает обе геометрии. Нажатие на образец палитры копирует " +
+                   "его hex; «Доска источника» показывает точные заливки local-005641.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+        });
+
+        AutomationProperties.SetName(_type, "Тип ассета");
+        AutomationProperties.SetName(_category, "Категория ассетов");
+        AutomationProperties.SetName(_resource, "Выбранный ресурс");
+
+        _type.SelectionChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            RebuildCategories();
+        };
+        _category.SelectionChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            RebuildResources();
+        };
+        _resource.SelectionChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            Apply();
+        };
+        foreach (var slider in new[] { _glyphSize, _swatchWidth, _swatchHeight, _labelWidth })
+            slider.PropertyChanged += (_, e) => { if (!_syncing && e.Property == RangeBase.ValueProperty) Apply(); };
+        foreach (var toggle in new[] { _showName, _showTitle, _toneLabels, _copyOnClick })
+            toggle.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
+
+        _copy.Click += async (_, _) =>
+        {
+            if (_icons.Count == 0) return;
+            var icon = _icons[Math.Clamp(_resource.SelectedIndex, 0, _icons.Count - 1)];
+            _status.Text = await CopyAsync(_copy, icon.SourceId)
+                ? $"Скопирован {icon.SourceId} ({icon.Name})."
+                : $"Буфер обмена недоступен; source id — {icon.SourceId}.";
+        };
+        _palette.SwatchActivated += (_, e) => _status.Text = e.Copied
+            ? $"Скопирован {e.RowName} {e.Tone} · {e.Hex}."
+            : $"Буфер обмена недоступен; {e.RowName} {e.Tone} — {e.Hex}.";
+
+        RebuildCategories();
     }
 
-    private static Control IconsPage()
+    private void RebuildCategories()
     {
-        var status = new TextBlock { Text = "Click an icon to copy its design source id." };
-        AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
-        var count = new TextBlock { FontSize = 14 };
-        var grid = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        var search = new TextBox
+        _syncing = true;
+        _category.ItemsSource = _type.SelectedIndex == 0 ? IconCategories : PaletteCategories;
+        _category.SelectedIndex = 0;
+        _syncing = false;
+        RebuildResources();
+    }
+
+    private void RebuildResources()
+    {
+        _syncing = true;
+        if (_type.SelectedIndex == 0)
         {
-            PlaceholderText = "Search by name or source id",
-            Width = 320,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-
-        var panel = new StackPanel { Margin = new Thickness(24), Spacing = 16 };
-        panel.Children.Add(Heading("Icons · 140 exported glyphs"));
-        panel.Children.Add(Note("Every glyph is rendered from its own exported geometry and resolved through " +
-                                "MaterialIcons by design node id. Eighteen display names appear twice in the source " +
-                                "(alarm, settings, check_box, …); both identities stay addressable, so the same name " +
-                                "can produce two different shapes. Clicking a tile copies the source id."));
-        panel.Children.Add(search);
-        panel.Children.Add(count);
-        panel.Children.Add(new ScrollViewer
-        {
-            Height = 480,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = grid
-        });
-        panel.Children.Add(status);
-
-        void Rebuild()
-        {
-            var term = search.Text?.Trim() ?? string.Empty;
-            var matches = MaterialIcons.All
-                .Where(icon => term.Length == 0 ||
-                               icon.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                               icon.SourceId.Contains(term, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            grid.Children.Clear();
-            foreach (var icon in matches)
-                grid.Children.Add(new ViewportGallery(() => Tile(icon, status), 72) { Width = 120 });
-
-            var duplicates = MaterialIcons.All
+            var shared = MaterialIcons.All
                 .GroupBy(icon => icon.Name, StringComparer.Ordinal)
-                .Count(group => group.Count() > 1);
-            count.Text = $"{matches.Count} of {MaterialIcons.All.Count} glyphs · " +
-                         $"{MaterialIcons.Names.Count} distinct names · {duplicates} names shared by two identities";
-        }
-
-        search.TextChanged += (_, _) => Rebuild();
-        Rebuild();
-        return panel;
-    }
-
-    private static Control Tile(MaterialIconInfo icon, TextBlock status)
-    {
-        var ambiguous = MaterialIcons.IsAmbiguousName(icon.Name);
-        var glyph = new MaterialIcon
-        {
-            SourceId = icon.SourceId,
-            IsDecorative = true,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        var tile = new Button
-        {
-            Content = new StackPanel
+                .Where(group => group.Count() > 1)
+                .SelectMany(group => group)
+                .ToHashSet();
+            _icons = _category.SelectedIndex switch
             {
-                Spacing = 4,
-                Children =
-                {
-                    glyph,
-                    new TextBlock
-                    {
-                        Text = icon.Name,
-                        FontSize = 12,
-                        MaxWidth = 104,
-                        TextTrimming = TextTrimming.CharacterEllipsis,
-                        HorizontalAlignment = HorizontalAlignment.Center
-                    }
-                }
-            }
-        };
-        // The glyph follows the button's own variant colour instead of the icon default.
-        glyph[!TemplatedControl.ForegroundProperty] = tile[!TemplatedControl.ForegroundProperty];
-        MaterialAssist.SetButtonVariant(tile, MaterialButtonVariant.Text);
-        MaterialAssist.SetControlSize(tile, MaterialControlSize.ExtraSmall);
-        ToolTip.SetTip(tile, $"{icon.SourceId} · {icon.FileName}" +
-                             (ambiguous ? " · name shared by two source identities" : string.Empty));
-        AutomationProperties.SetName(tile, $"Copy source id for {icon.Name} {icon.SourceId}");
-        tile.Click += async (_, _) =>
-        {
-            status.Text = await CopyAsync(tile, icon.SourceId)
-                ? $"Copied {icon.SourceId} ({icon.Name})."
-                : $"Clipboard unavailable; source id is {icon.SourceId}.";
-        };
-        return tile;
-    }
-
-    private static Control PalettePage()
-    {
-        var status = new TextBlock { Text = "Activate a cell to copy its hex value." };
-        AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
-        var palette = new MaterialTonalPalette();
-        palette.SwatchActivated += (_, e) => status.Text = e.Copied
-            ? $"Copied {e.RowName} {e.Tone} · {e.Hex}."
-            : $"Clipboard unavailable; {e.RowName} {e.Tone} is {e.Hex}.";
-
-        var sourceToggle = new ToggleSwitch
-        {
-            Content = "Exact source board colors",
-            IsChecked = false
-        };
-        sourceToggle.IsCheckedChanged += (_, _) =>
-        {
-            palette.Palettes = sourceToggle.IsChecked == true ? MaterialTonalPalettes.Source : null;
-            status.Text = sourceToggle.IsChecked == true
-                ? "Showing the literal .Tonal palettes board fills (local-005641)."
-                : "Showing live Tonal Spot palettes derived from the theme seed.";
-        };
-
-        var seeds = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        foreach (var (name, color) in new (string Name, Color Color)[]
-                 {
-                     ("Baseline purple", Color.Parse("#6750A4")),
-                     ("Green", Color.Parse("#386A20")),
-                     ("Blue", Color.Parse("#0061A4")),
-                     ("Orange", Color.Parse("#8B5000"))
-                 })
-        {
-            var seed = new Button { Content = name };
-            MaterialAssist.SetButtonVariant(seed, MaterialButtonVariant.Tonal);
-            MaterialAssist.SetControlSize(seed, MaterialControlSize.ExtraSmall);
-            seed.Click += (_, _) =>
-            {
-                palette.ClearValue(MaterialTonalPalette.PalettesProperty);
-                palette.SeedColor = color;
-                sourceToggle.IsChecked = false;
-                status.Text = $"Seed {name} · {color}";
+                1 => MaterialIcons.All.Where(shared.Contains).ToList(),
+                2 => MaterialIcons.All.Where(icon => !shared.Contains(icon)).ToList(),
+                _ => MaterialIcons.All.ToList(),
             };
-            seeds.Children.Add(seed);
+            _resource.ItemsSource = _icons.Select(icon => $"{icon.Name} · {icon.SourceId}").ToArray();
+            _resource.SelectedIndex = _icons.Count > 0 ? 0 : -1;
+            _resource.IsEnabled = _icons.Count > 0;
+        }
+        else
+        {
+            _icons = [];
+            if (_category.SelectedIndex == 1)
+            {
+                _resource.ItemsSource = new[] { "local-005641 · .Tonal palettes" };
+                _resource.SelectedIndex = 0;
+                _resource.IsEnabled = false;
+            }
+            else
+            {
+                _resource.ItemsSource = Seeds.Select(seed => seed.Label).ToArray();
+                _resource.SelectedIndex = 0;
+                _resource.IsEnabled = true;
+            }
+        }
+        _syncing = false;
+        Apply();
+    }
+
+    private void Apply()
+    {
+        var icons = _type.SelectedIndex == 0;
+        _iconStage.IsVisible = icons;
+        _paletteStage.IsVisible = !icons;
+        _iconSettings.IsVisible = icons;
+        _paletteSettings.IsVisible = !icons;
+
+        var size = _glyphSize.Value;
+        _glyph.Width = size;
+        _glyph.Height = size;
+        _glyphName.IsVisible = _showName.IsChecked == true;
+        _glyphId.IsVisible = _showName.IsChecked == true;
+        _copy.IsEnabled = _icons.Count > 0;
+        if (icons)
+        {
+            if (_icons.Count > 0)
+            {
+                var icon = _icons[Math.Clamp(_resource.SelectedIndex, 0, _icons.Count - 1)];
+                _glyph.SourceId = icon.SourceId;
+                _glyphName.Text = icon.Name;
+                _glyphId.Text = $"{icon.SourceId} · {icon.FileName}";
+                AutomationProperties.SetName(_glyph, $"{icon.Name} {icon.SourceId}");
+            }
+            else
+            {
+                _glyph.SourceId = null;
+                _glyphName.Text = "Нет глифов";
+                _glyphId.Text = string.Empty;
+            }
+            return;
         }
 
-        var themeSeed = new Button { Content = "Use theme seed" };
-        MaterialAssist.SetButtonVariant(themeSeed, MaterialButtonVariant.Text);
-        MaterialAssist.SetControlSize(themeSeed, MaterialControlSize.ExtraSmall);
-        themeSeed.Click += (_, _) =>
+        var source = _category.SelectedIndex == 1;
+        _palette.Palettes = source ? MaterialTonalPalettes.Source : null;
+        if (!source)
         {
-            palette.ClearValue(MaterialTonalPalette.PalettesProperty);
-            palette.ClearValue(MaterialTonalPalette.SeedColorProperty);
-            sourceToggle.IsChecked = false;
-            status.Text = "Seed follows the active Material theme.";
-        };
-        seeds.Children.Add(themeSeed);
-
-        var panel = new StackPanel { Margin = new Thickness(24), Spacing = 16 };
-        panel.Children.Add(Heading("Tonal palettes · local-005641"));
-        panel.Children.Add(Note("The source board is six rows of thirteen tones (0…100) at 61 × 108 with a 140 label " +
-                                "column and an extra gap before the neutral group. Cells are real buttons: Tab reaches " +
-                                "them, arrow keys move within and between rows, Home/End jump to a row edge, " +
-                                "PageUp/PageDown jump to the first/last row, and Space or Enter copies the hex value."));
-        panel.Children.Add(sourceToggle);
-        panel.Children.Add(new TextBlock { Text = "Seed", FontSize = 14 });
-        panel.Children.Add(seeds);
-        panel.Children.Add(new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = palette
-        });
-        panel.Children.Add(status);
-        return panel;
+            var seed = Seeds[Math.Clamp(_resource.SelectedIndex, 0, Seeds.Length - 1)];
+            _palette.SeedColor = seed.Color;
+        }
+        _palette.SwatchWidth = _swatchWidth.Value;
+        _palette.SwatchHeight = _swatchHeight.Value;
+        _palette.RowLabelWidth = _labelWidth.Value;
+        _palette.ShowTitle = _showTitle.IsChecked == true;
+        _palette.ShowToneLabels = _toneLabels.IsChecked == true;
+        _palette.CopyOnClick = _copyOnClick.IsChecked == true;
     }
 
     private static async Task<bool> CopyAsync(Visual source, string text)
@@ -216,19 +282,35 @@ public static class AssetsGallery
         }
     }
 
-    private static TextBlock Heading(string text) => new()
-    {
-        Text = text,
-        FontSize = 28,
-        FontWeight = FontWeight.Bold
-    };
+    private static TextBlock Caption(string text) => new() { Text = text };
 
-    private static TextBlock Note(string text) => new()
+    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
     {
-        Text = text,
-        FontSize = 14,
-        MaxWidth = 900,
-        TextWrapping = TextWrapping.Wrap,
-        Opacity = 0.8
-    };
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        host.Children.Add(toggle);
+        return toggle;
+    }
+
+    private static Slider Number(StackPanel host, string label, double min, double max, double value, double step, string unit)
+    {
+        var caption = new TextBlock { Text = $"{label}: {value:0} {unit}" };
+        host.Children.Add(caption);
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            TickFrequency = step,
+            IsSnapToTickEnabled = true,
+        };
+        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(slider, false);
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0} {unit}";
+        };
+        AutomationProperties.SetName(slider, label);
+        host.Children.Add(slider);
+        return slider;
+    }
 }

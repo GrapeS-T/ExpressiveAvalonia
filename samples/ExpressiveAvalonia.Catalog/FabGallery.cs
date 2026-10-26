@@ -1,21 +1,26 @@
 using System;
+using System.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
 /// <summary>
-/// Gallery for the FAB family: regular and extended FABs in every source size and color role,
-/// a live extended FAB collapse demo, and three FAB menus with commands.
+/// One live FAB family member - a regular FAB, an extended FAB or a FAB menu - selected in the
+/// inspector, with its size, color role, icon and interaction exposed as settings.
 /// </summary>
 public static class FabGallery
+{
+    public static Control Create() => new FabPlayground();
+}
+
+internal sealed class FabPlayground : Grid, IComponentPlayground
 {
     private const string PlusIcon = "M11,5 L13,5 L13,11 L19,11 L19,13 L13,13 L13,19 L11,19 L11,13 L5,13 L5,11 L11,11 Z";
     private const string EditIcon = "M3,17.25 L3,21 L6.75,21 L17.81,9.94 L14.06,6.19 L3,17.25 Z M20.71,7.04 C21.1,6.65 21.1,6.02 20.71,5.63 L18.37,3.29 C17.98,2.9 17.35,2.9 16.96,3.29 L15.13,5.12 L18.88,8.87 L20.71,7.04 Z";
@@ -24,205 +29,272 @@ public static class FabGallery
     private const string FavoriteIcon = "M12,21.35 L10.55,20.03 C5.4,15.36 2,12.28 2,8.5 C2,5.42 4.42,3 7.5,3 C9.24,3 10.91,3.81 12,5.09 C13.09,3.81 14.76,3 16.5,3 C19.58,3 22,5.42 22,8.5 C22,12.28 18.6,15.36 13.45,20.04 L12,21.35 Z";
     private const string CameraIcon = "M12,15.2 A3.2,3.2 0 1 0 12,8.8 A3.2,3.2 0 1 0 12,15.2 Z M9,2 L7.17,4 L4,4 C2.9,4 2,4.9 2,6 L2,18 C2,19.1 2.9,20 4,20 L20,20 C21.1,20 22,19.1 22,18 L22,6 C22,4.9 21.1,4 20,4 L16.83,4 L15,2 L9,2 Z";
 
-    private static readonly Geometry Plus = Geometry.Parse(PlusIcon);
-    private static readonly Geometry Edit = Geometry.Parse(EditIcon);
-    private static readonly Geometry Share = Geometry.Parse(ShareIcon);
-    private static readonly Geometry Delete = Geometry.Parse(DeleteIcon);
-    private static readonly Geometry Favorite = Geometry.Parse(FavoriteIcon);
-    private static readonly Geometry Camera = Geometry.Parse(CameraIcon);
+    private static readonly string[] IconNames = ["Плюс", "Изменить", "Поделиться", "Удалить", "Избранное", "Съёмка"];
+    private static readonly Geometry[] IconData =
+    [
+        Geometry.Parse(PlusIcon),
+        Geometry.Parse(EditIcon),
+        Geometry.Parse(ShareIcon),
+        Geometry.Parse(DeleteIcon),
+        Geometry.Parse(FavoriteIcon),
+        Geometry.Parse(CameraIcon),
+    ];
 
-    /// <summary>Creates the FAB gallery.</summary>
-    public static Control Create()
+    private static readonly string[] SegmentLabels = ["Изменить", "Поделиться", "Удалить", "В избранное", "Съёмка"];
+    private static readonly Geometry[] SegmentIcons = [IconData[1], IconData[2], IconData[3], IconData[4], IconData[5]];
+
+    private readonly MaterialFab _fab = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly MaterialExtendedFab _extended = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly PathIcon[] _fabGlyphs = IconData.Select(data => new PathIcon { Data = data }).ToArray();
+    private readonly MaterialFabMenu _menu = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+    private readonly Grid _menuHost;
+    private readonly TextBlock _status = new()
     {
-        var status = new TextBlock { Text = "No action yet.", TextWrapping = TextWrapping.Wrap };
-        var panel = new StackPanel { Margin = new Thickness(24), Spacing = 20 };
-
-        panel.Children.Add(new TextBlock
-        {
-            Text = "FAB family",
-            FontSize = 32,
-            FontWeight = FontWeight.Bold
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Every source size and color role. Tab to a FAB and press Enter or Space; " +
-                   "the state layer and focus ring follow hover, focus and press.",
-            TextWrapping = TextWrapping.Wrap
-        });
-
-        panel.Children.Add(Heading("FAB menu — primary / secondary / tertiary containers"));
-        panel.Children.Add(MenuRow(status));
-
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Menu keys: Up/Down open and move, Home/End jump, Escape closes and returns focus, " +
-                   "outside press or focus leaving the menu closes it.",
-            TextWrapping = TextWrapping.Wrap
-        });
-        panel.Children.Add(status);
-        panel.Children.Add(Heading("FAB — 56 / 80 / 96, six roles"));
-        panel.Children.Add(new ViewportGallery(FabGrid, 280));
-
-        panel.Children.Add(Heading("Extended FAB — Small / Medium / Large, six roles"));
-        panel.Children.Add(new ViewportGallery(ExtendedGrid, 280));
-
-        panel.Children.Add(Heading("Extended FAB — expand and collapse"));
-        panel.Children.Add(new ViewportGallery(ExtendedCollapseDemo, 80));
-
-
-        return new ScrollViewer
-        {
-            Content = panel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
-        };
-    }
-
-    private static TextBlock Heading(string text) => new()
-    {
-        Text = text,
-        FontSize = 20,
-        FontWeight = FontWeight.Medium
+        Text = "Действий ещё не было.",
+        TextWrapping = TextWrapping.Wrap,
+        TextAlignment = TextAlignment.Center,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        Opacity = 0.8,
     };
 
-    private static Control FabGrid()
+    private readonly MaterialButtonGroup _kind;
+    private readonly MaterialButtonGroup _size;
+    private readonly StackPanel _sizeGroup;
+    private readonly ComboBox _role;
+    private readonly ComboBox _icon;
+    private readonly TextBox _label;
+    private readonly StackPanel _labelGroup;
+    private readonly ToggleSwitch _expanded;
+    private readonly ToggleSwitch _enabled;
+    private readonly Slider _actions;
+    private readonly StackPanel _actionsGroup;
+    private readonly ToggleSwitch _openMenu;
+    private int _lastKind = -1;
+    private bool _syncing;
+
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    internal FabPlayground()
     {
-        var panel = new StackPanel { Spacing = 12 };
-        foreach (var size in Enum.GetValues<MaterialFabSize>())
+        _menuHost = new Grid
         {
-            var row = new WrapPanel { ItemSpacing = 16, LineSpacing = 16 };
-            foreach (var role in Enum.GetValues<MaterialFabColorRole>())
-            {
-                var fab = new MaterialFab
-                {
-                    Size = size,
-                    ColorRole = role,
-                    Content = new PathIcon { Data = role is MaterialFabColorRole.Primary ? Plus : Edit },
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                AutomationProperties.SetName(fab, $"{role} FAB, {size}");
-                row.Children.Add(fab);
-            }
-
-            var disabled = new MaterialFab
-            {
-                Size = size,
-                ColorRole = MaterialFabColorRole.PrimaryContainer,
-                Content = new PathIcon { Data = Favorite },
-                IsEnabled = false,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            AutomationProperties.SetName(disabled, $"Disabled FAB, {size}");
-            row.Children.Add(disabled);
-            panel.Children.Add(row);
-        }
-
-        return panel;
-    }
-
-    private static Control ExtendedGrid()
-    {
-        var panel = new StackPanel { Spacing = 12 };
-        foreach (var size in Enum.GetValues<MaterialExtendedFabSize>())
-        {
-            var row = new WrapPanel { ItemSpacing = 16, LineSpacing = 16 };
-            foreach (var role in Enum.GetValues<MaterialFabColorRole>())
-            {
-                var fab = new MaterialExtendedFab
-                {
-                    Size = size,
-                    ColorRole = role,
-                    Label = role.ToString(),
-                    Icon = role is MaterialFabColorRole.Primary ? Plus : Camera,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                row.Children.Add(fab);
-            }
-
-            panel.Children.Add(row);
-        }
-
-        return panel;
-    }
-
-    private static Control ExtendedCollapseDemo()
-    {
-        var fab = new MaterialExtendedFab
-        {
-            Size = MaterialExtendedFabSize.Medium,
-            ColorRole = MaterialFabColorRole.TertiaryContainer,
-            Label = "Compose",
-            Icon = Edit,
-            VerticalAlignment = VerticalAlignment.Center
+            Width = 280,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 16),
+            Children = { _menu },
         };
-        var toggle = new ToggleButton
+        var stageContent = new Grid { Children = { _fab, _extended, _menuHost } };
+        var stage = new Border
         {
-            Content = "Expanded",
-            IsChecked = true,
-            VerticalAlignment = VerticalAlignment.Center
+            Height = 480,
+            MinWidth = 360,
+            MaxWidth = 720,
+            CornerRadius = new CornerRadius(16),
+            ClipToBounds = true,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Child = stageContent,
         };
-        toggle.IsCheckedChanged += (_, _) => fab.IsExpanded = toggle.IsChecked == true;
+        stage.Bind(Border.BackgroundProperty, stage.GetResourceObservable("MaterialSurfaceContainerBrush"));
 
-        var row = new StackPanel
+        var stageColumn = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
             Spacing = 16,
-            Children = { fab, toggle }
+            MaxWidth = 720,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { stage, _status },
         };
-        return row;
+        Children.Add(stageColumn);
+
+        _kind = Choice(Settings, "Компонент", ["FAB", "Extended FAB", "FAB menu"]);
+
+        _sizeGroup = new StackPanel { Spacing = 6 };
+        _sizeGroup.Children.Add(new TextBlock { Text = "Размер" });
+        _size = Group(_sizeGroup, ["56", "80", "96"]);
+        Settings.Children.Add(_sizeGroup);
+
+        Settings.Children.Add(new TextBlock { Text = "Цветовая роль" });
+        _role = new ComboBox
+        {
+            ItemsSource = Enum.GetNames<MaterialFabColorRole>(),
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_role, "Цветовая роль");
+        Settings.Children.Add(_role);
+
+        Settings.Children.Add(new TextBlock { Text = "Иконка" });
+        _icon = new ComboBox
+        {
+            ItemsSource = IconNames,
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_icon, "Иконка");
+        Settings.Children.Add(_icon);
+
+        _labelGroup = new StackPanel { Spacing = 6 };
+        _label = new TextBox { Text = "Создать" };
+        MaterialTextField.SetVariant(_label, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(_label, "Текст extended FAB");
+        AutomationProperties.SetName(_label, "Текст extended FAB");
+        _labelGroup.Children.Add(_label);
+        Settings.Children.Add(_labelGroup);
+
+        _expanded = new ToggleSwitch { Content = "Label развёрнут", IsChecked = true };
+        Settings.Children.Add(_expanded);
+        _enabled = new ToggleSwitch { Content = "Доступен", IsChecked = true };
+        Settings.Children.Add(_enabled);
+
+        _actionsGroup = new StackPanel { Spacing = 6 };
+        _actionsGroup.Children.Add(new TextBlock { Text = "Действий в меню: 3" });
+        _actions = new Slider { Minimum = 2, Maximum = 5, Value = 3, TickFrequency = 1, IsSnapToTickEnabled = true };
+        AutomationProperties.SetName(_actions, "Количество действий в меню");
+        _actions.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != Slider.ValueProperty)
+                return;
+            ((TextBlock)_actionsGroup.Children[0]).Text = $"Действий в меню: {_actions.Value:0}";
+            Apply();
+        };
+        _actionsGroup.Children.Add(_actions);
+        Settings.Children.Add(_actionsGroup);
+
+        _openMenu = new ToggleSwitch { Content = "Меню раскрыто" };
+        Settings.Children.Add(_openMenu);
+
+        Settings.Children.Add(new TextBlock
+        {
+            Text = "FAB — обычная кнопка: Enter, Space и указатель дают настоящие состояния. " +
+                   "У FAB menu стрелки открывают список и перемещают фокус, Escape закрывает меню " +
+                   "и возвращает фокус на триггер, а пункты выполняют команды.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+        });
+
+        _fab.Click += (_, _) => _status.Text = $"FAB нажат: {_fab.ColorRole}, {_fab.Size}.";
+        _extended.Click += (_, _) => _status.Text = $"Extended FAB нажат: {_extended.Label}.";
+        _menu.Expanded += (_, _) => _status.Text = "Меню раскрыто.";
+        _menu.Collapsed += (_, _) => _status.Text = "Меню свёрнуто.";
+        _menu.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != MaterialFabMenu.IsExpandedProperty || _syncing)
+                return;
+            _syncing = true;
+            _openMenu.IsChecked = _menu.IsExpanded;
+            _syncing = false;
+        };
+
+        foreach (var choice in new[] { _kind, _size })
+            choice.SelectionChanged += (_, _) => Apply();
+        _role.SelectionChanged += (_, _) => Apply();
+        _icon.SelectionChanged += (_, _) => Apply();
+        _label.TextChanged += (_, _) => Apply();
+        foreach (var toggle in new[] { _expanded, _enabled, _openMenu })
+            toggle.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
+
+        Apply();
     }
 
-    private static Control MenuRow(TextBlock status)
+    private void Apply()
     {
-        var row = new WrapPanel { ItemSpacing = 24, LineSpacing = 24 };
+        var kind = Math.Clamp(_kind.SelectedIndex, 0, 2);
+        var size = Math.Clamp(_size.SelectedIndex, 0, 2);
+        var role = (MaterialFabColorRole)Math.Clamp(_role.SelectedIndex, 0, 5);
+        var iconIndex = Math.Clamp(_icon.SelectedIndex, 0, IconData.Length - 1);
+        var icon = IconData[iconIndex];
+        var label = string.IsNullOrWhiteSpace(_label.Text) ? "Действие" : _label.Text!;
+        var enabled = _enabled.IsChecked == true;
 
-        row.Children.Add(Menu(MaterialFabMenuColorRole.PrimaryContainer, "Primary", status, 3));
-        row.Children.Add(Menu(MaterialFabMenuColorRole.SecondaryContainer, "Secondary", status, 4));
-        row.Children.Add(Menu(MaterialFabMenuColorRole.TertiaryContainer, "Tertiary", status, 5));
-        return row;
+        if (kind != _lastKind)
+        {
+            var labels = kind == 1 ? new[] { "Small", "Medium", "Large" } : new[] { "56", "80", "96" };
+            for (var i = 0; i < labels.Length && i < _size.Items.Count; i++)
+                ((MaterialButtonGroupItem)_size.Items[i]!).Content = labels[i];
+            _lastKind = kind;
+        }
+
+        _fab.IsVisible = kind == 0;
+        _extended.IsVisible = kind == 1;
+        _menuHost.IsVisible = kind == 2;
+        _sizeGroup.IsVisible = kind != 2;
+        _labelGroup.IsVisible = kind == 1;
+        _expanded.IsVisible = kind == 1;
+        _actionsGroup.IsVisible = kind == 2;
+        _openMenu.IsVisible = kind == 2;
+
+        _fab.Size = (MaterialFabSize)size;
+        _fab.ColorRole = role;
+        _fab.Content = _fabGlyphs[iconIndex];
+        _fab.IsEnabled = enabled;
+        AutomationProperties.SetName(_fab, $"FAB, {role}, {_fab.Size}");
+
+        _extended.Size = (MaterialExtendedFabSize)size;
+        _extended.ColorRole = role;
+        _extended.Icon = icon;
+        _extended.Label = label;
+        _extended.IsExpanded = _expanded.IsChecked == true;
+        _extended.IsEnabled = enabled;
+
+        _menu.ColorRole = role switch
+        {
+            MaterialFabColorRole.Secondary or MaterialFabColorRole.SecondaryContainer => MaterialFabMenuColorRole.SecondaryContainer,
+            MaterialFabColorRole.Tertiary or MaterialFabColorRole.TertiaryContainer => MaterialFabMenuColorRole.TertiaryContainer,
+            _ => MaterialFabMenuColorRole.PrimaryContainer,
+        };
+        _menu.TriggerIcon = icon;
+        _menu.IsEnabled = enabled;
+        SyncMenu();
+        if (!_syncing)
+        {
+            _syncing = true;
+            if (_menu.IsExpanded != (_openMenu.IsChecked == true))
+                _menu.IsExpanded = _openMenu.IsChecked == true;
+            _syncing = false;
+        }
     }
 
-    private static Control Menu(MaterialFabMenuColorRole role, string name, TextBlock status, int segments)
+    private void SyncMenu()
     {
-        var menu = new MaterialFabMenu
+        var count = (int)Math.Round(_actions.Value);
+        while (_menu.Items.Count > count)
+            _menu.Items.RemoveAt(_menu.Items.Count - 1);
+        while (_menu.Items.Count < count)
         {
-            ColorRole = role,
-            VerticalAlignment = VerticalAlignment.Bottom,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        menu.Expanded += (_, _) => status.Text = $"{name} menu expanded.";
-        menu.Collapsed += (_, _) => status.Text = $"{name} menu collapsed.";
-        menu.Items.Add(Segment("Edit", Edit, name, status));
-        menu.Items.Add(Segment("Share", Share, name, status));
-        menu.Items.Add(Segment("Delete", Delete, name, status));
-        if (segments > 3)
-            menu.Items.Add(Segment("Favorite", Favorite, name, status));
-        if (segments > 4)
-            menu.Items.Add(Segment("Camera", Camera, name, status));
+            var segment = new MaterialFabMenuSegment { HorizontalAlignment = HorizontalAlignment.Right };
+            segment.Command = new ActionCommand(() => _status.Text = $"Меню: {segment.Label} выполнено.");
+            _menu.Items.Add(segment);
+        }
 
-        var open = new CheckBox { Content = "Open", VerticalAlignment = VerticalAlignment.Bottom };
-        open[!ToggleButton.IsCheckedProperty] = new Binding(nameof(MaterialFabMenu.IsExpanded))
+        for (var i = 0; i < count; i++)
         {
-            Source = menu,
-            Mode = BindingMode.TwoWay
-        };
-
-        var menuHost = new Panel { Height = 480, Children = { menu } };
-        var column = new StackPanel
-        {
-            Spacing = 8,
-            Width = 180,
-            Children = { open, menuHost }
-        };
-        return column;
+            var segment = (MaterialFabMenuSegment)_menu.Items[i]!;
+            segment.Label = SegmentLabels[i];
+            segment.Icon = SegmentIcons[i];
+        }
     }
 
-    private static MaterialFabMenuSegment Segment(string label, Geometry icon, string menuName, TextBlock status) => new()
+    private static MaterialButtonGroup Choice(StackPanel target, string label, string[] options)
     {
-        Label = label,
-        Icon = icon,
-        Command = new ActionCommand(() => status.Text = $"{menuName} menu: {label} invoked."),
-        HorizontalAlignment = HorizontalAlignment.Right
-    };
+        target.Children.Add(new TextBlock { Text = label });
+        return Group(target, options);
+    }
+
+    private static MaterialButtonGroup Group(StackPanel target, string[] options)
+    {
+        var group = new MaterialButtonGroup
+        {
+            Kind = MaterialButtonGroupKind.Connected,
+            SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true,
+            ControlSize = MaterialControlSize.Small,
+        };
+        foreach (var option in options)
+            group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        group.SelectedIndex = 0;
+        target.Children.Add(group);
+        return group;
+    }
 
     private sealed class ActionCommand(Action action) : ICommand
     {
