@@ -18,11 +18,8 @@
           M3 role and matches the other error variants; the two are the same white in baseline light.
        3) Focus. The source "Show focus indicator" boolean is a static variant switch; here it is
           driven by :focus-visible, so the ring only appears for keyboard focus.
-       4) Checkboxes pressed ripple is exact, not approximated: the source 50x35 vector is drawn by
-          theming:MaterialRipple through its Data property, right/bottom anchored inside the 40-unit
-          state layer (source offset -10,+5), clipped by the 20-unit circle, at the source 0.20 node
-          opacity, above the 0.10 pressed state layer. Radio buttons and Switch have no ripple node
-          in any source variant, so their pressed state is the state layer alone.
+       4) Checkbox ripple expands as a circle inside the 40-unit state layer at 0.20 opacity.
+          The static source-vector arc cutout is intentionally omitted so it cannot slice the wave.
        5) Label geometry. The label presenter is a Grid child, so it is stretched to the 48-unit row
           (32 after its 0,8,8,8 margin) while its content only needs the 24-unit line box. Its child
           is an AccessText (TextBlock), whose VerticalAlignment defaults to Stretch, so the text
@@ -85,13 +82,8 @@
                     Width="12" Height="2" Stretch="None" Margin="3,8,0,0"
                     HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" />
             </Panel>
-            <!-- Source pressed ripple: the exact 50x35 source vector, right/bottom anchored inside
-                 this 40-unit state layer (source offset -10,+5) and clipped by its 20-unit circle.
-                 Painted above the container and the check/mixed mark, exactly as the source frame
-                 order. Data is the source path normalized to its own 50x35 box, including the
-                 rounded bottom-right corner the button-family ripple omits. -->
-            <theming:MaterialRipple Name="Ripple" RippleWidth="50" RippleHeight="35" CornerRadius="20"
-                                    Data="M1,0.111568 L1,0.891891 C1,0.951597 0.966836,1 0.925926,1 L0,1 C0,0.447714 0.306768,0 0.685186,0 C0.798684,0 0.905736,0.040274 1,0.111568 Z"
+            <!-- Circular expanding ripple, without the static source-vector arc cutout. -->
+            <theming:MaterialRipple Name="Ripple" CornerRadius="20"
                                     IsHitTestVisible="False" />
             <Border Name="FocusRing" Width="44" Height="44" CornerRadius="22" BorderThickness="3"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsHitTestVisible="False" />
@@ -169,12 +161,7 @@
          opacity is 0.20 and is carried by the ripple itself, not the state layer. -->
     <Style Selector="^ /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryBrush}" />
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
+      <Setter Property="Opacity" Value="0.2" />
     </Style>
 
     <!-- Selected and indeterminate share the filled 18-unit container with a 2-unit radius. -->
@@ -221,9 +208,6 @@
     <!-- Declared after the checked roles so an error type wins in every selection state. -->
     <Style Selector="^:error /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Fill" Value="{DynamicResource MaterialErrorBrush}" />
-    </Style>
-    <Style Selector="^:pressed:not(:disabled) /template/ theming|MaterialRipple#Ripple">
-      <Setter Property="Opacity" Value="0.2" />
     </Style>
 
     <Style Selector="^:pointerover:not(:disabled) /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
