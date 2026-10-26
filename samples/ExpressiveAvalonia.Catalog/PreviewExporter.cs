@@ -24,27 +24,24 @@ internal static class PreviewExporter
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
             window.RequestedThemeVariant = theme;
-            foreach (var expressive in new[] { false, true })
+            var tabs = window.ExpressivePages;
+            for (var i = 0; i < tabs.ItemCount; i++)
             {
-                var tabs = expressive ? window.ExpressivePages : window.ClassicPages;
-                for (var i = 0; i < tabs.ItemCount; i++)
+                window.SelectPage(i);
+                var item = (TabItem)tabs.Items[i]!;
+                var page = window.CurrentPage!;
+                window.SetPreviewContent(null);
+                var original = window.Content;
+                window.Content = page;
+                try
                 {
-                    window.SelectPage(expressive, i);
-                    var item = (TabItem)tabs.Items[i]!;
-                    var page = window.CurrentPage!;
-                    window.SetPreviewContent(null);
-                    var original = window.Content;
-                    window.Content = page;
-                    try
-                    {
-                        await CaptureVariants(window, page, $"{theme} / {(expressive ? "MD3 Expressive" : "MD3 Classic")} / {item.Header}");
-                    }
-                    finally
-                    {
-                        window.Content = null;
-                        window.Content = original;
-                        window.SetPreviewContent(page);
-                    }
+                    await CaptureVariants(window, page, $"{theme} / MD3 Expressive / {item.Header}");
+                }
+                finally
+                {
+                    window.Content = null;
+                    window.Content = original;
+                    window.SetPreviewContent(page);
                 }
             }
         }

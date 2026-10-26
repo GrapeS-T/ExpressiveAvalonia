@@ -12,8 +12,7 @@ namespace ExpressiveAvalonia.Catalog;
 /// <summary>A live tab strip with its configuration exposed in the inspector.</summary>
 public static class TabsGallery
 {
-    public static Control Create() => new TabsPlayground(true);
-    public static Control CreateClassic() => new TabsPlayground(false);
+    public static Control Create() => new TabsPlayground();
 }
 
 internal sealed class TabsPlayground : Grid, IComponentPlayground
@@ -33,7 +32,7 @@ internal sealed class TabsPlayground : Grid, IComponentPlayground
     private readonly TextBlock _readout = new() { Text = "Выбрана вкладка: 1", HorizontalAlignment = HorizontalAlignment.Center };
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
-    internal TabsPlayground(bool expressive)
+    internal TabsPlayground()
     {
         var panel = new StackPanel { Spacing = 24, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(24) };
         panel.Children.Add(_tabs);

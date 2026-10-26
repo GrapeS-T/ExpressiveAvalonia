@@ -67,7 +67,7 @@ internal sealed class CatalogInspector : ScrollViewer
 
     private sealed record OriginalButtonSize(MaterialControlSize Size);
 
-    internal void SetPage(Control page, bool expressive)
+    internal void SetPage(Control page)
     {
         _restorePage?.Invoke();
         _restorePage = null;

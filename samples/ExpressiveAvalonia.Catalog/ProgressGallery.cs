@@ -10,16 +10,14 @@ using Avalonia.VisualTree;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>Live progress indicators with edition-specific options and animation controls.</summary>
+/// <summary>Live Expressive progress indicators with animation controls.</summary>
 public static class ProgressGallery
 {
-    public static Control Create() => new ProgressPlayground(true);
-    public static Control CreateClassic() => new ProgressPlayground(false);
+    public static Control Create() => new ProgressPlayground();
 }
 
 internal sealed class ProgressPlayground : Grid, IComponentPlayground
 {
-    private readonly bool _expressive;
     private readonly ProgressBar _linear = new() { Value = 50, Width = 320 };
     private readonly CircularProgressIndicator _circular = new() { Value = 50, Width = 48, Height = 48 };
     private readonly LoadingIndicator _loading = new();
@@ -47,14 +45,13 @@ internal sealed class ProgressPlayground : Grid, IComponentPlayground
     private readonly List<Visual> _visibilityAncestors = new();
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
-    internal ProgressPlayground(bool expressive)
+    internal ProgressPlayground()
     {
-        _expressive = expressive;
         var stage = new StackPanel { Spacing = 32, Margin = new Thickness(24), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         stage.Children.Add(_host);
         stage.Children.Add(_readout);
         Children.Add(stage);
-        _kind = Choice("Индикатор", expressive ? new[] { "Linear", "Circular", "Loading" } : new[] { "Linear", "Circular" });
+        _kind = Choice("Индикатор", new[] { "Linear", "Circular", "Loading" });
         _behavior = Choice("Поведение", new[] { "Determinate", "Indeterminate" });
         _shape = Choice("Форма", new[] { "Flat", "Wave" });
         _animate = Toggle("Анимация", true);
@@ -161,12 +158,12 @@ internal sealed class ProgressPlayground : Grid, IComponentPlayground
     {
         var loading = _kind.SelectedIndex == 2;
         var circular = _kind.SelectedIndex == 1;
-        var wave = _expressive && _shape.SelectedIndex == 1;
+        var wave = _shape.SelectedIndex == 1;
         ((Control)_behavior.Parent!).IsVisible = !loading;
-        ((Control)_shape.Parent!).IsVisible = _expressive && !loading;
+        ((Control)_shape.Parent!).IsVisible = !loading;
         ((Control)_value.Parent!).IsVisible = !loading && _behavior.SelectedIndex == 0;
         _value.IsEnabled = _animate.IsChecked != true || MaterialMotion.GetIsReduced(this);
-        ((Control)_thickness.Parent!).IsVisible = _expressive && !loading;
+        ((Control)_thickness.Parent!).IsVisible = !loading;
         ((Control)_length.Parent!).IsVisible = !loading && !circular;
         ((Control)_diameter.Parent!).IsVisible = circular || loading;
         ((Control)_wavelength.Parent!).IsVisible = wave && !loading && !circular;
@@ -176,12 +173,12 @@ internal sealed class ProgressPlayground : Grid, IComponentPlayground
         _container.IsVisible = loading;
         var type = wave ? ProgressIndicatorType.Wave : ProgressIndicatorType.Flat;
         MaterialProgress.SetIndicatorType(_linear, type);
-        MaterialProgress.SetThickness(_linear, _expressive ? _thickness.Value : 4);
+        MaterialProgress.SetThickness(_linear, _thickness.Value);
         MaterialProgress.SetWavelength(_linear, _wavelength.Value);
         _linear.Width = _length.Value;
         _linear.IsIndeterminate = _circular.IsIndeterminate = _behavior.SelectedIndex == 1;
         _circular.IndicatorType = type;
-        _circular.StrokeThickness = _expressive ? _thickness.Value : 4;
+        _circular.StrokeThickness = _thickness.Value;
         _circular.Width = _circular.Height = _diameter.Value;
         _circular.WaveLobes = (int)_lobes.Value;
         _circular.ShowTrack = _track.IsChecked == true;
