@@ -1,147 +1,278 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>Source families: Checkboxes (local-001236), Radio buttons (local-004445), Switch (local-005081).</summary>
+/// <summary>A live checkbox, radio group or switch with its anatomy exposed in the inspector.</summary>
 public static class SelectionGallery
 {
-    public static Control Create()
+    public static Control Create() => new SelectionPlayground(true);
+    public static Control CreateClassic() => new SelectionPlayground(false);
+}
+
+internal sealed class SelectionPlayground : Grid
+{
+    private static int _instances;
+    private readonly bool _expressive;
+    private readonly Border _host = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _readout = new() { HorizontalAlignment = HorizontalAlignment.Center, FontSize = 16, TextWrapping = TextWrapping.Wrap };
+    private readonly CheckBox _check = new() { IsChecked = true };
+    private readonly RadioButton[] _radios;
+    private readonly StackPanel _radioGroup = new() { Spacing = 4 };
+    private readonly ToggleSwitch _switch = new() { IsChecked = true };
+    private readonly string[] _radioLabels = { "Доставка курьером", "Самовывоз из магазина", "Пункт выдачи" };
+    private readonly MaterialButtonGroup _kind;
+    private readonly MaterialButtonGroup _checkState;
+    private readonly MaterialButtonGroup _switchState;
+    private readonly ComboBox _radioChoice;
+    private readonly StackPanel _checkSettings;
+    private readonly StackPanel _radioSettings;
+    private readonly StackPanel _switchSettings;
+    private readonly TextBox _label;
+    private readonly ToggleSwitch _threeState;
+    private readonly ToggleSwitch _error;
+    private readonly ToggleSwitch _icons;
+    private readonly ToggleSwitch _enabled;
+    private readonly ToggleSwitch _rtl;
+    private string _checkLabel = "Согласен с условиями";
+    private string _switchLabel = "Тёмная тема";
+    private int _type;
+    private bool _syncing;
+    internal StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    internal SelectionPlayground(bool expressive)
     {
-        var status = new TextBlock { Text = "Состояние: ожидание", FontSize = 16 };
-        var panel = new StackPanel { Spacing = 24, Margin = new Thickness(24) };
-
-        panel.Children.Add(Heading("Checkboxes · local-001236"));
-        panel.Children.Add(Note("Типы: unselected / selected / indeterminate / error × состояния enabled / disabled. " +
-                                "Пробел и Enter переключают; трёхпозиционный флажок циклически проходит все три значения."));
-        panel.Children.Add(Wrap(
-            Check("Unselected", false, status),
-            Check("Selected", true, status),
-            Indeterminate(status),
-            DisabledCheck("Disabled", false),
-            DisabledCheck("Disabled selected", true),
-            ErrorCheck("Error unselected", false),
-            ErrorCheck("Error selected", true),
-            ErrorCheck("Error indeterminate", null)));
-
-        panel.Children.Add(Heading("Radio buttons · local-004445"));
-        panel.Children.Add(Note("Собственная группа Avalonia: стрелки перемещают выбор внутри группы, " +
-                                "Checked срабатывает только при входе в состояние."));
-        var groupA = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var groupB = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        for (var i = 1; i <= 3; i++)
+        _expressive = expressive;
+        var groupName = $"selection-demo-{Interlocked.Increment(ref _instances)}";
+        _radios = new RadioButton[_radioLabels.Length];
+        for (var i = 0; i < _radios.Length; i++)
         {
-            var radio = new RadioButton { Content = $"Вариант {i}", GroupName = "gallery-a", IsChecked = i == 1 };
             var index = i;
-            radio.IsCheckedChanged += (_, _) =>
-            {
-                if (radio.IsChecked == true) status.Text = $"Состояние: radio A{index}";
-            };
-            groupA.Children.Add(radio);
+            var radio = new RadioButton { Content = _radioLabels[i], GroupName = groupName, IsChecked = i == 0 };
+            AutomationProperties.SetName(radio, _radioLabels[i]);
+            radio.IsCheckedChanged += (_, _) => RadioChanged(index);
+            _radios[i] = radio;
+            _radioGroup.Children.Add(radio);
         }
-        for (var i = 1; i <= 3; i++)
-            groupB.Children.Add(new RadioButton { Content = $"Группа B{i}", GroupName = "gallery-b", IsChecked = i == 2 });
-        var disabledRadio = new RadioButton { Content = "Disabled", IsEnabled = false, GroupName = "gallery-c" };
-        var disabledCheckedRadio = new RadioButton { Content = "Disabled selected", IsEnabled = false, IsChecked = true, GroupName = "gallery-d" };
-        panel.Children.Add(groupA);
-        panel.Children.Add(groupB);
-        panel.Children.Add(Row(disabledRadio, disabledCheckedRadio));
+        _check.Content = _checkLabel;
+        _switch.Content = _switchLabel;
+        AutomationProperties.SetName(_check, _checkLabel);
+        AutomationProperties.SetName(_switch, _switchLabel);
 
-        panel.Children.Add(Heading("Switch · local-005081"));
-        panel.Children.Add(Note("Типы: selected × icon × состояние. Ручка перетаскивается указателем; " +
-                                "ShowSwitchIcons включает встроенные глифы check/close из источника."));
-        panel.Children.Add(Wrap(
-            Switch("Off", false, false, status),
-            Switch("On", true, false, status),
-            Switch("Off + icons", false, true, status),
-            Switch("On + icons", true, true, status)));
-        panel.Children.Add(Wrap(
-            DisabledSwitch("Disabled", false, false),
-            DisabledSwitch("Disabled on", true, false),
-            DisabledSwitch("Disabled + icons", false, true),
-            DisabledSwitch("Disabled on + icons", true, true)));
-
-        panel.Children.Add(Heading("Handle icon content"));
-        panel.Children.Add(Note("OnContent/OffContent остаются штатным способом задать пользовательский глиф ручки."));
-        var contentSwitch = new ToggleSwitch
+        var stage = new StackPanel
         {
-            IsChecked = true,
-            OnContent = new PathIcon { Width = 16, Height = 16, Data = Geometry.Parse("M3.8 8.01667L0 4.21667L0.95 3.26667L3.8 6.11667L9.91667 0L10.8667 0.95L3.8 8.01667Z") },
-            OffContent = new PathIcon { Width = 16, Height = 16, Data = Geometry.Parse("M0.933333 9.33333L0 8.4L3.73333 4.66667L0 0.933333L0.933333 0L4.66667 3.73333L8.4 0L9.33333 0.933333L5.6 4.66667L9.33333 8.4L8.4 9.33333L4.66667 5.6L0.933333 9.33333Z") },
+            Spacing = 24,
+            Margin = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
-        panel.Children.Add(contentSwitch);
+        stage.Children.Add(_host);
+        stage.Children.Add(_readout);
+        Children.Add(stage);
 
-        panel.Children.Add(status);
-        return new ScrollViewer
+        _kind = Choice(Settings, "Тип", new[] { "Checkbox", "Radio", "Switch" }, 0);
+        _label = new TextBox { Text = _checkLabel, HorizontalAlignment = HorizontalAlignment.Stretch };
+        MaterialTextField.SetVariant(_label, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(_label, "Подпись");
+        AutomationProperties.SetName(_label, "Подпись");
+        Settings.Children.Add(_label);
+
+        _checkSettings = new StackPanel { Spacing = 16 };
+        _checkState = Choice(_checkSettings, "Состояние", new[] { "Off", "On", "Indeterminate" }, 1);
+        _threeState = Toggle(_checkSettings, "Трёхпозиционный флажок", false);
+        _error = Toggle(_checkSettings, "Ошибка валидации", false);
+        Settings.Children.Add(_checkSettings);
+
+        _radioSettings = new StackPanel { Spacing = 16 };
+        _radioSettings.Children.Add(new TextBlock { Text = "Выбранный вариант" });
+        _radioChoice = new ComboBox
         {
-            Content = panel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            ItemsSource = _radioLabels.ToArray(),
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
+        AutomationProperties.SetName(_radioChoice, "Выбранный вариант");
+        _radioSettings.Children.Add(_radioChoice);
+        Settings.Children.Add(_radioSettings);
+
+        _switchSettings = new StackPanel { Spacing = 16 };
+        _switchState = Choice(_switchSettings, "Состояние", new[] { "Off", "On" }, 1);
+        _icons = Toggle(_switchSettings, "Встроенные иконки (ShowSwitchIcons)", true);
+        Settings.Children.Add(_switchSettings);
+
+        _enabled = Toggle(Settings, "Доступен", true);
+        _rtl = Toggle(Settings, "Справа налево (RTL)", false);
+        Settings.Children.Add(new TextBlock
+        {
+            Text = (_expressive ? "MD3 Expressive" : "MD3") + " использует общий шаблон Selection: контейнер флажка 18 dp, " +
+                   "глиф радиокнопки 20 dp, дорожка переключателя 52 × 32 dp. Клик, Space, Enter и стрелки — настоящие состояния; " +
+                   "трёхпозиционный флажок циклически проходит Off → On → Indeterminate. Подпись меняется справа, " +
+                   "а состояние примера всегда отражается в инспекторе.",
+            TextWrapping = TextWrapping.Wrap, FontSize = 13
+        });
+
+        _kind.SelectionChanged += (_, _) => { if (!_syncing) SelectType(_kind.SelectedIndex); };
+        _label.TextChanged += (_, _) => { if (!_syncing) ApplyLabel(); };
+        _checkState.SelectionChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            _syncing = true;
+            _check.IsChecked = _checkState.SelectedIndex switch { 0 => false, 1 => true, _ => (bool?)null };
+            _syncing = false;
+            UpdateReadout();
+        };
+        _check.IsCheckedChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            _syncing = true;
+            _checkState.SelectedIndex = _check.IsChecked switch { null => 2, true => 1, false => 0 };
+            _syncing = false;
+            UpdateReadout();
+        };
+        _switchState.SelectionChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            _syncing = true;
+            _switch.IsChecked = _switchState.SelectedIndex == 1;
+            _syncing = false;
+            UpdateReadout();
+        };
+        _switch.IsCheckedChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            _syncing = true;
+            _switchState.SelectedIndex = _switch.IsChecked == true ? 1 : 0;
+            _syncing = false;
+            UpdateReadout();
+        };
+        _radioChoice.SelectionChanged += (_, _) =>
+        {
+            if (_syncing || _radioChoice.SelectedIndex < 0) return;
+            var index = _radioChoice.SelectedIndex;
+            _syncing = true;
+            _radios[index].IsChecked = true;
+            _label.Text = _radioLabels[index];
+            _syncing = false;
+            UpdateReadout();
+        };
+        _threeState.IsCheckedChanged += (_, _) => _check.IsThreeState = _threeState.IsChecked == true;
+        _error.IsCheckedChanged += (_, _) => DataValidationErrors.SetErrors(_check,
+            _error.IsChecked == true ? new object[] { "Обязательное поле" } : null);
+        _icons.IsCheckedChanged += (_, _) => MaterialSelection.SetShowSwitchIcons(_switch, _icons.IsChecked == true);
+        _enabled.IsCheckedChanged += (_, _) => _host.IsEnabled = _enabled.IsChecked == true;
+        _rtl.IsCheckedChanged += (_, _) =>
+            _host.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+
+        MaterialSelection.SetShowSwitchIcons(_switch, _icons.IsChecked == true);
+        SelectType(0);
     }
 
-    private static TextBlock Heading(string text) => new()
+    private void SelectType(int index)
     {
-        Text = text,
-        FontSize = 22,
-        FontWeight = FontWeight.Medium,
+        _type = Math.Clamp(index, 0, 2);
+        _host.Child = _type switch { 1 => _radioGroup, 2 => _switch, _ => _check };
+        _checkSettings.IsVisible = _type == 0;
+        _radioSettings.IsVisible = _type == 1;
+        _switchSettings.IsVisible = _type == 2;
+        _syncing = true;
+        _label.Text = CurrentLabel();
+        _syncing = false;
+        UpdateReadout();
+    }
+
+    private string CurrentLabel() => _type switch
+    {
+        1 => _radioLabels[Math.Max(0, _radioChoice.SelectedIndex)],
+        2 => _switchLabel,
+        _ => _checkLabel
     };
 
-    private static TextBlock Note(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap, MaxWidth = 760 };
-
-    private static WrapPanel Wrap(params Control[] children)
+    private void ApplyLabel()
     {
-        var wrap = new WrapPanel { ItemSpacing = 16, LineSpacing = 8 };
-        foreach (var child in children) wrap.Children.Add(child);
-        return wrap;
+        var text = _label.Text ?? "";
+        switch (_type)
+        {
+            case 1:
+                var index = Math.Max(0, _radioChoice.SelectedIndex);
+                _radioLabels[index] = text;
+                _radios[index].Content = text;
+                AutomationProperties.SetName(_radios[index], RadioLabel(index));
+                // The choice list mirrors the edited labels; restore the same selection afterwards.
+                var previous = _syncing;
+                _syncing = true;
+                _radioChoice.ItemsSource = _radioLabels.ToArray();
+                _radioChoice.SelectedIndex = index;
+                _syncing = previous;
+                break;
+            case 2:
+                _switchLabel = text;
+                _switch.Content = text;
+                AutomationProperties.SetName(_switch, string.IsNullOrWhiteSpace(text) ? "Switch" : text);
+                break;
+            default:
+                _checkLabel = text;
+                _check.Content = text;
+                AutomationProperties.SetName(_check, string.IsNullOrWhiteSpace(text) ? "Checkbox" : text);
+                break;
+        }
+        UpdateReadout();
     }
 
-    private static StackPanel Row(params Control[] children)
+    private void RadioChanged(int index)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
-        foreach (var child in children) row.Children.Add(child);
-        return row;
+        if (_syncing || _radios[index].IsChecked != true) return;
+        _syncing = true;
+        _radioChoice.SelectedIndex = index;
+        _label.Text = _radioLabels[index];
+        _syncing = false;
+        UpdateReadout();
     }
 
-    private static CheckBox Check(string label, bool value, TextBlock status)
+    private void UpdateReadout()
     {
-        var check = new CheckBox { Content = label, IsChecked = value };
-        check.IsCheckedChanged += (_, _) => status.Text = $"Состояние: {label} = {check.IsChecked}";
-        return check;
+        _readout.Text = _type switch
+        {
+            1 => $"Выбрано: {RadioLabel(Math.Max(0, _radioChoice.SelectedIndex))}",
+            2 => _switch.IsChecked == true ? "Состояние: включено" : "Состояние: выключено",
+            _ => _check.IsChecked switch
+            {
+                null => "Состояние: неопределённое",
+                true => "Состояние: включено",
+                false => "Состояние: выключено"
+            }
+        };
     }
 
-    private static CheckBox Indeterminate(TextBlock status)
+    private string RadioLabel(int index) =>
+        string.IsNullOrWhiteSpace(_radioLabels[index]) ? $"Вариант {index + 1}" : _radioLabels[index];
+
+    private static MaterialButtonGroup Choice(StackPanel host, string label, string[] options, int selected)
     {
-        var check = new CheckBox { Content = "Indeterminate", IsThreeState = true, IsChecked = null };
-        check.IsCheckedChanged += (_, _) => status.Text = $"Состояние: indeterminate = {check.IsChecked?.ToString() ?? "null"}";
-        return check;
+        host.Children.Add(new TextBlock { Text = label });
+        var group = new MaterialButtonGroup
+        {
+            Kind = MaterialButtonGroupKind.Connected,
+            ButtonShape = MaterialButtonShape.Round,
+            ControlSize = MaterialControlSize.Small,
+            SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true
+        };
+        foreach (var option in options) group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        // Items first: adding items clamps a selection that points past the current item count.
+        group.SelectedIndex = selected;
+        host.Children.Add(group);
+        return group;
     }
 
-    private static CheckBox DisabledCheck(string label, bool value) =>
-        new() { Content = label, IsChecked = value, IsEnabled = false };
-
-    private static CheckBox ErrorCheck(string label, bool? value)
-    {
-        var check = new CheckBox { Content = label, IsChecked = value, IsThreeState = value is null };
-        DataValidationErrors.SetErrors(check, new object[] { "Обязательное поле" });
-        return check;
-    }
-
-    private static ToggleSwitch Switch(string label, bool value, bool icons, TextBlock status)
+    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
     {
         var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        MaterialSelection.SetShowSwitchIcons(toggle, icons);
-        toggle.IsCheckedChanged += (_, _) => status.Text = $"Состояние: {label} = {toggle.IsChecked}";
-        return toggle;
-    }
-
-    private static ToggleSwitch DisabledSwitch(string label, bool value, bool icons)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value, IsEnabled = false };
-        MaterialSelection.SetShowSwitchIcons(toggle, icons);
+        host.Children.Add(toggle);
         return toggle;
     }
 }

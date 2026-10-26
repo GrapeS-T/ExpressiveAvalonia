@@ -23,6 +23,29 @@
           state layer (source offset -10,+5), clipped by the 20-unit circle, at the source 0.20 node
           opacity, above the 0.10 pressed state layer. Radio buttons and Switch have no ripple node
           in any source variant, so their pressed state is the state layer alone.
+       5) Label geometry. The label presenter is a Grid child, so it is stretched to the 48-unit row
+          (32 after its 0,8,8,8 margin) while its content only needs the 24-unit line box. Its child
+          is an AccessText (TextBlock), whose VerticalAlignment defaults to Stretch, so the text
+          filled the 32-unit presenter and TextBlock renders text at the top of its own bounds - the
+          label sat (32-24)/2 = 4 units above the glyph centre. The presenter now centres itself
+          with VerticalAlignment="{TemplateBinding VerticalContentAlignment}" and wraps, which is the
+          same contract the Fluent CheckBox uses; the text block is then exactly one line box tall
+          and the row still grows for a wrapped label instead of clipping it.
+       6) Halo geometry is source-exact, not centred on the target. Source frames put the 40-unit
+          state layer at +4,+4 inside the 48-unit checkbox/radio target (Figma 51859:5665 state-layer
+          114,725 vs component 110,721; 51739:4621 state-layer 114,637 vs component 110,633), i.e.
+          concentric with the 18/20-unit glyph. The switch halo is concentric with the *handle*, not
+          the track (54446:25373: track 402,680 52x32, state layer 398,676 40x40 centred on the
+          handle at x=418; 54446:25290 checked: track 102,520, state layer 118,516 centred on x=138),
+          so it overhangs the track by 4 at the handle end exactly as the source frame does. The
+          source component has clipsContent=false, so it is not clipped here either.
+       7) Press motion. The source families are static frames; this theme keeps the source state
+          layer and ripple and adds the pressure cue the platform expects: the glyph group scales
+          1 -> 0.9 while pressed and returns through the same token duration on release, so the
+          cue exists for pointer, Space and touch alike. The duration is MaterialDurationShort2,
+          which Motion="Reduced" zeroes, leaving an instant state change with no residual motion.
+          The switch needs no extra cue: its handle already grows 16/24 -> 28 on press through the
+          source geometry, with the same token contract.
        Every painted property is supplied by a style rather than a literal template value, so the
        state styles below always win over the template defaults. -->
   <ControlTheme x:Key="{x:Type CheckBox}" TargetType="CheckBox">
@@ -38,21 +61,30 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Grid ColumnDefinitions="48,*" Background="{TemplateBinding Background}">
-          <!-- 40-unit state layer inside the 48-unit target; the 18-unit box is centred in both. -->
-          <Panel Width="40" Height="40" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <!-- 40-unit state layer inside the 48-unit target; the 18-unit box is centred in both.
+               Layout rounding is off for the anatomy group: the odd 18-unit glyph centred in the
+               40-unit halo lands on a half physical pixel at fractional scales (125% put the box
+               centre at 24.4 while the halo stayed at 24), so the pair antialiases asymmetrically
+               and reads as an offset halo. Rounding off keeps the source DIP geometry exact and
+               the antialiasing symmetric, which is the same choice the Fluent check box makes. -->
+          <Panel Width="40" Height="40" HorizontalAlignment="Center" VerticalAlignment="Center"
+                 UseLayoutRounding="False">
             <Border Name="StateLayer" Width="40" Height="40" CornerRadius="20" IsHitTestVisible="False" />
-            <!-- The 18-unit container holds both marks. The source places the 12x9.4 check at
-                 (3,4) and the 12x2 mixed bar at (3,8) inside it. -->
-            <Border Name="Box" Width="18" Height="18" CornerRadius="2">
-              <Panel>
-                <Path Name="Check" Data="M4 9.4L0 5.4L1.4 4L4 6.6L10.6 0L12 1.4L4 9.4Z"
-                      Width="12" Height="9.4" Stretch="None" Margin="3,4,0,0"
-                      HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" />
-                <Path Name="Mixed" Data="M0 2L0 0L12 0L12 2L0 2Z"
-                      Width="12" Height="2" Stretch="None" Margin="3,8,0,0"
-                      HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" />
-              </Panel>
-            </Border>
+            <!-- The 18-unit glyph group holds the box and both marks as siblings. The marks used to
+                 be Border children, and a Border lays its child out inside its own
+                 BorderThickness, so with the 2-unit outline the marks sat at (5,6)/(5,10) instead
+                 of the source (3,4)/(3,8) and slid diagonally while the outline animated 2 -> 0 on
+                 selection. The source measures both marks from the container's outer origin, which
+                 is what this flat group reproduces. The group is also the pressure-scale target. -->
+            <Panel Name="Glyph" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Border Name="Box" Width="18" Height="18" CornerRadius="2" />
+              <Path Name="Check" Data="M4 9.4L0 5.4L1.4 4L4 6.6L10.6 0L12 1.4L4 9.4Z"
+                    Width="12" Height="9.4" Stretch="None" Margin="3,4,0,0"
+                    HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" />
+              <Path Name="Mixed" Data="M0 2L0 0L12 0L12 2L0 2Z"
+                    Width="12" Height="2" Stretch="None" Margin="3,8,0,0"
+                    HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" />
+            </Panel>
             <!-- Source pressed ripple: the exact 50x35 source vector, right/bottom anchored inside
                  this 40-unit state layer (source offset -10,+5) and clipped by its 20-unit circle.
                  Painted above the container and the check/mixed mark, exactly as the source frame
@@ -64,12 +96,17 @@
             <Border Name="FocusRing" Width="44" Height="44" CornerRadius="22" BorderThickness="3"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsHitTestVisible="False" />
           </Panel>
+          <!-- VerticalAlignment is what centres the label: a stretched presenter would hand the
+               AccessText more height than its line box and TextBlock draws text at the top of it. -->
           <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1" Margin="0,8,8,8"
                             Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
                             LetterSpacing="{TemplateBinding LetterSpacing}"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            TextWrapping="Wrap"
                             RecognizesAccessKey="True" />
         </Grid>
       </ControlTemplate>
@@ -112,6 +149,20 @@
     </Style>
     <Style Selector="^ /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <!-- Pressure cue: the box and its mark compress together while pressed and return on release.
+         The duration is a token, so reduced motion turns it into an instant state change. -->
+    <Style Selector="^ /template/ Panel#Glyph">
+      <Setter Property="RenderTransform" Value="scale(1)" />
+      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pressed:not(:disabled) /template/ Panel#Glyph">
+      <Setter Property="RenderTransform" Value="scale(0.9)" />
     </Style>
     <!-- Ripple paint roles from the source pressed variants: Primary on an unselected box,
          OnSurface on a selected/indeterminate box, Error in every error type. The source node
@@ -214,23 +265,34 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Grid ColumnDefinitions="48,*" Background="{TemplateBinding Background}">
-          <Panel Width="40" Height="40" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <!-- Layout rounding off, as in the checkbox: the 20-unit glyph centred in the 40-unit halo
+               otherwise lands on a half pixel at fractional scales and reads as a shifted glyph. -->
+          <Panel Width="40" Height="40" HorizontalAlignment="Center" VerticalAlignment="Center"
+                 UseLayoutRounding="False">
             <Border Name="StateLayer" Width="40" Height="40" CornerRadius="20" IsHitTestVisible="False" />
-            <Path Name="RadioUnchecked" Width="20" Height="20" Stretch="None"
-                  Data="M10 20C8.61667 20 7.31667 19.7375 6.1 19.2125C4.88333 18.6875 3.825 17.975 2.925 17.075C2.025 16.175 1.3125 15.1167 0.7875 13.9C0.2625 12.6833 0 11.3833 0 10C0 8.61667 0.2625 7.31667 0.7875 6.1C1.3125 4.88333 2.025 3.825 2.925 2.925C3.825 2.025 4.88333 1.3125 6.1 0.7875C7.31667 0.2625 8.61667 0 10 0C11.3833 0 12.6833 0.2625 13.9 0.7875C15.1167 1.3125 16.175 2.025 17.075 2.925C17.975 3.825 18.6875 4.88333 19.2125 6.1C19.7375 7.31667 20 8.61667 20 10C20 11.3833 19.7375 12.6833 19.2125 13.9C18.6875 15.1167 17.975 16.175 17.075 17.075C16.175 17.975 15.1167 18.6875 13.9 19.2125C12.6833 19.7375 11.3833 20 10 20ZM10 18C12.2333 18 14.125 17.225 15.675 15.675C17.225 14.125 18 12.2333 18 10C18 7.76667 17.225 5.875 15.675 4.325C14.125 2.775 12.2333 2 10 2C7.76667 2 5.875 2.775 4.325 4.325C2.775 5.875 2 7.76667 2 10C2 12.2333 2.775 14.125 4.325 15.675C5.875 17.225 7.76667 18 10 18Z"
-                  HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
-            <Path Name="RadioChecked" Width="20" Height="20" Stretch="None"
-                  Data="M10 15C11.3833 15 12.5625 14.5125 13.5375 13.5375C14.5125 12.5625 15 11.3833 15 10C15 8.61667 14.5125 7.4375 13.5375 6.4625C12.5625 5.4875 11.3833 5 10 5C8.61667 5 7.4375 5.4875 6.4625 6.4625C5.4875 7.4375 5 8.61667 5 10C5 11.3833 5.4875 12.5625 6.4625 13.5375C7.4375 14.5125 8.61667 15 10 15ZM10 20C8.61667 20 7.31667 19.7375 6.1 19.2125C4.88333 18.6875 3.825 17.975 2.925 17.075C2.025 16.175 1.3125 15.1167 0.7875 13.9C0.2625 12.6833 0 11.3833 0 10C0 8.61667 0.2625 7.31667 0.7875 6.1C1.3125 4.88333 2.025 3.825 2.925 2.925C3.825 2.025 4.88333 1.3125 6.1 0.7875C7.31667 0.2625 8.61667 0 10 0C11.3833 0 12.6833 0.2625 13.9 0.7875C15.1167 1.3125 16.175 2.025 17.075 2.925C17.975 3.825 18.6875 4.88333 19.2125 6.1C19.7375 7.31667 20 8.61667 20 10C20 11.3833 19.7375 12.6833 19.2125 13.9C18.6875 15.1167 17.975 16.175 17.075 17.075C16.175 17.975 15.1167 18.6875 13.9 19.2125C12.6833 19.7375 11.3833 20 10 20ZM10 18C12.2333 18 14.125 17.225 15.675 15.675C17.225 14.125 18 12.2333 18 10C18 7.76667 17.225 5.875 15.675 4.325C14.125 2.775 12.2333 2 10 2C7.76667 2 5.875 2.775 4.325 4.325C2.775 5.875 2 7.76667 2 10C2 12.2333 2.775 14.125 4.325 15.675C5.875 17.225 7.76667 18 10 18Z"
-                  HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+            <!-- The 20-unit glyph group carries the pressure scale; the two source paths keep their
+                 own selection transforms inside it. -->
+            <Panel Name="Glyph" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Path Name="RadioUnchecked" Width="20" Height="20" Stretch="None"
+                    Data="M10 20C8.61667 20 7.31667 19.7375 6.1 19.2125C4.88333 18.6875 3.825 17.975 2.925 17.075C2.025 16.175 1.3125 15.1167 0.7875 13.9C0.2625 12.6833 0 11.3833 0 10C0 8.61667 0.2625 7.31667 0.7875 6.1C1.3125 4.88333 2.025 3.825 2.925 2.925C3.825 2.025 4.88333 1.3125 6.1 0.7875C7.31667 0.2625 8.61667 0 10 0C11.3833 0 12.6833 0.2625 13.9 0.7875C15.1167 1.3125 16.175 2.025 17.075 2.925C17.975 3.825 18.6875 4.88333 19.2125 6.1C19.7375 7.31667 20 8.61667 20 10C20 11.3833 19.7375 12.6833 19.2125 13.9C18.6875 15.1167 17.975 16.175 17.075 17.075C16.175 17.975 15.1167 18.6875 13.9 19.2125C12.6833 19.7375 11.3833 20 10 20ZM10 18C12.2333 18 14.125 17.225 15.675 15.675C17.225 14.125 18 12.2333 18 10C18 7.76667 17.225 5.875 15.675 4.325C14.125 2.775 12.2333 2 10 2C7.76667 2 5.875 2.775 4.325 4.325C2.775 5.875 2 7.76667 2 10C2 12.2333 2.775 14.125 4.325 15.675C5.875 17.225 7.76667 18 10 18Z"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+              <Path Name="RadioChecked" Width="20" Height="20" Stretch="None"
+                    Data="M10 15C11.3833 15 12.5625 14.5125 13.5375 13.5375C14.5125 12.5625 15 11.3833 15 10C15 8.61667 14.5125 7.4375 13.5375 6.4625C12.5625 5.4875 11.3833 5 10 5C8.61667 5 7.4375 5.4875 6.4625 6.4625C5.4875 7.4375 5 8.61667 5 10C5 11.3833 5.4875 12.5625 6.4625 13.5375C7.4375 14.5125 8.61667 15 10 15ZM10 20C8.61667 20 7.31667 19.7375 6.1 19.2125C4.88333 18.6875 3.825 17.975 2.925 17.075C2.025 16.175 1.3125 15.1167 0.7875 13.9C0.2625 12.6833 0 11.3833 0 10C0 8.61667 0.2625 7.31667 0.7875 6.1C1.3125 4.88333 2.025 3.825 2.925 2.925C3.825 2.025 4.88333 1.3125 6.1 0.7875C7.31667 0.2625 8.61667 0 10 0C11.3833 0 12.6833 0.2625 13.9 0.7875C15.1167 1.3125 16.175 2.025 17.075 2.925C17.975 3.825 18.6875 4.88333 19.2125 6.1C19.7375 7.31667 20 8.61667 20 10C20 11.3833 19.7375 12.6833 19.2125 13.9C18.6875 15.1167 17.975 16.175 17.075 17.075C16.175 17.975 15.1167 18.6875 13.9 19.2125C12.6833 19.7375 11.3833 20 10 20ZM10 18C12.2333 18 14.125 17.225 15.675 15.675C17.225 14.125 18 12.2333 18 10C18 7.76667 17.225 5.875 15.675 4.325C14.125 2.775 12.2333 2 10 2C7.76667 2 5.875 2.775 4.325 4.325C2.775 5.875 2 7.76667 2 10C2 12.2333 2.775 14.125 4.325 15.675C5.875 17.225 7.76667 18 10 18Z"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+            </Panel>
             <Border Name="FocusRing" Width="44" Height="44" CornerRadius="22" BorderThickness="3"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsHitTestVisible="False" />
           </Panel>
+          <!-- Same label contract as the checkbox: centre the presenter, not the stretched text. -->
           <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1" Margin="0,8,8,8"
                             Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
                             LetterSpacing="{TemplateBinding LetterSpacing}"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            TextWrapping="Wrap"
                             RecognizesAccessKey="True" />
         </Grid>
       </ControlTemplate>
@@ -271,6 +333,21 @@
     </Style>
     <Style Selector="^ /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <!-- Pressure cue, same contract as the checkbox: the glyph group compresses on press and
+         returns on release through a token duration, so reduced motion makes it instant. -->
+    <Style Selector="^ /template/ Panel#Glyph">
+      <Setter Property="RenderTransform" Value="scale(1)" />
+      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pressed:not(:disabled) /template/ Panel#Glyph">
+      <Setter Property="RenderTransform" Value="scale(0.9)" />
     </Style>
 
     <Style Selector="^:checked /template/ Path#RadioUnchecked"><Setter Property="Opacity" Value="0" /></Style>
@@ -329,7 +406,11 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Grid ColumnDefinitions="52,*" Background="{TemplateBinding Background}">
-          <Panel Width="52" Height="48" HorizontalAlignment="Left" VerticalAlignment="Center">
+          <!-- Layout rounding off so the 52x32 track, the 40-unit halo and the 16/24/28 handle keep
+               the source DIP geometry at fractional scales; otherwise the centred pair snaps to
+               different physical pixels (125% gave 24.4 vs 24) and the halo reads off-centre. -->
+          <Panel Width="52" Height="48" HorizontalAlignment="Left" VerticalAlignment="Center"
+                 UseLayoutRounding="False">
             <!-- Disabled colors are composited over Surface, not over one another. -->
             <Border Name="DisabledTrackSurface" Width="52" Height="32" VerticalAlignment="Center" CornerRadius="16" />
             <Border Name="Track" Width="52" Height="32" VerticalAlignment="Center" CornerRadius="16" />
@@ -377,12 +458,18 @@
             <Border Name="FocusRing" Width="56" Height="36" CornerRadius="18" BorderThickness="3"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsHitTestVisible="False" />
           </Panel>
+          <!-- Same label contract: the presenter centres itself so the AccessText is exactly one
+               line box tall, and a long label wraps instead of being clipped. -->
           <ContentPresenter Name="PART_ContentPresenter" Grid.Column="1" Margin="12,8,0,8"
                             Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
                             LetterSpacing="{TemplateBinding LetterSpacing}"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True" />
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            TextWrapping="Wrap"
+                            RecognizesAccessKey="True" />
         </Grid>
       </ControlTemplate>
     </Setter>

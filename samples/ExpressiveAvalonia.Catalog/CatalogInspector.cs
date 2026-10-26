@@ -104,10 +104,14 @@ internal sealed class CatalogInspector : ScrollViewer
             _pageSettings.Children.Add(search.Settings);
         if (descendants.OfType<ProgressPlayground>().FirstOrDefault() is { } progress)
             _pageSettings.Children.Add(progress.Settings);
+        if (descendants.OfType<ButtonPlayground>().FirstOrDefault() is { } buttons)
+            _pageSettings.Children.Add(buttons.Settings);
+        if (descendants.OfType<SelectionPlayground>().FirstOrDefault() is { } selection)
+            _pageSettings.Children.Add(selection.Settings);
         _menus = descendants.OfType<MaterialFabMenu>().ToArray();
         if (_menus.Length > 0) BuildMenus();
         var hasButtons = descendants.OfType<Button>().Any(b => b is not MaterialFabBase) || descendants.OfType<ViewportGallery>().Any();
-        if (hasButtons && _menus.Length == 0)
+        if (hasButtons && _menus.Length == 0 && !descendants.OfType<ButtonPlayground>().Any() && !descendants.OfType<SelectionPlayground>().Any())
         {
             var sizes = Section("Размер кнопок", true);
             var size = new ComboBox { ItemsSource = new[] { "Как в примере", "ExtraSmall", "Small", "Medium", "Large", "ExtraLarge" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };

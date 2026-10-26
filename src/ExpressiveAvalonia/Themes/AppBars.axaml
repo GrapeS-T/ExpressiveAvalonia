@@ -70,7 +70,9 @@
                  thumbnail or the search field depending on Configuration. -->
             <Grid Grid.Row="0" Name="PART_TopRow" ColumnDefinitions="Auto,*,Auto">
               <Panel Grid.Column="0" Width="48" Height="48" Margin="4,0,0,0" VerticalAlignment="Center">
-                <ContentPresenter Name="PART_LeadingContent" Width="48" Height="48"
+                <!-- Keep text content at its natural line height inside the 48-unit slot. -->
+                <ContentPresenter Name="PART_LeadingContent" Width="48" VerticalAlignment="Center"
+                                  VerticalContentAlignment="Center"
                                   Content="{TemplateBinding LeadingContent}"
                                   IsVisible="{Binding LeadingContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}" />
                 <Button Name="PART_LeadingButton"
@@ -105,6 +107,9 @@
                                     IsVisible="{TemplateBinding HasSubtitle}" />
                 </StackPanel>
 
+                <!-- The small-image thumbnail fills the middle column at a fixed 40-unit height;
+                     that is the documented SmallImage contract, so it is intentionally stretched
+                     horizontally rather than pinned to a 40-unit square. -->
                 <ContentPresenter Name="PART_Thumbnail" Content="{TemplateBinding Thumbnail}"
                                   Height="40" VerticalAlignment="Center"
                                   IsVisible="{TemplateBinding HasThumbnail}" />

@@ -12,9 +12,9 @@ internal static class StandardControlsGallery
     public static Control Create(MaterialTheme theme)
     {
         var pages = new TabControl();
-        pages.Items.Add(new TabItem { Header = "Buttons", Content = new DeferredGallery(Buttons) });
+        pages.Items.Add(new TabItem { Header = "Buttons", Content = new DeferredGallery(ButtonsGallery.CreateClassic) });
         pages.Items.Add(new TabItem { Header = "Text fields", Content = new DeferredGallery(TextFieldsGallery.CreateClassic) });
-        pages.Items.Add(new TabItem { Header = "Selection", Content = new DeferredGallery(Selection) });
+        pages.Items.Add(new TabItem { Header = "Selection", Content = new DeferredGallery(SelectionGallery.CreateClassic) });
         pages.Items.Add(new TabItem { Header = "Ranges", Content = new DeferredGallery(Ranges) });
         pages.Items.Add(new TabItem { Header = "Collections", Content = new DeferredGallery(Collections) });
         pages.Items.Add(new TabItem { Header = "Tabs", Content = new DeferredGallery(TabsGallery.CreateClassic) });
@@ -28,49 +28,8 @@ internal static class StandardControlsGallery
     private static StackPanel Row() => new() { Orientation = Orientation.Horizontal, Spacing = 12 };
     private static Control Scroll(Control content) => new ScrollViewer { Content = content, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
 
-    private static Control Buttons()
-    {
-        var panel = Panel();
-        foreach (var variant in Enum.GetValues<MaterialButtonVariant>().Where(value => value != MaterialButtonVariant.Standard))
-        {
-            panel.Children.Add(new TextBlock { Text = variant.ToString(), FontSize = 20 });
-            var row = new WrapPanel { ItemSpacing = 16, LineSpacing = 16 };
-            foreach (var size in new[] { MaterialControlSize.Small })
-            {
-                var button = new Button { Content = "Label", VerticalAlignment = VerticalAlignment.Center };
-                MaterialAssist.SetButtonVariant(button, variant);
-                MaterialAssist.SetControlSize(button, size);
-                row.Children.Add(button);
-            }
-            panel.Children.Add(row);
-        }
-        var toggles = Row();
-        foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
-        {
-            var button = new ToggleButton { Content = new PathIcon { Data = Avalonia.Media.Geometry.Parse("M12,3 14.8,8.7 21,9.6 16.5,14 17.6,20.2 12,17.3 6.4,20.2 7.5,14 3,9.6 9.2,8.7 Z"), Width = 24, Height = 24 }, IsChecked = true };
-            MaterialAssist.SetButtonVariant(button, variant);
-            MaterialAssist.SetIsIconButton(button, true);
-            Avalonia.Automation.AutomationProperties.SetName(button, $"Favorite {variant}");
-            toggles.Children.Add(button);
-        }
-        panel.Children.Add(toggles);
-        return Scroll(panel);
-    }
 
 
-    private static Control Selection()
-    {
-        var panel = Panel();
-        panel.Children.Add(new CheckBox { Content = "Three states", IsThreeState = true, IsChecked = null });
-        panel.Children.Add(new CheckBox { Content = "Checked", IsChecked = true });
-        panel.Children.Add(new CheckBox { Content = "Disabled", IsEnabled = false });
-        panel.Children.Add(new RadioButton { Content = "Первый", GroupName = "demo", IsChecked = true });
-        panel.Children.Add(new RadioButton { Content = "Второй", GroupName = "demo" });
-        panel.Children.Add(new ToggleSwitch { Content = "Уведомления", IsChecked = true });
-        panel.Children.Add(new ToggleSwitch { Content = "Без иконок", IsChecked = false });
-        panel.Children.Add(new ToggleSwitch { Content = "Недоступно", IsEnabled = false, IsChecked = true });
-        return Scroll(panel);
-    }
 
     private static Control Ranges()
     {
