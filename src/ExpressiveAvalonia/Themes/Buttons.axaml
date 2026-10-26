@@ -57,7 +57,7 @@
                                   CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}"
                                   RippleWidth="{TemplateBinding theming:MaterialAssist.RippleWidth}"
                                   RippleHeight="{TemplateBinding theming:MaterialAssist.RippleHeight}"
-                                  Opacity="0" IsHitTestVisible="False" />
+                                  Opacity="0.1" IsHitTestVisible="False" />
           <!-- The outline is a separate border so a disabled outlined button keeps its full
                strength stroke while only the container fill drops to the 10% token opacity. -->
           <Border Name="Outline"
@@ -128,13 +128,6 @@
          container's right and bottom edges in every source variant (e.g. XLarge Narrow icon:
          x=-14 width 118 in a 104-wide box), so a narrower container overflows on the left and is
          clipped by the rounded silhouette, while a wider one leaves a left inset. -->
-    <Style Selector="^ /template/ theming|MaterialRipple#Ripple">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
       <Setter Property="theming:MaterialAssist.RippleWidth" Value="75" />
       <Setter Property="theming:MaterialAssist.RippleHeight" Value="22" />
@@ -525,9 +518,6 @@
     </Style>
     <!-- The source pressed state is the 0.08 hover layer plus the Ripple vector at 0.10 (SVG
          fill-opacity), so the ripple layer carries the pressed opacity itself. -->
-    <Style Selector="^:pressed /template/ theming|MaterialRipple#Ripple">
-      <Setter Property="Opacity" Value="0.1" />
-    </Style>
     <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Opacity" Value="0" />
     </Style>
