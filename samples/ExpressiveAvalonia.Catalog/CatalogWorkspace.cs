@@ -10,7 +10,6 @@ namespace ExpressiveAvalonia.Catalog;
 
 internal sealed partial class CatalogWindow
 {
-    internal TabControl ClassicPages { get; private set; } = null!;
     internal TabControl ExpressivePages { get; private set; } = null!;
     internal CatalogInspector Inspector { get; private set; } = null!;
     internal Control? CurrentPage { get; private set; }
@@ -18,18 +17,15 @@ internal sealed partial class CatalogWindow
     private readonly MaterialNavigationRail _navigation = new() { IsExpanded = true, ShowFab = false, ShowMenuButton = false };
     private readonly TextBlock _pageTitle = new();
     private readonly TextBlock _sectionLabel = new();
-    private readonly ToggleButton _edition = new() { Content = "MD3E", IsChecked = true, HorizontalAlignment = HorizontalAlignment.Center, Padding = new Thickness(12, 0), Width = 72, Height = 56 };
     private TabItem? _selectedItem;
-    private bool _isExpressive = true;
     private bool _changingSection;
 
     private void BuildWorkspace()
     {
-        ClassicPages = (TabControl)StandardControlsGallery.Create(_theme);
         ExpressivePages = DesignSystemGallery.Create();
         Inspector = new CatalogInspector(_theme, this);
         var body = new Grid { ColumnDefinitions = new ColumnDefinitions("220,*,380"), ColumnSpacing = 16, Margin = new Thickness(12) };
-        var nav = new Grid { RowDefinitions = new RowDefinitions("56,56,*,Auto"), RowSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
+        var nav = new Grid { RowDefinitions = new RowDefinitions("56,*,Auto"), RowSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         var collapseIcon = new PathIcon
         {
             Data = Geometry.Parse("M3,6 L15,6 L15,8 L3,8 Z M3,11 L12,11 L12,13 L3,13 Z M3,16 L15,16 L15,18 L3,18 Z M20,7 L22,9 L19,12 L22,15 L20,17 L15,12 Z"),
@@ -56,22 +52,13 @@ internal sealed partial class CatalogWindow
             Avalonia.Automation.AutomationProperties.SetName(collapse, _navigation.IsExpanded ? "Свернуть навигацию" : "Развернуть навигацию");
         };
         nav.Children.Add(collapse);
-        _edition.Margin = new Thickness(0);
-        MaterialAssist.SetButtonVariant(_edition, MaterialButtonVariant.Tonal);
-        MaterialAssist.SetControlSize(_edition, MaterialControlSize.Medium);
-        MaterialAssist.SetButtonShape(_edition, MaterialButtonShape.Round);
-        Avalonia.Automation.AutomationProperties.SetName(_edition, "Material 3 Expressive");
-        ToolTip.SetTip(_edition, "Включено — MD3 Expressive; выключено — MD3 Classic");
-        _edition.IsCheckedChanged += (_, _) => { if (!_changingSection) ChangeSection(_edition.IsChecked == true); };
-        Grid.SetRow(_edition, 1);
-        nav.Children.Add(_edition);
         _navigation.SelectionChanged += (_, _) =>
         {
             if (!_changingSection && _navigation.SelectedIndex >= 0)
-                SelectPage(_isExpressive, _navigation.SelectedIndex);
+                SelectPage(_navigation.SelectedIndex);
         };
         var railScroll = new ScrollViewer { Content = _navigation, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        Grid.SetRow(railScroll, 2);
+        Grid.SetRow(railScroll, 1);
         nav.Children.Add(railScroll);
         var settings = new Button { Content = "Настройки", HorizontalAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(8, 0), Height = 56 };
         ToolTip.SetTip(settings, "Настройки студии");
@@ -93,7 +80,7 @@ internal sealed partial class CatalogWindow
             };
             settingsWindow.Show(this);
         };
-        Grid.SetRow(settings, 3);
+        Grid.SetRow(settings, 2);
         nav.Children.Add(settings);
         body.Children.Add(nav);
 
@@ -118,8 +105,10 @@ internal sealed partial class CatalogWindow
         Grid.SetColumn(Inspector, 2);
         body.Children.Add(Inspector);
         Content = body;
-        ChangeSection(true);
-        Opened += (_, _) => { if (CurrentPage is { } page) Inspector.SetPage(page, _isExpressive); };
+        foreach (var item in ExpressivePages.Items.Cast<TabItem>())
+            _navigation.Items.Add(new MaterialNavigationRailItem { Content = item.Header, Icon = NavigationIcon(item.Header?.ToString()), ShowLabel = true });
+        if (ExpressivePages.ItemCount > 0) SelectPage(0);
+        Opened += (_, _) => { if (CurrentPage is { } page) Inspector.SetPage(page); };
     }
 
     private Border Surface(Control child, string brush, double radius)
@@ -129,20 +118,6 @@ internal sealed partial class CatalogWindow
         return border;
     }
 
-    private void ChangeSection(bool expressive)
-    {
-        _isExpressive = expressive;
-        _changingSection = true;
-        _edition.IsChecked = expressive;
-        _edition.Content = expressive ? "MD3E" : "MD3";
-        var pages = expressive ? ExpressivePages : ClassicPages;
-        _navigation.Items.Clear();
-        foreach (var item in pages.Items.Cast<TabItem>())
-            _navigation.Items.Add(new MaterialNavigationRailItem { Content = item.Header, Icon = NavigationIcon(item.Header?.ToString()), ShowLabel = true });
-        _navigation.SelectedIndex = 0;
-        _changingSection = false;
-        if (pages.ItemCount > 0) SelectPage(expressive, 0);
-    }
 
     private static Geometry NavigationIcon(string? page) => Geometry.Parse(page switch
     {
@@ -158,22 +133,9 @@ internal sealed partial class CatalogWindow
         _ => "M3,3 L10,3 L10,10 L3,10 Z M14,3 L21,3 L21,10 L14,10 Z M3,14 L10,14 L10,21 L3,21 Z M14,14 L21,14 L21,21 L14,21 Z"
     });
 
-    internal void SelectPage(bool expressive, int index)
+    internal void SelectPage(int index)
     {
-        if (_isExpressive != expressive)
-        {
-            _isExpressive = expressive;
-            _changingSection = true;
-            _edition.IsChecked = expressive;
-            _edition.Content = expressive ? "MD3E" : "MD3";
-            var destinations = expressive ? ExpressivePages : ClassicPages;
-            _navigation.Items.Clear();
-            foreach (var destination in destinations.Items.Cast<TabItem>())
-                _navigation.Items.Add(new MaterialNavigationRailItem { Content = destination.Header, Icon = NavigationIcon(destination.Header?.ToString()), ShowLabel = true });
-            _changingSection = false;
-        }
-        var pages = expressive ? ExpressivePages : ClassicPages;
-        var item = (TabItem)pages.Items[index]!;
+        var item = (TabItem)ExpressivePages.Items[index]!;
         if (_selectedItem != item)
         {
             var previous = CurrentPage;
@@ -188,14 +150,14 @@ internal sealed partial class CatalogWindow
             _selectedItem = item;
             CurrentPage = page;
             SetPreviewContent(page);
-            Inspector.SetPage(page, expressive);
+            Inspector.SetPage(page);
             page.PropertyChanged += PreviewSizeChanged;
             if (_preview.Parent is ScrollViewer viewport) UpdatePreviewWidth(viewport.Bounds.Width);
         }
         _changingSection = true;
         _navigation.SelectedIndex = index;
         _changingSection = false;
-        _sectionLabel.Text = expressive ? "MD3 EXPRESSIVE / РАСШИРЕННЫЕ КОМПОНЕНТЫ" : "MD3 CLASSIC / БАЗОВЫЕ КОНТРОЛЫ";
+        _sectionLabel.Text = "MD3 EXPRESSIVE / РАСШИРЕННЫЕ КОМПОНЕНТЫ";
         _pageTitle.Text = item.Header?.ToString();
     }
 

@@ -12,8 +12,7 @@ namespace ExpressiveAvalonia.Catalog;
 /// <summary>One live button or toggle button with its anatomy and state exposed in the inspector.</summary>
 public static class ButtonsGallery
 {
-    public static Control Create() => new ButtonPlayground(true);
-    public static Control CreateClassic() => new ButtonPlayground(false);
+    public static Control Create() => new ButtonPlayground();
 }
 
 internal sealed class ButtonPlayground : Grid, IComponentPlayground
@@ -30,7 +29,6 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
         MaterialButtonVariant.Text,
     };
 
-    private readonly bool _expressive;
     private readonly Button _button = new()
     {
         HorizontalAlignment = HorizontalAlignment.Center,
@@ -75,9 +73,8 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
     private bool _syncing;
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
-    internal ButtonPlayground(bool expressive)
+    internal ButtonPlayground()
     {
-        _expressive = expressive;
         _buttonGlyph = Glyph(_button, StarIcon);
         _buttonContentGlyph = Glyph(_button, StarIcon);
         _toggleGlyph = Glyph(_toggle, StarIcon);
@@ -125,7 +122,7 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
         _rtl = Toggle(Settings, "Справа налево (RTL)", false);
         Settings.Children.Add(new TextBlock
         {
-            Text = (_expressive ? "MD3 Expressive" : "MD3") + " использует общий шаблон Button с другой редакцией: " +
+            Text = "MD3 Expressive: " +
                    "пять размеров, формы Round/Square и варианты Filled/Tonal/Outlined/Elevated/Text. " +
                    "У иконки ширина Narrow/Default/Wide меняет контейнер, но не глиф. Клик, Space и Enter — " +
                    "настоящие состояния, счётчик показывает нажатия, а «Выбрано» совпадает с фактическим IsChecked.",

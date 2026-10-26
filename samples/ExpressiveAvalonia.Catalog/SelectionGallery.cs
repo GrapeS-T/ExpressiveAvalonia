@@ -11,14 +11,12 @@ namespace ExpressiveAvalonia.Catalog;
 /// <summary>A live checkbox, radio group or switch with its anatomy exposed in the inspector.</summary>
 public static class SelectionGallery
 {
-    public static Control Create() => new SelectionPlayground(true);
-    public static Control CreateClassic() => new SelectionPlayground(false);
+    public static Control Create() => new SelectionPlayground();
 }
 
 internal sealed class SelectionPlayground : Grid, IComponentPlayground
 {
     private static int _instances;
-    private readonly bool _expressive;
     private readonly Border _host = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _readout = new() { HorizontalAlignment = HorizontalAlignment.Center, FontSize = 16, TextWrapping = TextWrapping.Wrap };
     private readonly CheckBox _check = new() { IsChecked = true };
@@ -45,9 +43,8 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
     private bool _syncing;
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
-    internal SelectionPlayground(bool expressive)
+    internal SelectionPlayground()
     {
-        _expressive = expressive;
         var groupName = $"selection-demo-{Interlocked.Increment(ref _instances)}";
         _radios = new RadioButton[_radioLabels.Length];
         for (var i = 0; i < _radios.Length; i++)
@@ -109,7 +106,7 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
         _rtl = Toggle(Settings, "Справа налево (RTL)", false);
         Settings.Children.Add(new TextBlock
         {
-            Text = (_expressive ? "MD3 Expressive" : "MD3") + " использует общий шаблон Selection: контейнер флажка 18 dp, " +
+            Text = "MD3 Expressive использует шаблон Selection: контейнер флажка 18 dp, " +
                    "глиф радиокнопки 20 dp, дорожка переключателя 52 × 32 dp. Клик, Space, Enter и стрелки — настоящие состояния; " +
                    "трёхпозиционный флажок циклически проходит Off → On → Indeterminate. Подпись меняется справа, " +
                    "а состояние примера всегда отражается в инспекторе.",

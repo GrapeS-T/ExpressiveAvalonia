@@ -11,8 +11,7 @@ namespace ExpressiveAvalonia.Catalog;
 /// <summary>Interactive search bar and search view with live component suggestions.</summary>
 public static class SearchGallery
 {
-    public static Control Create() => new SearchPlayground(true);
-    public static Control CreateClassic() => new SearchPlayground(false);
+    public static Control Create() => new SearchPlayground();
 }
 
 internal sealed class SearchPlayground : Grid, IComponentPlayground
@@ -37,11 +36,11 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
     private bool _syncing;
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
-    internal SearchPlayground(bool expressive)
+    internal SearchPlayground()
     {
         _view = new MaterialSearchView
         {
-            Variant = expressive ? MaterialSearchViewVariant.Expressive : MaterialSearchViewVariant.Baseline,
+            Variant = MaterialSearchViewVariant.Expressive,
             PlaceholderText = "Search components", AutoFocus = false, Suggestions = _suggestions
         };
         var stage = new StackPanel { Spacing = 24, Margin = new Thickness(24), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };

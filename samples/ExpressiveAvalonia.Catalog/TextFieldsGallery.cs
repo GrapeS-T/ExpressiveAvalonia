@@ -11,8 +11,7 @@ namespace ExpressiveAvalonia.Catalog;
 /// <summary>A single editable text field with its anatomy exposed in the inspector.</summary>
 public static class TextFieldsGallery
 {
-    public static Control Create() => new TextFieldPlayground(true);
-    public static Control CreateClassic() => new TextFieldPlayground(false);
+    public static Control Create() => new TextFieldPlayground();
 }
 
 internal sealed class TextFieldPlayground : Grid, IComponentPlayground
@@ -36,7 +35,7 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _rtl;
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
-    internal TextFieldPlayground(bool expressive)
+    internal TextFieldPlayground()
     {
         var host = new Border
         {

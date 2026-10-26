@@ -22,7 +22,7 @@ src/ExpressiveAvalonia/
   Controls/                только недостающие Material-компоненты
 samples/ExpressiveAvalonia.Catalog/
   Program.cs               окно-лаборатория темы
-  StandardControlsGallery.cs  страницы на семейство контролов
+  DesignSystemGallery.cs   страницы MD3 Expressive на семейство контролов
 tests/ExpressiveAvalonia.Tests/
   ColorReferenceTests.cs   эталонные HCT-векторы
   ControlBehaviorTests.cs  поведение контролов
