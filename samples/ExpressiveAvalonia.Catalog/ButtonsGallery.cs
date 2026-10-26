@@ -4,309 +4,313 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Catalog;
 
-/// <summary>
-/// Showcase for the Material Expressive button family: labeled buttons, text, elevated,
-/// outlined and tonal buttons, icon buttons with the narrow/default/wide axis, and their
-/// toggle variants. Every control is a real Button/ToggleButton, so pointer, Space/Enter,
-/// access keys and automation peers behave exactly as they do in an application.
-/// </summary>
+/// <summary>One live button or toggle button with its anatomy and state exposed in the inspector.</summary>
 public static class ButtonsGallery
 {
-    private static readonly Geometry Star = Geometry.Parse(
-        "M12,3 14.8,8.7 21,9.6 16.5,14 17.6,20.2 12,17.3 6.4,20.2 7.5,14 3,9.6 9.2,8.7 Z");
+    public static Control Create() => new ButtonPlayground(true);
+    public static Control CreateClassic() => new ButtonPlayground(false);
+}
 
-    private static readonly Geometry StarFilled = Geometry.Parse(
-        "M12,2 15.1,8.4 22,9.4 17,14.3 18.2,21.2 12,17.9 5.8,21.2 7,14.3 2,9.4 8.9,8.4 Z");
+internal sealed class ButtonPlayground : Grid
+{
+    private const string StarIcon = "star";
+    private const string StarFilledIcon = "star_filled";
 
-    private static readonly Geometry Check = Geometry.Parse(
-        "M9,16.2 4.8,12 3.4,13.4 9,19 21,7 19.6,5.6 Z");
-
-    public static Control Create()
+    private static readonly MaterialButtonVariant[] Variants =
     {
-        var panel = new StackPanel { Spacing = 24, Margin = new Thickness(24) };
-        var status = new TextBlock { Text = "Clicks: 0" };
-        var clicks = 0;
+        MaterialButtonVariant.Filled,
+        MaterialButtonVariant.Tonal,
+        MaterialButtonVariant.Outlined,
+        MaterialButtonVariant.Elevated,
+        MaterialButtonVariant.Text,
+    };
 
-        void Count()
-        {
-            clicks++;
-            status.Text = $"Clicks: {clicks}";
-        }
-
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Buttons",
-            FontSize = 28,
-            FontWeight = FontWeight.Medium,
-        });
-        panel.Children.Add(status);
-
-        // Labeled buttons: six color treatments across all five sizes.
-        panel.Children.Add(Caption("Labeled buttons - variants x sizes (press to see the source ripple)"));
-        foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
-        {
-            panel.Children.Add(new ViewportGallery(() =>
-            {
-            var row = Row();
-            row.Children.Add(new TextBlock
-            {
-                Text = variant.ToString(),
-                Width = 92,
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            foreach (var size in Enum.GetValues<MaterialControlSize>())
-            {
-                var button = Labeled("Label", variant, size);
-                button.Click += (_, _) => Count();
-                row.Children.Add(button);
-            }
-                return row;
-            }, 136));
-        }
-
-        // Shape axis: Round and Square at every size for a filled and an outlined button.
-        panel.Children.Add(Caption("Shapes - Round and Square per size"));
-        foreach (var variant in new[] { MaterialButtonVariant.Filled, MaterialButtonVariant.Outlined })
-        {
-            foreach (var shape in Enum.GetValues<MaterialButtonShape>())
-            {
-                panel.Children.Add(new ViewportGallery(() =>
-                {
-                var row = Row();
-                row.Children.Add(new TextBlock
-                {
-                    Text = $"{variant} {shape}",
-                    Width = 150,
-                    VerticalAlignment = VerticalAlignment.Center,
-                });
-                foreach (var size in Enum.GetValues<MaterialControlSize>())
-                {
-                    row.Children.Add(Labeled("Label", variant, size, shape));
-                }
-                    return row;
-                }, 136));
-            }
-        }
-
-        // Icon buttons: the Width axis changes the container box, never the glyph.
-        panel.Children.Add(Caption("Icon buttons - widths per size (Filled)"));
-        foreach (var size in Enum.GetValues<MaterialControlSize>())
-        {
-            panel.Children.Add(new ViewportGallery(() =>
-            {
-            var row = Row();
-            row.Children.Add(new TextBlock
-            {
-                Text = size.ToString(),
-                Width = 92,
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            foreach (var width in Enum.GetValues<MaterialIconButtonWidth>())
-            {
-                var button = IconButton(Star, MaterialButtonVariant.Filled, size, width);
-                button.Click += (_, _) => Count();
-                row.Children.Add(button);
-            }
-                return row;
-            }, 136));
-        }
-
-        panel.Children.Add(Caption("Icon buttons - variants (Medium, Default width)"));
-        var variantsRow = Row();
-        foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
-        {
-            var button = IconButton(Star, variant, MaterialControlSize.Medium, MaterialIconButtonWidth.Default);
-            button.Click += (_, _) => Count();
-            variantsRow.Children.Add(button);
-        }
-        panel.Children.Add(variantsRow);
-
-        // Labeled toggles: unselected and selected side by side for every treatment.
-        panel.Children.Add(Caption("Labeled toggle buttons - selected / unselected"));
-        foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
-        {
-            panel.Children.Add(new ViewportGallery(() =>
-            {
-            var row = Row();
-            row.Children.Add(new TextBlock
-            {
-                Text = variant.ToString(),
-                Width = 92,
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            foreach (var shape in Enum.GetValues<MaterialButtonShape>())
-            {
-                row.Children.Add(LabeledToggle("Label", variant, shape, false));
-                row.Children.Add(LabeledToggle("Label", variant, shape, true));
-            }
-                return row;
-            }, 48));
-        }
-
-        // Icon toggles: the selected glyph is swapped through MaterialAssist.SelectedIcon.
-        panel.Children.Add(Caption("Icon toggle buttons - glyph swap"));
-        foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
-        {
-            panel.Children.Add(new ViewportGallery(() =>
-            {
-            var row = Row();
-            row.Children.Add(new TextBlock
-            {
-                Text = variant.ToString(),
-                Width = 92,
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            foreach (var shape in Enum.GetValues<MaterialButtonShape>())
-            {
-                row.Children.Add(IconToggle(variant, shape, false));
-                row.Children.Add(IconToggle(variant, shape, true));
-            }
-                return row;
-            }, 48));
-        }
-
-        // Disabled states keep the container treatment and drop the state layer.
-        panel.Children.Add(Caption("Disabled"));
-        var disabledRow = Row();
-        foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
-        {
-            var labeled = Labeled("Label", variant, MaterialControlSize.Small);
-            labeled.IsEnabled = false;
-            disabledRow.Children.Add(labeled);
-        }
-        foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
-        {
-            var icon = IconButton(Star, variant, MaterialControlSize.Small, MaterialIconButtonWidth.Default);
-            icon.IsEnabled = false;
-            disabledRow.Children.Add(icon);
-        }
-        panel.Children.Add(disabledRow);
-
-        // Keyboard: access keys come from the underscore in the content, and the icon host
-        // keeps the label readable. Space and Enter are handled by Button/ToggleButton.
-        panel.Children.Add(Caption("Keyboard"));
-        var keyboardRow = Row();
-        var save = Labeled("_Save", MaterialButtonVariant.Filled, MaterialControlSize.Small);
-        save.Click += (_, _) => Count();
-        AutomationProperties.SetName(save, "Save");
-        keyboardRow.Children.Add(save);
-
-        var mute = new ToggleButton
-        {
-            Content = "Mute",
-            IsChecked = true,
-        };
-        MaterialAssist.SetButtonVariant(mute, MaterialButtonVariant.Tonal);
-        MaterialAssist.SetIcon(mute, new PathIcon { Data = Star });
-        MaterialAssist.SetSelectedIcon(mute, new PathIcon { Data = Check });
-        MaterialAssist.SetControlSize(mute, MaterialControlSize.Small);
-        AutomationProperties.SetName(mute, "Mute");
-        keyboardRow.Children.Add(mute);
-        panel.Children.Add(keyboardRow);
-
-        return new ScrollViewer
-        {
-            Content = panel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-        };
-    }
-
-    private static Button Labeled(
-        string text,
-        MaterialButtonVariant variant,
-        MaterialControlSize size,
-        MaterialButtonShape shape = MaterialButtonShape.Round)
+    private readonly bool _expressive;
+    private readonly Button _button = new()
     {
-        var button = new Button
-        {
-            Content = text,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        MaterialAssist.SetButtonVariant(button, variant);
-        MaterialAssist.SetControlSize(button, size);
-        MaterialAssist.SetButtonShape(button, shape);
-        MaterialAssist.SetIcon(button, new PathIcon { Data = Star });
-        return button;
-    }
-
-    private static ToggleButton LabeledToggle(
-        string text,
-        MaterialButtonVariant variant,
-        MaterialButtonShape shape,
-        bool isChecked)
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly ToggleButton _toggle = new()
     {
-        var button = new ToggleButton
-        {
-            Content = text,
-            IsChecked = isChecked,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        MaterialAssist.SetButtonVariant(button, variant);
-        MaterialAssist.SetControlSize(button, MaterialControlSize.Small);
-        MaterialAssist.SetButtonShape(button, shape);
-        MaterialAssist.SetIcon(button, new PathIcon { Data = Star });
-        MaterialAssist.SetSelectedIcon(button, new PathIcon { Data = Check });
-        AutomationProperties.SetName(button, $"{text} {variant} {shape} {(isChecked ? "on" : "off")}");
-        return button;
-    }
-
-    private static Button IconButton(
-        Geometry glyph,
-        MaterialButtonVariant variant,
-        MaterialControlSize size,
-        MaterialIconButtonWidth width)
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly Border _host = new()
     {
-        var button = new Button
-        {
-            Content = new PathIcon { Data = glyph },
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        MaterialAssist.SetButtonVariant(button, variant);
-        MaterialAssist.SetControlSize(button, size);
-        MaterialAssist.SetIsIconButton(button, true);
-        MaterialAssist.SetIconButtonWidth(button, width);
-        AutomationProperties.SetName(button, $"Icon {variant} {size} {width}");
-        return button;
-    }
-
-    private static ToggleButton IconToggle(
-        MaterialButtonVariant variant,
-        MaterialButtonShape shape,
-        bool isChecked)
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly TextBlock _readout = new()
     {
-        // The glyph comes from the Icon/SelectedIcon pair, so checking the button swaps the
-        // outline star for the filled star exactly like the source "Icon (selected)" property.
-        var button = new ToggleButton
-        {
-            IsChecked = isChecked,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        MaterialAssist.SetButtonVariant(button, variant);
-        MaterialAssist.SetControlSize(button, MaterialControlSize.Medium);
-        MaterialAssist.SetButtonShape(button, shape);
-        MaterialAssist.SetIsIconButton(button, true);
-        MaterialAssist.SetIconButtonWidth(button, MaterialIconButtonWidth.Default);
-        MaterialAssist.SetIcon(button, new PathIcon { Data = Star });
-        MaterialAssist.SetSelectedIcon(button, new PathIcon { Data = StarFilled });
-        AutomationProperties.SetName(button, $"Favorite {variant} {shape} {(isChecked ? "on" : "off")}");
-        return button;
-    }
-
-    private static TextBlock Caption(string text) => new()
-    {
-        Text = text,
+        HorizontalAlignment = HorizontalAlignment.Center,
         FontSize = 16,
-        FontWeight = FontWeight.Medium,
-        Margin = new Thickness(0, 8, 0, 0),
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly MaterialButtonGroup _kind;
+    private readonly MaterialButtonGroup _content;
+    private readonly MaterialButtonGroup _shape;
+    private readonly MaterialButtonGroup _iconWidth;
+    private readonly ComboBox _variant;
+    private readonly ComboBox _size;
+    private readonly StackPanel _iconWidthSettings = new() { Spacing = 16 };
+    private readonly StackPanel _labelSettings = new() { Spacing = 16 };
+    private readonly StackPanel _leadingSettings = new() { Spacing = 16 };
+    private readonly StackPanel _selectedSettings = new() { Spacing = 16 };
+    private readonly MaterialIcon _buttonGlyph;
+    private readonly MaterialIcon _buttonContentGlyph;
+    private readonly MaterialIcon _toggleGlyph;
+    private readonly MaterialIcon _toggleSelectedGlyph;
+    private readonly TextBox _label;
+    private readonly ToggleSwitch _leading;
+    private readonly ToggleSwitch _selected;
+    private readonly ToggleSwitch _enabled;
+    private readonly ToggleSwitch _rtl;
+    private int _clicks;
+    private bool _syncing;
+    internal StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    internal ButtonPlayground(bool expressive)
+    {
+        _expressive = expressive;
+        _buttonGlyph = Glyph(_button, StarIcon);
+        _buttonContentGlyph = Glyph(_button, StarIcon);
+        _toggleGlyph = Glyph(_toggle, StarIcon);
+        _toggleSelectedGlyph = Glyph(_toggle, StarFilledIcon);
+        var stage = new StackPanel
+        {
+            Spacing = 24,
+            Margin = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        stage.Children.Add(_host);
+        stage.Children.Add(_readout);
+        Children.Add(stage);
+
+        _kind = Choice(Settings, "Тип", new[] { "Button", "ToggleButton" }, 0);
+        _content = Choice(Settings, "Содержимое", new[] { "Текст", "Иконка" }, 0);
+        _variant = Field(Settings, "Вид", new ComboBox
+        {
+            ItemsSource = new[] { "Filled", "Tonal", "Outlined", "Elevated", "Text" },
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        });
+        _size = Field(Settings, "Размер", new ComboBox
+        {
+            ItemsSource = new[] { "ExtraSmall", "Small", "Medium", "Large", "ExtraLarge" },
+            SelectedIndex = 2,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        });
+        _shape = Choice(Settings, "Форма", new[] { "Round", "Square" }, 0);
+        _iconWidth = Choice(_iconWidthSettings, "Ширина контейнера", new[] { "Narrow", "Default", "Wide" }, 1);
+        Settings.Children.Add(_iconWidthSettings);
+
+        _label = new TextBox { Text = "Label", HorizontalAlignment = HorizontalAlignment.Stretch };
+        MaterialTextField.SetVariant(_label, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(_label, "Текст");
+        _labelSettings.Children.Add(_label);
+        _leading = Toggle(_leadingSettings, "Ведущая иконка", true);
+        Settings.Children.Add(_labelSettings);
+        Settings.Children.Add(_leadingSettings);
+
+        _selected = Toggle(_selectedSettings, "Выбрано (IsChecked)", false);
+        Settings.Children.Add(_selectedSettings);
+        _enabled = Toggle(Settings, "Доступна", true);
+        _rtl = Toggle(Settings, "Справа налево (RTL)", false);
+        Settings.Children.Add(new TextBlock
+        {
+            Text = (_expressive ? "MD3 Expressive" : "MD3") + " использует общий шаблон Button с другой редакцией: " +
+                   "пять размеров, формы Round/Square и варианты Filled/Tonal/Outlined/Elevated/Text. " +
+                   "У иконки ширина Narrow/Default/Wide меняет контейнер, но не глиф. Клик, Space и Enter — " +
+                   "настоящие состояния, счётчик показывает нажатия, а «Выбрано» совпадает с фактическим IsChecked.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+        });
+
+        AutomationProperties.SetName(_variant, "Вид кнопки");
+        AutomationProperties.SetName(_size, "Размер кнопки");
+        AutomationProperties.SetName(_label, "Текст кнопки");
+
+        _kind.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _content.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _shape.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _iconWidth.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _variant.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _size.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _label.TextChanged += (_, _) => { if (!_syncing) Apply(); };
+        _leading.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
+        _enabled.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
+        _rtl.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
+
+        _button.Click += (_, _) => Count();
+        _toggle.Click += (_, _) => Count();
+        _toggle.IsCheckedChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            _syncing = true;
+            _selected.IsChecked = _toggle.IsChecked == true;
+            _syncing = false;
+            UpdateReadout();
+        };
+        _selected.IsCheckedChanged += (_, _) =>
+        {
+            if (_syncing) return;
+            _syncing = true;
+            _toggle.IsChecked = _selected.IsChecked == true;
+            _syncing = false;
+            UpdateReadout();
+        };
+
+        Apply();
+    }
+
+    private void Count()
+    {
+        _clicks++;
+        UpdateReadout();
+    }
+
+    private void Apply()
+    {
+        var iconMode = _content.SelectedIndex == 1;
+        var toggleMode = _kind.SelectedIndex == 1;
+        var variant = Variants[Math.Clamp(_variant.SelectedIndex, 0, Variants.Length - 1)];
+        var size = (MaterialControlSize)Math.Clamp(_size.SelectedIndex, 0, 4);
+        var shape = (MaterialButtonShape)Math.Clamp(_shape.SelectedIndex, 0, 1);
+        var width = (MaterialIconButtonWidth)Math.Clamp(_iconWidth.SelectedIndex, 0, 2);
+        var text = _label.Text ?? "";
+        var leading = !iconMode && _leading.IsChecked == true;
+        var enabled = _enabled.IsChecked == true;
+
+        Configure(_button, iconMode, variant, size, shape, width, text, leading, enabled);
+        Configure(_toggle, iconMode, variant, size, shape, width, text, leading, enabled);
+
+        var current = toggleMode ? (Control)_toggle : _button;
+        if (!ReferenceEquals(_host.Child, current))
+            _host.Child = current;
+        _host.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+
+        _iconWidthSettings.IsVisible = iconMode;
+        _labelSettings.IsVisible = !iconMode;
+        _leadingSettings.IsVisible = !iconMode;
+        _selectedSettings.IsVisible = toggleMode;
+
+        UpdateReadout();
+    }
+
+    private void Configure(
+        Button button,
+        bool iconMode,
+        MaterialButtonVariant variant,
+        MaterialControlSize size,
+        MaterialButtonShape shape,
+        MaterialIconButtonWidth width,
+        string text,
+        bool leading,
+        bool enabled)
+    {
+        MaterialAssist.SetButtonVariant(button, variant);
+        MaterialAssist.SetControlSize(button, size);
+        MaterialAssist.SetButtonShape(button, shape);
+        MaterialAssist.SetIsIconButton(button, iconMode);
+        MaterialAssist.SetIconButtonWidth(button, width);
+        button.IsEnabled = enabled;
+
+        var toggle = button as ToggleButton;
+        var glyph = toggle is null ? _buttonGlyph : _toggleGlyph;
+        var iconSize = IconSize(size, iconMode);
+        foreach (var icon in toggle is null
+                     ? new[] { _buttonGlyph, _buttonContentGlyph }
+                     : new[] { _toggleGlyph, _toggleSelectedGlyph })
+        {
+            icon.Width = iconSize;
+            icon.Height = iconSize;
+        }
+
+        if (iconMode)
+        {
+            // An icon button's Content is the glyph itself; a toggle instead uses the
+            // Icon/SelectedIcon pair so checking swaps the outline star for the filled one.
+            button.Content = toggle is null ? _buttonContentGlyph : null;
+            MaterialAssist.SetIcon(button, toggle is null ? null : glyph);
+            MaterialAssist.SetSelectedIcon(button, toggle is null ? null : _toggleSelectedGlyph);
+            MaterialAssist.SetShowIcon(button, toggle is not null);
+        }
+        else
+        {
+            button.Content = text;
+            MaterialAssist.SetIcon(button, leading ? glyph : null);
+            MaterialAssist.SetSelectedIcon(button, leading && toggle is not null ? _toggleSelectedGlyph : null);
+            MaterialAssist.SetShowIcon(button, leading);
+        }
+
+        AutomationProperties.SetName(button, iconMode
+            ? "Icon button"
+            : string.IsNullOrWhiteSpace(text) ? "Button" : text);
+    }
+
+    // The button theme sizes PathIcon per token, but the catalog has no PathIcon theme, so the
+    // design-system MaterialIcon (which does have one) carries the token size explicitly.
+    private static double IconSize(MaterialControlSize size, bool iconMode) => size switch
+    {
+        MaterialControlSize.ExtraSmall => 20,
+        MaterialControlSize.Small => iconMode ? 24 : 20,
+        MaterialControlSize.Medium => 24,
+        MaterialControlSize.Large => 32,
+        _ => 40,
     };
 
-    private static StackPanel Row() => new()
+    private static MaterialIcon Glyph(Control owner, string iconName)
     {
-        Orientation = Orientation.Horizontal,
-        Spacing = 12,
-    };
+        var icon = new MaterialIcon { IconName = iconName, IsDecorative = true };
+        // MaterialIcon's theme sets its own Foreground, so bind it to the owning button;
+        // the glyph then follows Filled/Tonal/Outlined/checked/disabled content colors.
+        icon.Bind(TemplatedControl.ForegroundProperty, owner.GetObservable(TemplatedControl.ForegroundProperty));
+        return icon;
+    }
+
+    private void UpdateReadout()
+    {
+        var toggle = _toggle.IsChecked == true ? "выбрано" : "не выбрано";
+        _readout.Text = _kind.SelectedIndex == 1
+            ? $"Нажатий: {_clicks} · ToggleButton: {toggle}"
+            : $"Нажатий: {_clicks}";
+    }
+
+    private static T Field<T>(StackPanel host, string label, T control) where T : Control
+    {
+        host.Children.Add(new TextBlock { Text = label });
+        host.Children.Add(control);
+        return control;
+    }
+
+    private static MaterialButtonGroup Choice(StackPanel host, string label, string[] options, int selected)
+    {
+        var group = Field(host, label, new MaterialButtonGroup
+        {
+            Kind = MaterialButtonGroupKind.Connected,
+            ButtonShape = MaterialButtonShape.Round,
+            ControlSize = MaterialControlSize.Small,
+            SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true,
+        });
+        foreach (var option in options) group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        // The group clears an out-of-range selection whenever items change, so the initial
+        // index is applied only once every item exists.
+        group.SelectedIndex = selected;
+        return group;
+    }
+
+    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
+    {
+        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
+        host.Children.Add(toggle);
+        return toggle;
+    }
 }

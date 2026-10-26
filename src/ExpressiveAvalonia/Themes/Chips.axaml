@@ -73,7 +73,10 @@
                               Width="18" Height="18" IsVisible="False" VerticalAlignment="Center" />
             <Border Name="AvatarHost" Width="24" Height="24" CornerRadius="12" ClipToBounds="True"
                     IsVisible="False" VerticalAlignment="Center">
-              <ContentPresenter Name="PART_Avatar" Content="{TemplateBinding Avatar}" />
+              <!-- A Border stretches its single child, so a text avatar would sit on the top of the
+                   fixed 24-unit host. Centre it, matching the card avatar presenter. -->
+              <ContentPresenter Name="PART_Avatar" Content="{TemplateBinding Avatar}"
+                                VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
             </Border>
             <ContentPresenter Name="PART_ContentPresenter"
                               Content="{TemplateBinding Content}"

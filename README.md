@@ -112,6 +112,12 @@ Desktop smoke проверяет смену темы/seed/контраста, з
 
 Icon-only button: `MaterialAssist.IsIconButton="True"`, Content — geometry/icon пользователя, `AutomationProperties.Name` обязателен. ToggleButton использует тот же API. Без `ButtonVariant` действует `Standard`: у icon-only кнопки нет контейнера (иконка OnSurfaceVariant), у labeled-кнопки — filled-контейнер. У icon-only кнопок `Filled`, `Tonal` и `Outlined` дают соответствующие *IconButtonTokens; `ButtonShape` меняет силуэт только у icon-only toggle при `IsChecked`, как в AndroidX.
 
+Страницы `Buttons` в MD3/MD3E показывают одну живую кнопку с настройками справа: Button/ToggleButton, текст/иконка, Filled/Tonal/Outlined/Elevated/Text, пять размеров, Round/Square, ширина icon-контейнера, подпись, ведущая иконка, выбранность, доступность и RTL. Счётчик отражает нажатия; выбранность ToggleButton синхронизируется с инспектором. Редакции используют общий шаблон кнопок.
+
+Страницы `Selection` в обеих редакциях переключаются между CheckBox, группой из трёх RadioButton и ToggleSwitch. Справа — подпись, состояние, трёхпозиционный режим и ошибка флажка, выбранная радиокнопка, встроенные иконки switch, доступность и RTL. Нативные изменения отражаются в настройках; изменение подписи и оформления не сбрасывает выбор.
+
+Подписи CheckBox/RadioButton/ToggleSwitch центрируются по высоте строки и переносятся в узком контейнере. Геометрия glyph/state layer не округляется независимо при дробном DPI; отметки флажка не зависят от анимированной толщины рамки. Нажатие CheckBox/RadioButton плавно сжимает значок до 90%, отпускание возвращает размер; Reduced motion отключает длительность перехода. Текст в ведущем слоте AppBar и avatar-слоте Chip также центрируется внутри контейнера.
+
 MaterialTextField дополнительно: `Prefix`, `Suffix`, `LeadingContent`, `TrailingContent`, `ShowPasswordReveal`. Нативный DataValidationErrors остаётся источником ошибок; пользовательские AutomationProperties могут переопределить доступное имя/описание.
 
 ### Диапазон и progress

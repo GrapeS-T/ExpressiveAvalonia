@@ -139,7 +139,7 @@
           <ContentPresenter Name="PART_Content" Content="{TemplateBinding Content}"
                             AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
-                            HorizontalAlignment="Center"
+                            HorizontalAlignment="Center" VerticalContentAlignment="Center"
                             TextElement.FontSize="{DynamicResource MaterialLabelMediumFontSize}"
                             TextElement.FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
                             IsVisible="{TemplateBinding IsContentVisible}" />
