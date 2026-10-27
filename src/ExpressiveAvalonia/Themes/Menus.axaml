@@ -1182,7 +1182,7 @@
         </StackPanel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ ListBoxItem">
+    <Style Selector="^ /template/ ListBoxItem">
       <Setter Property="MinHeight" Value="44" />
       <Setter Property="Padding" Value="16,10" />
       <Setter Property="Margin" Value="4,0" />
@@ -1192,7 +1192,7 @@
       <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
     </Style>
-    <Style Selector="^ ListBoxItem:selected">
+    <Style Selector="^ /template/ ListBoxItem:selected">
       <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
       <Setter Property="CornerRadius" Value="12" />

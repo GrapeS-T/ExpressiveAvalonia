@@ -85,6 +85,26 @@ public class ControlBehaviorTests
     }
 
     [AvaloniaFact]
+    public void TopRailItemsFollowHeaderWithinRailBounds()
+    {
+        var rail = new MaterialNavigationRail { ShowMenuButton = true, ShowFab = true };
+        var item = new MaterialNavigationRailItem { Content = "Destination" };
+        rail.Items.Add(item);
+        var window = Show(rail);
+        try
+        {
+            window.UpdateLayout();
+            var header = rail.GetVisualDescendants().OfType<StackPanel>()
+                .Single(panel => panel.Name == "PART_HeaderHost");
+            var position = item.TranslatePoint(new Point(), rail)!.Value;
+            Assert.True(header.Bounds.Height < rail.Bounds.Height);
+            Assert.True(position.Y >= header.Bounds.Bottom);
+            Assert.True(position.Y + item.Bounds.Height <= rail.Bounds.Height);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void WideRailLabelRemainsVisibleCollapsedAndKeepsSourceExpandedGap()
     {
         var rail = new MaterialNavigationRail
@@ -692,6 +712,32 @@ public class ControlBehaviorTests
     }
 
     [AvaloniaFact]
+    public void ButtonGroupSwitchesKindsWithVisualIconAndContent()
+    {
+        var icon = new MaterialIcon { IconName = "star" };
+        var label = new TextBlock { Text = "Visual label" };
+        var item = new MaterialButtonGroupItem { Icon = icon, Content = label };
+        var group = new MaterialButtonGroup { Kind = MaterialButtonGroupKind.Standard };
+        group.Items.Add(item);
+        var window = Show(group);
+        try
+        {
+            foreach (var kind in new[] { MaterialButtonGroupKind.Segmented, MaterialButtonGroupKind.Connected,
+                         MaterialButtonGroupKind.Standard, MaterialButtonGroupKind.Segmented })
+            {
+                group.Kind = kind;
+                window.UpdateLayout();
+                Dispatcher.UIThread.RunJobs();
+                Assert.True(icon.IsAttachedToVisualTree());
+                Assert.True(label.IsAttachedToVisualTree());
+                Assert.Single(item.GetVisualDescendants(), v => ReferenceEquals(v, icon));
+                Assert.Single(item.GetVisualDescendants(), v => ReferenceEquals(v, label));
+            }
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void GroupProgrammaticAndFocusSelectionRemainExclusive()
     {
         var group = new MaterialButtonGroup
@@ -947,6 +993,64 @@ public class ControlBehaviorTests
             Assert.Contains("md-list-2line", explicitCount.Classes);
             Assert.DoesNotContain("md-list-3line", explicitCount.Classes);
             Assert.Equal(72d, explicitCount.MinHeight);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void SnackbarCanBeRequeuedWhileClosingBehindAnotherItem()
+    {
+        var host = new MaterialSnackbarHost();
+        var window = Show(host);
+        try
+        {
+            var first = new MaterialSnackbar { Text = "A" };
+            var second = new MaterialSnackbar { Text = "B" };
+            var initial = host.Show(first);
+            Dispatcher.UIThread.RunJobs();
+            var next = host.Show(second);
+            System.Threading.Tasks.Task<MaterialSnackbarCloseReason>? repeated = null;
+            first.Closing += (_, _) => repeated ??= host.Show(first);
+            first.Dismiss();
+            Assert.True(initial.IsCompleted);
+            Assert.Same(second, host.Current);
+            Dispatcher.UIThread.RunJobs();
+            second.Dismiss();
+            Assert.True(next.IsCompleted);
+            Assert.Same(first, host.Current);
+            Dispatcher.UIThread.RunJobs();
+            first.Dismiss();
+            Assert.NotNull(repeated);
+            Assert.True(repeated!.IsCompleted);
+            Assert.Null(host.Current);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void SnackbarHostTracksAvailableWidthWithoutOverridingExplicitWidth()
+    {
+        var host = new MaterialSnackbarHost { Width = 600 };
+        var window = Show(host);
+        try
+        {
+            var snackbar = new MaterialSnackbar { Text = "Message" };
+            host.Show(snackbar);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            var initial = snackbar.Bounds.Width;
+            host.Width = 350;
+            window.UpdateLayout();
+            Assert.True(snackbar.Bounds.Width < initial);
+            host.Width = 600;
+            window.UpdateLayout();
+            Assert.Equal(initial, snackbar.Bounds.Width, 5);
+            host.DismissCurrent();
+            var explicitWidth = new MaterialSnackbar { Text = "Narrow", Width = 150 };
+            host.Show(explicitWidth);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Assert.Equal(150, explicitWidth.Bounds.Width, 5);
         }
         finally { window.Close(); }
     }

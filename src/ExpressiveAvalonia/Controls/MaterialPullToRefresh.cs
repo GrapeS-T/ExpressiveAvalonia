@@ -2,6 +2,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Templates;
@@ -92,6 +93,7 @@ public sealed class MaterialPullToRefresh : ContentControl
     public MaterialPullToRefresh()
     {
         ClipToBounds = true;
+        Focusable = true;
         Template = new FuncControlTemplate<MaterialPullToRefresh>((owner, _) => owner.Build());
         AddHandler(PointerPressedEvent, Pressed, RoutingStrategies.Tunnel, true);
         AddHandler(PointerMovedEvent, Moved, RoutingStrategies.Tunnel, true);
@@ -127,6 +129,24 @@ public sealed class MaterialPullToRefresh : ContentControl
     public object? RefreshCommandParameter { get => GetValue(RefreshCommandParameterProperty); set => SetValue(RefreshCommandParameterProperty, value); }
     public double DistanceFraction => _distanceFraction;
     public event EventHandler<RoutedEventArgs>? RefreshRequested { add => AddHandler(RefreshRequestedEvent, value); remove => RemoveHandler(RefreshRequestedEvent, value); }
+
+    /// <summary>Requests a refresh when enabled and not already refreshing, as does a completed pull.</summary>
+    public void RequestRefresh()
+    {
+        if (!IsEffectivelyEnabled || IsRefreshing) return;
+        RaiseEvent(new RoutedEventArgs(RefreshRequestedEvent));
+        if (RefreshCommand is { } command && command.CanExecute(RefreshCommandParameter)) command.Execute(RefreshCommandParameter);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (!e.Handled && e.Key == Key.F5 && ReferenceEquals(e.Source, this) && IsEffectivelyEnabled && !IsRefreshing)
+        {
+            RequestRefresh();
+            e.Handled = true;
+        }
+    }
 
     // Upstream DragMultiplier = .5; tension saturates at twice the positional threshold.
     internal static double CalculateDistanceFraction(double pulled, double threshold)
@@ -423,8 +443,7 @@ public sealed class MaterialPullToRefresh : ContentControl
         e.Handled = true;
         if (trigger)
         {
-            RaiseEvent(new RoutedEventArgs(RefreshRequestedEvent));
-            if (RefreshCommand is { } command && command.CanExecute(RefreshCommandParameter)) command.Execute(RefreshCommandParameter);
+            RequestRefresh();
             // Like source withFrameNanos: allow externally bound IsRefreshing to update first.
             if (TopLevel.GetTopLevel(this) is { } root)
                 root.RequestAnimationFrame(_ =>
@@ -455,10 +474,15 @@ public sealed class MaterialPullToRefresh : ContentControl
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() => _peer = new RefreshAutomationPeer(this);
-    private sealed class RefreshAutomationPeer(MaterialPullToRefresh owner) : ControlAutomationPeer(owner)
+    private sealed class RefreshAutomationPeer(MaterialPullToRefresh owner) : ControlAutomationPeer(owner), IInvokeProvider
     {
         protected override string GetClassNameCore() => nameof(MaterialPullToRefresh);
         protected override string? GetItemStatusCore() => AutomationProperties.GetItemStatus(owner) ?? (owner.IsRefreshing ? "Refreshing" : null);
+        public void Invoke()
+        {
+            if (!owner.IsEffectivelyEnabled || owner.IsRefreshing) throw new ElementNotEnabledException();
+            owner.RequestRefresh();
+        }
         internal void NotifyChanged(AvaloniaPropertyChangedEventArgs e)
         {
             if (e.Property == IsRefreshingProperty)

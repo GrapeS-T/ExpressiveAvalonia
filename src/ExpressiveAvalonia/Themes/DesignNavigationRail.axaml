@@ -269,7 +269,7 @@
                 CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
           <Panel>
             <StackPanel Name="PART_HeaderHost" Orientation="Vertical" Spacing="4"
-                        HorizontalAlignment="Center" Margin="0,44,0,0">
+                        HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,44,0,0">
               <StackPanel Name="PART_MenuFab" Orientation="Vertical" Spacing="4"
                           HorizontalAlignment="Center">
                 <Button Name="PART_MenuButton" Theme="{StaticResource MaterialNavigationRailMenuButtonTheme}"

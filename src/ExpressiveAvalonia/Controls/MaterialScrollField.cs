@@ -98,7 +98,7 @@ public sealed class MaterialScrollFieldState : AvaloniaObject
     /// <summary>The internal pager page, expressed modulo <see cref="ItemCount"/>.</summary>
     internal int ContextPage => _contextPage;
 
-    /// <summary>The internal target page; automation exposes this value directly.</summary>
+    /// <summary>The internal target page.</summary>
     internal int TargetPage => _targetPage;
 
     internal MaterialScrollField? Owner { get; set; }
@@ -568,7 +568,7 @@ public sealed class MaterialScrollField : Control
     /// <summary>Animates to a clamped option.</summary>
     public void AnimateScrollToOption(int option) => _state?.AnimateScrollToOption(option);
 
-    /// <summary>Requests an internal pager page; used by state and automation.</summary>
+    /// <summary>Requests an internal pager page.</summary>
     internal void RequestScroll(int targetPage, bool animate)
     {
         targetPage = Math.Clamp(targetPage, 0, MaterialScrollFieldState.InfinitePageCount - 1);
@@ -1329,16 +1329,12 @@ public sealed class MaterialScrollField : Control
 
     private void RequestOptionAt(double y, bool animate)
     {
-        if (_state is not { } state)
+        if (_state is null)
             return;
         var page = (int)Math.Round(_offset + (y - Bounds.Height / 2) / ItemHeight,
             MidpointRounding.AwayFromZero);
         page = Math.Clamp(page, 0, MaterialScrollFieldState.InfinitePageCount - 1);
-        var option = MaterialScrollFieldState.Mod(page, ItemCount);
-        if (animate)
-            state.AnimateScrollToOption(option);
-        else
-            state.ScrollToOption(option);
+        RequestScroll(page, animate);
     }
 
     private int CurrentPage
@@ -1634,26 +1630,28 @@ public sealed class MaterialScrollField : Control
 
         public double Minimum => 0;
 
-        public double Maximum => MaterialScrollFieldState.InfinitePageCount - 1;
+        public double Maximum => Math.Max(0, (owner._state?.ItemCount ?? 1) - 1);
 
         public double SmallChange => 1;
 
-        public double LargeChange => 10;
+        public double LargeChange => Math.Min(10, Maximum);
 
-        public double Value => owner._state?.TargetPage ?? 0;
+        public double Value => owner._state?.TargetOption ?? 0;
 
         public void SetValue(double value)
         {
-            if (IsReadOnly || double.IsNaN(value))
+            if (IsReadOnly || double.IsNaN(value) || owner._state is not { } state)
                 return;
-            var page = (int)Math.Round(value, MidpointRounding.AwayFromZero);
-            owner.RequestScroll(page, animate: true);
+            var option = (int)Math.Round(Math.Clamp(value, Minimum, Maximum), MidpointRounding.AwayFromZero);
+            state.AnimateScrollToOption(option);
         }
 
         internal void NotifyTargetChanged(int oldPage, int newPage, string oldHelp, string newHelp)
         {
+            var count = owner._state?.ItemCount ?? 1;
             RaisePropertyChangedEvent(RangeValuePatternIdentifiers.ValueProperty,
-                (double)oldPage, (double)newPage);
+                (double)MaterialScrollFieldState.Mod(oldPage, count),
+                (double)MaterialScrollFieldState.Mod(newPage, count));
             RaisePropertyChangedEvent(AutomationElementIdentifiers.HelpTextProperty, oldHelp,
                 newHelp);
         }

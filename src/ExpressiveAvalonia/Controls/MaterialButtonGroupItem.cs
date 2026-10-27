@@ -293,8 +293,14 @@ public class MaterialButtonGroupItem : ToggleButton
         if (segmented)
             UpdateSegmentedMetrics(iconVisible, check,
                 animate: !_suppressCheckAnimation && (checkChanged || iconChanged));
-        else if (checkChanged && !_suppressCheckAnimation)
-            UpdateSegmentedCheckAnimation();
+        else
+        {
+            _offsetSpring?.Dispose();
+            _offsetSpring = null;
+            SetCurrentValue(SegmentedContentOffsetProperty, 0d);
+            if (checkChanged && !_suppressCheckAnimation)
+                UpdateSegmentedCheckAnimation();
+        }
 
         if (Content is string text && !string.IsNullOrWhiteSpace(text) &&
             string.IsNullOrEmpty(AutomationProperties.GetName(this)))

@@ -143,6 +143,7 @@ public class MaterialSwipeListItem : ListBoxItem
     private double _offset;
     private double _width;
     private double _velocity;
+    private bool _keyboardActionsRevealed;
 
     public MaterialSwipeListItem()
     {
@@ -321,7 +322,9 @@ public class MaterialSwipeListItem : ListBoxItem
         {
             // Every logical anchor mirrors with the flow direction; keep an in-flight settle on
             // the mirrored position of its target instead of the stale captured endpoint.
-            if (!_dragging)
+            if (_keyboardActionsRevealed && _actionsBackground is StackPanel actionsPanel)
+                SetOffsetImmediate((EnableDismissFromEndToStart ? -1 : 1) * DirectionSign * Math.Min(Bounds.Width, actionsPanel.Bounds.Width));
+            else if (!_dragging)
                 ReconcileAnchors();
         }
         else if (change.Property == EnableDismissFromStartToEndProperty ||
@@ -333,6 +336,12 @@ public class MaterialSwipeListItem : ListBoxItem
                 ((SwipeState != MaterialSwipeState.Settled && !IsDirectionEnabled(SwipeState)) ||
                  (TargetSwipeState != MaterialSwipeState.Settled && !IsDirectionEnabled(TargetSwipeState))))
                 SnapTo(MaterialSwipeState.Settled);
+            if (_actionsBackground is StackPanel panel && ReferenceEquals(BackgroundContent, panel))
+                panel.HorizontalAlignment = EnableDismissFromEndToStart
+                    ? Avalonia.Layout.HorizontalAlignment.Right
+                    : Avalonia.Layout.HorizontalAlignment.Left;
+            if (_keyboardActionsRevealed && _actionsBackground is StackPanel actionsPanel)
+                SetOffsetImmediate((EnableDismissFromEndToStart ? -1 : 1) * DirectionSign * Math.Min(Bounds.Width, actionsPanel.Bounds.Width));
         }
         else if (change.Property == IsEnabledProperty && !change.GetNewValue<bool>())
         {
@@ -407,10 +416,26 @@ public class MaterialSwipeListItem : ListBoxItem
                     ? null
                     : new PathIcon { Data = action.Icon, Width = 24, Height = 24 },
                 Tag = index,
-                IsTabStop = false,
             };
             AutomationProperties.SetName(button, action.Label ?? "Action");
             button.Click += OnActionClick;
+            button.GotFocus += (_, _) =>
+            {
+                if (SwipeState == MaterialSwipeState.Settled && Math.Abs(_offset) < 0.01)
+                {
+                    _keyboardActionsRevealed = true;
+                    var width = Math.Min(Bounds.Width, panel.Bounds.Width);
+                    SetOffsetImmediate((EnableDismissFromEndToStart ? -1 : 1) * DirectionSign * width);
+                }
+            };
+            button.LostFocus += (_, _) =>
+            {
+                if (_keyboardActionsRevealed)
+                {
+                    _keyboardActionsRevealed = false;
+                    SetOffsetImmediate(0);
+                }
+            };
             panel.Children.Add(button);
         }
 

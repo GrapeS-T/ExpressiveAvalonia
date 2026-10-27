@@ -74,6 +74,60 @@ public class ScrollAndCarouselStateTests
     }
 
     [AvaloniaFact]
+    public void ClickingWrappedNeighboursTargetsTheirActualPages()
+    {
+        var state = new MaterialScrollFieldState(10, 9);
+        var field = new MaterialScrollField { State = state, Width = 120, Height = 160 };
+        var window = Show(field);
+        try
+        {
+            MaterialMotion.SetIsReduced(field, false);
+            var page = state.ContextPage;
+            var center = Center(field, window);
+            var next = new Point(center.X, center.Y + field.ItemHeight);
+            window.MouseDown(next, MouseButton.Left);
+            window.MouseUp(next, MouseButton.Left);
+            Assert.Equal(page + 1, state.TargetPage);
+            Assert.Equal(0, state.TargetOption);
+
+            field.IsEnabled = false;
+            field.IsEnabled = true;
+            state.ScrollToOption(0);
+            page = state.ContextPage;
+            var previous = new Point(center.X, center.Y - field.ItemHeight);
+            window.MouseDown(previous, MouseButton.Left);
+            window.MouseUp(previous, MouseButton.Left);
+            Assert.Equal(page - 1, state.TargetPage);
+            Assert.Equal(9, state.TargetOption);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void ScrollFieldAutomationUsesOptionRangeAndValue()
+    {
+        var state = new MaterialScrollFieldState(12, 11);
+        var field = new MaterialScrollField { State = state, Width = 120, Height = 160 };
+        var window = Show(field);
+        try
+        {
+            var provider = Assert.IsAssignableFrom<IRangeValueProvider>(
+                ControlAutomationPeer.CreatePeerForElement(field));
+            Assert.Equal(0, provider.Minimum);
+            Assert.Equal(11, provider.Maximum);
+            Assert.Equal(11, provider.Value);
+            provider.SetValue(3);
+            Assert.Equal(3, state.TargetOption);
+            Assert.Equal(3, provider.Value);
+            field.IsEnabled = false;
+            Assert.True(provider.IsReadOnly);
+            provider.SetValue(5);
+            Assert.NotEqual(5, state.TargetOption);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void InsertBeforeScrolledCurrentItemAnchorsTheCurrentItemNotTheSelectionOrigin()
     {
         var items = new ObservableCollection<string> { "A", "Peek", "B", "C", "D" };

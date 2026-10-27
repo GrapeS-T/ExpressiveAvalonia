@@ -117,7 +117,7 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         stage.Children.Add(_status);
         Children.Add(stage);
 
-        _kind = Choice("Представление", new[] { "Search bar", "Search view", "Search app bar" });
+        _kind = Choice("Представление", new[] { "Bar", "View", "App bar" });
         _mode = Choice("Расположение view", new[] { "Docked", "Full-screen" });
         _variant = Choice("Вариант", new[] { "Expressive", "Baseline" });
         _configuration = Choice("Поле", new[] { "Input text", "Supporting text" });
@@ -316,10 +316,10 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
             ControlSize = MaterialControlSize.Small,
             SelectionMode = MaterialButtonGroupSelectionMode.Single,
             ShowSelectedIcon = true,
-            SelectedIndex = 0,
         };
         foreach (var option in options)
             group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        group.SelectedIndex = 0;
         Settings.Children.Add(group);
         return group;
     }

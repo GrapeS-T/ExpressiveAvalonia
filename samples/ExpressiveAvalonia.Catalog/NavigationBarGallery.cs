@@ -44,7 +44,7 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
     private readonly MaterialButtonGroup _axis;
     private readonly MaterialButtonGroup _kind;
     private readonly MaterialButtonGroup _arrangement;
-    private readonly MaterialButtonGroup _itemOrientation;
+    private readonly ComboBox _itemOrientation;
     private readonly MaterialButtonGroup _badge;
     private readonly ToggleSwitch _labels;
     private readonly ToggleSwitch _alwaysShowLabel;
@@ -105,7 +105,15 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
         _axis = Choice("Ось полосы", ["Горизонтальная", "Вертикальная"]);
         _kind = Choice("Вариант", ["Классическая", "Short (выразительная)"]);
         _arrangement = Choice("Раскладка Short", ["Равные", "По центру"]);
-        _itemOrientation = Choice("Расположение пунктов", ["Авто", "Иконка слева", "Иконка сверху"]);
+        Settings.Children.Add(new TextBlock { Text = "Расположение пунктов" });
+        _itemOrientation = new ComboBox
+        {
+            ItemsSource = new[] { "Авто", "Иконка слева", "Иконка сверху" },
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_itemOrientation, "Расположение пунктов");
+        Settings.Children.Add(_itemOrientation);
         _count = Number("Количество пунктов", 3, 6, 4, 1);
         _labels = Toggle("Подписи пунктов", true);
         _alwaysShowLabel = Toggle("Подписи у всех пунктов", true);
@@ -124,8 +132,9 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
         AutomationProperties.SetName(_selected, "Выбранный пункт");
         Settings.Children.Add(_selected);
 
-        foreach (var group in new[] { _axis, _kind, _arrangement, _itemOrientation, _badge })
+        foreach (var group in new[] { _axis, _kind, _arrangement, _badge })
             group.SelectionChanged += (_, _) => Apply();
+        _itemOrientation.SelectionChanged += (_, _) => Apply();
         foreach (var toggle in new[] { _labels, _alwaysShowLabel, _rtl, _disabledLast })
             toggle.IsCheckedChanged += (_, _) => Apply();
         _count.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };

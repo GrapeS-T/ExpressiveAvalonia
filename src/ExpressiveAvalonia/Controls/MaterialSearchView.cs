@@ -566,9 +566,8 @@ public class MaterialSearchView : TemplatedControl
     {
         base.OnAttachedToVisualTree(e);
 
-        var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
-        if (focused is Visual visual && !visual.GetVisualAncestors().Contains(this))
-            _previousFocus = focused;
+        if (IsOpen)
+            CapturePreviousFocus();
 
         HookAnchorBar();
         if (IsOpen)
@@ -660,6 +659,7 @@ public class MaterialSearchView : TemplatedControl
             {
                 if (change.GetNewValue<bool>())
                 {
+                    CapturePreviousFocus();
                     AdoptAnchorInputState();
                     AttachLightDismiss();
                 }
@@ -1351,6 +1351,16 @@ public class MaterialSearchView : TemplatedControl
     {
         var inv = 1 - t;
         return 3 * inv * inv * t * p1 + 3 * inv * t * t * p2 + t * t * t;
+    }
+
+    private void CapturePreviousFocus()
+    {
+        var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+        if (focused is Visual visual && !ReferenceEquals(visual, this) &&
+            !visual.GetVisualAncestors().Contains(this))
+            _previousFocus = focused;
+        else
+            _previousFocus = null;
     }
 
     private void RestoreFocus()

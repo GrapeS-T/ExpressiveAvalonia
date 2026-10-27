@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using ExpressiveAvalonia.Controls;
 using Xunit;
 
@@ -32,6 +33,36 @@ public class InteractionSurfaceTests
 
     private static Point Center(Control control, Window window) =>
         control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
+
+    [AvaloniaFact]
+    public void MenuItemMutationsRefreshFilterAndEnabledContainer()
+    {
+        var item = new MaterialMenuTextFieldItem("Apple");
+        var menu = new MaterialMenuTextField { Text = "pear" };
+        menu.Items.Add(item);
+        var window = Show(menu);
+        try
+        {
+            var list = menu.GetVisualDescendants().OfType<ListBox>().Single(x => x.Name == "PART_List");
+            Assert.Empty(list.Items);
+            item.Keywords = "pear";
+            window.UpdateLayout();
+            Assert.Single(list.Items);
+            item.IsEnabled = false;
+            window.UpdateLayout();
+            var container = list.ContainerFromIndex(0);
+            Assert.NotNull(container);
+            Assert.False(container!.IsEnabled);
+            item.Keywords = null;
+            Assert.Empty(list.Items);
+            item.Label = "Pear";
+            Assert.Single(list.Items);
+            menu.Items.Remove(item);
+            item.Label = "Other";
+            Assert.Empty(list.Items);
+        }
+        finally { window.Close(); }
+    }
 
     [AvaloniaFact]
     public void SpaceCompletesOnceOnMatchingReleaseAndIgnoresAutoRepeat()

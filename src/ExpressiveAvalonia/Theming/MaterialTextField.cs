@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -136,6 +137,8 @@ public sealed class MaterialTextField : AvaloniaObject
     /// <summary>
     /// Selects how secure text is obscured. The default <see cref="TextObfuscationMode.System"/>
     /// preserves the previous native <see cref="TextBox.PasswordChar"/> behavior.
+    /// Explicit Hidden and RevealLastTyped modes ensure a nonzero native password character,
+    /// preserving native clipboard and automation semantics if none is configured.
     /// </summary>
     public static readonly AttachedProperty<TextObfuscationMode> TextObfuscationModeProperty =
         AvaloniaProperty.RegisterAttached<MaterialTextField, TextBox, TextObfuscationMode>(
@@ -380,6 +383,8 @@ public sealed class MaterialTextField : AvaloniaObject
         // pastes never set it, so they cannot start the reveal.
         private string? _pendingTextInput;
         private bool _selectionRevealCheckQueued;
+        private IDisposable? _passwordCharOverride;
+        private bool _updatingPasswordChar;
         private bool _disposed;
 
         private const double LabelHorizontalPadding = 4;
@@ -1117,6 +1122,7 @@ public sealed class MaterialTextField : AvaloniaObject
         /// </summary>
         private void UpdateObfuscation(AvaloniaPropertyChangedEventArgs? textChange = null)
         {
+            UpdatePasswordSemantics();
             var mode = ResolveObfuscationMode();
             var canReveal = mode == TextObfuscationMode.RevealLastTyped &&
                 _box.IsEffectivelyEnabled && _box.IsKeyboardFocusWithin;
@@ -1144,6 +1150,31 @@ public sealed class MaterialTextField : AvaloniaObject
             ApplyObfuscation();
         }
 
+        private void UpdatePasswordSemantics()
+        {
+            if (_updatingPasswordChar)
+                return;
+            _updatingPasswordChar = true;
+            try
+            {
+                var mode = GetTextObfuscationMode(_box);
+                var secure = mode is TextObfuscationMode.Hidden or TextObfuscationMode.RevealLastTyped;
+                if (!secure && _passwordCharOverride is not null)
+                {
+                    var old = _passwordCharOverride;
+                    _passwordCharOverride = null;
+                    old.Dispose();
+                }
+                else if (secure && _passwordCharOverride is null && _box.PasswordChar == '\0')
+                {
+                    // The temporary priority value leaves the original value or binding intact.
+                    _passwordCharOverride = _box.SetValue(TextBox.PasswordCharProperty,
+                        DefaultObfuscationCharacter, BindingPriority.Animation);
+                }
+            }
+            finally { _updatingPasswordChar = false; }
+        }
+
         private void ApplyObfuscation()
         {
             var text = _box.Text;
@@ -1156,15 +1187,7 @@ public sealed class MaterialTextField : AvaloniaObject
                     effectivePasswordChar = '\0';
                     break;
                 case TextObfuscationMode.Hidden:
-                    if (_box.RevealPassword || _box.PasswordChar != '\0')
-                        break;
-                    // An ordinary field defaults to System and must stay visible. Only an
-                    // explicit Hidden masks, and only when the caller did not set a native
-                    // PasswordChar (copy/cut and automation remain governed by that property).
-                    if (GetTextObfuscationMode(_box) == TextObfuscationMode.System)
-                        break;
-                    display = MaskText(text ?? string.Empty, DefaultObfuscationCharacter);
-                    effectivePasswordChar = '\0';
+                    // System keeps ordinary fields visible; explicit Hidden is secured above.
                     break;
                 case TextObfuscationMode.RevealLastTyped:
                     effectivePasswordChar = '\0';
@@ -1360,6 +1383,8 @@ public sealed class MaterialTextField : AvaloniaObject
         {
             _disposed = true;
             _box.PropertyChanged -= OnPropertyChanged;
+            _passwordCharOverride?.Dispose();
+            _passwordCharOverride = null;
             _box.TemplateApplied -= OnTemplateApplied;
             _box.DetachedFromVisualTree -= OnDetached;
             _box.KeyDown -= OnKeyDown;

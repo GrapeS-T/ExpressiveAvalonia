@@ -49,6 +49,34 @@ public class TextFieldObfuscationTests
     }
 
     [AvaloniaFact]
+    public void ExplicitSecureModesPreservePasswordBindingAndRestoreItsLatestValue()
+    {
+        var model = new PasswordCharModel();
+        var field = new TextBox { Text = "secret" };
+        field.Bind(TextBox.PasswordCharProperty,
+            new Binding(nameof(PasswordCharModel.Value)) { Source = model, Mode = BindingMode.OneWay });
+        var window = Show(field);
+        try
+        {
+            Assert.Equal('\0', field.PasswordChar);
+            MaterialTextField.SetTextObfuscationMode(field, TextObfuscationMode.Hidden);
+            Assert.NotEqual('\0', field.PasswordChar);
+            model.Value = '*';
+            MaterialTextField.SetTextObfuscationMode(field, TextObfuscationMode.RevealLastTyped);
+            Assert.NotEqual('\0', field.PasswordChar);
+            MaterialTextField.SetTextObfuscationMode(field, TextObfuscationMode.System);
+            Assert.Equal('*', field.PasswordChar);
+            model.Value = '\0';
+            Assert.Equal('\0', field.PasswordChar);
+            MaterialTextField.SetTextObfuscationMode(field, TextObfuscationMode.RevealLastTyped);
+            Assert.NotEqual('\0', field.PasswordChar);
+            MaterialTextField.SetTextObfuscationMode(field, TextObfuscationMode.Visible);
+            Assert.Equal('\0', field.PasswordChar);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void ModeSwitchUpdatesTheDisplayWithoutTouchingText()
     {
         var field = new TextBox { Text = "secret", PasswordChar = '\u25cf' };
@@ -211,6 +239,21 @@ public class TextFieldObfuscationTests
             Assert.Equal("\u25cf\u25cf\u25cf", MaterialTextField.GetDisplayText(field));
         }
         finally { window.Close(); }
+    }
+
+    private sealed class PasswordCharModel : System.ComponentModel.INotifyPropertyChanged
+    {
+        private char _value;
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        public char Value
+        {
+            get => _value;
+            set
+            {
+                _value = value;
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Value)));
+            }
+        }
     }
 
     private sealed class TextModel

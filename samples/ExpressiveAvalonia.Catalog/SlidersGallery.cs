@@ -98,7 +98,7 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
         {
             var editor = new TextBox
             {
-                Name = "PART_TextBox", MinHeight = 56,
+                Name = "PART_TextBox", MinHeight = 56, Margin = new Thickness(0, 8, 0, 0),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 VerticalContentAlignment = VerticalAlignment.Center
             };

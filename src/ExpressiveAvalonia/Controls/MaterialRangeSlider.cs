@@ -398,7 +398,13 @@ public sealed class MaterialRangeSlider : TemplatedControl
     {
         if (Travel <= 0 || !IsEffectivelyEnabled)
             return;
-        var visual = Math.Clamp((x - 2 - _grabOffset) / Travel, 0, 1);
+        var offset = Math.Clamp(x - 2 - _grabOffset, 0, Travel);
+        var corner = IsSnapToTickEnabled && TickFrequency > 0
+            ? Math.Min(MaterialSlider.Corner(this, _canvas?.Bounds.Height ?? Bounds.Height), Travel / 2)
+            : 0;
+        var visual = corner > 0 && Travel > 2 * corner
+            ? Math.Clamp((offset - corner) / (Travel - 2 * corner), 0, 1)
+            : offset / Travel;
         var fraction = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft ? 1 - visual : visual;
         SetEndpoint(_activeThumb == _upperThumb, Minimum * (1 - fraction) + Maximum * fraction);
     }
@@ -417,7 +423,7 @@ public sealed class MaterialRangeSlider : TemplatedControl
     {
         if (e.Handled || e.KeyModifiers != KeyModifiers.None || !IsEffectivelyEnabled)
             return;
-        if (e.Key is not (Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown))
+        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown))
             return;
         RaiseValueChangeCompleted();
         e.Handled = true;

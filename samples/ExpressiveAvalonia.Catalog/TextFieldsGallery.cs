@@ -51,33 +51,36 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
         {
             Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round,
             ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true, SelectedIndex = 1
+            ShowSelectedIcon = true
         };
         _variant.Items.Add(new MaterialButtonGroupItem { Content = "Filled" });
         _variant.Items.Add(new MaterialButtonGroupItem { Content = "Outlined" });
+        _variant.SelectedIndex = 1;
         Settings.Children.Add(_variant);
         Settings.Children.Add(new TextBlock { Text = "Положение подписи" });
         _labelPosition = new MaterialButtonGroup
         {
             Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round,
             ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true, SelectedIndex = 0
+            ShowSelectedIcon = true
         };
         _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Авто" });
         _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Внутри" });
         _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Вырез" });
         _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Сверху" });
+        _labelPosition.SelectedIndex = 0;
         Settings.Children.Add(_labelPosition);
         Settings.Children.Add(new TextBlock { Text = "Выравнивание подписи" });
         _labelAlignment = new MaterialButtonGroup
         {
             Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round,
             ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true, SelectedIndex = 0
+            ShowSelectedIcon = true
         };
         _labelAlignment.Items.Add(new MaterialButtonGroupItem { Content = "Старт" });
         _labelAlignment.Items.Add(new MaterialButtonGroupItem { Content = "Центр" });
         _labelAlignment.Items.Add(new MaterialButtonGroupItem { Content = "Конец" });
+        _labelAlignment.SelectedIndex = 0;
         Settings.Children.Add(_labelAlignment);
         _alwaysMinimized = Toggle("Подпись всегда минимизирована", false);
         var widthLabel = new TextBlock { Text = "Ширина: 320 dp" };
