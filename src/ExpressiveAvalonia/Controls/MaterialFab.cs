@@ -496,6 +496,13 @@ public class MaterialExtendedFab : MaterialFabBase
             : Avalonia.Layout.HorizontalAlignment.Center;
         _contentRow.MinWidth = Lerp(geometry.CollapsedRowWidth, geometry.ExpandedRowWidth, width);
 
+        _labelText.Width = _measuredLabelWidth;
+        _labelText.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
+        if (_labelContent is not null)
+        {
+            _labelContent.Width = _measuredLabelWidth;
+            _labelContent.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
+        }
         if (_labelText.Margin != gap)
             _labelText.Margin = gap;
         if (_labelContent is not null && _labelContent.Margin != gap)

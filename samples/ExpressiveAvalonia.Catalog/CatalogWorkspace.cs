@@ -1,8 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
 
@@ -14,7 +16,7 @@ internal sealed partial class CatalogWindow
     internal CatalogInspector Inspector { get; private set; } = null!;
     internal Control? CurrentPage { get; private set; }
     private readonly Border _preview = new() { ClipToBounds = true };
-    private readonly MaterialNavigationRail _navigation = new() { IsExpanded = true, ShowFab = false, ShowMenuButton = false };
+    private readonly MaterialNavigationRail _navigation = new() { Mode = MaterialNavigationRailMode.Wide, IsExpanded = true, ShowFab = false, ShowMenuButton = false };
     private readonly TextBlock _pageTitle = new();
     private readonly TextBlock _sectionLabel = new();
     private TabItem? _selectedItem;
@@ -24,43 +26,52 @@ internal sealed partial class CatalogWindow
     {
         ExpressivePages = DesignSystemGallery.Create();
         Inspector = new CatalogInspector(_theme, this);
-        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("220,*,380"), ColumnSpacing = 16, Margin = new Thickness(12) };
-        var nav = new Grid { RowDefinitions = new RowDefinitions("56,*,Auto"), RowSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
-        var collapseIcon = new PathIcon
+        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,380"), ColumnSpacing = 16, Margin = new Thickness(12) };
+        var nav = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
+        nav.Bind(WidthProperty, new Binding(nameof(Width)) { Source = _navigation });
+        var collapse = new Button
         {
-            Data = Geometry.Parse("M3,6 L15,6 L15,8 L3,8 Z M3,11 L12,11 L12,13 L3,13 Z M3,16 L15,16 L15,18 L3,18 Z M20,7 L22,9 L19,12 L22,15 L20,17 L15,12 Z"),
-            Width = 24,
-            Height = 24
+            Theme = (ControlTheme)Application.Current!.FindResource("MaterialNavigationRailMenuButtonTheme")!,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Content = new PathIcon { Width = 24, Height = 24, Data = NavigationGlyph("menu_open") }
         };
-        collapseIcon.Bind(ForegroundProperty, this.GetResourceObservable("MaterialOnSurfaceBrush"));
-        // A local template keeps the navigation glyph independent of the gallery's icon-button anatomy.
-        var collapse = new Button { Width = 56, Height = 56, HorizontalAlignment = HorizontalAlignment.Center };
-        collapse.Template = new Avalonia.Controls.Templates.FuncControlTemplate<Button>((button, scope) =>
-        {
-            var background = new Border { CornerRadius = new CornerRadius(28), Child = collapseIcon };
-            background.Bind(BackgroundProperty, button.GetResourceObservable("MaterialSurfaceContainerBrush"));
-            collapseIcon.HorizontalAlignment = HorizontalAlignment.Center;
-            collapseIcon.VerticalAlignment = VerticalAlignment.Center;
-            return background;
-        });
-        Avalonia.Automation.AutomationProperties.SetName(collapse, "Свернуть или развернуть навигацию");
+        Avalonia.Automation.AutomationProperties.SetName(collapse, "Свернуть навигацию");
+        ToolTip.SetTip(collapse, "Свернуть или развернуть навигацию");
+        MaterialExtendedFab settings = null!;
         collapse.Click += (_, _) =>
         {
             _navigation.IsExpanded = !_navigation.IsExpanded;
-            body.ColumnDefinitions[0].Width = new GridLength(_navigation.IsExpanded ? 220 : 96);
-            collapseIcon.RenderTransform = new Avalonia.Media.ScaleTransform(_navigation.IsExpanded ? 1 : -1, 1);
+            ((PathIcon)collapse.Content!).Data = NavigationGlyph(_navigation.IsExpanded ? "menu_open" : "menu");
+            settings.IsExpanded = _navigation.IsExpanded;
             Avalonia.Automation.AutomationProperties.SetName(collapse, _navigation.IsExpanded ? "Свернуть навигацию" : "Развернуть навигацию");
         };
-        nav.Children.Add(collapse);
+        var header = new StackPanel
+        {
+            Spacing = 4, HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(20, 44, 20, 0), Children = { collapse }
+        };
+        nav.Children.Add(header);
         _navigation.SelectionChanged += (_, _) =>
         {
             if (!_changingSection && _navigation.SelectedIndex >= 0)
                 SelectPage(_navigation.SelectedIndex);
         };
-        var railScroll = new ScrollViewer { Content = _navigation, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var railScroll = new ScrollViewer { Content = _navigation, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden };
         Grid.SetRow(railScroll, 1);
         nav.Children.Add(railScroll);
-        var settings = new Button { Content = "Настройки", HorizontalAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(8, 0), Height = 56 };
+        settings = new MaterialExtendedFab
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Mode = MaterialExtendedFabMode.Classic,
+            ColorRole = MaterialFabColorRole.PrimaryContainer,
+            Label = "Настройки",
+            Icon = NavigationGlyph("settings")
+        };
+        settings.TemplateApplied += (_, e) =>
+        {
+            if (e.NameScope.Find<Border>("Surface") is { } surface)
+                surface.BoxShadow = new BoxShadows();
+        };
         ToolTip.SetTip(settings, "Настройки студии");
         Avalonia.Automation.AutomationProperties.SetName(settings, "Настройки студии");
         Window? settingsWindow = null;
@@ -80,8 +91,7 @@ internal sealed partial class CatalogWindow
             };
             settingsWindow.Show(this);
         };
-        Grid.SetRow(settings, 2);
-        nav.Children.Add(settings);
+        header.Children.Add(settings);
         body.Children.Add(nav);
 
         var stage = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 20, Margin = new Thickness(24) };
@@ -106,7 +116,13 @@ internal sealed partial class CatalogWindow
         body.Children.Add(Inspector);
         Content = body;
         foreach (var item in ExpressivePages.Items.Cast<TabItem>())
-            _navigation.Items.Add(new MaterialNavigationRailItem { Content = item.Header, Icon = NavigationIcon(item.Header?.ToString()), ShowLabel = true });
+        {
+            var title = item.Header?.ToString() ?? string.Empty;
+            var destination = new MaterialNavigationRailItem { Content = title, Label = NavigationLabel(title), Icon = NavigationIcon(title), ShowLabel = true };
+            Avalonia.Automation.AutomationProperties.SetName(destination, title);
+            ToolTip.SetTip(destination, title);
+            _navigation.Items.Add(destination);
+        }
         if (ExpressivePages.ItemCount > 0) SelectPage(0);
         Opened += (_, _) => { if (CurrentPage is { } page) Inspector.SetPage(page); };
     }
@@ -119,18 +135,37 @@ internal sealed partial class CatalogWindow
     }
 
 
-    private static Geometry NavigationIcon(string? page) => Geometry.Parse(page switch
+    private static Geometry NavigationGlyph(string name) => MaterialIcons.TryGetByName(name, out var icon)
+        ? icon.Geometry
+        : throw new InvalidOperationException($"Missing Material icon: {name}");
+
+    private static string NavigationLabel(string title) => title switch
     {
-        "Buttons" or "Button groups" or "Chips" => "M6,6 L18,6 A6,6 0 0 1 18,18 L6,18 A6,6 0 0 1 6,6 Z M7,11 L17,11 L17,13 L7,13 Z",
-        "Selection" => "M3,3 L21,3 L21,21 L3,21 Z M6,12 L10,16 L18,8 L16,6 L10,12 L8,10 Z",
-        "Navigation rail" or "Navigation drawer" => "M3,3 L21,3 L21,21 L3,21 Z M5,5 L5,19 L9,19 L9,5 Z M11,5 L11,19 L19,19 L19,5 Z",
-        "FAB" => "M12,2 A10,10 0 1 1 11.99,2 Z M11,6 L11,11 L6,11 L6,13 L11,13 L11,18 L13,18 L13,13 L18,13 L18,11 L13,11 L13,6 Z",
-        "Text fields" or "Input" or "Typography" => "M3,4 L21,4 L21,8 L19,8 L19,6 L13,6 L13,20 L11,20 L11,6 L5,6 L5,8 L3,8 Z",
-        "Sliders" or "Ranges" => "M3,7 L8,7 L8,4 L10,4 L10,12 L8,12 L8,9 L3,9 Z M12,7 L21,7 L21,9 L12,9 Z M3,16 L14,16 L14,13 L16,13 L16,21 L14,21 L14,18 L3,18 Z M18,16 L21,16 L21,18 L18,18 Z",
-        "Lists" or "Collections" or "Menus" => "M3,4 L6,4 L6,7 L3,7 Z M9,4 L21,4 L21,7 L9,7 Z M3,10 L6,10 L6,13 L3,13 Z M9,10 L21,10 L21,13 L9,13 Z M3,16 L6,16 L6,19 L3,19 Z M9,16 L21,16 L21,19 L9,19 Z",
-        "Search" => "M10,2 A8,8 0 1 1 4.34,15.66 A8,8 0 0 1 10,2 Z M10,4 A6,6 0 1 0 10,16 A6,6 0 0 0 10,4 Z M15,14 L22,21 L20,23 L13,16 Z",
-        "Date pickers" or "Time pickers" => "M5,2 L7,2 L7,4 L17,4 L17,2 L19,2 L19,4 L22,4 L22,22 L2,22 L2,4 L5,4 Z M4,9 L4,20 L20,20 L20,9 Z",
-        _ => "M3,3 L10,3 L10,10 L3,10 Z M14,3 L21,3 L21,10 L14,10 Z M3,14 L10,14 L10,21 L3,21 Z M14,14 L21,14 L21,21 L14,21 Z"
+        "Navigation rail" => "Nav rail",
+        "Navigation bar" => "Nav bar",
+        "Navigation drawer" => "Drawer",
+        "Date pickers" => "Dates",
+        "Time pickers" => "Time",
+        "Text fields" => "Text",
+        "Button groups" => "Groups",
+        "Pull to refresh" => "Refresh",
+        "Scroll fields" => "Scroll",
+        _ => title
+    };
+
+    private static Geometry NavigationIcon(string page) => NavigationGlyph(page switch
+    {
+        "Buttons" => "add_circle", "Selection" => "check_box", "Navigation rail" => "menu_open",
+        "Snackbar" => "notifications", "FAB" => "add", "XR" => "stars_filled",
+        "App bars" => "drag_handle", "Button groups" => "groups", "Chips" => "bookmark",
+        "Dialogs" => "chat_bubble", "Sheets" => "archive", "Navigation bar" => "tab",
+        "Navigation drawer" => "menu", "Search" => "search", "Date pickers" => "today",
+        "Lists" => "inbox", "Tabs" => "tab", "Text fields" => "text_fields",
+        "Sliders" => "swap_horiz", "Progress" => "schedule", "Menus" => "more_vert",
+        "Tooltips" => "comment", "Shapes" => "stars", "Avatars" => "account_circle",
+        "Assets" => "image", "Cards" => "sticker", "Carousel" => "photo",
+        "Time pickers" => "schedule", "Examples" => "folder", "Pull to refresh" => "swap_vert",
+        "Scroll fields" => "swap_vert", "Scrollbars" => "drag_handle", _ => "folder"
     });
 
     internal void SelectPage(int index)

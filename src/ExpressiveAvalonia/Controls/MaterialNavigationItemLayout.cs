@@ -210,14 +210,21 @@ public sealed class MaterialNavigationItemLayout : Panel
         var label = Child(3);
         var labelWidth = 0d;
         var labelHeight = 0d;
+        var positionProgress = _measureAtEndPosition ? 1d : PositionProgress();
         if (hasLabel && label is not null)
         {
-            label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var labelConstraint = double.PositiveInfinity;
+            if (Kind is MaterialNavigationItemLayoutKind.WideRail && double.IsFinite(availableSize.Width))
+                labelConstraint = IconPosition == MaterialNavigationItemIconPosition.Top && positionProgress < 0.5
+                    ? 56d
+                    : Math.Max(136d, availableSize.Width - iconSize - 60d);
+            else if (Kind is MaterialNavigationItemLayoutKind.Rail && double.IsFinite(availableSize.Width))
+                labelConstraint = Math.Max(0, availableSize.Width);
+            label.Measure(new Size(labelConstraint, double.PositiveInfinity));
             labelWidth = label.DesiredSize.Width;
             labelHeight = label.DesiredSize.Height;
         }
 
-        var positionProgress = _measureAtEndPosition ? 1d : PositionProgress();
         var measured = Kind is MaterialNavigationItemLayoutKind.WideRail
             ? MeasureWide(availableSize, iconSize, labelWidth, labelHeight, positionProgress)
             : MeasureClassic(availableSize, iconSize, labelWidth, labelHeight);
@@ -299,7 +306,7 @@ public sealed class MaterialNavigationItemLayout : Panel
         // (PaddingValues(horizontal = 20) for Top, PaddingValues(start = 20) for Start).
         var endPadding = !hasLabel || IconPosition != MaterialNavigationItemIconPosition.Start ? startPadding : 0d;
         const double horizontalIndicatorPadding = 32d; // FullWidthLeadingSpace + trailing space.
-        var verticalIndicatorPadding = Lerp(4d, 8d, positionProgress);
+        var verticalIndicatorPadding = Lerp(4d, 16d, positionProgress);
         const double iconLabelSpace = 8d; // NavigationRailHorizontalItemTokens.IconLabelSpace.
 
         if (!hasLabel)
@@ -408,8 +415,8 @@ public sealed class MaterialNavigationItemLayout : Panel
         const double startPadding = 20d;
         var endPadding = !hasLabel || IconPosition != MaterialNavigationItemIconPosition.Start ? startPadding : 0d;
         const double horizontalIndicatorPadding = 16d;
-        var verticalIndicatorPadding = Lerp(4d, 8d, positionProgress);
-        var indicatorProgress = Clamp01(IndicatorProgress);
+        var verticalIndicatorPadding = Lerp(4d, 16d, positionProgress);
+        var indicatorProgress = Math.Max(0d, IndicatorProgress);
 
         if (!hasLabel)
         {
@@ -449,13 +456,14 @@ public sealed class MaterialNavigationItemLayout : Panel
             ? iconY + iconSize + verticalIndicatorPadding + 4d
             : (finalSize.Height - labelSize.Height) / 2;
 
-        Place(Child(0), startPadding, 0, indicatorWidth, indicatorHeightProgress);
-        Place(Child(1), startPadding, 0, indicatorWidthProgress, indicatorHeightProgress);
+        var indicatorY = Lerp(0, (finalSize.Height - indicatorHeightProgress) / 2, positionProgress);
+        Place(Child(0), startPadding, indicatorY, indicatorWidth, indicatorHeightProgress);
+        Place(Child(1), startPadding, indicatorY, indicatorWidthProgress, indicatorHeightProgress);
         Place(Child(2), iconX, iconY, iconSize, iconSize);
-        var clampedLabelWidth = Math.Min(labelSize.Width,
-            Math.Max(0, finalSize.Width - startPadding - endPadding));
-        Place(Child(3), labelX, labelY, clampedLabelWidth, labelSize.Height);
-        Place(Child(4), startPadding, 0, indicatorWidthProgress, indicatorHeightProgress);
+        // Keep the measured text box intact; the item root clips the moving label.
+        // Re-arranging it to the shrinking viewport makes TextBlock reflow mid-frame.
+        Place(Child(3), labelX, labelY, labelSize.Width, labelSize.Height);
+        Place(Child(4), startPadding, indicatorY, indicatorWidthProgress, indicatorHeightProgress);
         Child(0)?.SetValue(OpacityProperty, Clamp01(IndicatorAlpha));
         Child(3)?.SetValue(OpacityProperty, Clamp01(LabelOpacity));
     }
@@ -470,7 +478,7 @@ public sealed class MaterialNavigationItemLayout : Panel
     }
 
     private double PositionProgress() => Kind is MaterialNavigationItemLayoutKind.WideRail
-        ? Clamp01(IconPositionProgress)
+        ? Math.Max(0d, IconPositionProgress)
         : IconPosition == MaterialNavigationItemIconPosition.Start ? 1d : 0d;
 
     private double MinWidthForKind() => Kind is MaterialNavigationItemLayoutKind.Rail ? 80d : 0d;
@@ -498,7 +506,7 @@ public sealed class MaterialNavigationItemLayout : Panel
     }
 
     private static double Lerp(double from, double to, double progress) =>
-        from + ((to - from) * Clamp01(progress));
+        from + ((to - from) * progress);
 
     private static double Clamp01(double value) => Math.Clamp(value, 0d, 1d);
 }

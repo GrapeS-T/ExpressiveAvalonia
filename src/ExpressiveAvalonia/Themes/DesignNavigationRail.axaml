@@ -38,11 +38,14 @@
                                 EnableDrag="False" IsHitTestVisible="False" />
         <Grid Name="PART_IconHost" Width="24" Height="24"
               HorizontalAlignment="Center" VerticalAlignment="Center">
-          <Path Name="PART_Icon" Data="{TemplateBinding Icon}" Width="20" Height="20" Stretch="Uniform"
-                HorizontalAlignment="Center" VerticalAlignment="Center" />
-          <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Width="20" Height="20"
-                Stretch="Uniform"
-                HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Viewbox Width="24" Height="24" Stretch="Uniform"
+                   HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Path Name="PART_Icon" Data="{TemplateBinding Icon}" Stretch="Uniform" />
+          </Viewbox>
+          <Viewbox Width="24" Height="24" Stretch="Uniform"
+                   HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Stretch="Uniform" />
+          </Viewbox>
           <Border Name="PART_BadgeSmall" Width="6" Height="6" CornerRadius="3"
                   Background="{DynamicResource MaterialErrorBrush}"
                   HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-2,0" IsVisible="False" />
@@ -65,7 +68,7 @@
                      LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}"
                      LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
                      TextAlignment="Center" HorizontalAlignment="Center"
-                     MaxLines="1" TextTrimming="CharacterEllipsis" />
+                     TextWrapping="Wrap" />
           <ContentPresenter Name="PART_Content"
                             Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" />
@@ -88,7 +91,7 @@
     <Setter Property="Template" Value="{StaticResource MaterialNavigationRailItemTemplate}" />
 
     <!-- Source icon positions: vertical item uses a 16 radius icon pill, expanded horizontal
-         item a full-radius 40 high row pill. -->
+         item a full-radius 56 high row pill. -->
     <Style Selector="^:top /template/ Border#PART_Indicator">
       <Setter Property="CornerRadius" Value="16" />
     </Style>
@@ -108,13 +111,13 @@
       <Setter Property="CornerRadius" Value="28" />
     </Style>
     <Style Selector="^:start /template/ Border#PART_Indicator">
-      <Setter Property="CornerRadius" Value="20" />
+      <Setter Property="CornerRadius" Value="28" />
     </Style>
     <Style Selector="^:start /template/ theming|MaterialRipple#PART_StateLayer">
-      <Setter Property="CornerRadius" Value="20" />
+      <Setter Property="CornerRadius" Value="28" />
     </Style>
     <Style Selector="^:start /template/ Border#PART_FocusRing">
-      <Setter Property="CornerRadius" Value="20" />
+      <Setter Property="CornerRadius" Value="28" />
     </Style>
     <Style Selector="^:start /template/ TextBlock#PART_Label">
       <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
@@ -377,5 +380,11 @@
         </Panel>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^:modal /template/ Border#PART_RailHost">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    </Style>
+    <Style Selector="^:modal:floating /template/ Border#PART_RailHost">
+      <Setter Property="CornerRadius" Value="16" />
+    </Style>
   </ControlTheme>
 </ResourceDictionary>

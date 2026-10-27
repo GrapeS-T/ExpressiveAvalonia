@@ -132,6 +132,76 @@ public class ControlBehaviorTests
     }
 
     [AvaloniaFact]
+    public void WideRailUpdatesLabelAndAccessibleNameWithoutReselecting()
+    {
+        var item = new MaterialNavigationRailItem { Label = "Inbox" };
+        var rail = new MaterialNavigationRail { Mode = MaterialNavigationRailMode.Wide, IsExpanded = true, ShowFab = false, ShowMenuButton = false };
+        rail.Items.Add(item);
+        var window = Show(rail);
+        try
+        {
+            var layout = item.GetVisualDescendants().OfType<MaterialNavigationItemLayout>().Single();
+            Assert.Equal("Inbox", Avalonia.Automation.AutomationProperties.GetName(item));
+            Assert.True(layout.HasLabel);
+            item.ShowLabel = false;
+            Assert.False(layout.HasLabel);
+            item.Label = "Archive";
+            item.ShowLabel = true;
+            Assert.True(layout.HasLabel);
+            Assert.Equal("Archive", Avalonia.Automation.AutomationProperties.GetName(item));
+            Avalonia.Automation.AutomationProperties.SetName(item, "Custom name");
+            item.Label = "Recent";
+            Assert.Equal("Custom name", Avalonia.Automation.AutomationProperties.GetName(item));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void WideRailNotifiesWidthAndProgressWhenExpanded()
+    {
+        var rail = new MaterialNavigationRail { Mode = MaterialNavigationRailMode.Wide, IsExpanded = false, ShowFab = false, ShowMenuButton = false };
+        rail.Items.Add(new MaterialNavigationRailItem { Content = "Home" });
+        var window = Show(rail);
+        try
+        {
+            var widthChanged = false;
+            var progressChanged = false;
+            rail.PropertyChanged += (_, e) =>
+            {
+                widthChanged |= e.Property == MaterialNavigationRail.ExpansionWidthProperty;
+                progressChanged |= e.Property == MaterialNavigationRail.ExpansionProgressProperty;
+            };
+            rail.IsExpanded = true;
+            window.UpdateLayout();
+            Assert.True(widthChanged);
+            Assert.True(progressChanged);
+            Assert.True(rail.ExpansionWidth >= 220);
+            Assert.Equal(1, rail.ExpansionProgress);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void WideRailWrapsLongLabelsWithinTheAvailableWidth()
+    {
+        var item = new MaterialNavigationRailItem { Label = "A long navigation destination with multiple words", IsSelected = true };
+        var rail = new MaterialNavigationRail { Mode = MaterialNavigationRailMode.Wide, IsExpanded = true, ShowFab = false, ShowMenuButton = false };
+        rail.Items.Add(item);
+        var window = Show(rail);
+        try
+        {
+            window.UpdateLayout();
+            var layout = item.GetVisualDescendants().OfType<MaterialNavigationItemLayout>().Single();
+            var label = layout.Children[3];
+            var text = label.GetVisualDescendants().OfType<TextBlock>().Single();
+            Assert.True(label.Bounds.X >= 0 && label.Bounds.Right <= layout.Bounds.Width);
+            Assert.True(text.Bounds.Height > text.LineHeight);
+            Assert.True(item.Bounds.Height > 56);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void IconUsesContextualTintAndOnlyOwningComponentDimsDisabledContent()
     {
         var icon = MaterialIcon.For(MaterialIcons.All[0].SourceId);
