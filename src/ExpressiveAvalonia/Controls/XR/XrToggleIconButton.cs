@@ -12,8 +12,13 @@ namespace ExpressiveAvalonia.Controls;
 /// the optional <see cref="SelectedIcon"/> replaces the glyph while checked.
 /// </summary>
 /// <remarks>
+/// Desktop extension of the XR design source. It is a general icon toggle, not the spatial
+/// <c>SpaceToggleButton</c> from the pinned XR package, which needs a platform space-mode backend;
+/// no such state is faked here.
+/// <para>
 /// Native <see cref="ToggleButton"/> behavior: Space/Enter toggle, <c>IsChecked</c> is
 /// nullable, commands execute on click, and the toggle automation peer exposes TogglePattern.
+/// </para>
 /// </remarks>
 public class XrToggleIconButton : ToggleButton
 {

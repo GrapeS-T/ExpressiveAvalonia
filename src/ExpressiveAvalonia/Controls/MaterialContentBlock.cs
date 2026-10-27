@@ -22,12 +22,16 @@ public enum MaterialContentBlockType
 /// The content building block used inside list items, app bars and cards.
 /// </summary>
 /// <remarks>
+/// This is a design-source building block, not an M3 composable; its type roles use the ported
+/// Material typography.
+/// <para>
 /// Covers both source packages: Building blocks/Content (overline + label + supporting text,
 /// overline visible by default) and .Building Blocks/Content (label + supporting text, no
 /// overline). Set <see cref="ShowOverline"/> false and <see cref="ShowSupportingText"/> false for
 /// the second package's two-line form. In <see cref="MaterialContentBlockType.Slot"/> mode the
 /// inherited <see cref="ContentControl.Content"/> fills a <see cref="MaterialSlotHost"/>, which
 /// shows its empty-slot prompt until content is assigned.
+/// </para>
 /// </remarks>
 public sealed class MaterialContentBlock : ContentControl
 {

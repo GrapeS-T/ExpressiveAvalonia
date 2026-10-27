@@ -1,350 +1,409 @@
-using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
+using ExpressiveAvalonia.Shapes;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
 
 /// <summary>
-/// The seven source silhouettes of the Loading indicator (local-004296), transcribed verbatim
-/// from each variant design.json fillGeometry, and the morph data that interpolates between them.
-/// They are kept as data rather than redrawn by formula so the rendered outline matches the design
-/// file exactly.
+/// Geometry and morph sequences for the Material loading indicator, ported from
+/// androidx <c>LoadingIndicator.kt</c> and <c>LoadingIndicatorDefaults</c>.
 /// </summary>
 /// <remarks>
-/// Each outline is also sampled once into <see cref="Samples"/> points spaced evenly along its
-/// perimeter and centred on its own bounds, so consecutive silhouettes can be interpolated point
-/// for point. That is the same linear interpolation of matched curves Material's <c>Morph</c>
-/// performs, with an arc-length correspondence instead of its feature matcher; the source geometry
-/// itself is kept for the still frame.
+/// The determinate indicator morphs between a circle rotated by 18 degrees and a soft burst as
+/// progress goes from zero to one. The indeterminate indicator cycles through SoftBurst,
+/// Cookie9Sided, Pentagon, Pill, Sunny, Cookie4Sided and Oval, including a final morph from the
+/// last shape back to the first. Every polygon is normalized before a morph is built.
 /// </remarks>
 internal static class LoadingIndicatorShapes
 {
-    /// <summary>The source artboard is 48 × 48; the path data is already in artboard units.</summary>
-    public const double Artboard = 48;
+    /// <summary>
+    /// Source <c>MorphIntervalMillis</c>: the indeterminate loop starts one morph per slot and
+    /// waits for the remainder of this interval after the spring settles.
+    /// </summary>
+    internal const double MorphIntervalMilliseconds = 650;
+
+    /// <summary>Source <c>GlobalRotationDurationMillis</c>: one full turn of the container.</summary>
+    internal const double RotationMilliseconds = 4666;
+
+    /// <summary>Source morph spring stiffness (<c>spring(stiffness = 200f)</c>).</summary>
+    internal const double MorphStiffness = 200;
+
+    /// <summary>Source morph spring damping ratio (<c>spring(dampingRatio = 0.6f)</c>).</summary>
+    internal const double MorphDampingRatio = 0.6;
 
     /// <summary>
-    /// Points per sampled outline. The outlines are ~110 units around, so 256 samples give chords
-    /// under half an artboard unit, and quantise the alignment search to 1.4° steps.
+    /// Source <c>visibilityThreshold = 0.1f</c> on the morph spring: the animation reports
+    /// <c>Finished</c> once the value is this close to its target, which is when the loop banks
+    /// the quarter turn and snaps the progress back to zero.
     /// </summary>
-    public const int Samples = 256;
+    internal const double MorphVisibilityThreshold = 0.1;
 
-    private static readonly string[] Data =
+    /// <summary>Spring used for every morph, evaluated from the start of its target segment.</summary>
+    internal static readonly SpringSimulation MorphSpring = new(MorphStiffness, MorphDampingRatio);
+
+    /// <summary>
+    /// Time after which a morph that starts at zero is within the visibility threshold of one.
+    /// The source passes a tenfold displacement and threshold pair to SpringEstimation; both scale
+    /// the logarithmic decay identically, so this is the settle time of the unit morph.
+    /// </summary>
+    internal static readonly double MorphDurationMilliseconds =
+        SpringDuration.EstimateMilliseconds(MorphStiffness, MorphDampingRatio, 0, -10, 1);
+
+    /// <summary>Source container width in device-independent units.</summary>
+    public const double ContainerWidth = 48;
+
+    /// <summary>Source container height in device-independent units.</summary>
+    public const double ContainerHeight = 48;
+
+    /// <summary>Source active-indicator size in device-independent units.</summary>
+    public const double IndicatorSize = 38;
+
+    /// <summary>
+    /// The source <c>ActiveIndicatorScale</c>: the active shape occupies
+    /// <see cref="IndicatorSize"/> of the smaller container dimension.
+    /// </summary>
+    public static double ActiveIndicatorScale =>
+        IndicatorSize / Math.Min(ContainerWidth, ContainerHeight);
+
+    /// <summary>The source indeterminate polygon sequence.</summary>
+    public static IReadOnlyList<RoundedPolygon> IndeterminatePolygons { get; } =
     [
-        // Step 1: 33.00 × 34.00
-        "M14.9683 0.839776C15.6732 -0.279924 17.3268 -0.279926 18.0317 0.839775L19.7214 3.52373C20.1848 4.25987 21.1197 4.55915 21.9338 4.23198L24.9021 3.0391C26.1404 2.54145 27.4781 3.49904 27.3804 4.8131L27.1461 7.96297C27.0819 8.82689 27.6597 9.61042 28.5135 9.81717L31.6265 10.571C32.9252 10.8855 33.4362 12.4349 32.5731 13.4414L30.5044 15.854C29.937 16.5158 29.937 17.4842 30.5044 18.146L32.5731 20.5586C33.4362 21.5651 32.9252 23.1145 31.6265 23.429L28.5135 24.1828C27.6597 24.3896 27.0819 25.1731 27.1461 26.037L27.3804 29.1869C27.4781 30.501 26.1404 31.4585 24.9021 30.9609L21.9338 29.768C21.1197 29.4408 20.1848 29.7401 19.7214 30.4763L18.0317 33.1602C17.3268 34.2799 15.6732 34.2799 14.9683 33.1602L13.2786 30.4763C12.8152 29.7401 11.8803 29.4408 11.0662 29.768L8.09794 30.9609C6.85964 31.4585 5.52187 30.501 5.6196 29.1869L5.85388 26.037C5.91814 25.1731 5.34033 24.3896 4.48651 24.1828L1.37348 23.429C0.0747851 23.1145 -0.4362 21.5651 0.426845 20.5586L2.49559 18.146C3.06299 17.4842 3.06299 16.5158 2.49559 15.854L0.426846 13.4414C-0.436199 12.4349 0.074783 10.8855 1.37348 10.571L4.48651 9.81717C5.34033 9.61042 5.91814 8.82689 5.85388 7.96297L5.6196 4.81311C5.52187 3.49904 6.85964 2.54145 8.09793 3.0391L11.0662 4.23198C11.8803 4.55915 12.8152 4.25987 13.2786 3.52373L14.9683 0.839776Z",
-        // Step 2: 34.00 × 33.58
-        "M13.3091 1.40363C13.4924 1.254 13.584 1.17919 13.6677 1.11603C15.6389 -0.372011 18.3611 -0.372011 20.3323 1.11603C20.416 1.17919 20.5076 1.254 20.6909 1.40363C20.7727 1.47042 20.8136 1.50381 20.8541 1.5356C21.7818 2.26445 22.9191 2.67748 24.0993 2.71409C24.1508 2.71569 24.2037 2.71634 24.3094 2.71765C24.5462 2.72059 24.6646 2.72206 24.7694 2.72733C27.2381 2.85162 29.3234 4.59743 29.8748 7.00154C29.8982 7.10358 29.9202 7.21966 29.9642 7.45183C29.9838 7.55547 29.9937 7.60729 30.0042 7.65759C30.2452 8.81087 30.8504 9.85669 31.7309 10.6416C31.7693 10.6759 31.8094 10.7103 31.8895 10.7791C32.069 10.9332 32.1588 11.0102 32.2357 11.0815C34.0467 12.76 34.5194 15.4347 33.393 17.6299C33.3451 17.7231 33.2872 17.8262 33.1714 18.0322C33.1196 18.1242 33.0938 18.1702 33.0694 18.2155C32.5111 19.2536 32.3009 20.4429 32.4697 21.6088C32.4771 21.6597 32.4856 21.7117 32.5027 21.8158C32.5409 22.049 32.56 22.1656 32.573 22.2695C32.879 24.7168 31.5179 27.0689 29.2407 28.0281C29.1441 28.0688 29.0333 28.1106 28.8118 28.1942C28.7129 28.2315 28.6635 28.2501 28.6156 28.2692C27.5192 28.7063 26.592 29.4826 25.9701 30.484C25.943 30.5277 25.916 30.5731 25.862 30.6637C25.741 30.8669 25.6806 30.9685 25.6236 31.0564C24.2814 33.1273 21.7234 34.0563 19.3609 33.3306C19.2606 33.2998 19.1489 33.2608 18.9253 33.1827C18.8256 33.1479 18.7757 33.1305 18.7268 33.1144C17.6052 32.7461 16.3948 32.7461 15.2732 33.1144C15.2243 33.1305 15.1744 33.1479 15.0747 33.1827C14.8511 33.2608 14.7394 33.2998 14.6391 33.3306C12.2767 34.0563 9.71865 33.1273 8.37641 31.0564C8.31944 30.9685 8.25897 30.8669 8.13801 30.6637C8.08402 30.5731 8.05702 30.5277 8.0299 30.484C7.40803 29.4826 6.48083 28.7063 5.38436 28.2692C5.33654 28.2501 5.28709 28.2315 5.18821 28.1942C4.96669 28.1106 4.85593 28.0688 4.75928 28.0281C2.48205 27.0689 1.12097 24.7168 1.42698 22.2695C1.43997 22.1656 1.45908 22.049 1.4973 21.8158C1.51436 21.7117 1.52289 21.6597 1.53026 21.6088C1.69906 20.4429 1.48889 19.2536 0.930563 18.2155C0.906211 18.1702 0.880352 18.1242 0.828635 18.0322C0.712779 17.8262 0.654852 17.7231 0.60704 17.6299C-0.519433 15.4347 -0.0467336 12.76 1.76433 11.0815C1.8412 11.0102 1.93096 10.9332 2.11047 10.7791C2.19061 10.7103 2.23068 10.6759 2.26908 10.6416C3.14958 9.85669 3.75476 8.81087 3.99583 7.6576C4.00634 7.60729 4.01617 7.55547 4.03582 7.45183C4.07984 7.21966 4.10185 7.10357 4.12525 7.00153C4.67662 4.59743 6.76192 2.85162 9.23063 2.72733C9.33541 2.72206 9.45381 2.72059 9.69062 2.71765C9.79633 2.71634 9.84919 2.71569 9.90067 2.71409C11.0809 2.67748 12.2182 2.26445 13.1459 1.5356C13.1864 1.50381 13.2273 1.47042 13.3091 1.40363Z",
-        // Step 3: 34.00 × 32.00
-        "M11.6481 2.43735C13.3067 1.22903 14.136 0.624865 15.022 0.325145C16.3035 -0.108382 17.6965 -0.108382 18.978 0.325145C19.864 0.624865 20.6933 1.22903 22.3519 2.43735L25.9794 5.08012L29.6049 7.5564C31.3249 8.73116 32.1849 9.31853 32.7598 10.0573C33.5914 11.1258 34.0282 12.4391 33.9986 13.7824C33.9781 14.711 33.6363 15.6817 32.9526 17.6232L31.529 21.6657L30.215 25.808C29.5983 27.7519 29.29 28.7239 28.7509 29.48C27.9712 30.5736 26.838 31.378 25.5341 31.7634C24.6327 32.0299 23.5936 32.0144 21.5154 31.9835L17 31.9162L12.4846 31.9835C10.4064 32.0144 9.36728 32.0299 8.46588 31.7634C7.16204 31.378 6.02882 30.5736 5.24909 29.48C4.71002 28.7239 4.40169 27.7519 3.78503 25.808L2.47101 21.6657L1.04741 17.6232C0.363716 15.6817 0.021869 14.711 0.00141072 13.7824C-0.0281818 12.4391 0.408555 11.1258 1.24017 10.0573C1.8151 9.31853 2.67508 8.73116 4.39505 7.5564L8.02059 5.08012L11.6481 2.43735Z",
-        // Step 4: 30.00 × 30.00
-        "M7.98566 3.77706C13.0217 -1.25902 21.1869 -1.25902 26.2229 3.77706C31.259 8.81315 31.259 16.9783 26.2229 22.0143L22.0143 26.2229C16.9783 31.259 8.81315 31.259 3.77706 26.2229C-1.25902 21.1869 -1.25902 13.0217 3.77706 7.98566L7.98566 3.77706Z",
-        // Step 5: 34.00 × 34.00
-        "M26.1856 4.12375C27.2431 4.19561 27.7718 4.23154 28.1991 4.41844C28.8175 4.68887 29.3111 5.18252 29.5816 5.80088C29.7685 6.22823 29.8044 6.75694 29.8762 7.81438L30.0402 10.2275C30.0693 10.6552 30.0838 10.869 30.1303 11.0733C30.1975 11.3684 30.3142 11.6501 30.4754 11.9063C30.5869 12.0836 30.7279 12.2451 31.0097 12.5681L32.6001 14.3903C33.297 15.1889 33.6455 15.5881 33.8155 16.0225C34.0615 16.6509 34.0615 17.3491 33.8155 17.9775C33.6455 18.4119 33.297 18.8111 32.6001 19.6097L31.0097 21.4319C30.7279 21.7549 30.5869 21.9164 30.4754 22.0937C30.3142 22.3499 30.1975 22.6316 30.1303 22.9267C30.0838 23.131 30.0693 23.3448 30.0402 23.7725L29.8762 26.1856C29.8044 27.2431 29.7685 27.7718 29.5816 28.1991C29.3111 28.8175 28.8175 29.3111 28.1991 29.5816C27.7718 29.7685 27.2431 29.8044 26.1856 29.8762L23.7725 30.0402C23.3448 30.0693 23.131 30.0838 22.9267 30.1303C22.6316 30.1975 22.3499 30.3142 22.0937 30.4754C21.9164 30.5869 21.7549 30.7279 21.4319 31.0097L19.6097 32.6001C18.8111 33.297 18.4119 33.6455 17.9775 33.8155C17.3491 34.0615 16.6509 34.0615 16.0225 33.8155C15.5881 33.6455 15.1889 33.297 14.3903 32.6001L12.5681 31.0097C12.2451 30.7279 12.0836 30.5869 11.9063 30.4754C11.6501 30.3142 11.3684 30.1975 11.0733 30.1303C10.869 30.0838 10.6552 30.0693 10.2275 30.0402L7.81438 29.8762C6.75694 29.8044 6.22822 29.7685 5.80088 29.5816C5.18252 29.3111 4.68887 28.8175 4.41844 28.1991C4.23154 27.7718 4.19561 27.2431 4.12375 26.1856L3.95977 23.7725C3.93071 23.3448 3.91618 23.131 3.86969 22.9267C3.80251 22.6316 3.68584 22.3499 3.52463 22.0937C3.41306 21.9164 3.27213 21.7549 2.99027 21.4319L1.3999 19.6097C0.702996 18.8111 0.354542 18.4119 0.184516 17.9775C-0.0615054 17.3491 -0.0615053 16.6509 0.184516 16.0225C0.354542 15.5881 0.702996 15.1889 1.3999 14.3903L2.99027 12.5681C3.27213 12.2451 3.41306 12.0836 3.52463 11.9063C3.68584 11.6501 3.80251 11.3684 3.86969 11.0733C3.91618 10.869 3.93071 10.6552 3.95977 10.2275L4.12375 7.81438C4.19561 6.75694 4.23154 6.22823 4.41844 5.80088C4.68887 5.18252 5.18252 4.68887 5.80088 4.41844C6.22823 4.23154 6.75694 4.19561 7.81438 4.12375L10.2275 3.95977C10.6552 3.93071 10.869 3.91618 11.0733 3.86969C11.3684 3.80251 11.6501 3.68584 11.9063 3.52463C12.0836 3.41306 12.2451 3.27213 12.5681 2.99027L14.3903 1.3999C15.1889 0.702996 15.5881 0.354542 16.0225 0.184516C16.6509 -0.0615054 17.3491 -0.0615054 17.9775 0.184516C18.4119 0.354542 18.8111 0.702996 19.6097 1.3999L21.4319 2.99027C21.7549 3.27213 21.9164 3.41306 22.0937 3.52463C22.3499 3.68584 22.6316 3.80251 22.9267 3.86969C23.131 3.91618 23.3448 3.93071 23.7725 3.95977L26.1856 4.12375Z",
-        // Step 6: 28.00 × 28.00
-        "M17.8729 0.620696C23.8872 -1.99138 29.9914 4.11282 27.3793 10.1271L26.9474 11.1214C26.1499 12.9576 26.1499 15.0424 26.9474 16.8786L27.3793 17.8729C29.9914 23.8872 23.8872 29.9914 17.8729 27.3793L16.8786 26.9474C15.0424 26.1499 12.9576 26.1499 11.1214 26.9474L10.1271 27.3793C4.11281 29.9914 -1.99138 23.8872 0.620698 17.8729L1.05257 16.8786C1.85006 15.0424 1.85005 12.9576 1.05257 11.1214L0.620696 10.1271C-1.99138 4.11281 4.11282 -1.99138 10.1271 0.620698L11.1214 1.05257C12.9576 1.85005 15.0424 1.85005 16.8786 1.05257L17.8729 0.620696Z",
-        // Step 7: 30.00 × 30.00
-        "M23.1309 23.1309C16.1705 30.0913 6.88765 32.0935 2.39707 27.6029C-2.09352 23.1123 -0.0913343 13.8295 6.86908 6.86908C13.8295 -0.0913329 23.1123 -2.09352 27.6029 2.39707C32.0935 6.88765 30.0913 16.1705 23.1309 23.1309Z",
+        MaterialShapeCatalog.SoftBurst,
+        MaterialShapeCatalog.Cookie9Sided,
+        MaterialShapeCatalog.Pentagon,
+        MaterialShapeCatalog.Pill,
+        MaterialShapeCatalog.Sunny,
+        MaterialShapeCatalog.Cookie4Sided,
+        MaterialShapeCatalog.Oval
     ];
 
-    /// <summary>One sampled silhouette per step, built once from the source path data.</summary>
-    private static readonly Outline[] Outlines = [.. Data.Select(Build)];
+    /// <summary>
+    /// The source determinate polygon sequence: a circle rotated by 360/20 degrees, which morphs
+    /// more smoothly into the SoftBurst because both shapes are rotated by the same angle.
+    /// </summary>
+    public static IReadOnlyList<RoundedPolygon> DeterminatePolygons { get; } =
+    [
+        Rotate(MaterialShapeCatalog.Circle, 360d / 20),
+        MaterialShapeCatalog.SoftBurst
+    ];
+
+    /// <summary>Morphs for the indeterminate sequence, including last-to-first.</summary>
+    public static IReadOnlyList<Morph> IndeterminateMorphs { get; } =
+        BuildMorphSequence(IndeterminatePolygons, circularSequence: true);
+
+    /// <summary>Morphs for the determinate sequence.</summary>
+    public static IReadOnlyList<Morph> DeterminateMorphs { get; } =
+        BuildMorphSequence(DeterminatePolygons, circularSequence: false);
 
     /// <summary>
-    /// For each step, the index offset that turns the following outline to face this one. The morph
-    /// between two steps then twists the outline as little as the two shapes allow.
+    /// Uniform path scale for the indeterminate sequence. The value includes the source
+    /// <c>ActiveIndicatorScale</c> and the per-rotation bounds allowance.
     /// </summary>
-    private static readonly int[] Alignments = BuildAlignments();
-
-    public static int Count => Outlines.Length;
-
-    /// <summary>
-    /// The source outline of one step, centred on its own bounds. Step numbers are one-based, as in
-    /// the source property.
-    /// </summary>
-    public static Geometry Get(int step) => Outlines[Math.Clamp(step, 1, Outlines.Length) - 1].Still;
+    public static double IndeterminateScaleFactor { get; } =
+        CalculateScaleFactor(IndeterminatePolygons) * ActiveIndicatorScale;
 
     /// <summary>
-    /// Builds the outline that lies <paramref name="progress"/> of the way from
-    /// <paramref name="step"/> to the following step. Progress is deliberately not clamped: the
-    /// morph spring runs slightly past one just before Compose ends it, and that overshoot is part
-    /// of the motion.
+    /// Uniform path scale for the determinate sequence. The value includes the source
+    /// <c>ActiveIndicatorScale</c> and the per-rotation bounds allowance.
     /// </summary>
-    public static StreamGeometry Morph(int step, double progress)
+    public static double DeterminateScaleFactor { get; } =
+        CalculateScaleFactor(DeterminatePolygons) * ActiveIndicatorScale;
+
+    /// <summary>
+    /// Builds the morph sequence exactly as the source: normalized consecutive polygons, plus the
+    /// last-to-first morph when <paramref name="circularSequence"/> is true.
+    /// </summary>
+    public static IReadOnlyList<Morph> BuildMorphSequence(
+        IReadOnlyList<RoundedPolygon> polygons, bool circularSequence)
     {
-        var fromIndex = Math.Clamp(step, 1, Outlines.Length) - 1;
-        var from = Outlines[fromIndex].Points;
-        var to = Outlines[(fromIndex + 1) % Outlines.Length].Points;
-        var shift = Alignments[fromIndex];
+        if (polygons.Count < 2)
+            throw new ArgumentException("At least two polygons are required.", nameof(polygons));
 
-        // The interpolated outline, closed with Catmull-Rom tangents: the same curve language as the
-        // source geometry, so the morph never reads as a polygon. Points are recomputed per segment
-        // instead of buffered, so a frame allocates nothing but its geometry.
-        Point At(int index)
+        var morphs = new List<Morph>(polygons.Count);
+        for (var index = 0; index < polygons.Count; index++)
         {
-            var i = Mod(index, Samples);
-            return Lerp(from[i], to[Mod(i + shift, Samples)], progress);
-        }
-
-        // The geometry mutates its native path, so every frame gets its own instance; the render
-        // thread may still be reading the previous one.
-        var geometry = new StreamGeometry();
-        using (var context = geometry.Open())
-        {
-            context.SetFillRule(FillRule.NonZero);
-            context.BeginFigure(At(0), true);
-            for (var i = 0; i < Samples; i++)
+            if (index + 1 < polygons.Count)
             {
-                var start = At(i);
-                var end = At(i + 1);
-                context.CubicBezierTo(
-                    start + (end - At(i - 1)) / 6,
-                    end - (At(i + 2) - start) / 6,
-                    end);
+                morphs.Add(new Morph(polygons[index].Normalized(), polygons[index + 1].Normalized()));
             }
-            context.EndFigure(true);
+            else if (circularSequence)
+            {
+                morphs.Add(new Morph(polygons[index].Normalized(), polygons[0].Normalized()));
+            }
         }
+
+        return morphs;
+    }
+
+    /// <summary>
+    /// Calculates the scale that keeps every shape fully inside its container during rotation.
+    /// A plain axis-aligned bounds check would clip a rotating shape, so the square max bounds are
+    /// compared against the tight bounds and the smallest ratio wins.
+    /// </summary>
+    public static double CalculateScaleFactor(IReadOnlyList<RoundedPolygon> polygons)
+    {
+        var scaleFactor = 1d;
+        foreach (var polygon in polygons)
+        {
+            var bounds = polygon.CalculateBounds();
+            var maxBounds = polygon.CalculateMaxBounds();
+            var scaleX = bounds.Width / maxBounds.Width;
+            var scaleY = bounds.Height / maxBounds.Height;
+            // A pill can have a much larger one-axis ratio, so use the larger of the two.
+            scaleFactor = Math.Min(scaleFactor, Math.Max(scaleX, scaleY));
+        }
+        return scaleFactor;
+    }
+
+    /// <summary>
+    /// Creates the frame path for a square of <paramref name="size"/> units. The path is already
+    /// scaled by <c>size × scaleFactor</c> and translated so the control-point bounds center of the
+    /// emitted outline sits at the square center, matching the source <c>processPath</c> (which
+    /// centers on <c>Path.getBounds()</c>, not on the painted outline's tight bounds).
+    /// </summary>
+    /// <remarks>
+    /// Each frame needs a new <see cref="StreamGeometry"/>: Avalonia opens stream geometry by
+    /// appending to its native path and exposes no clear operation, so a previously drawn instance
+    /// cannot be recycled. The cubic interpolation itself allocates no list or array.
+    /// </remarks>
+    public static StreamGeometry CreateFrame(Morph morph, double progress, double size,
+        double scaleFactor) => CreateFrame(morph, progress, size, size, scaleFactor);
+
+    /// <summary>Non-square variant of <see cref="CreateFrame(Morph, double, double, double)"/>.</summary>
+    public static StreamGeometry CreateFrame(Morph morph, double progress, double width,
+        double height, double scaleFactor)
+    {
+        var (scaleX, scaleY, offsetX, offsetY) =
+            FramePlacement(morph, progress, width, height, scaleFactor);
+
+        var geometry = new StreamGeometry();
+        using var context = geometry.Open();
+        morph.AppendTo(context, progress, scaleX, scaleY, offsetX, offsetY);
         return geometry;
     }
 
-    private static Outline Build(string data)
-    {
-        var cubics = Parse(data);
-        // Centre on the control-point bounds, which are the bounds of the drawn path, so a lone step
-        // keeps exactly the placement it always had.
-        var center = ControlPointCenter(cubics);
-        return new Outline(Curves(cubics, center), Sample(cubics, center));
-    }
+    /// <summary>
+    /// Writes a frame into <paramref name="path"/>. Avalonia's <see cref="StreamGeometry"/> has no
+    /// reset operation, so the destination must not already contain path data; passing a cached
+    /// instance would append a second outline instead of replacing the first.
+    /// </summary>
+    public static void PopulateFrame(StreamGeometry path, Morph morph, double progress,
+        double size, double scaleFactor) =>
+        PopulateFrame(path, morph, progress, size, size, scaleFactor);
 
-    private static Point ControlPointCenter(List<Cubic> cubics)
+    /// <summary>Non-square variant of the fresh-destination populate overload.</summary>
+    public static void PopulateFrame(StreamGeometry path, Morph morph, double progress,
+        double width, double height, double scaleFactor)
     {
-        double minX = double.MaxValue, minY = double.MaxValue;
-        double maxX = double.MinValue, maxY = double.MinValue;
-        foreach (var cubic in cubics)
-        {
-            Include(cubic.Start);
-            Include(cubic.Control0);
-            Include(cubic.Control1);
-            Include(cubic.End);
-        }
-        return new Point((minX + maxX) / 2, (minY + maxY) / 2);
+        var (scaleX, scaleY, offsetX, offsetY) =
+            FramePlacement(morph, progress, width, height, scaleFactor);
 
-        void Include(Point point)
-        {
-            minX = Math.Min(minX, point.X);
-            minY = Math.Min(minY, point.Y);
-            maxX = Math.Max(maxX, point.X);
-            maxY = Math.Max(maxY, point.Y);
-        }
-    }
-
-    /// <summary>Exact source curves, moved so the outline's bounds sit on the origin.</summary>
-    private static StreamGeometry Curves(List<Cubic> cubics, Point center)
-    {
-        var geometry = new StreamGeometry();
-        using (var context = geometry.Open())
-        {
-            context.SetFillRule(FillRule.NonZero);
-            context.BeginFigure(Shift(cubics[0].Start, center), true);
-            foreach (var cubic in cubics)
-                context.CubicBezierTo(Shift(cubic.Control0, center), Shift(cubic.Control1, center),
-                    Shift(cubic.End, center));
-            context.EndFigure(true);
-        }
-        return geometry;
+        using var context = path.Open();
+        morph.AppendTo(context, progress, scaleX, scaleY, offsetX, offsetY);
     }
 
     /// <summary>
-    /// Flattens the source curves, walks the result at even arc length, and moves the samples into
-    /// the same centred frame the drawn geometry uses.
+    /// Scale and translation that place an emitted frame in the requested box. Both frame
+    /// entrypoints share this pivot: the source <c>processPath</c> centers on the control-point
+    /// bounds of the emitted path, which is exactly <see cref="Morph.CalculateBoundsAt"/>, so an
+    /// asymmetric or custom sequence paints off-center by the difference between those bounds and
+    /// the tight ink bounds.
     /// </summary>
-    private static Point[] Sample(List<Cubic> cubics, Point center)
+    private static (double ScaleX, double ScaleY, double OffsetX, double OffsetY) FramePlacement(
+        Morph morph, double progress, double width, double height, double scaleFactor)
     {
-        var polyline = Flatten(cubics);
-        var lengths = new double[polyline.Count + 1];
-        for (var i = 1; i <= polyline.Count; i++)
-            lengths[i] = lengths[i - 1] + Distance(polyline[i - 1], polyline[i % polyline.Count]);
-
-        var total = lengths[^1];
-        var points = new Point[Samples];
-        var segment = 0;
-        for (var i = 0; i < Samples; i++)
-        {
-            var target = total * i / Samples;
-            while (segment < polyline.Count - 1 && lengths[segment + 1] < target)
-                segment++;
-            var span = lengths[segment + 1] - lengths[segment];
-            var part = span > 0 ? (target - lengths[segment]) / span : 0;
-            points[i] = Shift(Lerp(polyline[segment], polyline[(segment + 1) % polyline.Count], part), center);
-        }
-        return points;
+        var bounds = morph.CalculateBoundsAt(progress);
+        var scaleX = width * scaleFactor;
+        var scaleY = height * scaleFactor;
+        return (scaleX, scaleY, width / 2 - bounds.Center.X * scaleX,
+            height / 2 - bounds.Center.Y * scaleY);
     }
 
-    private static List<Point> Flatten(List<Cubic> cubics)
+    private static RoundedPolygon Rotate(RoundedPolygon polygon, double degrees)
     {
-        var points = new List<Point>(cubics.Count * 16) { cubics[0].Start };
-        foreach (var cubic in cubics)
-        {
-            // A quarter unit is already well below a device pixel on the 48 dp artboard.
-            var length = Distance(cubic.Start, cubic.Control0) + Distance(cubic.Control0, cubic.Control1) +
-                         Distance(cubic.Control1, cubic.End);
-            var steps = Math.Clamp((int)Math.Ceiling(length / 0.25), 1, 256);
-            for (var step = 1; step <= steps; step++)
-                points.Add(PointOn(cubic, (double)step / steps));
-        }
-        return points;
-    }
-
-    private static Point PointOn(Cubic cubic, double t)
-    {
-        var inverse = 1 - t;
-        var a = inverse * inverse * inverse;
-        var b = 3 * inverse * inverse * t;
-        var c = 3 * inverse * t * t;
-        var d = t * t * t;
-        return new Point(
-            a * cubic.Start.X + b * cubic.Control0.X + c * cubic.Control1.X + d * cubic.End.X,
-            a * cubic.Start.Y + b * cubic.Control0.Y + c * cubic.Control1.Y + d * cubic.End.Y);
-    }
-
-    private static int[] BuildAlignments()
-    {
-        var alignments = new int[Outlines.Length];
-        for (var i = 0; i < Outlines.Length; i++)
-            alignments[i] = BestShift(Outlines[i].Points, Outlines[(i + 1) % Outlines.Length].Points);
-        return alignments;
+        var radians = degrees * Math.PI / 180;
+        return polygon.Transformed(point => new ShapePoint(
+            point.X * Math.Cos(radians) - point.Y * Math.Sin(radians),
+            point.X * Math.Sin(radians) + point.Y * Math.Cos(radians)));
     }
 
     /// <summary>
-    /// Finds the offset that lines the following outline up with this one: the smallest turn whose
-    /// point-for-point distance is within 2% of the best turn found. Every step is close to
-    /// symmetric, so this keeps neighbouring corners paired instead of spinning a whole arm.
+    /// Builds the arbitrary-shape container outline for the control bounds, following the same
+    /// <see cref="Stretch"/> contract as the Avalonia <c>Shape</c> and <c>MaterialShape</c>
+    /// geometry adapters. The source <c>containerShape</c> receives the layout size and returns an
+    /// outline in that coordinate space; here an authored <see cref="Geometry"/> is mapped into the
+    /// same space instead. The returned instance is never the caller's geometry: it is a clone
+    /// whose <see cref="Geometry.Transform"/> composes the source transform with the stretch, so
+    /// painting the fill and clipping the indicator can use one identical outline without locking
+    /// the authored value.
     /// </summary>
-    private static int BestShift(Point[] from, Point[] to)
+    internal static Geometry StretchGeometry(Geometry source, Rect target, Stretch stretch)
     {
-        var best = 0;
-        var bestCost = Cost(from, to, 0);
-        for (var distance = 1; distance <= Samples / 2; distance++)
+        var sourceTransform = source.Transform?.Value ?? Matrix.Identity;
+        var sourceBounds = source.Bounds;
+        if (stretch == Stretch.None || sourceBounds.Width <= 0 || sourceBounds.Height <= 0 ||
+            target.Width <= 0 || target.Height <= 0)
         {
-            // Prefer the nearest turn: a symmetric outline offers several equally good matches.
-            var forward = Cost(from, to, distance);
-            if (forward < bestCost * 0.98)
-            {
-                bestCost = forward;
-                best = distance;
-            }
-            var backward = Cost(from, to, Samples - distance);
-            if (backward < bestCost * 0.98)
-            {
-                bestCost = backward;
-                best = Samples - distance;
-            }
+            return CloneWithTransform(source, sourceTransform);
         }
-        return best;
+
+        var stretchX = target.Width / sourceBounds.Width;
+        var stretchY = target.Height / sourceBounds.Height;
+        double scaleX, scaleY;
+        switch (stretch)
+        {
+            case Stretch.Fill:
+                scaleX = stretchX;
+                scaleY = stretchY;
+                break;
+            case Stretch.UniformToFill:
+                scaleX = scaleY = Math.Max(stretchX, stretchY);
+                break;
+            default:
+                scaleX = scaleY = Math.Min(stretchX, stretchY);
+                break;
+        }
+
+        var offsetX = target.X - sourceBounds.X * scaleX + (target.Width - sourceBounds.Width * scaleX) / 2;
+        var offsetY = target.Y - sourceBounds.Y * scaleY + (target.Height - sourceBounds.Height * scaleY) / 2;
+        return CloneWithTransform(source, sourceTransform *
+            new Matrix(scaleX, 0, 0, scaleY, offsetX, offsetY));
     }
 
-    private static double Cost(Point[] from, Point[] to, int shift)
+    private static Geometry CloneWithTransform(Geometry source, Matrix transform)
     {
-        var cost = 0d;
-        for (var i = 0; i < Samples; i++)
+        var clone = source.Clone();
+        clone.Transform = new MatrixTransform(transform);
+        return clone;
+    }
+}
+
+/// <summary>
+/// Timeline of the source indeterminate <c>LaunchedEffect</c>. Each slot starts a lower-damping
+/// spring towards the next polygon, banks a quarter turn when the spring settles, and holds the
+/// snapped-to-zero progress until the 650 ms slot ends.
+/// </summary>
+/// <remarks>
+/// The slot mapping is anchored at the animation start, exactly like the source
+/// <c>morphProgress</c>/<c>currentMorphIndex</c>/<c>morphRotationTargetAngle</c> state, but the
+/// source re-keys only the morph index on a polygon-list change. <see cref="Restart"/> reproduces
+/// that replacement: the index restarts at the first morph of the new sequence while the
+/// remembered progress and the banked quarter turns continue. The restarted effect animates from
+/// the preserved progress with a zero initial velocity because cancelling the previous
+/// <c>Animatable</c> animation resets its velocity. It also restarts the infinite repeatable
+/// rotation tween from its remembered value, so <see cref="Frame.Rotation"/> reproduces the source
+/// <c>globalRotation</c> value including the backward jump at every 4666 ms repetition boundary.
+/// </remarks>
+internal sealed class LoadingIndicatorCycle
+{
+    private const double FullRotationDegrees = 360;
+
+    private double _restartElapsed = -1;
+    private double _restartProgress;
+    private double _restartSettleMilliseconds;
+    private double _restartRotation;
+    private long _restartCompleted;
+
+    /// <summary>
+    /// Frame at a clock time in milliseconds since the animation started: the morph slot used for
+    /// the index, the spring progress within it, the number of settled morphs, which is the source
+    /// quarter-turn count, and the remembered <c>globalRotation</c> Animatable value.
+    /// </summary>
+    internal readonly record struct Frame(long Slot, double Progress, long Completed, double Rotation);
+
+    internal Frame At(double elapsedMilliseconds)
+    {
+        // The animation clock restarts from zero when a hidden or reduced control resumes, which
+        // discards the replacement anchor together with the rest of the cycle state.
+        if (_restartElapsed >= 0 && elapsedMilliseconds < _restartElapsed)
+            _restartElapsed = -1;
+
+        if (_restartElapsed < 0)
         {
-            var target = to[Mod(i + shift, Samples)];
-            var dx = from[i].X - target.X;
-            var dy = from[i].Y - target.Y;
-            cost += dx * dx + dy * dy;
+            var completedSlots = (long)(elapsedMilliseconds / LoadingIndicatorShapes.MorphIntervalMilliseconds);
+            var rotation = ContinuousRotation(elapsedMilliseconds);
+            var within = elapsedMilliseconds -
+                completedSlots * LoadingIndicatorShapes.MorphIntervalMilliseconds;
+            if (within >= LoadingIndicatorShapes.MorphDurationMilliseconds)
+                return new Frame(completedSlots, 0, completedSlots + 1, rotation);
+            return new Frame(completedSlots,
+                LoadingIndicatorShapes.MorphSpring.Evaluate(0, 0, 1, within / 1000).Position,
+                completedSlots, rotation);
         }
-        return cost;
+
+        var sinceRestart = elapsedMilliseconds - _restartElapsed;
+        var restartedRotation = RestartedRotation(sinceRestart);
+        if (sinceRestart < LoadingIndicatorShapes.MorphIntervalMilliseconds)
+        {
+            if (sinceRestart >= _restartSettleMilliseconds)
+                return new Frame(1, 0, _restartCompleted + 1, restartedRotation);
+            return new Frame(0,
+                LoadingIndicatorShapes.MorphSpring
+                    .Evaluate(_restartProgress, 0, 1, sinceRestart / 1000).Position,
+                _restartCompleted, restartedRotation);
+        }
+
+        var phase = sinceRestart - LoadingIndicatorShapes.MorphIntervalMilliseconds;
+        var slot = (long)(phase / LoadingIndicatorShapes.MorphIntervalMilliseconds);
+        var morphElapsed = phase - slot * LoadingIndicatorShapes.MorphIntervalMilliseconds;
+        if (morphElapsed >= LoadingIndicatorShapes.MorphDurationMilliseconds)
+        {
+            var completed = _restartCompleted + 1 + slot + 1;
+            return new Frame(1 + slot + 1, 0, completed, restartedRotation);
+        }
+        return new Frame(1 + slot,
+            LoadingIndicatorShapes.MorphSpring.Evaluate(0, 0, 1, morphElapsed / 1000).Position,
+            _restartCompleted + 1 + slot, restartedRotation);
     }
 
-    /// <summary>Parses the subset of path data the source outlines use: absolute M, L, C and Z.</summary>
-    private static List<Cubic> Parse(string data)
+    /// <summary>
+    /// Value of the source <c>globalRotation</c> Animatable while its first
+    /// <c>infiniteRepeatable(tween(4666, LinearEasing), Restart)</c> still runs: the tween captured
+    /// zero as its initial value, so each repetition is a linear 0→360 sweep.
+    /// </summary>
+    private static double ContinuousRotation(double elapsedMilliseconds) =>
+        elapsedMilliseconds % LoadingIndicatorShapes.RotationMilliseconds /
+        LoadingIndicatorShapes.RotationMilliseconds * FullRotationDegrees;
+
+    /// <summary>
+    /// Value after the effect restarts. <c>Animatable.animateTo</c> builds
+    /// <c>TargetBasedAnimation</c> with the remembered value as <c>initialValue</c>, and
+    /// <c>VectorizedInfiniteRepeatableSpec.getValueFromNanos</c> passes that same initial value to
+    /// every repetition, so each 4666 ms iteration is a linear <c>R0 → 360</c> sweep and the value
+    /// jumps back to <c>R0</c> at each iteration boundary.
+    /// </summary>
+    private double RestartedRotation(double sinceRestartMilliseconds) =>
+        _restartRotation + (FullRotationDegrees - _restartRotation) *
+        (sinceRestartMilliseconds % LoadingIndicatorShapes.RotationMilliseconds /
+         LoadingIndicatorShapes.RotationMilliseconds);
+
+    /// <summary>
+    /// Shot on a polygon sequence replacement: keep the current frame's progress, quarter-turn
+    /// count and remembered global rotation, restart the morph slot at index zero.
+    /// </summary>
+    internal void Restart(double elapsedMilliseconds)
     {
-        var cubics = new List<Cubic>();
-        var index = 0;
-        var current = default(Point);
-        var start = default(Point);
-        while (index < data.Length)
+        if (elapsedMilliseconds <= 0)
         {
-            var command = data[index++];
-            switch (command)
-            {
-                case 'M':
-                    current = ReadPoint(data, ref index);
-                    start = current;
-                    break;
-                case 'L':
-                {
-                    var end = ReadPoint(data, ref index);
-                    var third = (end - current) / 3;
-                    cubics.Add(new Cubic(current, current + third, end - third, end));
-                    current = end;
-                    break;
-                }
-                case 'C':
-                {
-                    var control0 = ReadPoint(data, ref index);
-                    var control1 = ReadPoint(data, ref index);
-                    var end = ReadPoint(data, ref index);
-                    cubics.Add(new Cubic(current, control0, control1, end));
-                    current = end;
-                    break;
-                }
-                case 'Z' or 'z':
-                    current = start;
-                    break;
-                case ' ' or ',' or '\r' or '\n' or '\t':
-                    break;
-                default:
-                    throw new FormatException($"Unexpected '{command}' in the loading indicator path data.");
-            }
+            Reset();
+            return;
         }
-        return cubics;
+
+        var frame = At(elapsedMilliseconds);
+        _restartProgress = frame.Progress;
+        _restartCompleted = frame.Completed;
+        _restartRotation = frame.Rotation;
+        _restartSettleMilliseconds = SpringDuration.EstimateMilliseconds(
+            LoadingIndicatorShapes.MorphStiffness, LoadingIndicatorShapes.MorphDampingRatio, 0,
+            frame.Progress - 1, LoadingIndicatorShapes.MorphVisibilityThreshold);
+        _restartElapsed = elapsedMilliseconds;
     }
 
-    private static Point ReadPoint(string data, ref int index)
+    /// <summary>Drops every remembered value, as when the animation restarts from zero.</summary>
+    internal void Reset()
     {
-        var x = ReadNumber(data, ref index);
-        var y = ReadNumber(data, ref index);
-        return new Point(x, y);
+        _restartElapsed = -1;
+        _restartRotation = 0;
     }
-
-    private static double ReadNumber(string data, ref int index)
-    {
-        while (index < data.Length && data[index] is ' ' or ',' or '\r' or '\n' or '\t')
-            index++;
-        var start = index;
-        if (index < data.Length && data[index] is '-' or '+')
-            index++;
-        while (index < data.Length && char.IsAsciiDigit(data[index]))
-            index++;
-        if (index < data.Length && data[index] == '.')
-        {
-            index++;
-            while (index < data.Length && char.IsAsciiDigit(data[index]))
-                index++;
-        }
-        if (index < data.Length && data[index] is 'e' or 'E')
-        {
-            index++;
-            if (index < data.Length && data[index] is '-' or '+')
-                index++;
-            while (index < data.Length && char.IsAsciiDigit(data[index]))
-                index++;
-        }
-        return double.Parse(data.AsSpan(start, index - start), CultureInfo.InvariantCulture);
-    }
-
-    private static Point Lerp(Point from, Point to, double progress) =>
-        new(from.X + (to.X - from.X) * progress, from.Y + (to.Y - from.Y) * progress);
-
-    private static Point Shift(Point point, Point center) => new(point.X - center.X, point.Y - center.Y);
-
-    private static double Distance(Point from, Point to) => Math.Sqrt(Square(from.X - to.X) + Square(from.Y - to.Y));
-
-    private static double Square(double value) => value * value;
-
-    private static int Mod(int value, int length) => ((value % length) + length) % length;
-
-    private readonly record struct Cubic(Point Start, Point Control0, Point Control1, Point End);
-
-    private sealed record Outline(StreamGeometry Still, Point[] Points);
 }

@@ -17,11 +17,17 @@ namespace ExpressiveAvalonia.Controls;
 /// The Android status bar strip used by the example device surfaces.
 /// </summary>
 /// <remarks>
+/// <para>
+/// This is a desktop composition for the example device surfaces, not an M3 composable and not the
+/// operating-system status bar. It reads no system indicators beyond the local wall clock.
+/// </para>
+/// <para>
 /// Source anatomy (Building Blocks/status-bar): a 52 DIP strip with the clock inset 24 DIP from
 /// the leading edge, a centred camera cutout, and wifi, signal and battery glyphs inset 24 DIP
 /// from the trailing edge. The glyph geometry comes from the design source. The clock is live:
 /// it ticks while the bar is attached to a visual tree and stops on detach, so off-screen
 /// example surfaces do not keep a timer alive.
+/// </para>
 /// </remarks>
 public sealed class MaterialStatusBar : TemplatedControl
 {

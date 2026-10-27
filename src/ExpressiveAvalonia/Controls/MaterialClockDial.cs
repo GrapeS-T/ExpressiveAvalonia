@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation.Peers;
 using Avalonia.Automation.Provider;
@@ -10,6 +11,8 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
 using ExpressiveAvalonia.Theming;
+using ExpressiveAvalonia.Tokens;
+using Avalonia.VisualTree;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -24,13 +27,29 @@ public enum MaterialClockDialSelection
 }
 
 /// <summary>
+/// Describes a completed pointer selection on a <see cref="MaterialClockDial"/>.
+/// </summary>
+/// <remarks>
+/// Source <c>ClockDialModifier</c> handles taps and drags in separate pointer detectors: a tap runs
+/// <c>rotateTo(angle, DefaultSpatial, animate = true)</c> and the picker waits for that rotation
+/// before its 100 ms hour-to-minute step, while a drag switches the face on <c>onDragEnd</c>
+/// immediately. <see cref="IsTap"/> keeps that distinction for the picker.
+/// </remarks>
+public sealed class MaterialClockDialSelectionEventArgs(bool isTap) : EventArgs
+{
+    /// <summary>True for a tap gesture, false when the pointer moved as a drag.</summary>
+    public bool IsTap { get; } = isTap;
+}
+
+/// <summary>
 /// The Material clock dial used by <see cref="MaterialTimePicker"/>: a round face with selectable
 /// numbers, a radial hour line and a centre dot.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Anatomy follows the source building blocks: a 256 x 256 face, 48 x 48 number cells centred at
-/// 0.797 of the radius (outer ring) and 0.578 (24-hour inner ring), a 2-DIP hour line from the
+/// 0.789 of the radius (101 DIP, outer ring) and 0.539 (69 DIP, 24-hour inner ring), with a
+/// 0.578 (74 DIP) radius separating the two 24-hour rings, a 2-DIP hour line from the
 /// centre to the selected number, and an 8-DIP centre dot.
 /// </para>
 /// <para>
@@ -44,11 +63,24 @@ public sealed class MaterialClockDial : Control
     /// <summary>Radius of one number cell, in DIPs. The cell is the 48 x 48 touch target.</summary>
     public const double CellRadius = 24;
 
-    /// <summary>Distance of the outer number ring from the centre, as a fraction of the radius.</summary>
-    public const double OuterRingFactor = 102d / 128d;
+    /// <summary>
+    /// Distance of the outer number ring from the centre, as a fraction of the face radius.
+    /// Source: <c>OuterCircleToSizeRatio = 101.dp / ClockDialContainerSize (256.dp)</c>, i.e. a
+    /// 101-DIP ring on a 256-DIP face.
+    /// </summary>
+    public const double OuterRingFactor = 101d / 128d;
 
-    /// <summary>Distance of the 24-hour inner number ring from the centre, as a fraction of the radius.</summary>
-    public const double InnerRingFactor = 74d / 128d;
+    /// <summary>
+    /// Distance of the 24-hour inner number ring from the centre, as a fraction of the radius.
+    /// Source: <c>InnerCircleToSizeRatio = 69.dp / ClockDialContainerSize (256.dp)</c>.
+    /// </summary>
+    public const double InnerRingFactor = 69d / 128d;
+
+    /// <summary>
+    /// Radius that separates the 24-hour outer and inner rings.
+    /// Source: <c>MaxDistance = 74.dp</c> measured from the centre of the 256-DIP face.
+    /// </summary>
+    public const double RingBoundaryFactor = 74d / 128d;
 
     /// <summary>Radius of the centre dot, in DIPs (the 8 x 8 centre ellipse).</summary>
     public const double CenterDotRadius = 4;
@@ -67,6 +99,13 @@ public sealed class MaterialClockDial : Control
     public static readonly StyledProperty<int> MinuteIncrementProperty =
         AvaloniaProperty.Register<MaterialClockDial, int>(nameof(MinuteIncrement), 1,
             validate: value => value is > 0 and <= 60);
+
+    /// <summary>
+    /// Culture used for the face numbers. Null follows <see cref="CultureInfo.CurrentCulture"/>,
+    /// matching the source <c>toLocalString</c> default. Changing it invalidates the cached face.
+    /// </summary>
+    public static readonly StyledProperty<CultureInfo?> CultureProperty =
+        AvaloniaProperty.Register<MaterialClockDial, CultureInfo?>(nameof(Culture));
 
     public static readonly StyledProperty<double> NumberFontSizeProperty =
         AvaloniaProperty.Register<MaterialClockDial, double>(nameof(NumberFontSize), 16,
@@ -122,17 +161,42 @@ public sealed class MaterialClockDial : Control
     // every frame, so both are cached instead of rebuilt per pass.
     private readonly Dictionary<TextKey, FormattedText> _texts = [];
     private NumberCell[]? _cells;
+    private MaterialMotion.SpringAnimation? _faceAnimation, _outgoingFaceAnimation;
+    private NumberCell[]? _outgoingCells;
+    private CellKey _outgoingCellKey;
+    private double _faceOpacity = 1, _outgoingFaceOpacity;
     private CellKey _cellKey;
     private MaterialMotion.SpringAnimation? _selectionAnimation;
     private double _displayAngle = double.NaN;
     private int? _hoveredValue;
     private IPointer? _capturedPointer;
+    private Point _pressPosition;
+    private bool _dragMoved;
+    /// <summary>
+    /// Raised after a pointer interaction selects a value on the dial, before keyboard input.
+    /// The time picker uses this to advance from hour to minute like the source dial.
+    /// </summary>
+    public event EventHandler<MaterialClockDialSelectionEventArgs>? PointerSelectionCompleted;
+
     private bool _isDragging;
+    private int _gestureVersion;
+
+    internal async Task<bool> WaitForSelectionAsync()
+    {
+        var version = _gestureVersion;
+        while (_selectionAnimation is { IsRunning: true })
+        {
+            await Task.Delay(16);
+            if (version != _gestureVersion || !this.IsAttachedToVisualTree()) return false;
+        }
+        await Task.Delay(100);
+        return version == _gestureVersion && this.IsAttachedToVisualTree();
+    }
 
     static MaterialClockDial()
     {
         AffectsRender<MaterialClockDial>(ValueProperty, SelectionProperty, Is24HourProperty, MinuteIncrementProperty,
-            NumberFontSizeProperty, NumberFontWeightProperty, FaceBrushProperty, NumberBrushProperty,
+            CultureProperty, NumberFontSizeProperty, NumberFontWeightProperty, FaceBrushProperty, NumberBrushProperty,
             SelectedBrushProperty, SelectedTextBrushProperty, LineBrushProperty, StateLayerBrushProperty,
             StateLayerOpacityProperty, FocusRingBrushProperty, DisabledNumberBrushProperty, FontFamilyProperty);
         FocusableProperty.OverrideDefaultValue<MaterialClockDial>(true);
@@ -165,6 +229,15 @@ public sealed class MaterialClockDial : Control
         get => GetValue(MinuteIncrementProperty);
         set => SetValue(MinuteIncrementProperty, value);
     }
+
+    /// <summary>Culture used for face numbers; null follows the current culture.</summary>
+    public CultureInfo? Culture
+    {
+        get => GetValue(CultureProperty);
+        set => SetValue(CultureProperty, value);
+    }
+
+    private CultureInfo EffectiveCulture => Culture ?? CultureInfo.CurrentCulture;
 
     public double NumberFontSize
     {
@@ -230,9 +303,19 @@ public sealed class MaterialClockDial : Control
         {
             if (change.Property == SelectionProperty)
                 CoerceValue(ValueProperty);
+            if (change.Property == SelectionProperty || change.Property == Is24HourProperty)
+                BeginFaceTransition();
             if (change.Property == ValueProperty)
                 ValueChanged?.Invoke(this, EventArgs.Empty);
             MoveSelectionIndicator();
+        }
+        else if (change.Property == CultureProperty)
+        {
+            // Face labels and their FormattedText glyph runs belong to the old culture.
+            _cells = null;
+            _outgoingCells = null;
+            _texts.Clear();
+            InvalidateVisual();
         }
         else if (change.Property == IsEnabledProperty)
         {
@@ -244,8 +327,15 @@ public sealed class MaterialClockDial : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         EndDrag();
+        _gestureVersion++;
         _selectionAnimation?.Dispose();
         _selectionAnimation = null;
+        _faceAnimation?.Dispose();
+        _outgoingFaceAnimation?.Dispose();
+        _faceAnimation = _outgoingFaceAnimation = null;
+        _outgoingCells = null;
+        _faceOpacity = 1;
+        _outgoingFaceOpacity = 0;
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -256,10 +346,12 @@ public sealed class MaterialClockDial : Control
         var point = e.GetCurrentPoint(this);
         if (!point.Properties.IsLeftButtonPressed) return;
         Focus(NavigationMethod.Pointer);
+        _gestureVersion++;
         _capturedPointer = e.Pointer;
         _isDragging = true;
+        _dragMoved = false;
+        _pressPosition = e.GetPosition(this);
         e.Pointer.Capture(this);
-        ApplyPointer(e.GetPosition(this));
         e.Handled = true;
     }
 
@@ -269,7 +361,14 @@ public sealed class MaterialClockDial : Control
         if (!IsEffectivelyEnabled) return;
         if (_isDragging)
         {
-            ApplyPointer(e.GetPosition(this));
+            var position = e.GetPosition(this);
+            if (!_dragMoved)
+            {
+                var delta = position - _pressPosition;
+                _dragMoved = Math.Abs(delta.X) > 2 || Math.Abs(delta.Y) > 2;
+            }
+            if (_dragMoved) _isDragging = true;
+            ApplyPointer(position);
             e.Handled = true;
             return;
         }
@@ -286,8 +385,14 @@ public sealed class MaterialClockDial : Control
     {
         base.OnPointerReleased(e);
         if (!_isDragging) return;
-        ApplyPointer(e.GetPosition(this));
+        // Source detectTapGestures snaps a minute tap to the nearest five-minute label; a drag
+        // tracks the pointer continuously (toMinute has one-minute precision).
+        var isTap = !_dragMoved;
+        _isDragging = !isTap;
+        ApplyPointer(e.GetPosition(this), snapMinuteTap: isTap);
         EndDrag();
+        MoveSelectionIndicator();
+        PointerSelectionCompleted?.Invoke(this, new MaterialClockDialSelectionEventArgs(isTap));
         e.Handled = true;
     }
 
@@ -367,8 +472,12 @@ public sealed class MaterialClockDial : Control
             context.DrawLine(_linePen, center, selectedPoint);
         }
 
-        foreach (var cell in BuildCells(center, radius))
-            DrawCell(context, cell);
+        var cells = BuildCells(center, radius);
+        if (_outgoingCells is not null && _outgoingFaceOpacity > 0)
+            using (context.PushOpacity(Math.Clamp(_outgoingFaceOpacity, 0, 1)))
+                foreach (var cell in _outgoingCells) DrawCell(context, cell, false);
+        using (context.PushOpacity(Math.Clamp(_faceOpacity, 0, 1)))
+            foreach (var cell in cells) DrawCell(context, cell);
 
         if (SelectedBrush is { } selected)
         {
@@ -391,9 +500,9 @@ public sealed class MaterialClockDial : Control
         }
     }
 
-    private void DrawCell(DrawingContext context, NumberCell cell)
+    private void DrawCell(DrawingContext context, NumberCell cell, bool current = true)
     {
-        if (IsCellSelected(cell)) return;
+        if (current && IsCellSelected(cell)) return;
 
         var isHovered = _hoveredValue is { } hovered && hovered == cell.Value;
         var numberBrush = IsEffectivelyEnabled ? NumberBrush : DisabledNumberBrush;
@@ -430,7 +539,7 @@ public sealed class MaterialClockDial : Control
             // otherwise grow the cache without bound.
             if (_texts.Count >= 64) _texts.Clear();
             var typeface = new Typeface(FontFamily, FontStyle.Normal, NumberFontWeight);
-            formatted = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+            formatted = new FormattedText(text, EffectiveCulture, FlowDirection.LeftToRight,
                 typeface, NumberFontSize, brush);
             _texts[key] = formatted;
         }
@@ -438,6 +547,13 @@ public sealed class MaterialClockDial : Control
         context.DrawText(formatted, new Point(center.X - formatted.Width / 2, center.Y - formatted.Height / 2));
     }
 
+    /// <summary>
+    /// Builds (or returns the cached) number geometry for the current face. Render calls this
+    /// every frame, so it never mutates animation state or invalidates the control: the face
+    /// crossfade is started from <see cref="OnPropertyChanged"/> instead. Starting a spring here
+    /// would run its reduced-motion <c>Finish</c> callback inside the render pass and throw
+    /// "Visual was invalidated during the render pass".
+    /// </summary>
     private IReadOnlyList<NumberCell> BuildCells(Point center, double radius)
     {
         var key = new CellKey(center.X, center.Y, radius, Selection, Is24Hour);
@@ -453,7 +569,8 @@ public sealed class MaterialClockDial : Control
             for (var index = 0; index < 12; index++)
             {
                 var value = index * 5;
-                cells.Add(new NumberCell(value, value.ToString("D2", CultureInfo.InvariantCulture),
+                // ClockText uses value.toLocalString(): minutes have no leading zero.
+                cells.Add(new NumberCell(value, MaterialTimeNumerals.Format(value, 1, EffectiveCulture),
                     PointOnRing(center, outer, GetPositionAngle(index, 12)), false));
             }
         }
@@ -461,18 +578,20 @@ public sealed class MaterialClockDial : Control
         {
             for (var index = 0; index < 12; index++)
             {
-                var value = index == 0 ? 12 : index;
-                cells.Add(new NumberCell(value, value.ToString(CultureInfo.InvariantCulture),
+                // The source's outer 24-hour ring is screen[index] % 12 (0 at 12 o'clock), while
+                // the 12-hour face shows Hours (12 at 12 o'clock).
+                var value = Is24Hour ? index : index == 0 ? 12 : index;
+                cells.Add(new NumberCell(value, MaterialTimeNumerals.Format(value, 1, EffectiveCulture),
                     PointOnRing(center, outer, GetPositionAngle(index, 12)), false));
             }
 
             if (Is24Hour)
             {
-                // The inner ring repeats the twelve positions: 24 at 12 o'clock, then 13 to 23.
+                // ExtraHours = Hours % 12 + 12: 12 at 12 o'clock, then 13 through 23.
                 for (var index = 0; index < 12; index++)
                 {
-                    var value = index == 0 ? 24 : 12 + index;
-                    cells.Add(new NumberCell(value % 24, value.ToString(CultureInfo.InvariantCulture),
+                    var value = 12 + index;
+                    cells.Add(new NumberCell(value, MaterialTimeNumerals.Format(value, 1, EffectiveCulture),
                         PointOnRing(center, inner, GetPositionAngle(index, 12)), true));
                 }
             }
@@ -481,6 +600,57 @@ public sealed class MaterialClockDial : Control
         _cells = [.. cells];
         _cellKey = key;
         return _cells;
+    }
+
+    /// <summary>
+    /// Starts the crossfade between the hour and minute faces, or between the 12- and 24-hour
+    /// faces. Called from the property change (never from Render) so a reduced-motion spring may
+    /// finish synchronously without touching the render pass.
+    /// </summary>
+    private void BeginFaceTransition()
+    {
+        // Nothing has been rendered yet (or the control is detached), so the new face simply
+        // appears at full opacity.
+        if (_cells is null || !this.IsAttachedToVisualTree())
+            return;
+
+        // The built face already matches the requested one (for example Selection was set to the
+        // value it already had); there is no crossfade to start.
+        if (_cellKey.Selection == Selection && _cellKey.Is24Hour == Is24Hour)
+            return;
+
+        var previousCells = _cells;
+        var previousKey = _cellKey;
+        var previousOpacity = _faceOpacity;
+        var previousVelocity = _faceAnimation?.Velocity ?? 0;
+
+        // Reversing a transition: the face being replaced is the one currently fading out.
+        var reversing = _outgoingCells is not null &&
+                        _outgoingCellKey.Selection == Selection &&
+                        _outgoingCellKey.Is24Hour == Is24Hour;
+        var incomingCells = reversing ? _outgoingCells : null;
+        var incomingKey = reversing ? _outgoingCellKey : default;
+        var incomingOpacity = reversing ? _outgoingFaceOpacity : 0;
+        var incomingVelocity = reversing ? _outgoingFaceAnimation?.Velocity ?? 0 : 0;
+
+        _faceAnimation?.Dispose();
+        _outgoingFaceAnimation?.Dispose();
+        _outgoingCells = previousCells;
+        _outgoingCellKey = previousKey;
+        _faceOpacity = incomingOpacity;
+        _outgoingFaceOpacity = previousOpacity;
+        if (reversing)
+        {
+            _cells = incomingCells;
+            _cellKey = incomingKey;
+        }
+
+        _faceAnimation = MaterialMotion.Animate(this, incomingOpacity, 1,
+            alpha => { _faceOpacity = alpha; InvalidateVisual(); },
+            MaterialSpring.EffectsDefault, initialVelocity: incomingVelocity);
+        _outgoingFaceAnimation = MaterialMotion.Animate(this, previousOpacity, 0,
+            alpha => { _outgoingFaceOpacity = alpha; InvalidateVisual(); },
+            MaterialSpring.EffectsDefault, initialVelocity: previousVelocity);
     }
 
     // 12-hour faces hold 1-12; 24-hour faces hold 1-12 outside and 0,13-23 inside, so the
@@ -492,25 +662,19 @@ public sealed class MaterialClockDial : Control
     {
         if (Selection == MaterialClockDialSelection.Minute) return radius * OuterRingFactor;
         if (!Is24Hour) return radius * OuterRingFactor;
-        return Value is 0 or >= 13 ? radius * InnerRingFactor : radius * OuterRingFactor;
+        // Outer ring carries 0-11 and the inner ring carries 12-23 in 24-hour mode.
+        return Value >= 12 ? radius * InnerRingFactor : radius * OuterRingFactor;
     }
 
     /// <summary>The number carried by the moving indicator; the resting cell is covered by it.</summary>
-    private string SelectedLabel()
-    {
-        if (Selection == MaterialClockDialSelection.Minute)
-            return Value.ToString("D2", CultureInfo.InvariantCulture);
-        if (!Is24Hour) return Value.ToString(CultureInfo.InvariantCulture);
-        // The 24-hour face labels midnight as 24.
-        return (Value == 0 ? 24 : Value).ToString(CultureInfo.InvariantCulture);
-    }
+    private string SelectedLabel() => MaterialTimeNumerals.Format(Value, 1, EffectiveCulture);
 
     private static Point PointOnRing(Point center, double radius, double angle) =>
         new(center.X + radius * Math.Sin(angle), center.Y - radius * Math.Cos(angle));
 
-    private void ApplyPointer(Point position)
+    private void ApplyPointer(Point position, bool snapMinuteTap = false)
     {
-        var next = ValueFromPoint(position);
+        var next = ValueFromPoint(position, snapMinuteTap);
         if (next == Value)
         {
             SnapIndicator(next);
@@ -521,7 +685,7 @@ public sealed class MaterialClockDial : Control
         SetCurrentValue(ValueProperty, next);
     }
 
-    private int ValueFromPoint(Point position)
+    private int ValueFromPoint(Point position, bool snapMinuteTap = false)
     {
         var faceSize = Math.Min(Bounds.Width, Bounds.Height);
         var radius = faceSize / 2;
@@ -539,8 +703,13 @@ public sealed class MaterialClockDial : Control
 
         if (Selection == MaterialClockDialSelection.Minute)
         {
-            var increment = Math.Max(1, MinuteIncrement);
             var raw = fraction * 60;
+            if (snapMinuteTap)
+            {
+                var tapped = (int)Math.Round(raw / 5, MidpointRounding.AwayFromZero) * 5;
+                return ((tapped % 60) + 60) % 60;
+            }
+            var increment = Math.Max(1, MinuteIncrement);
             var snapped = (int)Math.Round(raw / increment, MidpointRounding.AwayFromZero) * increment;
             return ((snapped % 60) + 60) % 60;
         }
@@ -549,10 +718,10 @@ public sealed class MaterialClockDial : Control
         if (!Is24Hour)
             return index == 0 ? 12 : index;
 
-        var innerRing = distance < radius * (OuterRingFactor + InnerRingFactor) / 2;
+        var innerRing = distance < radius * RingBoundaryFactor;
         if (!innerRing)
-            return index == 0 ? 12 : index;
-        return index == 0 ? 0 : 12 + index;
+            return index;
+        return 12 + index;
     }
 
     private int? HitTestNumber(Point position)
@@ -637,12 +806,14 @@ public sealed class MaterialClockDial : Control
             return;
         }
 
-        _selectionAnimation?.Dispose();
-        _selectionAnimation = MaterialMotion.Animate(this, _displayAngle, unwrapped, angle =>
-        {
-            _displayAngle = angle;
-            InvalidateVisual();
-        });
+        if (_selectionAnimation is not null)
+            _selectionAnimation.Retarget(unwrapped);
+        else
+            _selectionAnimation = MaterialMotion.Animate(this, _displayAngle, unwrapped, angle =>
+            {
+                _displayAngle = angle;
+                InvalidateVisual();
+            }, MaterialSpring.SpatialDefault);
     }
 
     private static double Unwrap(double angle)

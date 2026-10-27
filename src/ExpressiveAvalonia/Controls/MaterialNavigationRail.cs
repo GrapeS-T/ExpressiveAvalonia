@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
@@ -6,77 +7,98 @@ using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
+using ExpressiveAvalonia.Theming;
+using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Controls;
 
 /// <summary>Where the rail's navigation items sit when they do not fill the rail.</summary>
 public enum MaterialNavigationRailAlignment
 {
-    /// <summary>Items follow the menu/FAB group with the 40 unit group gap.</summary>
+    /// <summary>Items follow the header with the source 40 DIP group gap.</summary>
     Top,
 
-    /// <summary>Items are centered in the full rail height, as in the M3 middle-aligned rail.</summary>
+    /// <summary>Items are centered in the full rail height (source <c>Arrangement.Center</c>).</summary>
     Middle
 }
 
-/// <summary>The layout used by a navigation rail item.</summary>
-public enum MaterialNavigationRailItemOrientation
+/// <summary>The two source rail families.</summary>
+public enum MaterialNavigationRailMode
 {
-    /// <summary>Derive the orientation from the rail: vertical when compact, horizontal when expanded.</summary>
-    Auto,
-    Vertical,
-    Horizontal
+    /// <summary>Classic <c>NavigationRail</c>: 80 DIP wide, 4 DIP vertical padding, header slot.</summary>
+    Compact,
+
+    /// <summary><c>WideNavigationRail</c>: 96 DIP collapsed, 220..360 DIP expanded.</summary>
+    Wide
 }
 
-/// <summary>The optional count indicator shown by a navigation rail item.</summary>
-public enum MaterialNavigationRailBadge
+/// <summary>The target/current expansion value of a wide navigation rail.</summary>
+public enum MaterialNavigationRailState
 {
-    None,
-    /// <summary>A six unit dot, overlaying the top-right of the icon.</summary>
-    Small,
-    /// <summary>A sixteen unit pill carrying <see cref="MaterialNavigationRailItem.BadgeText"/>.</summary>
-    Large
+    Collapsed,
+    Expanded
 }
 
 /// <summary>
-/// A Material 3 navigation rail with compact and expanded layouts, a menu button, a FAB,
-/// and single-selection navigation over <see cref="MaterialNavigationRailItem"/> containers.
+/// Material navigation rail with the classic compact layout and the expressive wide rail.
 /// </summary>
 /// <remarks>
-/// Selection, focus, and automation use the native Avalonia list contracts: the rail is a
-/// <see cref="ListBox"/> and its items are <see cref="ListBoxItem"/> containers, so
-/// SelectionPattern/SelectionItemPattern, disabled items, and pointer selection keep working.
-/// Keyboard selection wraps: Up/Left selects the previous item, Down/Right the next,
-/// Home/End the first/last, and Enter/Space invokes the focused item.
-/// Item icons are <see cref="Geometry"/> paths so their fill follows the selected, unselected,
-/// and disabled roles instead of freezing a color inside user content.
+/// <para>
+/// Adapted from <c>NavigationRail.kt</c> and <c>WideNavigationRail.kt</c> at the pinned commit.
+/// Compact mode is the classic 80 DIP rail: header, 4 DIP vertical padding, 4 DIP between items,
+/// 56x32 indicators. Wide mode is the expressive rail: collapsed 96 DIP, expanded minimum 220 DIP
+/// and maximum 360 DIP, 44 DIP top content padding, 4→0 DIP item spacing, 64→48 DIP item minimum
+/// height and animated top→start icon positions. The header is a caller-supplied slot; the menu
+/// button and FAB are preserved library extensions that fill that slot when enabled.
+/// </para>
+/// <para>
+/// <see cref="IsExpanded"/> is the target of <see cref="State"/>; the width and item geometry use
+/// frame-based <see cref="MaterialMotion"/> springs (<c>DefaultSpatial</c> for permanent rails,
+/// <c>FastSpatial</c> when a host requests the modal timing). Selection is native single-selection
+/// on the same ListBox, so switching modes or modal/permanent presentation never recreates it.
+/// </para>
 /// </remarks>
-[PseudoClasses(":expanded", ":floating", ":middle")]
+[PseudoClasses(":compact", ":wide", ":expanded", ":middle", ":floating", ":modal")]
+[TemplatePart("PART_HeaderHost", typeof(StackPanel))]
+[TemplatePart("PART_HeaderPresenter", typeof(ContentPresenter))]
 [TemplatePart("PART_MenuFab", typeof(StackPanel))]
 [TemplatePart("PART_ItemsPresenter", typeof(ItemsPresenter))]
 [TemplatePart("PART_MenuButton", typeof(Button))]
 [TemplatePart("PART_FabButton", typeof(Button))]
 public class MaterialNavigationRail : ListBox
 {
-    /// <summary>Switches between the 96 unit compact rail and the 220 unit expanded rail.</summary>
-    public static readonly StyledProperty<bool> IsExpandedProperty =
-        AvaloniaProperty.Register<MaterialNavigationRail, bool>(nameof(IsExpanded));
+    public static readonly StyledProperty<MaterialNavigationRailMode> ModeProperty =
+        AvaloniaProperty.Register<MaterialNavigationRail, MaterialNavigationRailMode>(nameof(Mode));
 
-    /// <summary>Gives the expanded rail a surface-container background and 16 unit corner radius.</summary>
-    public static readonly StyledProperty<bool> IsFloatingProperty =
-        AvaloniaProperty.Register<MaterialNavigationRail, bool>(nameof(IsFloating));
+    public static readonly StyledProperty<bool> IsExpandedProperty =
+        AvaloniaProperty.Register<MaterialNavigationRail, bool>(
+            nameof(IsExpanded), defaultBindingMode: BindingMode.TwoWay);
 
     public static readonly StyledProperty<MaterialNavigationRailAlignment> RailAlignmentProperty =
         AvaloniaProperty.Register<MaterialNavigationRail, MaterialNavigationRailAlignment>(nameof(RailAlignment));
 
-    /// <summary>Overrides the item orientation derived from <see cref="IsExpanded"/>.</summary>
-    public static readonly StyledProperty<MaterialNavigationRailItemOrientation> ItemOrientationProperty =
-        AvaloniaProperty.Register<MaterialNavigationRail, MaterialNavigationRailItemOrientation>(nameof(ItemOrientation));
+    /// <summary>Icon position inherited by items whose own position is Auto. Auto follows expansion.</summary>
+    public static readonly StyledProperty<MaterialNavigationItemIconPosition> ItemIconPositionProperty =
+        AvaloniaProperty.Register<MaterialNavigationRail, MaterialNavigationItemIconPosition>(
+            nameof(ItemIconPosition), MaterialNavigationItemIconPosition.Auto);
+
+    /// <summary>Extension: the expanded rail paints a floating rounded surface.</summary>
+    public static readonly StyledProperty<bool> IsFloatingProperty =
+        AvaloniaProperty.Register<MaterialNavigationRail, bool>(nameof(IsFloating));
+
+    public static readonly StyledProperty<object?> HeaderProperty =
+        AvaloniaProperty.Register<MaterialNavigationRail, object?>(nameof(Header));
+
+    public static readonly StyledProperty<IDataTemplate?> HeaderTemplateProperty =
+        AvaloniaProperty.Register<MaterialNavigationRail, IDataTemplate?>(nameof(HeaderTemplate));
 
     public static readonly StyledProperty<bool> ShowMenuButtonProperty =
         AvaloniaProperty.Register<MaterialNavigationRail, bool>(nameof(ShowMenuButton), true);
@@ -92,7 +114,7 @@ public class MaterialNavigationRail : ListBox
         AvaloniaProperty.Register<MaterialNavigationRail, Geometry?>(nameof(FabIcon),
             Geometry.Parse("M11,5 L13,5 L13,11 L19,11 L19,13 L13,13 L13,19 L11,19 L11,13 L5,13 L5,11 L11,11 Z"));
 
-    /// <summary>Label of the expanded extended FAB. The compact FAB stays icon-only.</summary>
+    /// <summary>Label of the expanded extended FAB. The collapsed FAB stays icon-only.</summary>
     public static readonly StyledProperty<string?> FabTextProperty =
         AvaloniaProperty.Register<MaterialNavigationRail, string?>(nameof(FabText));
 
@@ -108,31 +130,130 @@ public class MaterialNavigationRail : ListBox
     public static readonly StyledProperty<object?> FabCommandParameterProperty =
         AvaloniaProperty.Register<MaterialNavigationRail, object?>(nameof(FabCommandParameter));
 
+    /// <summary>The spring used by the rail width and item geometry. A modal host selects fast spatial.</summary>
+    public static readonly StyledProperty<MaterialSpring> ExpansionSpringProperty =
+        AvaloniaProperty.Register<MaterialNavigationRail, MaterialSpring>(
+            nameof(ExpansionSpring), MaterialSpring.SpatialDefault);
+
+    /// <summary>The current width after the frame spring, read by the host for content insets.</summary>
+    public static readonly DirectProperty<MaterialNavigationRail, double> ExpansionWidthProperty =
+        AvaloniaProperty.RegisterDirect<MaterialNavigationRail, double>(
+            nameof(ExpansionWidth), rail => rail.ExpansionWidth);
+
+    /// <summary>The current expansion progress (0 collapsed, 1 expanded).</summary>
+    public static readonly DirectProperty<MaterialNavigationRail, double> ExpansionProgressProperty =
+        AvaloniaProperty.RegisterDirect<MaterialNavigationRail, double>(
+            nameof(ExpansionProgress), rail => rail.ExpansionProgress);
+
+    /// <summary>The animated StackPanel spacing used by the source item arrangement.</summary>
+    public static readonly DirectProperty<MaterialNavigationRail, double> ItemSpacingProperty =
+        AvaloniaProperty.RegisterDirect<MaterialNavigationRail, double>(
+            nameof(ItemSpacing), rail => rail.ItemSpacing);
+
+    private StackPanel? _headerHost;
+    private ContentPresenter? _headerPresenter;
     private StackPanel? _menuFab;
     private ItemsPresenter? _itemsPresenter;
+    private StackPanel? _itemsPanel;
     private Button? _fabButton;
     private Grid? _fabIconSlot;
     private TextBlock? _fabLabel;
+    private MaterialMotion.SpringAnimation? _progressSpring;
+    private MaterialMotion.SpringAnimation? _widthSpring;
+    private double _progress;
+    private double _width = double.NaN;
+    private double _expandedTargetWidth = 220;
+    private double _itemSpacing = 4;
+    private bool _widthUpdateQueued;
+    private bool _updating;
 
     static MaterialNavigationRail()
     {
-        IsExpandedProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateRailState());
-        IsFloatingProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateRailState());
-        RailAlignmentProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateRailState());
-        ItemOrientationProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateItemOrientations());
+        ModeProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.OnModeChanged());
+        IsExpandedProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.OnExpansionTargetChanged());
+        RailAlignmentProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
+        ItemIconPositionProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateItemStates());
+        IsFloatingProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateVisualClasses());
         FabTextProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateFabContent());
         FabIconProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateFabContent());
         ShowMenuButtonProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
         ShowFabProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
+        HeaderProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
+        HeaderTemplateProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
+        ExpansionSpringProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.RestartExpansionAnimation());
+    }
+
+    public MaterialNavigationRail()
+    {
+        AddHandler(KeyDownEvent, OnRailKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(GotFocusEvent, OnRailGotFocus, RoutingStrategies.Bubble);
+        SizeChanged += (_, _) => ScheduleExpandedWidthUpdate();
     }
 
     /// <summary>Raised after a navigation item is activated by pointer or keyboard.</summary>
     public event EventHandler<MaterialNavigationRailItemInvokedEventArgs>? ItemInvoked;
 
-    public bool IsExpanded { get => GetValue(IsExpandedProperty); set => SetValue(IsExpandedProperty, value); }
-    public bool IsFloating { get => GetValue(IsFloatingProperty); set => SetValue(IsFloatingProperty, value); }
-    public MaterialNavigationRailAlignment RailAlignment { get => GetValue(RailAlignmentProperty); set => SetValue(RailAlignmentProperty, value); }
-    public MaterialNavigationRailItemOrientation ItemOrientation { get => GetValue(ItemOrientationProperty); set => SetValue(ItemOrientationProperty, value); }
+    /// <summary>Raised on every frame while the rail width or item geometry changes.</summary>
+    public event EventHandler? ExpansionProgressChanged;
+
+    public MaterialNavigationRailMode Mode
+    {
+        get => GetValue(ModeProperty);
+        set => SetValue(ModeProperty, value);
+    }
+
+    /// <summary>Target expansion of a wide rail. Compact rails ignore it.</summary>
+    public bool IsExpanded
+    {
+        get => GetValue(IsExpandedProperty);
+        set => SetValue(IsExpandedProperty, value);
+    }
+
+    /// <summary>Source target value. Setting it drives the same spring as <see cref="IsExpanded"/>.</summary>
+    public MaterialNavigationRailState State
+    {
+        get => IsExpanded ? MaterialNavigationRailState.Expanded : MaterialNavigationRailState.Collapsed;
+        set => SetCurrentValue(IsExpandedProperty, value == MaterialNavigationRailState.Expanded);
+    }
+
+    /// <summary>Source current value: expanded only once the spring reaches the expanded anchor.</summary>
+    public MaterialNavigationRailState CurrentState =>
+        _progress >= 1 ? MaterialNavigationRailState.Expanded : MaterialNavigationRailState.Collapsed;
+
+    /// <summary>Whether the expansion spring is still running.</summary>
+    public bool IsExpansionAnimating => _progressSpring is { IsRunning: true } || _widthSpring is { IsRunning: true };
+
+    public MaterialNavigationRailAlignment RailAlignment
+    {
+        get => GetValue(RailAlignmentProperty);
+        set => SetValue(RailAlignmentProperty, value);
+    }
+
+    public MaterialNavigationItemIconPosition ItemIconPosition
+    {
+        get => GetValue(ItemIconPositionProperty);
+        set => SetValue(ItemIconPositionProperty, value);
+    }
+
+    public bool IsFloating
+    {
+        get => GetValue(IsFloatingProperty);
+        set => SetValue(IsFloatingProperty, value);
+    }
+
+    /// <summary>Caller-supplied header slot (source <c>header</c> parameter), shown above the items.</summary>
+    public object? Header
+    {
+        get => GetValue(HeaderProperty);
+        set => SetValue(HeaderProperty, value);
+    }
+
+    public IDataTemplate? HeaderTemplate
+    {
+        get => GetValue(HeaderTemplateProperty);
+        set => SetValue(HeaderTemplateProperty, value);
+    }
+
     public bool ShowMenuButton { get => GetValue(ShowMenuButtonProperty); set => SetValue(ShowMenuButtonProperty, value); }
     public bool ShowFab { get => GetValue(ShowFabProperty); set => SetValue(ShowFabProperty, value); }
     public Geometry? MenuIcon { get => GetValue(MenuIconProperty); set => SetValue(MenuIconProperty, value); }
@@ -142,6 +263,37 @@ public class MaterialNavigationRail : ListBox
     public object? MenuCommandParameter { get => GetValue(MenuCommandParameterProperty); set => SetValue(MenuCommandParameterProperty, value); }
     public ICommand? FabCommand { get => GetValue(FabCommandProperty); set => SetValue(FabCommandProperty, value); }
     public object? FabCommandParameter { get => GetValue(FabCommandParameterProperty); set => SetValue(FabCommandParameterProperty, value); }
+    public MaterialSpring ExpansionSpring { get => GetValue(ExpansionSpringProperty); set => SetValue(ExpansionSpringProperty, value); }
+    public double ExpansionWidth => _width;
+    public double ExpansionProgress => _progress;
+    public double ItemSpacing => _itemSpacing;
+
+    /// <summary>Expands the wide rail with the source spatial spring.</summary>
+    public void Expand() => State = MaterialNavigationRailState.Expanded;
+
+    /// <summary>Collapses the wide rail with the source spatial spring.</summary>
+    public void Collapse() => State = MaterialNavigationRailState.Collapsed;
+
+    /// <summary>Toggles the wide rail.</summary>
+    public void Toggle() => State = IsExpanded ? MaterialNavigationRailState.Collapsed : MaterialNavigationRailState.Expanded;
+
+    /// <summary>Sets the target without animation.</summary>
+    public void SnapTo(MaterialNavigationRailState state)
+    {
+        SetCurrentValue(IsExpandedProperty, state == MaterialNavigationRailState.Expanded);
+        SnapExpansion();
+    }
+
+    internal MaterialNavigationItemIconPosition ResolveItemIconPosition()
+    {
+        if (ItemIconPosition != MaterialNavigationItemIconPosition.Auto)
+            return ItemIconPosition;
+        if (Mode == MaterialNavigationRailMode.Compact)
+            return MaterialNavigationItemIconPosition.Top;
+        return IsExpanded
+            ? MaterialNavigationItemIconPosition.Start
+            : MaterialNavigationItemIconPosition.Top;
+    }
 
     protected override Control CreateContainerForItemOverride(object? item, int index, object? recycleKey) =>
         new MaterialNavigationRailItem();
@@ -155,6 +307,7 @@ public class MaterialNavigationRail : ListBox
             navItem.Invoked += OnItemInvoked;
             navItem.RefreshRailState();
         }
+        ScheduleExpandedWidthUpdate();
     }
 
     protected override void ClearContainerForItemOverride(Control container)
@@ -167,22 +320,271 @@ public class MaterialNavigationRail : ListBox
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         base.OnApplyTemplate(e);
+        _headerHost = e.NameScope.Find<StackPanel>("PART_HeaderHost");
+        _headerPresenter = e.NameScope.Find<ContentPresenter>("PART_HeaderPresenter");
         _menuFab = e.NameScope.Find<StackPanel>("PART_MenuFab");
         _itemsPresenter = e.NameScope.Find<ItemsPresenter>("PART_ItemsPresenter");
         _fabButton = e.NameScope.Find<Button>("PART_FabButton");
         _fabIconSlot = e.NameScope.Find<Grid>("PART_FabIconSlot");
         _fabLabel = e.NameScope.Find<TextBlock>("PART_FabLabel");
+        _itemsPanel = null;
 
-        UpdateRailState();
+        if (_itemsPresenter is not null)
+        {
+            _itemsPresenter.ApplyTemplate();
+            _itemsPresenter.SizeChanged += (_, _) => UpdateLayoutGeometry();
+        }
+        if (_headerHost is not null)
+            _headerHost.SizeChanged += (_, _) => UpdateLayoutGeometry();
+
+        UpdateVisualClasses();
+        UpdateItemStates();
+        UpdateFabContent();
+        UpdateLayoutGeometry();
+        SnapExpansion();
     }
 
-    public MaterialNavigationRail()
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        // Tunnel so an arrow is consumed before ListBoxItem's own key handling can see it.
-        AddHandler(KeyDownEvent, OnRailKeyDown, RoutingStrategies.Tunnel);
-        // Tab into the rail lands on the first destination; keep the selected destination in
-        // step so the rail never shows a focus ring on a different item than the selection.
-        AddHandler(GotFocusEvent, OnRailGotFocus, RoutingStrategies.Bubble);
+        base.OnAttachedToVisualTree(e);
+        UpdateVisualClasses();
+        UpdateItemStates();
+        UpdateLayoutGeometry();
+        SnapExpansion();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        DisposeExpansionAnimations();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnModeChanged()
+    {
+        _width = double.NaN;
+        UpdateVisualClasses();
+        UpdateItemStates();
+        UpdateFabContent();
+        UpdateLayoutGeometry();
+        SnapExpansion();
+        ScheduleExpandedWidthUpdate();
+    }
+
+    private void OnExpansionTargetChanged()
+    {
+        UpdateVisualClasses();
+        UpdateItemStates();
+        UpdateFabContent();
+        UpdateLayoutGeometry();
+        if (Mode == MaterialNavigationRailMode.Wide)
+        {
+            _expandedTargetWidth = CalculateExpandedWidth();
+            AnimateExpansion();
+        }
+        else
+        {
+            SnapExpansion();
+        }
+        ScheduleExpandedWidthUpdate();
+    }
+
+    private void RestartExpansionAnimation()
+    {
+        DisposeExpansionAnimations();
+        AnimateExpansion(force: true);
+    }
+
+    private void UpdateVisualClasses()
+    {
+        var wide = Mode == MaterialNavigationRailMode.Wide;
+        PseudoClasses.Set(":compact", !wide);
+        PseudoClasses.Set(":wide", wide);
+        PseudoClasses.Set(":expanded", wide && IsExpanded);
+        PseudoClasses.Set(":middle", RailAlignment == MaterialNavigationRailAlignment.Middle);
+        PseudoClasses.Set(":floating", IsFloating);
+    }
+
+    private void UpdateItemStates()
+    {
+        foreach (var container in GetRealizedContainers())
+            if (container is MaterialNavigationRailItem item)
+                item.RefreshRailState();
+    }
+
+    private void UpdateFabContent()
+    {
+        if (_fabIconSlot is not null)
+            _fabIconSlot.IsVisible = FabIcon is not null;
+        if (_fabLabel is not null)
+            _fabLabel.IsVisible = Mode == MaterialNavigationRailMode.Wide && IsExpanded &&
+                !string.IsNullOrEmpty(FabText);
+        if (_fabButton is not null)
+        {
+            var fallback = _fabButton.TryFindResource("MaterialNavigationRailFabText", out var value) && value is string text
+                ? text
+                : "Create";
+            AutomationProperties.SetName(_fabButton, string.IsNullOrEmpty(FabText) ? fallback : FabText);
+        }
+    }
+
+    private void UpdateLayoutGeometry()
+    {
+        if (_headerHost is null || _itemsPresenter is null)
+            return;
+
+        var compact = Mode == MaterialNavigationRailMode.Compact;
+        var expanded = !compact && IsExpanded;
+        var inset = !compact && expanded ? 20d : 0d;
+        var top = compact ? 4d : 44d;
+
+        _headerHost.HorizontalAlignment = !compact && expanded ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+        _headerHost.Margin = new Thickness(inset, top, inset, 0);
+        _headerPresenter?.SetValue(HorizontalAlignmentProperty,
+            !compact && expanded ? HorizontalAlignment.Left : HorizontalAlignment.Center);
+        if (_menuFab is not null)
+            _menuFab.HorizontalAlignment = !compact && expanded ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+
+        var headerHeight = HeaderHeight();
+        var gap = headerHeight > 0 ? (compact ? 8d : 40d) : 0d;
+        if (RailAlignment == MaterialNavigationRailAlignment.Middle)
+        {
+            _itemsPresenter.VerticalAlignment = VerticalAlignment.Center;
+            _itemsPresenter.Margin = new Thickness(0);
+        }
+        else
+        {
+            _itemsPresenter.VerticalAlignment = VerticalAlignment.Top;
+            _itemsPresenter.Margin = new Thickness(0, top + headerHeight + gap, 0, 0);
+        }
+
+        // The source StackPanel spacing animates independently from the item layout.
+        if (_itemsPanel is null && _itemsPresenter.Panel is StackPanel panel)
+            _itemsPanel = panel;
+        if (_itemsPanel is not null)
+            _itemsPanel.Spacing = _itemSpacing;
+    }
+
+    private double HeaderHeight()
+    {
+        if (_headerHost is null)
+            return 0;
+        var hasMenu = ShowMenuButton || ShowFab;
+        var hasHeader = Header is not null;
+        if (!hasMenu && !hasHeader)
+            return 0;
+        if (_headerHost.Bounds.Height > 0)
+            return _headerHost.Bounds.Height;
+        _headerHost.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return _headerHost.DesiredSize.Height;
+    }
+
+    private void SnapExpansion()
+    {
+        DisposeExpansionAnimations();
+        var target = Mode == MaterialNavigationRailMode.Wide && IsExpanded ? 1d : 0d;
+        _expandedTargetWidth = Mode == MaterialNavigationRailMode.Wide
+            ? (IsExpanded ? CalculateExpandedWidth() : 96d)
+            : 80d;
+        var width = Mode == MaterialNavigationRailMode.Wide
+            ? (IsExpanded ? _expandedTargetWidth : 96d)
+            : 80d;
+        _progress = target;
+        _width = width;
+        ApplyExpansionFrame();
+    }
+
+    private void AnimateExpansion(bool force = false)
+    {
+        if (!this.IsAttachedToVisualTree())
+        {
+            SnapExpansion();
+            return;
+        }
+
+        var target = IsExpanded ? 1d : 0d;
+        var widthTarget = IsExpanded ? _expandedTargetWidth : 96d;
+        if (force || _progressSpring is null)
+        {
+            DisposeExpansionAnimations();
+            _progressSpring = MaterialMotion.Animate(this, _progress, target,
+                value => { _progress = value; ApplyExpansionFrame(); }, ExpansionSpring, 0.01);
+            _widthSpring = MaterialMotion.Animate(this, _width, widthTarget,
+                value => { _width = value; ApplyExpansionFrame(); }, ExpansionSpring, 0.5);
+        }
+        else
+        {
+            _progressSpring?.Retarget(target);
+            _widthSpring?.Retarget(widthTarget);
+        }
+    }
+
+    private void ApplyExpansionFrame()
+    {
+        if (_updating)
+            return;
+        _updating = true;
+        try
+        {
+            _itemSpacing = Mode == MaterialNavigationRailMode.Wide ? 4d * (1 - Math.Clamp(_progress, 0, 1)) : 4d;
+            if (_itemsPanel is not null)
+                _itemsPanel.Spacing = _itemSpacing;
+            SetCurrentValue(WidthProperty, Math.Max(0, _width));
+            var previousWidth = _width;
+            SetAndRaise(ExpansionWidthProperty, ref previousWidth, _width);
+            var previousProgress = _progress;
+            SetAndRaise(ExpansionProgressProperty, ref previousProgress, _progress);
+            var previousSpacing = _itemSpacing;
+            SetAndRaise(ItemSpacingProperty, ref previousSpacing, _itemSpacing);
+        }
+        finally
+        {
+            _updating = false;
+        }
+        ExpansionProgressChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void DisposeExpansionAnimations()
+    {
+        _progressSpring?.Dispose();
+        _progressSpring = null;
+        _widthSpring?.Dispose();
+        _widthSpring = null;
+    }
+
+    /// <summary>Queues a width re-measure after labels, items or the header change.</summary>
+    internal void ScheduleExpandedWidthUpdate()
+    {
+        if (_widthUpdateQueued || Mode != MaterialNavigationRailMode.Wide || !IsExpanded)
+            return;
+        _widthUpdateQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _widthUpdateQueued = false;
+            var target = CalculateExpandedWidth();
+            if (Math.Abs(target - _expandedTargetWidth) < 0.01 || !this.IsAttachedToVisualTree())
+                return;
+            _expandedTargetWidth = target;
+            if (_widthSpring is not null)
+                _widthSpring.Retarget(target);
+            else
+                AnimateExpansion();
+        }, DispatcherPriority.Background);
+    }
+
+    private double CalculateExpandedWidth()
+    {
+        var widest = 220d;
+        foreach (var container in GetRealizedContainers())
+        {
+            if (container is MaterialNavigationRailItem item)
+                widest = Math.Max(widest, item.MeasureExpandedWidth());
+        }
+        if (_headerHost is not null && Header is not null)
+        {
+            _headerHost.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            widest = Math.Max(widest, _headerHost.DesiredSize.Width + 40);
+        }
+        return Math.Clamp(widest, 220d, 360d);
     }
 
     private void OnRailGotFocus(object? sender, FocusChangedEventArgs e)
@@ -190,7 +592,7 @@ public class MaterialNavigationRail : ListBox
         if (e.NavigationMethod != NavigationMethod.Tab)
             return;
 
-        if (FindItem(e.NewFocusedElement) is { } item)
+        if (FindItem(e.Source) is { } item)
         {
             var index = IndexFromContainer(item);
             if (index >= 0 && index != SelectedIndex)
@@ -208,7 +610,7 @@ public class MaterialNavigationRail : ListBox
         if (focusedItem is null && !ReferenceEquals(e.Source, this))
             return;
 
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
+        var rtl = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
         switch (e.Key)
         {
             case Key.Down:
@@ -277,11 +679,8 @@ public class MaterialNavigationRail : ListBox
         return -1;
     }
 
-    private bool IsItemEnabled(int index)
-    {
-        // An unrealized container will be enabled unless its item disables it after realization.
-        return ContainerFromIndex(index) is not Control container || container.IsEffectivelyEnabled;
-    }
+    private bool IsItemEnabled(int index) =>
+        ContainerFromIndex(index) is not Control container || container.IsEffectivelyEnabled;
 
     private void SelectAndFocus(int index)
     {
@@ -289,7 +688,6 @@ public class MaterialNavigationRail : ListBox
             return;
 
         SelectedIndex = index;
-        // Directional focus marks the state as keyboard focus, which reveals the focus ring.
         (ContainerFromIndex(index) as Control)?.Focus(NavigationMethod.Directional);
     }
 
@@ -316,81 +714,32 @@ public class MaterialNavigationRail : ListBox
         ItemInvoked?.Invoke(this, new MaterialNavigationRailItemInvokedEventArgs(item, index));
     }
 
-    private void UpdateRailState()
-    {
-        PseudoClasses.Set(":expanded", IsExpanded);
-        PseudoClasses.Set(":floating", IsFloating);
-        PseudoClasses.Set(":middle", RailAlignment == MaterialNavigationRailAlignment.Middle);
-        UpdateLayoutGeometry();
-        UpdateFabContent();
-        UpdateItemOrientations();
-    }
-
-    private void UpdateItemOrientations()
-    {
-        foreach (var container in GetRealizedContainers())
-            if (container is MaterialNavigationRailItem item)
-                item.RefreshRailState();
-    }
-
-    private void UpdateFabContent()
-    {
-        // The 24 unit slot collapses with the glyph so a text-only extended FAB keeps the
-        // source's 104 unit width instead of reserving an empty icon column.
-        if (_fabIconSlot is not null)
-            _fabIconSlot.IsVisible = FabIcon is not null;
-        if (_fabLabel is not null)
-            _fabLabel.IsVisible = IsExpanded && !string.IsNullOrEmpty(FabText);
-        if (_fabButton is not null)
-        {
-            var fallback = _fabButton.TryFindResource("MaterialNavigationRailFabText", out var value) && value is string text
-                ? text
-                : "Create";
-            AutomationProperties.SetName(_fabButton, string.IsNullOrEmpty(FabText) ? fallback : FabText);
-        }
-    }
-
     /// <summary>
-    /// The source puts the menu/FAB group 44 units from the top. A top-aligned item group
-    /// follows it after the 40 unit group gap; a middle-aligned group is centered in the
-    /// full rail height (the source positions it absolutely), independent of the group.
+    /// Raises <see cref="ItemInvoked"/> for an activation that happened in another native
+    /// presentation of the same rail (the host's collapsed presentation).
     /// </summary>
-    private void UpdateLayoutGeometry()
+    internal void InvokeItemAt(int index, MaterialNavigationRailItem? item)
     {
-        if (_menuFab is null || _itemsPresenter is null)
+        if (index < 0 || index >= ItemCount)
             return;
 
-        var expanded = IsExpanded;
-        var inset = expanded ? 20d : 0d;
+        if (SelectedIndex != index)
+            SelectedIndex = index;
 
-        _menuFab.HorizontalAlignment = expanded ? HorizontalAlignment.Left : HorizontalAlignment.Center;
-        _menuFab.Margin = new Thickness(inset, 44, inset, 0);
-
-        _itemsPresenter.HorizontalAlignment = expanded ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
-        if (RailAlignment == MaterialNavigationRailAlignment.Middle)
-        {
-            _itemsPresenter.VerticalAlignment = VerticalAlignment.Center;
-            _itemsPresenter.Margin = new Thickness(inset, 0, inset, 0);
-            return;
-        }
-
-        _itemsPresenter.VerticalAlignment = VerticalAlignment.Top;
-        // The group is two 56 buttons with the 4 gap, exactly as in the source; deriving the
-        // offset from the flags avoids depending on a layout pass that has not run yet.
-        var shown = (ShowMenuButton ? 1 : 0) + (ShowFab ? 1 : 0);
-        var menuHeight = shown * 56 + (shown == 2 ? 4 : 0);
-        // With no group at all the 40 group gap has nothing to separate, so only the top inset applies.
-        var top = shown == 0 ? 44 : 44 + menuHeight + 40;
-        _itemsPresenter.Margin = new Thickness(inset, top, inset, 0);
+        item ??= ContainerFromIndex(index) as MaterialNavigationRailItem;
+        if (item is not null)
+            ItemInvoked?.Invoke(this, new MaterialNavigationRailItemInvokedEventArgs(item, index));
     }
 }
 
-/// <summary>The expanded (220 unit) navigation rail. Same API and behavior as <see cref="MaterialNavigationRail"/>.</summary>
-public sealed class MaterialNavigationRailExpanded : MaterialNavigationRail
+/// <summary>The expressive wide rail from <c>WideNavigationRail.kt</c>.</summary>
+public class MaterialWideNavigationRail : MaterialNavigationRail
 {
-    public MaterialNavigationRailExpanded() => IsExpanded = true;
+    public MaterialWideNavigationRail()
+    {
+        Mode = MaterialNavigationRailMode.Wide;
+    }
 
-    /// <summary>Both rail types share the compact control theme; the expanded class only changes the default state.</summary>
     protected override Type StyleKeyOverride => typeof(MaterialNavigationRail);
 }
 

@@ -7,8 +7,8 @@
 
        local-004528 "Search bar": 56-high pill, radius 28, SurfaceContainerHigh (#ece6f0),
          4 padding, 4 gap; 48x48 icon buttons with a 40x40 visual; content 16/24 in
-         OnSurfaceVariant (#49454f); hover 8% OnSurface state layer (#1d1b20), pressed 10%;
-         optional 30x30 monogram avatar in a 50x48 target with 8 padding.
+         OnSurfaceVariant (#49454f); optional 30x30 monogram avatar in a 50x48 target with
+         8 padding.
        local-000258 "Flat search bar" / local-000527 "On-scroll search bar": same anatomy with
          the container overridden to #f3edf7 (SurfaceContainer) or #e6e0e9 (SurfaceContainerHighest), and the
          Alignment axis (Left aligned / Centered) applied to the query and hint text.
@@ -18,10 +18,12 @@
          list radius 12, 2 gap) and the baseline layout is one container (radius 28 docked /
          0 full screen) with a 1-high #79747e divider and flush 72-high items.
 
-       Geometry is the source's exported path data. The pressed ripple is rendered as the
-       source's 10% pressed state layer rather than a continuous ripple animation; every other
-       state, transition and reduced-motion behavior uses the shared Material tokens, and the
-       state-layer transitions collapse when MaterialTheme.Motion is Reduced. -->
+       Geometry is the source's exported path data. Interaction is the shared
+       MaterialAssist.MaterialRipple: suggestion rows carry the source row indication (bounded
+       press ripple plus the hover/focus state layer), while the input field container has no
+       hover/press indication at all, exactly as SearchBar.kt configures its decorator container
+       ripple. Every transition and reduced-motion behavior uses the shared Material tokens, and
+       the ripple collapses to a static indication when MaterialTheme.IsReducedMotion is true. -->
 
   <StreamGeometry x:Key="MaterialSearchMenuIconGeometry">M3 18V16H21V18H3ZM3 13V11H21V13H3ZM3 8V6H21V8H3Z</StreamGeometry>
   <StreamGeometry x:Key="MaterialSearchGlyphGeometry">M19.6 21L13.3 14.7C12.8 15.1 12.225 15.4167 11.575 15.65C10.925 15.8833 10.2333 16 9.5 16C7.68333 16 6.14583 15.3708 4.8875 14.1125C3.62917 12.8542 3 11.3167 3 9.5C3 7.68333 3.62917 6.14583 4.8875 4.8875C6.14583 3.62917 7.68333 3 9.5 3C11.3167 3 12.8542 3.62917 14.1125 4.8875C15.3708 6.14583 16 7.68333 16 9.5C16 10.2333 15.8833 10.925 15.65 11.575C15.4167 12.225 15.1 12.8 14.7 13.3L21 19.6L19.6 21ZM9.5 14C10.75 14 11.8125 13.5625 12.6875 12.6875C13.5625 11.8125 14 10.75 14 9.5C14 8.25 13.5625 7.1875 12.6875 6.3125C11.8125 5.4375 10.75 5 9.5 5C8.25 5 7.1875 5.4375 6.3125 6.3125C5.4375 7.1875 5 8.25 5 9.5C5 10.75 5.4375 11.8125 6.3125 12.6875C7.1875 13.5625 8.25 14 9.5 14Z</StreamGeometry>
@@ -40,6 +42,8 @@
   <x:String x:Key="MaterialSearchVoiceText">Voice search</x:String>
   <x:String x:Key="MaterialSearchAssistText">Search tools</x:String>
   <x:String x:Key="MaterialSearchSuggestionsText">Search suggestions</x:String>
+  <x:String x:Key="MaterialSearchSearchText">Search</x:String>
+  <x:String x:Key="MaterialSearchSuggestionsAvailableText">Suggestions available</x:String>
 
   <!-- The field inside a search bar: native single-line TextBox with no container of its own.
        Editing, caret, selection, clipboard, undo and input methods stay native. -->
@@ -114,7 +118,10 @@
   </ControlTheme>
 
   <!-- Suggestion container. The expressive layout uses 64-high, 12-radius items; the baseline
-       layout uses flush 72-high items. Both keep the Material state layer and focus ring. -->
+       layout uses flush 72-high items. Both keep the shared MaterialRipple indication: the source
+       suggestion rows are clickable DropdownMenuItem-like rows whose transparent bounds carry the
+       ripple, so press/hover/focus are one node. The ListBox selection (Avalonia hot tracking) is a
+       separate static layer, suppressed while the ripple owns hover/focus. -->
   <ControlTheme x:Key="MaterialSearchSuggestionItemBase" TargetType="ListBoxItem">
     <Setter Property="MinHeight" Value="64" />
     <Setter Property="Padding" Value="16,10" />
@@ -129,7 +136,7 @@
           <Border Name="Surface" Background="{TemplateBinding Background}"
                   BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                   CornerRadius="{TemplateBinding CornerRadius}" />
-          <Border Name="StateLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
+          <Border Name="SelectionLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
                   CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
           <ContentPresenter Name="PART_ContentPresenter"
                             Content="{TemplateBinding Content}"
@@ -137,30 +144,25 @@
                             Margin="{TemplateBinding Padding}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{DynamicResource MaterialOnSurfaceBrush}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  IsBounded="True"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False" />
           <Border Name="FocusRing" Margin="2" BorderBrush="{DynamicResource MaterialSecondaryBrush}"
                   BorderThickness="2" CornerRadius="{TemplateBinding CornerRadius}"
                   IsVisible="False" IsHitTestVisible="False" />
         </Grid>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:selected /template/ Border#StateLayer">
+    <Style Selector="^:selected /template/ Border#SelectionLayer">
       <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
     </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    <Style Selector="^:selected:pointerover /template/ Border#SelectionLayer, ^:selected:focus-visible /template/ Border#SelectionLayer">
+      <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
@@ -168,7 +170,7 @@
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer, ^:disabled /template/ Border#FocusRing">
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple, ^:disabled /template/ Border#SelectionLayer, ^:disabled /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="False" />
       <Setter Property="Opacity" Value="0" />
     </Style>
@@ -206,6 +208,58 @@
     </Setter>
   </ControlTheme>
 
+  <!-- AppBarWithSearch: a surface row with a navigation slot, a real MaterialSearchBar and an
+       action slot. Geometry is SearchBar.kt's: 4-unit navigation/action padding, 8 horizontal and
+       4 vertical units around the field, and a 360..720 field width kept centered. The app bar
+       container color springs between the resting surface and SurfaceContainer when content
+       overlaps; the search field switches between SurfaceContainerHigh and
+       SurfaceContainerHighest without an animation, matching AppBarWithSearchImpl. The surface
+       paints RenderedBackground, the spring's own brush (or Background when no behavior is
+       assigned), so the named Background property stays the themable target. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialSearchAppBar}" TargetType="controls:MaterialSearchAppBar">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+    <Setter Property="ScrolledBackground" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="SearchBarBackground" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
+    <Setter Property="ScrolledSearchBarBackground" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+    <Setter Property="SearchBarForeground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="NavigationForeground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="ActionsForeground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="ContentPadding" Value="0" />
+    <Setter Property="SafeAreaPadding" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Surface"
+                Background="{TemplateBinding RenderedBackground}"
+                Padding="{TemplateBinding SafeAreaPadding}"
+                ClipToBounds="True">
+          <Border Name="PART_Content" Padding="{TemplateBinding ContentPadding}" Background="Transparent">
+            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+              <Border Name="PART_NavigationHost" Grid.Column="0" Margin="4,0,0,0"
+                      VerticalAlignment="Center"
+                      TextElement.Foreground="{TemplateBinding NavigationForeground}"
+                      IsVisible="{Binding NavigationContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <ContentPresenter Content="{TemplateBinding NavigationContent}" />
+              </Border>
+              <Border Name="PART_SearchHost" Grid.Column="1" Margin="8,4"
+                      MinWidth="360" MaxWidth="720" HorizontalAlignment="Center">
+                <ContentPresenter Name="PART_SearchBarHost"
+                                  Content="{TemplateBinding SearchBar}"
+                                  VerticalAlignment="Center" />
+              </Border>
+              <Border Name="PART_ActionsHost" Grid.Column="2" Margin="0,0,4,0"
+                      VerticalAlignment="Center"
+                      TextElement.Foreground="{TemplateBinding ActionsForeground}"
+                      IsVisible="{Binding ActionsContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <ContentPresenter Content="{TemplateBinding ActionsContent}" />
+              </Border>
+            </Grid>
+          </Border>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
   <ControlTheme x:Key="{x:Type controls:MaterialSearchBar}" TargetType="controls:MaterialSearchBar">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
     <Setter Property="BorderBrush" Value="Transparent" />
@@ -213,7 +267,7 @@
     <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraLargeCornerRadius}" />
     <Setter Property="Padding" Value="4" />
     <Setter Property="MinHeight" Value="56" />
-    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinWidth" Value="360" />
     <!-- The source component caps its width at 720. -->
     <Setter Property="MaxWidth" Value="720" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
@@ -236,7 +290,15 @@
                 Padding="{TemplateBinding Padding}"
                 ClipToBounds="True">
           <Panel>
-            <Border Name="StateLayer" Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
+            <!-- The pinned SearchBar input field deliberately has no hover, press or drag
+                 indication on its container: SearchBar.kt's decorator container applies
+                 ripple(enablePressIndication = false, enableHoverIndication = false,
+                 enableDragIndication = false), and only a focus InsetRing in non-touch mode. The
+                 old bar-wide 8/10 % Border StateLayer is therefore removed instead of being
+                 replaced by a ripple: a ripple here would paint press feedback over the editing
+                 root every time the user clicks into the field or one of its icon buttons, which
+                 the source does not do. The icon buttons keep their own Button ripple themes and
+                 the TextBox keeps its native editing focus. -->
             <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
               <Button Name="PART_LeadingButton"
                       theming:MaterialAssist.IsIconButton="True"
@@ -307,25 +369,9 @@
         </Border>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
       <Setter Property="Background" Value="{DynamicResource MaterialDisabledContainerBrush}" />
-    </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:disabled /template/ TextBox#PART_TextBox">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
@@ -357,7 +403,8 @@
                   CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
             <Grid RowDefinitions="Auto,Auto,*">
               <Border Name="PART_Header" Padding="{TemplateBinding Padding}" Background="Transparent">
-                <controls:MaterialSearchBar Name="PART_SearchBar"
+                <controls:MaterialSearchBar Name="PART_SearchBar" MinWidth="0"
+                                            VerticalAlignment="Center"
                                             Background="{TemplateBinding FieldBackground}"
                                             CornerRadius="{TemplateBinding FieldCornerRadius}"
                                             AutoFocus="False"
@@ -396,11 +443,12 @@
     <Style Selector="^:docked">
       <Setter Property="MaxWidth" Value="720" />
     </Style>
-    <!-- Full screen: 12 DIP side inset around the field (the source header is exactly the field
-         height), clipped to the source's 16 radius. -->
+    <!-- Full screen (contained, expressive): SurfaceContainerLow surface, 8 DIP field inset and
+         the source's square full-screen container shape. -->
     <Style Selector="^:full-screen">
-      <Setter Property="Padding" Value="12,0" />
-      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
       <Setter Property="VerticalAlignment" Value="Stretch" />
     </Style>
     <!-- Baseline: one container; flat header, divider and flush list. The source header has no
@@ -434,8 +482,8 @@
     <Style Selector="^:scrim /template/ Border#PART_Scrim">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:closed">
-      <Setter Property="IsVisible" Value="False" />
+    <Style Selector="^:closed /template/ Border#PART_Root">
+      <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
   </ControlTheme>
 </ResourceDictionary>

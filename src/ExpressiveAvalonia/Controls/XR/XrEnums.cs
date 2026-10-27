@@ -47,6 +47,39 @@ public enum XrAppBarConfiguration
     Small
 }
 
+/// <summary>The pinned XR navigation bar family composed by <see cref="XrNavigationBar"/>.</summary>
+/// <remarks>
+/// <c>SpatialNavigationBar</c> and <c>SpatialShortNavigationBar</c> are separate composables in
+/// the pinned source that share a container height. The standard bar has 8 dp horizontal padding
+/// and no inter-item gap; the short bar has 32 dp around its content and between destinations.
+/// </remarks>
+public enum XrNavigationBarVariant
+{
+    /// <summary><c>SpatialNavigationBar</c> geometry: 8 dp horizontal padding, no item gap.</summary>
+    Standard,
+
+    /// <summary><c>SpatialShortNavigationBar</c> geometry: 32 dp horizontal padding and item gap.</summary>
+    Short
+}
+
+/// <summary>The XR navigation rail families composed by <see cref="XrNavigationRail"/>.</summary>
+/// <remarks>
+/// <c>SpatialNavigationRail</c> is the 96 dp rail with menu and FAB chrome;
+/// <c>SpatialWideNavigationRail</c> is the 96 dp collapsed / 220–360 dp expanded rail with a
+/// caller-supplied header slot.
+/// </remarks>
+public enum XrNavigationRailVariant
+{
+    /// <summary><c>SpatialNavigationRail</c>: 96 wide, 20 vertical padding, 20 destination gap.</summary>
+    Standard,
+
+    /// <summary>
+    /// <c>SpatialWideNavigationRail</c>: 96 wide collapsed, 220–360 wide expanded, same
+    /// circular surface, vertical padding and destination gap, plus a header slot.
+    /// </summary>
+    Wide
+}
+
 /// <summary>How an <see cref="XrDialog"/> was closed.</summary>
 public enum XrDialogResult
 {

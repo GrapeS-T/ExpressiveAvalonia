@@ -17,10 +17,32 @@ namespace ExpressiveAvalonia.Theming;
 
 /// <summary>Presentation options shared by the standard and range sliders.</summary>
 /// <remarks>
-/// The slider anatomy follows the source tokens: five sizes, a 4-DIP handle that grows to the
-/// control's cross size, a rounded track with 2-DIP inside corners, stop indicators and a value
-/// indicator pill. Sizes reuse <see cref="MaterialAssist.ControlSize"/> so a slider matches the
-/// surrounding controls; the source's XSmall maps to <see cref="MaterialControlSize.ExtraSmall"/>.
+/// <para>Source mapping (Slider.kt / SliderDefaults / SliderTokens at 77b2199d): the default
+/// XSmall anatomy is a 16-DIP track, a 44-DIP handle and a 4-DIP handle width with 2-DIP inside
+/// corners, 6-DIP handle-to-track gap, 2-DIP stop/tick inset beyond the 8-DIP outer radius and a
+/// 4-DIP stop/tick dot. Sizes reuse <see cref="MaterialAssist.ControlSize"/> so a slider matches
+/// the surrounding controls; the source's XSmall maps to
+/// <see cref="MaterialControlSize.ExtraSmall"/>. Values above XSmall are an extension: the
+/// source has a single size, so the larger track/handle/radius triples are ExpressiveAvalonia
+/// metrics, not another token set.</para>
+/// <para>The native Track keeps dragging, keyboard, snapping and automation. A template Track
+/// adapter moves the actual thumb target onto the source corner-inset grid for interior discrete
+/// values; endpoints keep the 2-DIP gutter. Pointer-to-value input remains linear, as in the
+/// source SliderState rawOffset mapping; only discrete layout is corner-inset. Tick colours follow
+/// the source's inverted default: active-track ticks use SecondaryContainer, inactive-track ticks
+/// use Primary; stop indicators use the active-track colour.</para>
+/// <para><see cref="ShowValueIndicatorProperty"/> and <see cref="ShowIconProperty"/> are
+/// extensions (the source samples compose their own value label/icons; the component itself has
+/// no such properties). The indicator is the shared <see cref="MaterialLabel"/> plain-tooltip
+/// bubble inside the slider template: MaterialSliderTrack anchors its zero-size host on the
+/// painted handle, so the bubble follows the thumb at every size, orientation, RTL and range
+/// endpoint. The icon is the source volume_up glyph shown only at Medium and above, moving to the
+/// inactive track when the active track is too short.</para>
+/// <para>Vertical follows the source topToBottom default through the theme's
+/// IsDirectionReversed=True style (minimum at the top); local values can reverse it. Horizontal
+/// RTL is mirrored as a whole by the theme because Avalonia's native Track is not
+/// direction-aware, so the painted and native handles stay coincident; native Left/Right
+/// keyboard steps remain LTR at the Track level.</para>
 /// </remarks>
 public sealed class MaterialSlider : AvaloniaObject
 {
@@ -106,17 +128,36 @@ public sealed class MaterialSlider : AvaloniaObject
         : 0;
 
     /// <summary>
-    /// Maps a value fraction to the handle center along the track. The handle center is inset
-    /// by six DIP, matching the source's 4-DIP handle plus its clear space.
+    /// Maps a value fraction to the handle center along the track. The source lays the track out
+    /// inside a thumb-width gutter, so the center travels from half the 4-DIP handle (2 DIP) to
+    /// length minus 2 DIP. Vertical follows Avalonia's Track direction (minimum at the bottom
+    /// unless <see cref="Slider.IsDirectionReversed"/> is set), which keeps the painted handle
+    /// aligned with the native pointer target.
     /// </summary>
-    internal static double Position(double fraction, double length, Orientation orientation, bool reversed)
+    internal static double Position(double fraction, double length, Orientation orientation, bool reversed,
+        double corner = 0, bool discrete = false)
     {
-        var travel = Math.Max(0, length - 12);
-        var directed = orientation == Orientation.Horizontal
-            ? reversed ? 1 - fraction : fraction
-            : reversed ? fraction : 1 - fraction;
-        return 6 + directed * travel;
+        var travel = Math.Max(0, length - 4);
+        corner = Math.Min(corner, travel / 2);
+        var offset = discrete && fraction > 0 && fraction < 1
+            ? corner + fraction * (travel - 2 * corner)
+            : fraction * travel;
+        var invert = orientation == Orientation.Horizontal ? reversed : !reversed;
+        return 2 + (invert ? travel - offset : offset);
     }
+
+    internal static bool IsDiscrete(Slider slider) => slider.IsSnapToTickEnabled &&
+        (slider.TickFrequency > 0 || slider.Ticks is { Count: > 0 });
+
+    internal static double Corner(Control owner, double cross)
+    {
+        var (thickness, _, radius) = Metrics(MaterialAssist.GetControlSize(owner));
+        return Math.Min(radius, Math.Min(thickness, Math.Max(4, cross - 2)) / 2);
+    }
+
+    internal static double HandlePosition(Slider owner, double length, double cross) =>
+        Position(Fraction(owner.Value, owner.Minimum, owner.Maximum), length, owner.Orientation,
+            owner.IsDirectionReversed, Corner(owner, cross), IsDiscrete(owner));
 
     internal static string FormatValue(double value, Control owner)
     {
@@ -124,6 +165,68 @@ public sealed class MaterialSlider : AvaloniaObject
         return string.IsNullOrEmpty(format)
             ? value.ToString("G4", CultureInfo.CurrentCulture)
             : value.ToString(format, CultureInfo.CurrentCulture);
+    }
+}
+
+/// <summary>Native Track with the pinned interior discrete-step thumb placement.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public sealed class MaterialSliderNativeTrack : Track
+{
+    private Slider? _owner;
+    private INotifyCollectionChanged? _ticks;
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _owner = TemplatedParent as Slider;
+        if (_owner is not null)
+        {
+            _owner.PropertyChanged += OwnerChanged;
+            SubscribeTicks();
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        if (_owner is not null) _owner.PropertyChanged -= OwnerChanged;
+        if (_ticks is not null) _ticks.CollectionChanged -= TicksChanged;
+        _owner = null;
+        _ticks = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OwnerChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == Slider.TicksProperty) SubscribeTicks();
+        if (e.Property == Slider.IsSnapToTickEnabledProperty || e.Property == Slider.TickFrequencyProperty ||
+            e.Property == Slider.TicksProperty || e.Property == MaterialAssist.ControlSizeProperty)
+            InvalidateArrange();
+    }
+
+    private void SubscribeTicks()
+    {
+        if (_ticks is not null) _ticks.CollectionChanged -= TicksChanged;
+        _ticks = _owner?.Ticks;
+        if (_ticks is not null) _ticks.CollectionChanged += TicksChanged;
+    }
+
+    private void TicksChanged(object? sender, NotifyCollectionChangedEventArgs e) => InvalidateArrange();
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        var result = base.ArrangeOverride(finalSize);
+        if (TemplatedParent is not Slider slider || !MaterialSlider.IsDiscrete(slider) || Thumb is null)
+            return result;
+        var vertical = Orientation == Orientation.Vertical;
+        var length = Math.Max(0, (vertical ? finalSize.Height : finalSize.Width) - 44);
+        var cross = vertical ? finalSize.Width : finalSize.Height;
+        var center = MaterialSlider.Position(MaterialSlider.Fraction(slider.Value, slider.Minimum, slider.Maximum),
+            length, slider.Orientation, slider.IsDirectionReversed, MaterialSlider.Corner(slider, cross), true) + 22;
+        var bounds = Thumb.Bounds;
+        Thumb.Arrange(vertical
+            ? new Rect(bounds.X, center - bounds.Height / 2, bounds.Width, bounds.Height)
+            : new Rect(center - bounds.Width / 2, bounds.Y, bounds.Width, bounds.Height));
+        return result;
     }
 }
 
@@ -135,6 +238,31 @@ public sealed class MaterialSliderThumb : Thumb
         AvaloniaProperty.Register<MaterialSliderThumb, bool>(nameof(IsDragging));
 
     public bool IsDragging { get => GetValue(IsDraggingProperty); private set => SetValue(IsDraggingProperty, value); }
+    private Slider? _discreteOwner;
+    private Point _lastOwnerPoint;
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        _discreteOwner = TemplatedParent is Slider slider && MaterialSlider.IsDiscrete(slider) ? slider : null;
+        if (_discreteOwner is not null) _lastOwnerPoint = e.GetPosition(_discreteOwner);
+        base.OnPointerPressed(e);
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        if (_discreteOwner is null || !IsDragging)
+        {
+            base.OnPointerMoved(e);
+            return;
+        }
+
+        // Track.AdjustDrag is internal and compensates only its linear layout. For the inset
+        // grid, measure native DragDelta in the stationary owner instead of the relocated thumb.
+        var point = e.GetPosition(_discreteOwner);
+        var delta = point - _lastOwnerPoint;
+        _lastOwnerPoint = point;
+        RaiseEvent(new VectorEventArgs { RoutedEvent = DragDeltaEvent, Vector = delta });
+    }
 
     protected override Type StyleKeyOverride => typeof(Thumb);
 
@@ -147,6 +275,7 @@ public sealed class MaterialSliderThumb : Thumb
     protected override void OnDragCompleted(Avalonia.Input.VectorEventArgs e)
     {
         IsDragging = false;
+        _discreteOwner = null;
         base.OnDragCompleted(e);
     }
 }
@@ -169,14 +298,14 @@ public sealed class MaterialSliderTrack : Control
         AvaloniaProperty.Register<MaterialSliderTrack, IBrush?>(nameof(InactiveBrush));
     public static readonly StyledProperty<IBrush?> DisabledBrushProperty =
         AvaloniaProperty.Register<MaterialSliderTrack, IBrush?>(nameof(DisabledBrush));
-    public static readonly StyledProperty<IBrush?> StopBrushProperty =
-        AvaloniaProperty.Register<MaterialSliderTrack, IBrush?>(nameof(StopBrush));
-    public static readonly StyledProperty<IBrush?> SelectedStopBrushProperty =
-        AvaloniaProperty.Register<MaterialSliderTrack, IBrush?>(nameof(SelectedStopBrush));
-    public static readonly StyledProperty<IBrush?> IndicatorBackgroundProperty =
-        AvaloniaProperty.Register<MaterialSliderTrack, IBrush?>(nameof(IndicatorBackground));
-    public static readonly StyledProperty<IBrush?> IndicatorForegroundProperty =
-        AvaloniaProperty.Register<MaterialSliderTrack, IBrush?>(nameof(IndicatorForeground));
+    public static readonly StyledProperty<IBrush?> DisabledHandleBrushProperty =
+        AvaloniaProperty.Register<MaterialSliderTrack, IBrush?>(nameof(DisabledHandleBrush));
+    public static readonly StyledProperty<IBrush?> TickBrushProperty =
+        AvaloniaProperty.Register<MaterialSliderTrack, IBrush?>(nameof(TickBrush));
+    public static readonly StyledProperty<IBrush?> ActiveTickBrushProperty =
+        AvaloniaProperty.Register<MaterialSliderTrack, IBrush?>(nameof(ActiveTickBrush));
+    public static readonly StyledProperty<MaterialLabel?> ValueLabelProperty =
+        AvaloniaProperty.Register<MaterialSliderTrack, MaterialLabel?>(nameof(ValueLabel));
     public static readonly StyledProperty<IBrush?> IconBrushProperty =
         AvaloniaProperty.Register<MaterialSliderTrack, IBrush?>(nameof(IconBrush));
     public static readonly StyledProperty<IBrush?> FocusBrushProperty =
@@ -190,9 +319,6 @@ public sealed class MaterialSliderTrack : Control
     private AvaloniaList<double>? _ticks;
     private bool _ownerPressed;
     private bool _ownerFocusVisible;
-    private Popup? _indicatorPopup;
-    private TextBlock? _indicatorText;
-    private Border? _indicatorBorder;
     private bool _indicatorUpdateQueued;
     private Rect? _indicatorAnchor;
     private string? _indicatorValue;
@@ -203,18 +329,17 @@ public sealed class MaterialSliderTrack : Control
     public IBrush? ActiveBrush { get => GetValue(ActiveBrushProperty); set => SetValue(ActiveBrushProperty, value); }
     public IBrush? InactiveBrush { get => GetValue(InactiveBrushProperty); set => SetValue(InactiveBrushProperty, value); }
     public IBrush? DisabledBrush { get => GetValue(DisabledBrushProperty); set => SetValue(DisabledBrushProperty, value); }
-    public IBrush? StopBrush { get => GetValue(StopBrushProperty); set => SetValue(StopBrushProperty, value); }
-    public IBrush? SelectedStopBrush { get => GetValue(SelectedStopBrushProperty); set => SetValue(SelectedStopBrushProperty, value); }
+    public IBrush? DisabledHandleBrush { get => GetValue(DisabledHandleBrushProperty); set => SetValue(DisabledHandleBrushProperty, value); }
+    public IBrush? TickBrush { get => GetValue(TickBrushProperty); set => SetValue(TickBrushProperty, value); }
+    public IBrush? ActiveTickBrush { get => GetValue(ActiveTickBrushProperty); set => SetValue(ActiveTickBrushProperty, value); }
     public IBrush? FocusBrush { get => GetValue(FocusBrushProperty); set => SetValue(FocusBrushProperty, value); }
-    public IBrush? IndicatorBackground { get => GetValue(IndicatorBackgroundProperty); set => SetValue(IndicatorBackgroundProperty, value); }
-    public IBrush? IndicatorForeground { get => GetValue(IndicatorForegroundProperty); set => SetValue(IndicatorForegroundProperty, value); }
+    public MaterialLabel? ValueLabel { get => GetValue(ValueLabelProperty); set => SetValue(ValueLabelProperty, value); }
     public IBrush? IconBrush { get => GetValue(IconBrushProperty); set => SetValue(IconBrushProperty, value); }
     public bool IsDragging { get => GetValue(IsDraggingProperty); set => SetValue(IsDraggingProperty, value); }
 
     static MaterialSliderTrack() => AffectsRender<MaterialSliderTrack>(OwnerProperty, ThumbProperty,
-        ActiveBrushProperty, InactiveBrushProperty, DisabledBrushProperty, StopBrushProperty,
-        SelectedStopBrushProperty, IndicatorBackgroundProperty, IndicatorForegroundProperty,
-        IconBrushProperty, FocusBrushProperty, IsEnabledProperty, IsDraggingProperty);
+        ActiveBrushProperty, InactiveBrushProperty, DisabledBrushProperty, DisabledHandleBrushProperty,
+        TickBrushProperty, ActiveTickBrushProperty, IconBrushProperty, FocusBrushProperty, IsEnabledProperty, IsDraggingProperty);
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -236,8 +361,7 @@ public sealed class MaterialSliderTrack : Control
     {
         UnsubscribeOwner();
         _indicatorAnchor = null;
-        if (_indicatorPopup is not null)
-            _indicatorPopup.IsOpen = false;
+        ValueLabel?.SetCurrentValue(MaterialLabel.IsPersistentProperty, false);
         if (_subscribedThumb is not null)
             _subscribedThumb.PropertyChanged -= ThumbChanged;
         _subscribedThumb = null;
@@ -357,66 +481,36 @@ public sealed class MaterialSliderTrack : Control
         if (_indicatorUpdateQueued)
             return;
         _indicatorUpdateQueued = true;
-        // Popup layout must not mutate the visual tree during Render.
+        // Label layout must not mutate the visual tree during Render.
         Dispatcher.UIThread.Post(UpdateIndicator);
     }
 
     private void UpdateIndicator()
     {
         _indicatorUpdateQueued = false;
-        if (_indicatorAnchor is not { } anchor || TopLevel.GetTopLevel(this) is null ||
-            Owner?.IsEffectivelyEnabled != true || IndicatorBackground is null || IndicatorForeground is null)
+        var label = ValueLabel;
+        if (label is null)
+            return;
+        if (_indicatorAnchor is not { } anchor || Owner?.IsEffectivelyEnabled != true)
         {
-            if (_indicatorPopup is not null)
-                _indicatorPopup.IsOpen = false;
+            // The label is presentational: without a visible handle interaction it stays hidden
+            // instead of tracking pointer hover on its own zero-size anchor.
+            label.SetCurrentValue(MaterialLabel.IsPersistentProperty, false);
             return;
         }
-        if (_indicatorPopup is null)
-        {
-            _indicatorText = new TextBlock
-            {
-                FontSize = 14, FontWeight = FontWeight.Normal, LineHeight = 20,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            _indicatorBorder = new Border
-            {
-                MinWidth = 48, Height = 44, CornerRadius = new CornerRadius(22),
-                Padding = new Thickness(16, 0), Child = _indicatorText
-            };
-            _indicatorPopup = new Popup
-            {
-                PlacementTarget = this, Placement = PlacementMode.AnchorAndGravity,
-                IsHitTestVisible = false, IsLightDismissEnabled = false,
-                WindowManagerAddShadowHint = false, Child = _indicatorBorder
-            };
-            _indicatorPopup.Opened += (_, _) =>
-            {
-                if (TopLevel.GetTopLevel(_indicatorBorder) is PopupRoot root)
-                {
-                    root.Background = Brushes.Transparent;
-                    root.TransparencyLevelHint = new[] { WindowTransparencyLevel.Transparent };
-                }
-            };
-        }
-        _indicatorText!.Text = _indicatorValue;
-        _indicatorText.Foreground = IndicatorForeground;
-        _indicatorText.FontFamily = (Owner as TemplatedControl)?.FontFamily ?? FontFamily.Default;
-        _indicatorBorder!.Background = IndicatorBackground;
-        _indicatorPopup.PlacementRect = anchor;
-        var (_, handleLength, _) = MaterialSlider.Metrics(MaterialAssist.GetControlSize(Owner!));
+        label.SetCurrentValue(MaterialLabel.LabelProperty, _indicatorValue);
+        label.SetCurrentValue(MaterialLabel.IsPersistentProperty, true);
+
+        // MaterialLabel arranges its plain-tooltip bubble 4 DIP above a zero-size anchor. Put
+        // that anchor on the thumb's leading edge so the bubble follows the thumb at every
+        // size, orientation and RTL mirror (the anchor travels with the slider layout).
         var cross = _indicatorVertical ? Bounds.Width : Bounds.Height;
+        var (_, handleLength, _) = MaterialSlider.Metrics(MaterialAssist.GetControlSize(Owner!));
         handleLength = Math.Min(handleLength, Math.Max(4, cross));
-        var offset = cross / 2 - handleLength / 2 - 12;
-        _indicatorPopup.HorizontalOffset = _indicatorVertical ? offset : 0;
-        _indicatorPopup.VerticalOffset = _indicatorVertical ? 0 : offset;
-        _indicatorPopup.PlacementAnchor = _indicatorVertical
-            ? Avalonia.Controls.Primitives.PopupPositioning.PopupAnchor.Left
-            : Avalonia.Controls.Primitives.PopupPositioning.PopupAnchor.Top;
-        _indicatorPopup.PlacementGravity = _indicatorVertical
-            ? Avalonia.Controls.Primitives.PopupPositioning.PopupGravity.Left
-            : Avalonia.Controls.Primitives.PopupPositioning.PopupGravity.Top;
-        _indicatorPopup.IsOpen = true;
+        var x = _indicatorVertical ? cross / 2 : anchor.X + anchor.Width / 2;
+        var y = _indicatorVertical ? anchor.Y + anchor.Height / 2 - handleLength / 2 : cross / 2 - handleLength / 2;
+        Canvas.SetLeft(label, x);
+        Canvas.SetTop(label, y);
     }
 
 
@@ -455,22 +549,45 @@ public sealed class MaterialSliderTrack : Control
         if (!(maximum > minimum))
             return;
 
+        // The source lays the thumb on a 4-DIP gutter around the track: the visual track starts at
+        // half the handle width and the thumb centre travels from 2 to length-2. The stop/tick
+        // grid is additionally inset by the track corner radius (cornerSize = trackHeight/2).
+        const double handleCoreWidth = 4;
+        var trackStart = handleCoreWidth / 2;
+        var trackEnd = length - handleCoreWidth / 2;
+        var tickStart = Math.Min(trackStart + outerRadius, trackEnd);
+        var tickEnd = Math.Max(trackEnd - outerRadius, tickStart);
+        var rtl = range is not null && owner.FlowDirection == FlowDirection.RightToLeft;
+        var activeTowardStart = vertical ? reversed : !reversed;
+
+        double Directed(double fraction)
+        {
+            var directed = vertical
+                ? reversed ? fraction : 1 - fraction
+                : reversed ? 1 - fraction : fraction;
+            // The single Slider is mirrored as a whole for RTL by Sliders.axaml, so only the
+            // range slider (which positions its own thumbs) mirrors here.
+            if (rtl)
+                directed = 1 - directed;
+            return directed;
+        }
+
+        double TickPosition(double fraction) => tickStart + Directed(fraction) * (tickEnd - tickStart);
+
         void Segment(double start, double end, bool active)
         {
             var extent = end - start;
             if (!(extent > 0.01))
                 return;
-            // Only actual track endpoints get the outer radius. A handle-facing edge must
-            // stay full-width even when the handle is inside the outer corner's former bounds.
-            var startRadius = start <= 0 ? outerRadius : 2;
-            var endRadius = end >= length ? outerRadius : 2;
-            // Extend short segments before rounding, then crop them at the handle.
-            // The outer circular arc must never be squeezed into an ellipse.
+            // Only actual track endpoints get the outer radius. A handle-facing edge keeps the
+            // source 2-DIP inside corner.
+            var startRadius = start <= trackStart + 0.01 ? outerRadius : 2;
+            var endRadius = end >= trackEnd - 0.01 ? outerRadius : 2;
             var drawingStart = start;
             var drawingEnd = end;
-            if (start <= 0)
+            if (start <= trackStart + 0.01)
                 drawingEnd = Math.Max(end, start + startRadius + endRadius);
-            else if (end >= length)
+            else if (end >= trackEnd - 0.01)
                 drawingStart = Math.Min(start, end - startRadius - endRadius);
             var rect = vertical
                 ? new Rect(crossCenter - thickness / 2, start, thickness, extent)
@@ -489,17 +606,30 @@ public sealed class MaterialSliderTrack : Control
                 context.DrawRectangle(brush, null, rounded);
         }
 
-        void Dot(double position, bool active, double opacity)
+        // Source roles: ticks ON the active track use the inactive track colour and ticks on the
+        // inactive track use the active track colour (inverted); stop indicators always use the
+        // active track colour. Disabled ticks use the disabled active/inactive track alphas.
+        void TickDot(double position, bool onActive)
         {
-            var brush = enabled ? active ? SelectedStopBrush : StopBrush
-                : active ? IndicatorForeground : DisabledBrush;
+            var brush = enabled ? onActive ? ActiveTickBrush : TickBrush : DisabledBrush;
             if (brush is null)
                 return;
             var center = vertical ? new Point(crossCenter, position) : new Point(position, crossCenter);
-            using (context.PushOpacity(opacity))
+            using (context.PushOpacity(enabled ? 1 : onActive ? 0.12 : 0.38))
                 context.DrawEllipse(brush, null, center, 2, 2);
         }
 
+        void StopDot(double position)
+        {
+            var brush = enabled ? ActiveBrush : DisabledBrush;
+            if (brush is null)
+                return;
+            var center = vertical ? new Point(crossCenter, position) : new Point(position, crossCenter);
+            using (context.PushOpacity(enabled ? 1 : 0.38))
+                context.DrawEllipse(brush, null, center, 2, 2);
+        }
+
+        // Source ActiveHandleLeadingSpace: 6 DIP, plus half the current handle width.
         double HandleGap(bool pressed, bool focused) =>
             6 + (enabled && (pressed || focused) ? 1 : 2);
 
@@ -512,11 +642,12 @@ public sealed class MaterialSliderTrack : Control
                 ? new Rect(crossCenter - handleLength / 2, position - handleThickness / 2, handleLength, handleThickness)
                 : new Rect(position - handleThickness / 2, crossCenter - handleLength / 2, handleThickness, handleLength);
             var rounded = new RoundedRect(rect, handleThickness / 2);
-            var handleBrush = enabled ? ActiveBrush : DisabledBrush;
+            // SliderDefaults composites the disabled handle over Surface before painting it.
+            // It must not blend over the track or the caller's actual backdrop a second time.
+            var handleBrush = enabled ? ActiveBrush : DisabledHandleBrush;
             if (handleBrush is null)
                 return;
-            using (context.PushOpacity(enabled ? 1 : 0.38))
-                context.DrawRectangle(handleBrush, null, rounded);
+            context.DrawRectangle(handleBrush, null, rounded);
             if (focused && enabled)
             {
                 // Follow the handle silhouette, not a circular state layer.
@@ -542,60 +673,80 @@ public sealed class MaterialSliderTrack : Control
             var glyph = MaterialSlider.GetDisplayedIcon(owner);
             var iconSize = size == MaterialControlSize.ExtraLarge ? 32.0 : 24.0;
             var inset = size == MaterialControlSize.ExtraLarge ? 8.0 : 6.0;
-            var position = MaterialSlider.Position(MaterialSlider.Fraction(slider.Value, minimum, maximum),
-                length, vertical ? Orientation.Vertical : Orientation.Horizontal, reversed);
-            var minimumAtStart = vertical ? reversed : !reversed;
-            var activeLength = minimumAtStart ? position - 8 : length - position - 8;
+            var position = MaterialSlider.HandlePosition(slider, length, cross);
+            var activeLength = activeTowardStart
+                ? position - trackStart - 8
+                : trackEnd - position - 8;
             var onActive = activeLength >= iconSize + inset * 2;
-            var start = onActive ? minimumAtStart : !minimumAtStart;
+            var start = onActive ? activeTowardStart : !activeTowardStart;
             var along = start ? inset : length - inset - iconSize;
             var x = vertical ? crossCenter - iconSize / 2 : along;
             var y = vertical ? along : crossCenter - iconSize / 2;
-            var brush = enabled ? onActive ? IconBrush : ActiveBrush
-                : onActive ? IndicatorForeground : DisabledBrush;
+            var brush = enabled ? onActive ? IconBrush : ActiveBrush : DisabledBrush;
             var scale = iconSize / 24;
             using (context.PushOpacity(enabled ? 1 : 0.38))
             using (context.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(x, y)))
                 context.DrawGeometry(brush, null, glyph);
         }
 
-        // Stop indicators and snapping share the same value grid.
-        void Ticks(double handleA, double handleB, double gapA, double gapB)
+        // Stops/ticks use the corner-inset value grid; discrete thumb layout shares that grid
+        // for interior values while first/last steps remain at the track endpoints.
+        void Ticks(double? leftHandle, double? rightHandle, double leftGap, double rightGap,
+            bool rangeMode)
         {
             var showStops = MaterialSlider.GetShowStops(owner);
             var frequency = slider?.TickFrequency ?? range!.TickFrequency;
             var showFrequency = showStops || (slider is not null && slider.TickPlacement != TickPlacement.None);
-            var step = 0.0;
-            if (showFrequency && frequency > 0)
-            {
-                var steps = (maximum / 2 - minimum / 2) / (frequency / 2);
-                if (!double.IsFinite(steps) || steps <= 0)
-                    return;
-                // More than one tick per pixel cannot be resolved; stride uniformly.
-                step = Math.Max(1, Math.Ceiling(steps / Math.Max(1, length / 4))) / steps;
-            }
-            else
+            if (!showFrequency || !(frequency > 0))
                 return;
-
-            for (var fraction = 0.0; fraction <= 1.0001; fraction += step)
+            var steps = (maximum / 2 - minimum / 2) / (frequency / 2);
+            if (!double.IsFinite(steps) || steps <= 0)
+                return;
+            var count = (int)Math.Round(steps);
+            if (count <= 0)
+                return;
+            // More than one tick per four DIP cannot be resolved; stride uniformly.
+            var stride = Math.Max(1, (int)Math.Ceiling(count / Math.Max(1.0, length / 4)));
+            for (var index = 0; index <= count; index += stride)
             {
-                var position = MaterialSlider.Position(fraction, length, vertical ? Orientation.Vertical : Orientation.Horizontal, reversed);
-                if (Math.Abs(position - handleA) < gapA + 2 || Math.Abs(position - handleB) < gapB + 2 ||
-                    (centered && Math.Abs(position - length / 2) < 4))
-                    continue;
-                if (position < 8 || position > length - 8)
-                    continue;
-                bool active;
-                if (range is not null)
+                var fraction = (double)index / count;
+                var position = TickPosition(fraction);
+                // source skips ticks that fall on a stop indicator
+                if (rangeMode || centered)
                 {
-                    var (_, _, coincident) = range.GetVisualPositions(length);
-                    active = !coincident && position > handleA + gapA && position < handleB - gapB;
+                    if (position <= tickStart + 0.01 || position >= tickEnd - 0.01)
+                        continue;
+                }
+                else
+                {
+                    var stopPosition = activeTowardStart ? tickEnd : tickStart;
+                    if (Math.Abs(position - stopPosition) < 0.51)
+                        continue;
+                }
+                if (leftHandle is { } left && Math.Abs(position - left) <= leftGap)
+                    continue;
+                if (rightHandle is { } right && Math.Abs(position - right) <= rightGap)
+                    continue;
+                if (centered && Math.Abs(position - length / 2) <= Math.Max(leftGap, rightGap))
+                    continue;
+
+                bool onActive;
+                if (rangeMode)
+                {
+                    onActive = !(range!.LowerValue == range.UpperValue) &&
+                        position > (leftHandle ?? 0) + leftGap &&
+                        position < (rightHandle ?? 0) - rightGap;
                 }
                 else if (centered)
-                    active = position > Math.Min(length / 2, handleA) && position < Math.Max(length / 2, handleA);
+                {
+                    var handle = leftHandle ?? length / 2;
+                    onActive = handle < length / 2
+                        ? position > handle + leftGap && position < length / 2
+                        : position > length / 2 && position < handle - leftGap;
+                }
                 else
-                    active = (vertical ? reversed : !reversed) ? position < handleA : position > handleA;
-                Dot(position, active, enabled ? 1 : 0.38);
+                    onActive = activeTowardStart ? position < (leftHandle ?? 0) : position > (leftHandle ?? 0);
+                TickDot(position, onActive);
             }
         }
 
@@ -610,14 +761,25 @@ public sealed class MaterialSliderTrack : Control
             var upperFocused = upperThumb is MaterialRangeThumb { IsFocusVisible: true } && !dragging;
             var lowerGap = HandleGap(dragging && !upperActive, lowerFocused);
             var upperGap = HandleGap(dragging && upperActive, upperFocused);
-            Segment(0, lower - lowerGap, false);
+            // Visual order: in RTL the LowerValue handle sits on the right.
+            var lowerIsLeft = lower <= upper;
+            var leftHandle = lowerIsLeft ? lower : upper;
+            var rightHandle = lowerIsLeft ? upper : lower;
+            var leftGap = lowerIsLeft ? lowerGap : upperGap;
+            var rightGap = lowerIsLeft ? upperGap : lowerGap;
+            var drawStartStop = leftHandle - leftGap > tickStart;
+            var drawEndStop = rightHandle + rightGap < tickEnd;
+
+            if (drawStartStop)
+                Segment(trackStart, leftHandle - leftGap, false);
             if (!coincident)
-                Segment(lower + lowerGap, upper - upperGap, true);
-            Segment(upper + upperGap, length, false);
-            if (lower - lowerGap > Math.Max(8, outerRadius))
-                Dot(6, false, enabled ? 1 : 0.38);
-            if (upper + upperGap < length - Math.Max(8, outerRadius))
-                Dot(length - 6, false, enabled ? 1 : 0.38);
+                Segment(leftHandle + leftGap, rightHandle - rightGap, true);
+            if (drawEndStop)
+                Segment(rightHandle + rightGap, trackEnd, false);
+            if (drawStartStop)
+                StopDot(tickStart);
+            if (drawEndStop)
+                StopDot(tickEnd);
             Handle(lower, dragging && !upperActive, lowerFocused);
             Handle(upper, dragging && upperActive, upperFocused);
             if ((dragging || lowerFocused || upperFocused) && MaterialSlider.GetShowValueIndicator(owner))
@@ -627,54 +789,63 @@ public sealed class MaterialSliderTrack : Control
                     MaterialSlider.FormatValue(showUpper ? range.UpperValue : range.LowerValue, owner));
             }
 
-            Ticks(lower, upper, lowerGap, upperGap);
+            Ticks(leftHandle, rightHandle, leftGap, rightGap, true);
             Icon();
             return;
         }
 
         var value = slider!.Value;
         var thumb = Thumb;
-        var handlePosition = MaterialSlider.Position(MaterialSlider.Fraction(value, minimum, maximum),
-            length, vertical ? Orientation.Vertical : Orientation.Horizontal, reversed);
-        // The minimum end is at the start for a horizontal non-reversed slider and for a
-        // vertical reversed slider; the fill always grows from that end.
-        var activeTowardStart = vertical ? reversed : !reversed;
+        var handlePosition = MaterialSlider.HandlePosition(slider, length, cross);
         var pressed = IsDragging || _ownerPressed || (thumb is MaterialSliderThumb { IsDragging: true });
         var gap = HandleGap(pressed, focusVisible);
 
         if (centered)
         {
             var center = length / 2;
-            // The centered track has a 4-DIP total break at every control size.
-            Segment(0, Math.Min(center - 2, handlePosition - gap), false);
-            Segment(Math.Max(center + 2, handlePosition + gap), length, false);
+            // Source: the inactive segments reach the centre; the active segment runs from the
+            // centre to the thumb and only the thumb side gets the gap.
             if (handlePosition < center)
-                Segment(handlePosition + gap, center - 2, true);
+            {
+                if (handlePosition - gap > tickStart)
+                    Segment(trackStart, handlePosition - gap, false);
+                Segment(handlePosition + gap, center, true);
+                Segment(center, trackEnd, false);
+            }
             else
-                Segment(center + 2, handlePosition - gap, true);
-            if (handlePosition - gap > Math.Max(8, outerRadius))
-                Dot(6, false, enabled ? 1 : 0.38);
-            if (handlePosition + gap < length - Math.Max(8, outerRadius))
-                Dot(length - 6, false, enabled ? 1 : 0.38);
-            Ticks(handlePosition, handlePosition, gap, gap);
+            {
+                Segment(trackStart, center, false);
+                Segment(center, handlePosition - gap, true);
+                if (handlePosition + gap < tickEnd)
+                    Segment(handlePosition + gap, trackEnd, false);
+            }
+            if (handlePosition - gap > tickStart)
+                StopDot(tickStart);
+            if (handlePosition + gap < tickEnd)
+                StopDot(tickEnd);
+            Ticks(handlePosition, null, gap, gap, false);
         }
         else
         {
             if (activeTowardStart)
             {
-                Segment(0, handlePosition - gap, true);
-                Segment(handlePosition + gap, length, false);
-                if (handlePosition + gap < length - Math.Max(10, outerRadius))
-                    Dot(length - 6, false, enabled ? 1 : 0.38);
+                Segment(trackStart, handlePosition - gap, true);
+                if (handlePosition + gap < tickEnd)
+                {
+                    Segment(handlePosition + gap, trackEnd, false);
+                    StopDot(tickEnd);
+                }
             }
             else
             {
-                Segment(0, handlePosition - gap, false);
-                Segment(handlePosition + gap, length, true);
-                if (handlePosition - gap > Math.Max(10, outerRadius))
-                    Dot(6, false, enabled ? 1 : 0.38);
+                if (handlePosition - gap > tickStart)
+                {
+                    Segment(trackStart, handlePosition - gap, false);
+                    StopDot(tickStart);
+                }
+                Segment(handlePosition + gap, trackEnd, true);
             }
-            Ticks(handlePosition, handlePosition, gap, gap);
+            Ticks(handlePosition, null, gap, gap, false);
         }
 
         Handle(handlePosition, pressed, focusVisible);

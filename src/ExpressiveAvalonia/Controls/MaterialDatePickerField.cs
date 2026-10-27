@@ -35,7 +35,7 @@ public sealed class MaterialDatePickerField : TemplatedControl
 {
     public static readonly StyledProperty<DateTimeOffset?> SelectedDateProperty =
         AvaloniaProperty.Register<MaterialDatePickerField, DateTimeOffset?>(
-            nameof(SelectedDate), defaultBindingMode: BindingMode.TwoWay);
+            nameof(SelectedDate), defaultBindingMode: BindingMode.TwoWay, coerce: CoerceDate);
 
     public static readonly StyledProperty<DateTimeOffset?> MinimumDateProperty =
         AvaloniaProperty.Register<MaterialDatePickerField, DateTimeOffset?>(nameof(MinimumDate));
@@ -576,6 +576,13 @@ public sealed class MaterialDatePickerField : TemplatedControl
         if (SelectedDate == _valueAtOpen)
             return;
         SetSelectedDate(_valueAtOpen);
+    }
+
+    private static DateTimeOffset? CoerceDate(AvaloniaObject instance, DateTimeOffset? value)
+    {
+        // The field and the picker share one date-only representation: UTC midnight of the
+        // calendar date. A local DateTimeOffset bound by a consumer cannot shift the day.
+        return value is { } date ? MaterialDatePicker.ToDateTimeOffset(date.Date) : null;
     }
 
     private string GetText(string key, string fallback) =>

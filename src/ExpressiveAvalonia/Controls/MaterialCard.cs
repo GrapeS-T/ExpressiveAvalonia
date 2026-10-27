@@ -1,15 +1,20 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Automation.Provider;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Media;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -66,11 +71,25 @@ public sealed class MaterialCardDragCompletedEventArgs(DragDropEffects effects) 
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="Layout"/> selects between the structured <see cref="MaterialCardLayout.MediaText"/>
-/// anatomy and the bare <see cref="MaterialCardLayout.Slot"/> content slot. In slot mode
+/// filled = surface-container-highest at level 0, elevated = surface-container-low at level 1,
+/// outlined = surface plus a 1 dp outline-variant border at level 0; the corner shape is the
+/// medium 12 dp token. Interactive cards raise to hover (filled level 1, elevated level 2,
+/// outlined level 0), keep their pressed/focused level and raise to dragged (filled level 3,
+/// elevated level 4, outlined level 3). Elevation animates with the upstream tween specs:
+/// 120 ms fast-out-slow-in on the way in; 150 ms cubic-bezier(0.4, 0, 0.6, 1) on the way out,
+/// except hover-out at 120 ms; disabling snaps. A disabled card uses the token container and a
+/// 38% content color, never a whole-control opacity.
+/// </para>
+/// <para>
+/// <see cref="Layout"/>, <see cref="Orientation"/>, the typed anatomy slots,
+/// <see cref="ShowFocusIndicator"/> and drag support are library extensions classified as such,
+/// not upstream Compose API. <see cref="Layout"/> selects between the structured
+/// <see cref="MaterialCardLayout.MediaText"/> anatomy and the bare
+/// <see cref="MaterialCardLayout.Slot"/> content slot. In slot mode
 /// <see cref="ContentControl.Content"/>, <see cref="ContentControl.ContentTemplate"/> and
-/// <see cref="Padding"/> define the whole card surface, matching the source
-/// <c>Layout=Slot</c> variants where the content slot replaces the anatomy.
+/// <see cref="Padding"/> define the whole card surface, matching the library's source design
+/// package where the content slot replaces the anatomy. Upstream Compose cards take arbitrary
+/// content and no default padding, which slot mode reproduces.
 /// </para>
 /// <para>
 /// A card is inert by default: it groups content and never takes focus. Setting
@@ -262,6 +281,12 @@ public class MaterialCard : ContentControl
         RoutedEvent.Register<MaterialCard, RoutedEventArgs>(nameof(Click), RoutingStrategies.Bubble);
 
     private readonly EventHandler _canExecuteChangedHandler;
+    private readonly List<CardInteraction> _interactions = new(4);
+    private Border? _cardSurface;
+    private MaterialMotion.TweenAnimation? _elevationTween;
+    private double _targetElevation;
+    private double _currentElevation;
+    private bool _elevationInitialized;
     private bool _isPressed;
     private bool _isDragging;
     private bool _commandCanExecute = true;
@@ -285,6 +310,7 @@ public class MaterialCard : ContentControl
         _canExecuteChangedHandler = (_, _) => UpdateCommandCanExecute();
         UpdateFocusRingCornerRadius();
         UpdateDerivedProperties();
+        ActualThemeVariantChanged += (_, _) => UpdateElevation(snap: true);
     }
 
     /// <summary>Raised when an interactive card is clicked or activated from the keyboard.</summary>
@@ -535,6 +561,56 @@ public class MaterialCard : ContentControl
     protected override AutomationPeer OnCreateAutomationPeer() => new MaterialCardAutomationPeer(this);
 
     /// <inheritdoc />
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        base.OnApplyTemplate(e);
+        _elevationTween?.Dispose();
+        _elevationTween = null;
+        _cardSurface = e.NameScope.Find<Border>("PART_Card");
+        MaterialSurface.Connect(this, _cardSurface);
+        _elevationInitialized = false;
+        UpdateElevation(snap: true);
+    }
+
+    /// <inheritdoc />
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        // Theme brushes and shadow resources resolve once attached. Applying again also picks up
+        // a theme variant switch that happened while the card was detached.
+        UpdateElevation(snap: true);
+    }
+
+    /// <inheritdoc />
+    protected override void OnPointerEntered(PointerEventArgs e)
+    {
+        base.OnPointerEntered(e);
+        SetInteraction(CardInteraction.Hover, true);
+    }
+
+    /// <inheritdoc />
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        SetInteraction(CardInteraction.Hover, false);
+    }
+
+    /// <inheritdoc />
+    protected override void OnGotFocus(FocusChangedEventArgs e)
+    {
+        base.OnGotFocus(e);
+        SetInteraction(CardInteraction.Focus, true);
+    }
+
+    /// <inheritdoc />
+    protected override void OnLostFocus(FocusChangedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        SetPressed(false);
+        SetInteraction(CardInteraction.Focus, false);
+    }
+
+    /// <inheritdoc />
     protected override void OnAttachedToLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
         base.OnAttachedToLogicalTree(e);
@@ -596,6 +672,15 @@ public class MaterialCard : ContentControl
             {
                 SetPressed(false);
             }
+            UpdateElevation(snap: true);
+        }
+        else if (change.Property == IsEnabledProperty)
+        {
+            UpdateElevation(snap: false);
+        }
+        else if (change.Property == VariantProperty)
+        {
+            UpdateElevation(snap: true);
         }
         else if (change.Property == CornerRadiusProperty)
         {
@@ -718,13 +803,6 @@ public class MaterialCard : ContentControl
         SetPressed(false);
     }
 
-    /// <inheritdoc />
-    protected override void OnLostFocus(FocusChangedEventArgs e)
-    {
-        base.OnLostFocus(e);
-        SetPressed(false);
-    }
-
     /// <summary>Raises <see cref="Click"/> and executes <see cref="Command"/>.</summary>
     protected virtual void OnClick()
     {
@@ -771,6 +849,7 @@ public class MaterialCard : ContentControl
             return;
 
         SetAndRaise(IsDraggingProperty, ref _isDragging, dragging);
+        SetInteraction(CardInteraction.Drag, dragging);
     }
 
     private void SetPressed(bool pressed)
@@ -780,9 +859,257 @@ public class MaterialCard : ContentControl
 
         SetAndRaise(IsPressedProperty, ref _isPressed, pressed);
         PseudoClasses.Set(PressedPseudoClass, pressed);
+        SetInteraction(CardInteraction.Press, pressed);
         if (!pressed)
             _pressArgs = null;
     }
+
+    private static readonly Func<double, double> IncomingElevationEasing = CreateEasing(0.4, 0, 0.2, 1);
+    private static readonly Func<double, double> OutgoingElevationEasing = CreateEasing(0.4, 0, 0.6, 1);
+
+    private static Func<double, double> CreateEasing(double x1, double y1, double x2, double y2)
+    {
+        var spline = new SplineEasing(x1, y1, x2, y2);
+        return spline.Ease;
+    }
+
+    private enum CardInteraction
+    {
+        Hover,
+        Focus,
+        Press,
+        Drag,
+    }
+
+    private CardInteraction? LastInteraction =>
+        _interactions.Count > 0 ? _interactions[^1] : null;
+
+    /// <summary>
+    /// Elevation values from <c>CardDefaults.cardElevation</c>, <c>elevatedCardElevation</c> and
+    /// <c>outlinedCardElevation</c>. Outlined keeps its default elevation for pressed, focused and
+    /// hovered because the upstream defaults reuse <c>defaultElevation</c>; only drag raises it.
+    /// </summary>
+    private (double Default, double Pressed, double Focused, double Hovered, double Dragged, double Disabled)
+        Elevations => Variant switch
+        {
+            MaterialCardVariant.Elevated => (1, 1, 1, 2, 4, 1),
+            MaterialCardVariant.Outlined => (0, 0, 0, 0, 3, 0),
+            _ => (0, 0, 0, 1, 3, 0),
+        };
+
+    private void SetInteraction(CardInteraction interaction, bool active)
+    {
+        if (!IsInteractive)
+        {
+            if (_interactions.Count > 0)
+            {
+                _interactions.Clear();
+                UpdateElevation(snap: false);
+            }
+            return;
+        }
+
+        var changed = active
+            ? !_interactions.Contains(interaction) && Add(interaction)
+            : _interactions.Remove(interaction);
+        if (changed)
+            UpdateElevation(snap: false);
+
+        bool Add(CardInteraction value)
+        {
+            _interactions.Add(value);
+            return true;
+        }
+    }
+
+    private double ResolveElevationTarget()
+    {
+        var elevations = Elevations;
+        if (!IsEffectivelyEnabled)
+            return elevations.Disabled;
+
+        return LastInteraction switch
+        {
+            CardInteraction.Press => elevations.Pressed,
+            CardInteraction.Hover => elevations.Hovered,
+            CardInteraction.Focus => elevations.Focused,
+            CardInteraction.Drag => elevations.Dragged,
+            _ => elevations.Default,
+        };
+    }
+
+    /// <summary>
+    /// Mirrors <c>CardElevation.animateElevation</c>: incoming interactions use a 120 ms
+    /// fast-out-slow-in tween, outgoing press/focus use 150 ms cubic-bezier(0.4, 0, 0.6, 1),
+    /// outgoing hover uses the same curve for 120 ms, and a disabled card snaps.
+    /// </summary>
+    private void UpdateElevation(bool snap)
+    {
+        if (_cardSurface is null)
+            return;
+
+        var target = ResolveElevationTarget();
+        var previous = _targetElevation;
+        var first = !_elevationInitialized;
+        _targetElevation = target;
+
+        if (snap || first || !IsInteractive || !IsEffectivelyEnabled || MaterialMotion.GetIsReduced(this))
+        {
+            _elevationInitialized = true;
+            StopElevationTween();
+            SetElevationImmediate(target);
+            return;
+        }
+
+        if (target == previous)
+            return;
+
+        var to = LastInteraction;
+        var from = InteractionForElevation(previous);
+        double duration;
+        Func<double, double> easing;
+        if (to is not null)
+        {
+            duration = 0.120;
+            easing = IncomingElevationEasing;
+        }
+        else if (from is not null)
+        {
+            duration = from == CardInteraction.Hover ? 0.120 : 0.150;
+            easing = OutgoingElevationEasing;
+        }
+        else
+        {
+            StopElevationTween();
+            SetElevationImmediate(target);
+            return;
+        }
+
+        _elevationInitialized = true;
+        StopElevationTween();
+        _elevationTween = MaterialMotion.Tween(
+            this,
+            _currentElevation,
+            target,
+            duration,
+            delaySeconds: 0,
+            apply: ApplyElevationValue,
+            easing: easing);
+    }
+
+    private CardInteraction? InteractionForElevation(double elevation)
+    {
+        var values = Elevations;
+        if (elevation == values.Pressed)
+            return CardInteraction.Press;
+        if (elevation == values.Hovered)
+            return CardInteraction.Hover;
+        if (elevation == values.Focused)
+            return CardInteraction.Focus;
+        if (elevation == values.Dragged)
+            return CardInteraction.Drag;
+        return null;
+    }
+
+    private void StopElevationTween()
+    {
+        _elevationTween?.Dispose();
+        _elevationTween = null;
+    }
+
+    private void SetElevationImmediate(double elevation)
+    {
+        _currentElevation = elevation;
+        ApplyElevationShadow(elevation);
+    }
+
+    private void ApplyElevationValue(double elevation)
+    {
+        _currentElevation = elevation;
+        ApplyElevationShadow(elevation);
+    }
+
+    private void ApplyElevationShadow(double elevation)
+    {
+        if (_cardSurface is null)
+            return;
+
+        var lower = (int)Math.Floor(elevation);
+        var upper = (int)Math.Ceiling(elevation);
+        var lowerShadow = FindShadow(lower);
+        if (lowerShadow is null)
+            return;
+
+        if (upper == lower)
+        {
+            _cardSurface.BoxShadow = lowerShadow.Value;
+            return;
+        }
+
+        var upperShadow = FindShadow(upper);
+        if (upperShadow is null)
+        {
+            _cardSurface.BoxShadow = lowerShadow.Value;
+            return;
+        }
+
+        _cardSurface.BoxShadow = LerpShadow(lowerShadow.Value, upperShadow.Value, elevation - lower);
+    }
+
+    private BoxShadows? FindShadow(int level)
+    {
+        if (level < 0)
+            level = 0;
+        if (level > 5)
+            level = 5;
+        return this.TryFindResource($"MaterialElevationLevel{level}Shadow", out var value) && value is BoxShadows shadows
+            ? shadows
+            : null;
+    }
+
+    /// <summary>
+    /// Avalonia exposes discrete elevation shadows, while Compose renders a continuous elevation.
+    /// Blending the two neighbouring token shadows reproduces the elevation animation without
+    /// allocating inside the frame loop beyond the shadow value itself.
+    /// </summary>
+    private static BoxShadows LerpShadow(BoxShadows from, BoxShadows to, double progress)
+    {
+        if (progress <= 0)
+            return from;
+        if (progress >= 1)
+            return to;
+
+        var count = Math.Max(from.Count, to.Count);
+        if (count == 0)
+            return default;
+
+        var shadows = new BoxShadow[count];
+        for (var i = 0; i < count; i++)
+        {
+            var a = i < from.Count ? from[i] : default;
+            var b = i < to.Count ? to[i] : default;
+            shadows[i] = new BoxShadow
+            {
+                OffsetX = Lerp(a.OffsetX, b.OffsetX, progress),
+                OffsetY = Lerp(a.OffsetY, b.OffsetY, progress),
+                Blur = Lerp(a.Blur, b.Blur, progress),
+                Spread = Lerp(a.Spread, b.Spread, progress),
+                Color = Lerp(a.Color, b.Color, progress),
+                IsInset = a.IsInset,
+            };
+        }
+
+        var rest = shadows.Length > 1 ? shadows[1..] : Array.Empty<BoxShadow>();
+        return new BoxShadows(shadows[0], rest);
+    }
+
+    private static double Lerp(double from, double to, double progress) => from + (to - from) * progress;
+
+    private static Color Lerp(Color from, Color to, double progress) => Color.FromArgb(
+        (byte)Math.Round(Lerp(from.A, to.A, progress)),
+        (byte)Math.Round(Lerp(from.R, to.R, progress)),
+        (byte)Math.Round(Lerp(from.G, to.G, progress)),
+        (byte)Math.Round(Lerp(from.B, to.B, progress)));
 
     private void UpdateCommandCanExecute()
     {

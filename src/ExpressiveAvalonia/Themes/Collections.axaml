@@ -1,12 +1,43 @@
-<ResourceDictionary xmlns="https://github.com/avaloniaui"
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
                     xmlns:md="using:ExpressiveAvalonia.Theming"
                     xmlns:conv="using:Avalonia.Data.Converters">
-  <!-- Source coverage for this file: List (Standard / Segmented (filled) / Expandable /
-       Draggable / Swipable), List item (all densities, states and alignments), List item -
-       Accordion, List Item - Swipe, Reveal element, Leading element, Trailing element,
-       Trailing element-selected, Accordion button and .Building Blocks / Headline. -->
-  <!-- Localizable automation strings for generated anatomy. Override these keys to localize. -->
+  <!-- Lists.
+
+       Geometry, typography, colors, selection and interaction shape are ported from AndroidX
+       Material3 at 77b2199d6f056c2fe829ce25523c34a905e769c1: ListItem.kt,
+       ListItemDefaults.kt and tokens/ListTokens.kt, for the interactive ListItem family.
+       Source values used here:
+         min heights 56 / 72 / 88 (one/two/three lines)      ListTokens.ItemOneLine/T...
+         start+end padding 16                                ItemLeadingSpace / ItemTrailingSpace
+         slot gap 12                                         ItemBetweenSpace
+         top+bottom padding 12 for precision pointers        ListItemDefaults.ContentPadding
+         extra-small -> medium (hover) -> large (selected, focus, press, drag) corner shapes
+         surface / on-surface at rest; secondary-container / on-secondary-container selected;
+         tertiary-container / on-tertiary-container dragged; on-surface @38% disabled
+         leading and trailing slots use on-surface-variant at rest, on-secondary-container when
+         selected, on-tertiary-container while dragged; ripple state layer uses the content color
+         disabled state layer 0; ripple layer opacities 0.08/0.10/0.10/0.16.
+       Interaction feedback is the shared theming:MaterialRipple (source RippleNode): a bounded press
+       ripple from the pointer origin plus the hover/focus/drag state layer at those opacities, not a
+       static layer. A row containing its own action (for example the accordion toggle) leaves that
+       action's press to the action, exactly like a nested Compose clickable. The accordion toggle
+       hosts the same ripple, so its press no longer fades a plain opacity border.
+       Line count is derived by Theming.MaterialList from the slots and mirrored to
+       md-list-1line/2line/3line classes (an explicit MaterialList.LineCount overrides it).
+
+       The source corner morph (ListItem.kt shapeAnimationSpec = MotionScheme FastSpatial) is
+       driven in code by MaterialList: the state styles only publish the target CornerRadius and
+       MaterialCornerRadiusTransition springs every corner from the rendered value, retargeting
+       an in-flight morph with its current velocity. The dragged shadow stays a static elevation
+       setter. All functional geometry (heights, padding, thresholds, colors, selection) is
+       source-exact. The swipe machinery lives in MaterialSwipeListItem; the base template only
+       exposes the two layers so a plain ListBoxItem is unchanged.
+
+       Extensions from the list design packages (not upstream Compose): monogram/image/video/
+       avatar slots, leading indent, selected check, trailing badge, dividers, accordion body,
+       pointer reordering, segmented list container and swipe action API. -->
   <x:String x:Key="MaterialListExpandText">Expand</x:String>
   <x:String x:Key="MaterialListCollapseText">Collapse</x:String>
 
@@ -21,7 +52,7 @@
   <ControlTheme x:Key="{x:Type ListBox}" TargetType="ListBox">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    <Setter Property="Padding" Value="0,8" />
+    <Setter Property="Padding" Value="0" />
     <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
     <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
     <Setter Property="Template">
@@ -37,64 +68,72 @@
                         IsDeferredScrollingEnabled="{TemplateBinding (ScrollViewer.IsDeferredScrollingEnabled)}"
                         HorizontalSnapPointsType="{TemplateBinding (ScrollViewer.HorizontalSnapPointsType)}"
                         VerticalSnapPointsType="{TemplateBinding (ScrollViewer.VerticalSnapPointsType)}">
-            <!-- Keep ListBox's native VirtualizingStackPanel and selection model. -->
+            <!-- Keep ListBox's native VirtualizingStackPanel and selection model. A custom
+                 ContentTemplate is applied by the item presenter, never replaced by controls. -->
             <ItemsPresenter Name="PART_ItemsPresenter" Margin="{TemplateBinding Padding}"
                             ItemsPanel="{TemplateBinding ItemsPanel}" />
           </ScrollViewer>
         </Border>
       </ControlTemplate>
     </Setter>
-    <!-- Source Type=Segmented (filled) / Swipable - segmented: a 16 radius container with 2 DIP
-         inset; the per-segment surface and 4 radius live in the item theme below, because
-         Segmented is an inherited attached property. -->
+    <!-- Extension: Segmented (filled) list container from the design package. -->
     <Style Selector="^[(md|MaterialList.Segmented)=True]">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
       <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
       <Setter Property="Padding" Value="2" />
     </Style>
-    <!-- Source Draggable: rows can be picked up; the dragged row is raised by the item theme. -->
+    <!-- Extension: Draggable. -->
     <Style Selector="^[(md|MaterialList.AllowItemDrag)=True]">
       <Setter Property="Cursor" Value="Hand" />
     </Style>
   </ControlTheme>
 
-  <!-- Shared list anatomy. The type-keyed ListBoxItem theme below is the only public entry;
-       MaterialSwipeListItem and MaterialAccordionItem reuse it through StyleKeyOverride. -->
+  <!-- Shared list row. MaterialAccordionItem, MaterialSwipeListItem and MaterialDialogListItem
+       reuse this theme through StyleKeyOverride or BasedOn, so selection and recycling are the
+       native ListBoxItem ones. -->
   <ControlTheme x:Key="MaterialListItemBase" TargetType="ListBoxItem">
     <Setter Property="MinHeight" Value="56" />
-    <!-- Source density 0: ListItemVerticalPadding = 8, start/end padding = 16,
-         LeadingContentEndPadding = 16, trailing gap = 16. -->
-    <Setter Property="Padding" Value="16,8" />
+    <!-- 16 start/end, 12 top/bottom (precision-pointer ListItemDefaults.ContentPadding). -->
+    <Setter Property="Padding" Value="16,12" />
     <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraSmallCornerRadius}" />
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
     <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
+    <!-- ListBoxItem has no LineHeight/LetterSpacing property; the headline row below applies the
+         body-large typography tokens directly, and TextElement.LetterSpacing stays inherited. -->
+    <Setter Property="TextElement.LetterSpacing" Value="{DynamicResource MaterialBodyLargeLetterSpacing}" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Template">
       <ControlTemplate>
-        <!-- Swipe layers. The rail is populated by MaterialSwipeListItem; for a plain item it
-             stays empty and invisible, so the anatomy is identical. -->
-        <Grid Name="SwipeRoot" ClipToBounds="True">
-          <Border Name="PART_SwipeReveal" Background="Transparent" IsVisible="False" />
-          <StackPanel Name="PART_SwipeActions" Orientation="Horizontal" Spacing="2"
-                      HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,2,0" IsVisible="False" />
-          <Border Name="PART_SwipeContent" Background="{TemplateBinding Background}">
-            <Grid>
-              <Border Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                      BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" />
-              <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                      CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
-              <Grid Name="ItemContent" RowDefinitions="Auto,Auto,Auto" Margin="{TemplateBinding Padding}">
-                <Grid Name="HeaderRow" ColumnDefinitions="Auto,*,Auto">
-                  <!-- Leading element building block: Indent, Monogram, Image thumbnail and Slot. -->
-                  <StackPanel Name="LeadingColumn" Orientation="Horizontal"
+        <Panel Name="PART_Root" ClipToBounds="True">
+          <!-- Swipe background layer. Empty for a plain row. -->
+          <ContentPresenter Name="PART_SwipeBackground"
+                            Content="{TemplateBinding (controls:MaterialSwipeListItem.BackgroundContent)}"
+                            ContentTemplate="{TemplateBinding (controls:MaterialSwipeListItem.BackgroundTemplate)}"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Stretch" />
+          <!-- Swipe foreground layer; MaterialSwipeListItem translates this element. -->
+          <!-- CornerRadius is applied by MaterialList's frame-driven MaterialCornerRadiusTransition
+               (MotionScheme FastSpatial), so the state styles and the rendered shape stay apart:
+               a style change retargets the spring instead of restarting a timed transition. -->
+          <Border Name="PART_SwipeContent" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  ClipToBounds="True">
+            <Grid RowDefinitions="Auto,Auto,Auto">
+              <Panel Name="ContentPanel" Grid.Row="0">
+                <Grid Name="ItemContent" ColumnDefinitions="Auto,*,Auto"
+                      Margin="{TemplateBinding Padding}">
+                  <!-- Leading building blocks: indent, monogram, image, video, avatar, content. -->
+                  <StackPanel Name="LeadingColumn" Grid.Column="0" Orientation="Horizontal"
+                              Margin="0,0,12,0"
                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
                     <Border Name="LeadingIndent" Width="{TemplateBinding (md:MaterialList.LeadingIndent)}"
                             Background="Transparent" />
                     <Border Name="LeadingMonogram" Width="40" Height="40" CornerRadius="9999"
-                            Margin="0,0,16,0" VerticalAlignment="Center"
+                            Margin="0,0,12,0" VerticalAlignment="Center"
                             Background="{DynamicResource MaterialPrimaryContainerBrush}"
                             IsVisible="{Binding (md:MaterialList.LeadingMonogramText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
                       <TextBlock Text="{TemplateBinding (md:MaterialList.LeadingMonogramText)}"
@@ -103,428 +142,314 @@
                                  Foreground="{DynamicResource MaterialOnPrimaryContainerBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <Border Name="LeadingThumbnail" Width="56" Height="56" CornerRadius="4" Margin="0,0,16,0"
-                            ClipToBounds="True" VerticalAlignment="Center"
-                            Background="{DynamicResource MaterialSurfaceVariantBrush}"
+                    <Border Name="LeadingImageHost" Width="56" Height="56" CornerRadius="4"
+                            Margin="0,0,12,0" ClipToBounds="True" VerticalAlignment="Center"
+                            Background="{DynamicResource MaterialSurfaceContainerHighBrush}"
                             IsVisible="{Binding (md:MaterialList.LeadingImage), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
                       <Panel>
                         <Image Source="{TemplateBinding (md:MaterialList.LeadingImage)}" Stretch="UniformToFill" />
-                        <Border Name="LeadingSelectedCheck" Width="20" Height="20" CornerRadius="9999"
-                                Margin="0,0,18,18" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                Background="{DynamicResource MaterialPrimaryBrush}"
+                        <Border Name="LeadingSelectedCheck" Width="24" Height="24" CornerRadius="9999"
+                                Background="{DynamicResource MaterialSecondaryBrush}"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                 IsVisible="{TemplateBinding (md:MaterialList.IsLeadingSelected)}">
-                          <Path Data="M 4,8 L 7,11 L 13,4" Stroke="{DynamicResource MaterialOnPrimaryBrush}"
-                                StrokeThickness="2" Stretch="Uniform" Margin="4" />
+                          <Path Data="M9 16.2 4.8 12 3.4 13.4 9 19 21 7 19.6 5.6Z"
+                                Fill="{DynamicResource MaterialOnSecondaryBrush}"
+                                Width="14" Height="14" Stretch="Uniform" />
                         </Border>
                       </Panel>
                     </Border>
-                    <!-- Source Leading element Type=Video: a 114x64 thumbnail. -->
-                    <Border Name="LeadingVideo" Width="114" Height="64" CornerRadius="4" Margin="0,0,16,0"
-                            ClipToBounds="True" VerticalAlignment="Center"
-                            Background="{DynamicResource MaterialSurfaceVariantBrush}"
-                            IsVisible="{Binding (md:MaterialList.LeadingVideoThumbnail), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
-                      <Image Source="{TemplateBinding (md:MaterialList.LeadingVideoThumbnail)}" Stretch="UniformToFill" />
-                    </Border>
-                    <!-- Source Leading element Type=Avatar: a 40x40 circle. -->
-                    <Border Name="LeadingAvatar" Width="40" Height="40" CornerRadius="9999" Margin="0,0,16,0"
-                            ClipToBounds="True" VerticalAlignment="Center"
-                            Background="{DynamicResource MaterialSurfaceVariantBrush}"
+                    <Border Name="LeadingAvatarHost" Width="40" Height="40" CornerRadius="9999"
+                            Margin="0,0,12,0" ClipToBounds="True" VerticalAlignment="Center"
+                            Background="{DynamicResource MaterialSurfaceContainerHighBrush}"
                             IsVisible="{Binding (md:MaterialList.LeadingAvatar), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
                       <Image Source="{TemplateBinding (md:MaterialList.LeadingAvatar)}" Stretch="UniformToFill" />
                     </Border>
-                    <ContentPresenter Name="LeadingContent" Content="{TemplateBinding (md:MaterialList.LeadingContent)}"
-                                      IsVisible="{Binding (md:MaterialList.LeadingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
-                                      Margin="0,0,16,0" VerticalAlignment="Center"
-                                      TextElement.Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-                  </StackPanel>
-                  <!-- Text block building block: Overline, headline and supporting text. -->
-                  <StackPanel Name="TextContent" Grid.Column="1" VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
-                    <TextBlock Name="Overline" Text="{TemplateBinding (md:MaterialList.Overline)}"
-                               FontSize="{DynamicResource MaterialLabelMediumFontSize}"
-                               FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
-                               LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
-                               LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}"
-                               Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                               MaxLines="1" TextTrimming="CharacterEllipsis"
-                               IsVisible="{Binding (md:MaterialList.Overline), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
-                    <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
-                                      ContentTemplate="{TemplateBinding ContentTemplate}"
-                                      TextBlock.LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
-                                      TextBlock.LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}"
-                                      IsVisible="{Binding (md:MaterialList.Headline), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}"
-                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
-                    <TextBlock Name="Headline" Text="{TemplateBinding (md:MaterialList.Headline)}"
-                               LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
-                               LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}"
-                               MaxLines="1" TextTrimming="CharacterEllipsis"
-                               IsVisible="{Binding (md:MaterialList.Headline), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
-                    <Border Name="SupportingContent">
-                      <TextBlock Name="SupportingText" Text="{TemplateBinding (md:MaterialList.SupportingText)}"
-                                 FontSize="{DynamicResource MaterialBodyMediumFontSize}"
-                                 FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
-                                 Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                                 LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
-                                 LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
-                                 MaxLines="1" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
-                                 IsVisible="{Binding (md:MaterialList.SupportingText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    <Border Name="LeadingVideoHost" Width="100" Height="56" CornerRadius="8"
+                            Margin="0,0,12,0" ClipToBounds="True" VerticalAlignment="Center"
+                            Background="{DynamicResource MaterialSurfaceContainerHighBrush}"
+                            IsVisible="{Binding (md:MaterialList.LeadingVideoThumbnail), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+                      <Image Source="{TemplateBinding (md:MaterialList.LeadingVideoThumbnail)}" Stretch="UniformToFill" />
                     </Border>
+                    <ContentPresenter Name="LeadingContent"
+                                      Content="{TemplateBinding (md:MaterialList.LeadingContent)}"
+                                      VerticalAlignment="Center"
+                                      TextElement.FontSize="{DynamicResource MaterialLabelMediumFontSize}"
+                                      TextElement.FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
+                                      TextElement.Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                                      IsVisible="{Binding (md:MaterialList.LeadingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
                   </StackPanel>
-                  <!-- Trailing element building block: badge, trailing supporting text, Slot and
-                       the accordion button. -->
-                  <StackPanel Name="TrailingColumn" Grid.Column="2" Orientation="Horizontal"
+                  <!-- Overline, headline, supporting text. -->
+                  <StackPanel Name="TextContent" Grid.Column="1"
                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
-                    <Border Name="TrailingBadge" Height="16" CornerRadius="9999" Padding="4,0"
-                            Margin="16,0,0,0" VerticalAlignment="Center"
-                            Background="{DynamicResource MaterialErrorBrush}"
-                            IsVisible="{Binding (md:MaterialList.BadgeText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
-                      <TextBlock Text="{TemplateBinding (md:MaterialList.BadgeText)}"
-                                 FontSize="{DynamicResource MaterialLabelSmallFontSize}"
-                                 FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
-                                 Foreground="{DynamicResource MaterialOnErrorBrush}"
-                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock Name="TrailingSupportingText" Text="{TemplateBinding (md:MaterialList.TrailingSupportingText)}"
-                               Margin="8,0,0,0" VerticalAlignment="Center"
+                    <TextBlock Name="Overline" Text="{TemplateBinding (md:MaterialList.Overline)}"
                                FontSize="{DynamicResource MaterialLabelSmallFontSize}"
                                FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
+                               LineHeight="{DynamicResource MaterialLabelSmallLineHeight}"
+                               LetterSpacing="{DynamicResource MaterialLabelSmallLetterSpacing}"
+                               Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               IsVisible="{Binding (md:MaterialList.Overline), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    <ContentPresenter Name="ContentPresenter"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      TextElement.FontSize="{TemplateBinding FontSize}"
+                                      TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                      TextElement.Foreground="{TemplateBinding Foreground}"
+                                      IsVisible="{Binding (md:MaterialList.Headline), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}" />
+                    <TextBlock Name="Headline" Text="{TemplateBinding (md:MaterialList.Headline)}"
+                               FontSize="{TemplateBinding FontSize}"
+                               FontWeight="{TemplateBinding FontWeight}"
+                               LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                               LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}"
+                               Foreground="{TemplateBinding Foreground}"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding (md:MaterialList.Headline), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    <TextBlock Name="SupportingText"
+                               Text="{TemplateBinding (md:MaterialList.SupportingText)}"
+                               FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                               FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
+                               LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                               LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
+                               Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding (md:MaterialList.SupportingText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                  </StackPanel>
+                  <!-- Trailing metadata, badge, element and accordion toggle. -->
+                  <StackPanel Name="TrailingColumn" Grid.Column="2" Orientation="Horizontal"
+                              Margin="12,0,0,0"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                    <TextBlock Name="TrailingSupportingText"
+                               Text="{TemplateBinding (md:MaterialList.TrailingSupportingText)}"
+                               VerticalAlignment="Center"
+                               FontSize="{DynamicResource MaterialLabelSmallFontSize}"
+                               FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
+                               LineHeight="{DynamicResource MaterialLabelSmallLineHeight}"
+                               LetterSpacing="{DynamicResource MaterialLabelSmallLetterSpacing}"
                                Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                                MaxLines="1" TextTrimming="CharacterEllipsis"
                                IsVisible="{Binding (md:MaterialList.TrailingSupportingText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
-                    <ContentPresenter Name="TrailingContent" Content="{TemplateBinding (md:MaterialList.TrailingContent)}"
-                                      IsVisible="{Binding (md:MaterialList.TrailingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
-                                      Margin="16,0,0,0" VerticalAlignment="Center"
-                                      TextElement.FontSize="{DynamicResource MaterialLabelSmallFontSize}"
-                                      TextElement.FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
-                                      TextElement.Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+                    <controls:MaterialBadge Text="{TemplateBinding (md:MaterialList.BadgeText)}"
+                                            Margin="8,0,0,0" VerticalAlignment="Center"
+                                            IsVisible="{Binding (md:MaterialList.BadgeText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    <ContentPresenter Name="TrailingContent"
+                                      Content="{TemplateBinding (md:MaterialList.TrailingContent)}"
+                                      Margin="12,0,0,0" VerticalAlignment="Center"
+                                      TextElement.FontSize="{DynamicResource MaterialLabelMediumFontSize}"
+                                      TextElement.FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
+                                      TextElement.Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                                      IsVisible="{Binding (md:MaterialList.TrailingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
                     <ToggleButton Name="AccordionToggle" Theme="{DynamicResource MaterialAccordionButton}"
                                   Margin="8,0,0,0" VerticalAlignment="Center"
                                   IsChecked="{Binding (md:MaterialList.IsExpanded), RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
                                   IsVisible="{Binding (md:MaterialList.ExpandedContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
                   </StackPanel>
                 </Grid>
-                <!-- Expandable / List item - Accordion body. MaxHeight is measured and set by
-                     MaterialList; the token-driven transition is zero under reduced motion. -->
-                <Border Name="ExpandedHost" Grid.Row="1" MaxHeight="0" ClipToBounds="True" IsHitTestVisible="False">
-                  <Border.Transitions>
-                    <Transitions>
-                      <DoubleTransition Property="MaxHeight" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.2,0,0,1" />
-                    </Transitions>
-                  </Border.Transitions>
-                  <ContentPresenter Name="ExpandedContent" Content="{TemplateBinding (md:MaterialList.ExpandedContent)}"
-                                    Margin="0,8,0,0" HorizontalContentAlignment="Stretch" />
-                </Border>
-                <Border Name="Divider" Grid.Row="2" Height="1" Background="{DynamicResource MaterialOutlineVariantBrush}"
-                        IsVisible="False" IsHitTestVisible="False" />
-              </Grid>
-              <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialOutlineBrush}" BorderThickness="2"
-                      Margin="3" CornerRadius="{DynamicResource MaterialShapeMediumCornerRadius}"
+                <!-- Source RippleNode: the shared MaterialRipple draws the hover/focus/drag layer and the
+                     bounded press ripple above the row content. Fill follows the content colour role
+                     (including selected and dragged) and the node fades itself out when disabled. The
+                     clip corner is pushed by MaterialList's FastSpatial shape motion, so the ripple
+                     and the surface silhouette never disagree. -->
+                <md:MaterialRipple Name="StateLayer"
+                                   Fill="{TemplateBinding Foreground}"
+                                   PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                   HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                   FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                   DraggedOpacity="{DynamicResource MaterialDraggedStateLayerOpacity}"
+                                   IsDragging="{TemplateBinding (md:MaterialList.IsDragged)}"
+                                   IsHitTestVisible="False" />
+              </Panel>
+              <!-- Extension: accordion body. Height measured by MaterialList; token duration is
+                   zero under reduced motion. -->
+              <Border Name="ExpandedHost" Grid.Row="1" MaxHeight="0" ClipToBounds="True"
+                      IsHitTestVisible="False">
+                <Border.Transitions>
+                  <Transitions>
+                    <DoubleTransition Property="MaxHeight"
+                                      Duration="{DynamicResource MaterialDurationMedium2}"
+                                      Easing="0.2,0,0,1" />
+                  </Transitions>
+                </Border.Transitions>
+                <ContentPresenter Name="ExpandedContent" Content="{TemplateBinding (md:MaterialList.ExpandedContent)}"
+                                  Margin="0,8,0,0" HorizontalContentAlignment="Stretch" />
+              </Border>
+              <!-- Extension: list dividers. -->
+              <Border Name="Divider" Grid.Row="2" Height="1" Margin="16,0,16,0"
+                      Background="{DynamicResource MaterialOutlineVariantBrush}"
                       IsVisible="False" IsHitTestVisible="False" />
             </Grid>
           </Border>
-        </Grid>
+        </Panel>
       </ControlTemplate>
     </Setter>
 
-    <!-- Source LineCount / density matrix. Heights come from the -4, -2 and 0 baseline packages;
-         the fourth line adds one 16 DIP line in every density. -->
-    <Style Selector="^[(md|MaterialList.LineCount)=1]">
+    <!-- Source one/two/three line geometry, derived by MaterialList into classes. -->
+    <Style Selector="^.md-list-1line">
       <Setter Property="MinHeight" Value="56" />
     </Style>
-    <Style Selector="^[(md|MaterialList.LineCount)=2]">
+    <Style Selector="^.md-list-2line">
       <Setter Property="MinHeight" Value="72" />
     </Style>
-    <Style Selector="^[(md|MaterialList.LineCount)=3]">
+    <Style Selector="^.md-list-3line">
       <Setter Property="MinHeight" Value="88" />
       <Setter Property="Padding" Value="16,12" />
       <Setter Property="VerticalContentAlignment" Value="Top" />
     </Style>
-    <!-- A negative literal cannot be chained with a second attribute selector
-         ("=-2][..." fails AVLN2201), so the combined density + line-count rules are nested
-         under their density rule. Nested selectors attach after the parent, so they still win
-         over the top-level line-count heights above. -->
-    <Style Selector="^[(md|MaterialList.Density)=-2]">
-      <Setter Property="Padding" Value="16,4" />
-      <Setter Property="MinHeight" Value="48" />
-      <Style Selector="^[(md|MaterialList.LineCount)=2]">
-        <Setter Property="MinHeight" Value="64" />
-      </Style>
-      <Style Selector="^[(md|MaterialList.LineCount)=3]">
-        <Setter Property="MinHeight" Value="80" />
-        <Setter Property="Padding" Value="16,8" />
-      </Style>
-    </Style>
-    <Style Selector="^[(md|MaterialList.Density)=-4]">
-      <Setter Property="Padding" Value="16,0" />
-      <Setter Property="MinHeight" Value="40" />
-      <Style Selector="^[(md|MaterialList.LineCount)=2]">
-        <Setter Property="MinHeight" Value="56" />
-      </Style>
-      <Style Selector="^[(md|MaterialList.LineCount)=3]">
-        <Setter Property="MinHeight" Value="72" />
-        <Setter Property="Padding" Value="16,4" />
-      </Style>
-    </Style>
+
+    <!-- Extension: explicit top alignment. -->
     <Style Selector="^[(md|MaterialList.IsTopAligned)=True]">
       <Setter Property="VerticalContentAlignment" Value="Top" />
     </Style>
-    <Style Selector="^[(md|MaterialList.IsTopAligned)=True] /template/ StackPanel#LeadingColumn, ^[(md|MaterialList.IsTopAligned)=True] /template/ StackPanel#TrailingColumn, ^[(md|MaterialList.IsTopAligned)=True] /template/ StackPanel#TextContent">
-      <Setter Property="VerticalAlignment" Value="Top" />
-    </Style>
-    <Style Selector="^[(md|MaterialList.LineCount)=1] /template/ Border#SupportingContent">
-      <Setter Property="IsVisible" Value="False" />
-    </Style>
-    <Style Selector="^[(md|MaterialList.LineCount)=3] /template/ TextBlock#SupportingText">
-      <Setter Property="MaxLines" Value="2" />
-    </Style>
-    <Style Selector="^[(md|MaterialList.LineCount)=3] /template/ ContentPresenter#LeadingContent, ^[(md|MaterialList.LineCount)=3] /template/ ContentPresenter#TrailingContent, ^[(md|MaterialList.LineCount)=3] /template/ StackPanel#LeadingColumn, ^[(md|MaterialList.LineCount)=3] /template/ StackPanel#TrailingColumn">
-      <Setter Property="VerticalAlignment" Value="Top" />
-    </Style>
 
-    <!-- Source Segmented (filled) / Swipable - segmented segments: lowest-surface rows with a
-         4 DIP radius and a 2 DIP gap, on top of the 16 radius container from the list theme. -->
+    <!-- Extension: Segmented container. ListItemDefaults.segmentedShapes overrides only the rest
+         shape's outer corners with ListTokens.ContainerShape (corner-large): the first item takes
+         the top corners, the last item the bottom corners, a single item all four. MaterialList
+         derives md-list-first/md-list-last/md-list-single from the live item index and count. The
+         interaction shapes below still win over this rest shape, exactly like
+         ListItemShapes.shapeForInteraction (pressed > dragged > selected > focused > hovered). -->
     <Style Selector="^[(md|MaterialList.Segmented)=True]">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowestBrush}" />
       <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraSmallCornerRadius}" />
       <Setter Property="Margin" Value="0,0,0,2" />
     </Style>
-    <Style Selector="^[(md|MaterialList.Segmented)=True]:selected">
-      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
-      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraSmallCornerRadius}" />
+    <Style Selector="^.md-list-first[(md|MaterialList.Segmented)=True]">
+      <Setter Property="CornerRadius" Value="16,16,4,4" />
+    </Style>
+    <Style Selector="^.md-list-last[(md|MaterialList.Segmented)=True]">
+      <Setter Property="CornerRadius" Value="4,4,16,16" />
+    </Style>
+    <Style Selector="^.md-list-single[(md|MaterialList.Segmented)=True]">
+      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
     </Style>
 
-    <!-- Source Selected=True: secondary container, 16 radius, on-secondary-container content. -->
+    <!-- Source interaction shape: hovered 12, selected/focused/pressed/dragged 16. Later rules
+         win, matching ListItemShapes.shapeForInteraction precedence
+         (pressed > dragged > selected > focused > hovered > default). -->
+    <Style Selector="^:pointerover">
+      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeMediumCornerRadius}" />
+    </Style>
+    <Style Selector="^:focus-visible">
+      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
+    </Style>
+
+    <!-- Source selection. -->
     <Style Selector="^:selected">
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
       <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
     </Style>
-    <Style Selector="^:selected /template/ TextBlock#SupportingText, ^:selected /template/ TextBlock#Overline, ^:selected /template/ TextBlock#TrailingSupportingText, ^:selected /template/ ContentPresenter#LeadingContent, ^:selected /template/ ContentPresenter#TrailingContent">
+    <Style Selector="^:selected /template/ TextBlock#Overline,
+                       ^:selected /template/ TextBlock#SupportingText,
+                       ^:selected /template/ TextBlock#TrailingSupportingText">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    </Style>
+    <Style Selector="^:selected /template/ ContentPresenter#LeadingContent,
+                       ^:selected /template/ ContentPresenter#TrailingContent">
       <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
     </Style>
 
-    <!-- Divider building block: 1 DIP outline-variant line, inset by the item padding. -->
-    <Style Selector="^ /template/ Border#Divider">
-      <Setter Property="IsVisible" Value="False" />
+    <Style Selector="^[(md|MaterialList.IsDragged)=True]">
+      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+      <Setter Property="ZIndex" Value="100" />
     </Style>
+    <Style Selector="^[(md|MaterialList.IsDragged)=True] /template/ Border#PART_SwipeContent">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel4Shadow}" />
+    </Style>
+    <Style Selector="^[(md|MaterialList.IsDragged)=True] /template/ TextBlock#Overline,
+                       ^[(md|MaterialList.IsDragged)=True] /template/ TextBlock#SupportingText,
+                       ^[(md|MaterialList.IsDragged)=True] /template/ TextBlock#TrailingSupportingText">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+    </Style>
+    <Style Selector="^[(md|MaterialList.IsDragged)=True] /template/ ContentPresenter#LeadingContent,
+                       ^[(md|MaterialList.IsDragged)=True] /template/ ContentPresenter#TrailingContent">
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+    </Style>
+    <!-- pressed > dragged in the source precedence; both resolve to corner-large. -->
+    <Style Selector="^:pressed">
+      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
+    </Style>
+
+    <!-- Source disabled colors: container stays surface; every content role is on-surface @38%. -->
+    <Style Selector="^:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+    <Style Selector="^:disabled /template/ TextBlock#Overline,
+                       ^:disabled /template/ TextBlock#SupportingText,
+                       ^:disabled /template/ TextBlock#TrailingSupportingText">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ ContentPresenter#LeadingContent,
+                       ^:disabled /template/ ContentPresenter#TrailingContent">
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+
+    <!-- Interaction is the shared MaterialRipple: it reads pointer, keyboard and drag input and
+         the ListBoxItem's enabled state itself, so no style-driven layer state remains. The ripple
+         fill follows Foreground (the content color role), and IsDragged drives the 16% drag layer
+         through the template binding. -->
+
+    <!-- Extension: dividers. -->
     <Style Selector="^[(md|MaterialList.ShowDividers)=True] /template/ Border#Divider">
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^[(md|MaterialList.ShowDivider)=True] /template/ Border#Divider">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-
-    <!-- Source Dragged: raised secondary-container surface with elevation level 3. -->
-    <Style Selector="^[(md|MaterialList.IsDragged)=True]">
-      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
-      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
-    </Style>
-    <Style Selector="^[(md|MaterialList.IsDragged)=True] /template/ Border#Surface">
-      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel3Shadow}" />
-    </Style>
-
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeMediumCornerRadius}" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:selected /template/ Border#StateLayer, ^[(md|MaterialList.IsDragged)=True] /template/ Border#StateLayer">
-      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
-    </Style>
-    <Style Selector="^ /template/ Border#Surface">
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^[(md|MaterialList.IsDragged)=True] /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialDraggedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#FocusRing">
-      <Setter Property="IsVisible" Value="True" />
-    </Style>
-    <Style Selector="^:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    </Style>
-    <Style Selector="^:disabled /template/ Grid#ItemContent">
-      <Setter Property="Opacity" Value="0.38" />
-    </Style>
-    <Style Selector="^:disabled /template/ TextBlock#SupportingText, ^:disabled /template/ TextBlock#Overline, ^:disabled /template/ TextBlock#TrailingSupportingText, ^:disabled /template/ ContentPresenter#LeadingContent, ^:disabled /template/ ContentPresenter#TrailingContent">
-      <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    </Style>
-    <Style Selector="^:selected:disabled /template/ Border#Surface">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="Opacity" Value="0.38" />
-    </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="0" />
-    </Style>
-    <Style Selector="^:disabled /template/ Border#FocusRing">
-      <Setter Property="IsVisible" Value="False" />
-    </Style>
-    <Style Selector="^:disabled /template/ ToggleButton#AccordionToggle">
-      <Setter Property="IsEnabled" Value="False" />
-    </Style>
   </ControlTheme>
 
-  <ControlTheme x:Key="{x:Type ListBoxItem}" TargetType="ListBoxItem" BasedOn="{StaticResource MaterialListItemBase}" />
+  <ControlTheme x:Key="{x:Type ListBoxItem}" TargetType="ListBoxItem"
+                BasedOn="{StaticResource MaterialListItemBase}" />
 
-  <!-- Building blocks/List item/Accordion button: 32x40 target, 32x32 circular container, 10x6
-       chevron. Type=Expand (unchecked) uses the lowest surface, Type=Collapse (checked) the
-       surface container; hover, focus and pressed add the Material state layers. -->
+  <!-- Extension: accordion toggle from the list design package. -->
   <ControlTheme x:Key="MaterialAccordionButton" TargetType="ToggleButton">
+    <Setter Property="Width" Value="40" />
+    <Setter Property="Height" Value="40" />
+    <Setter Property="Padding" Value="8" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-    <Setter Property="Width" Value="32" />
-    <Setter Property="Height" Value="40" />
-    <Setter Property="MinWidth" Value="0" />
-    <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="9999" />
     <Setter Property="Focusable" Value="True" />
-    <Setter Property="AutomationProperties.Name" Value="{DynamicResource MaterialListExpandText}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Width="32" Height="40" Background="Transparent">
-          <Border Name="Container" Width="32" Height="32" CornerRadius="9999"
+        <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
+          <Panel>
+            <Path Name="Chevron" Width="20" Height="20" Stretch="Uniform"
                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                  Background="{DynamicResource MaterialSurfaceContainerLowestBrush}" />
-          <Border Name="StateLayer" Width="32" Height="32" CornerRadius="9999"
-                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                  Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
-          <Path Name="AccordionChevron" Width="10" Height="6" Stretch="Uniform"
-                HorizontalAlignment="Center" VerticalAlignment="Center"
-                RenderTransform="rotate(0deg)"
-                RenderTransformOrigin="50%,50%"
-                Data="M 0,0 L 5,6 L 10,0"
-                Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5">
-            <Path.Transitions>
-              <Transitions>
-                <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort3}" Easing="0.2,0,0,1" />
-              </Transitions>
-            </Path.Transitions>
-          </Path>
-          <Border Name="FocusRing" Width="36" Height="36" CornerRadius="9999" Margin="-2"
-                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="2"
-                  IsVisible="False" IsHitTestVisible="False" />
-        </Panel>
+                  Fill="{TemplateBinding Foreground}"
+                  Data="M7.4 8.6 12 13.2 16.6 8.6 18 10 12 16 6 10Z" />
+            <!-- The toggle is its own interactive target: the shared MaterialRipple paints its
+                 press ripple and hover/focus layer, clipped to the pill, so it stays independent
+                 of the row ripple and there is no plain opacity layer to fade. -->
+            <md:MaterialRipple Name="StateLayer"
+                               Fill="{TemplateBinding Foreground}"
+                               CornerRadius="{TemplateBinding CornerRadius}"
+                               PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                               HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                               FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                               DraggedOpacity="{DynamicResource MaterialDraggedStateLayerOpacity}"
+                               IsHitTestVisible="False" />
+          </Panel>
+        </Border>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^:checked">
-      <Setter Property="AutomationProperties.Name" Value="{DynamicResource MaterialListCollapseText}" />
-    </Style>
-    <Style Selector="^:checked /template/ Border#Container">
-      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
-    </Style>
-    <Style Selector="^:checked /template/ Path#AccordionChevron">
+    <Style Selector="^:checked /template/ Path#Chevron">
       <Setter Property="RenderTransform" Value="rotate(180deg)" />
     </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#Container">
-      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeSmallCornerRadius}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#FocusRing">
-      <Setter Property="IsVisible" Value="True" />
-    </Style>
   </ControlTheme>
 
-  <!-- Reveal element action button. MaterialSwipeListItem sets Background, Foreground,
-       CornerRadius, Content and Width from the MaterialSwipeAction model. -->
-  <ControlTheme x:Key="MaterialSwipeActionButton" TargetType="Button">
-    <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
-    <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="Padding" Value="0" />
-    <Setter Property="MinWidth" Value="0" />
-    <Setter Property="MinHeight" Value="0" />
-    <Setter Property="CornerRadius" Value="9999" />
-    <Setter Property="HorizontalContentAlignment" Value="Center" />
-    <Setter Property="VerticalContentAlignment" Value="Center" />
-    <Setter Property="Template">
-      <ControlTemplate>
-        <Panel Background="Transparent">
-          <Border Name="Surface" Background="{TemplateBinding Background}"
-                  CornerRadius="{TemplateBinding CornerRadius}" />
-          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
-          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
-                            ContentTemplate="{TemplateBinding ContentTemplate}"
-                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
-          <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="2"
-                  CornerRadius="{TemplateBinding CornerRadius}" Margin="-2"
-                  IsVisible="False" IsHitTestVisible="False" />
-        </Panel>
-      </ControlTemplate>
-    </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#FocusRing">
-      <Setter Property="IsVisible" Value="True" />
-    </Style>
-  </ControlTheme>
-
-  <!-- .Building Blocks / Headline: a 56 DIP section label in the on-surface-variant role. -->
+  <!-- Extension: headline text block from the list design package. -->
   <ControlTheme x:Key="MaterialHeadline" TargetType="ContentControl">
-    <Setter Property="MinHeight" Value="56" />
-    <Setter Property="Padding" Value="16,8,8,8" />
-    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-    <Setter Property="FontSize" Value="{DynamicResource MaterialTitleSmallFontSize}" />
-    <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleSmallFontWeight}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialTitleMediumFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleMediumFontWeight}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
-                          ContentTemplate="{TemplateBinding ContentTemplate}"
-                          Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+        <ContentPresenter Content="{TemplateBinding Content}"
+                          ContentTemplate="{TemplateBinding ContentTemplate}" />
       </ControlTemplate>
     </Setter>
   </ControlTheme>
-
 </ResourceDictionary>

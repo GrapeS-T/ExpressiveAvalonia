@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Windows.Input;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
 using Avalonia.Controls.Primitives;
@@ -137,11 +138,33 @@ public class MaterialSearchBar : TemplatedControl
     public static readonly StyledProperty<bool> AutoFocusProperty =
         AvaloniaProperty.Register<MaterialSearchBar, bool>(nameof(AutoFocus));
 
+    /// <summary>Defines the <see cref="IsExpanded"/> property.</summary>
+    public static readonly StyledProperty<bool> IsExpandedProperty =
+        AvaloniaProperty.Register<MaterialSearchBar, bool>(nameof(IsExpanded),
+            defaultBindingMode: BindingMode.TwoWay);
+
+    /// <summary>Defines the <see cref="SelectionStart"/> property.</summary>
+    public static readonly StyledProperty<int> SelectionStartProperty =
+        AvaloniaProperty.Register<MaterialSearchBar, int>(nameof(SelectionStart),
+            defaultBindingMode: BindingMode.TwoWay);
+
+    /// <summary>Defines the <see cref="SelectionEnd"/> property.</summary>
+    public static readonly StyledProperty<int> SelectionEndProperty =
+        AvaloniaProperty.Register<MaterialSearchBar, int>(nameof(SelectionEnd),
+            defaultBindingMode: BindingMode.TwoWay);
+
+    /// <summary>Defines the <see cref="ClearFocusOnCollapse"/> property.</summary>
+    public static readonly StyledProperty<bool> ClearFocusOnCollapseProperty =
+        AvaloniaProperty.Register<MaterialSearchBar, bool>(nameof(ClearFocusOnCollapse));
+
     private TextBox? _textBox;
+    private bool _syncingSelection;
+    private bool _selectionSeeded;
     private Button? _clearButton;
     private Button? _leadingButton;
     private Button? _trailingButton;
     private Button? _secondaryButton;
+    private IDisposable? _focusClearTimer;
 
     /// <summary>Raised when the user confirms the query with Enter.</summary>
     public event EventHandler? SearchRequested;
@@ -163,6 +186,14 @@ public class MaterialSearchBar : TemplatedControl
 
     /// <summary>Raised whenever <see cref="Text"/> changes.</summary>
     public event EventHandler? QueryChanged;
+
+    /// <summary>
+    /// Raised when the collapsed bar asks to be expanded: a press on the field, the first typed
+    /// character, or Down while the field is focused. The owner opens its
+    /// <see cref="MaterialSearchView"/> and sets <see cref="IsExpanded"/>; icon buttons never raise
+    /// this event, matching the source component.
+    /// </summary>
+    public event EventHandler? ExpansionRequested;
 
     /// <summary>The current query. Bound two-way by default.</summary>
     public string? Text
@@ -307,13 +338,59 @@ public class MaterialSearchBar : TemplatedControl
         set => SetValue(AutoFocusProperty, value);
     }
 
-    /// <summary>Moves keyboard focus into the text field and selects its content.</summary>
-    public void FocusInput()
+    /// <summary>
+    /// Whether the owner currently presents the expanded search view. The bar itself only reacts:
+    /// it keeps its query, caret and selection so the owning view can continue the same editing
+    /// session, exposes the source's "Suggestions available" state to automation, and can clear
+    /// focus when the session ends.
+    /// </summary>
+    public bool IsExpanded
+    {
+        get => GetValue(IsExpandedProperty);
+        set => SetValue(IsExpandedProperty, value);
+    }
+
+    /// <summary>
+    /// Caret or selection start, kept in sync with the native <see cref="TextBox"/>. It lets the
+    /// expanded view continue the exact editing position instead of starting a new one.
+    /// </summary>
+    public int SelectionStart
+    {
+        get => GetValue(SelectionStartProperty);
+        set => SetValue(SelectionStartProperty, value);
+    }
+
+    /// <summary>Caret or selection end, kept in sync with the native <see cref="TextBox"/>.</summary>
+    public int SelectionEnd
+    {
+        get => GetValue(SelectionEndProperty);
+        set => SetValue(SelectionEndProperty, value);
+    }
+
+    /// <summary>
+    /// Clears the field's focus shortly after <see cref="IsExpanded"/> becomes false. The source
+    /// does this in touch mode only; desktop hosts default to false so the query keeps focus after
+    /// the view collapses.
+    /// </summary>
+    public bool ClearFocusOnCollapse
+    {
+        get => GetValue(ClearFocusOnCollapseProperty);
+        set => SetValue(ClearFocusOnCollapseProperty, value);
+    }
+
+    /// <summary>
+    /// Moves keyboard focus into the text field. The caret/selection position is preserved;
+    /// <paramref name="selectAll"/> selects the whole query instead.
+    /// </summary>
+    public void FocusInput(bool selectAll = false)
     {
         if (_textBox is null)
             return;
         _textBox.Focus(NavigationMethod.Directional);
-        _textBox.SelectAll();
+        if (selectAll)
+            _textBox.SelectAll();
+        else
+            ApplySelectionToTextBox();
     }
 
     /// <summary>Clears the query, raises <see cref="ClearRequested"/> and keeps focus in the field.</summary>
@@ -322,6 +399,8 @@ public class MaterialSearchBar : TemplatedControl
         if (string.IsNullOrEmpty(Text))
             return;
         SetCurrentValue(TextProperty, string.Empty);
+        SetCurrentValue(SelectionStartProperty, 0);
+        SetCurrentValue(SelectionEndProperty, 0);
         _textBox?.Focus(NavigationMethod.Directional);
         ClearRequested?.Invoke(this, EventArgs.Empty);
     }
@@ -337,6 +416,8 @@ public class MaterialSearchBar : TemplatedControl
         if (_textBox is not null)
         {
             _textBox.RemoveHandler(KeyDownEvent, OnInputKeyDown);
+            _textBox.PropertyChanged -= OnTextBoxPropertyChanged;
+            _textBox.GotFocus -= OnTextBoxGotFocus;
         }
 
         if (_clearButton is not null)
@@ -358,6 +439,22 @@ public class MaterialSearchBar : TemplatedControl
         {
             // Tunnel: the native TextBox class handler must not consume Enter/Escape first.
             _textBox.AddHandler(KeyDownEvent, OnInputKeyDown, RoutingStrategies.Tunnel);
+            _textBox.PropertyChanged += OnTextBoxPropertyChanged;
+            _textBox.GotFocus += OnTextBoxGotFocus;
+            if (!_selectionSeeded)
+            {
+                _selectionSeeded = true;
+                // Source TextFieldState starts with the caret after pre-set text; a bar opened
+                // with an existing query should keep editing at that end, not at index 0.
+                if (Text is { Length: > 0 } && SelectionStart == 0 && SelectionEnd == 0)
+                {
+                    _syncingSelection = true;
+                    SetCurrentValue(SelectionStartProperty, Text.Length);
+                    SetCurrentValue(SelectionEndProperty, Text.Length);
+                    _syncingSelection = false;
+                }
+            }
+            ApplySelectionToTextBox();
         }
 
         if (_clearButton is not null)
@@ -370,6 +467,7 @@ public class MaterialSearchBar : TemplatedControl
             _secondaryButton.Click += OnSecondaryClick;
 
         UpdateAlignment();
+        UpdateAutomationState();
         UpdateAutoFocus();
     }
 
@@ -377,7 +475,18 @@ public class MaterialSearchBar : TemplatedControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        // Resource lookup can fail during OnApplyTemplate when the control is not yet in a tree;
+        // refresh the localized automation strings once resources resolve.
+        UpdateAutomationState();
         UpdateAutoFocus();
+    }
+
+    /// <inheritdoc />
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _focusClearTimer?.Dispose();
+        _focusClearTimer = null;
     }
 
     /// <inheritdoc />
@@ -391,6 +500,17 @@ public class MaterialSearchBar : TemplatedControl
             UpdateAutoFocus();
         else if (change.Property == TextProperty)
             QueryChanged?.Invoke(this, EventArgs.Empty);
+        else if (change.Property == IsExpandedProperty)
+        {
+            UpdateAutomationState();
+            if (!change.GetNewValue<bool>() && ClearFocusOnCollapse)
+                ClearFocusAfterCollapse();
+        }
+        else if (change.Property == SelectionStartProperty || change.Property == SelectionEndProperty)
+        {
+            if (!_syncingSelection)
+                ApplySelectionToTextBox();
+        }
     }
 
     /// <inheritdoc />
@@ -412,6 +532,9 @@ public class MaterialSearchBar : TemplatedControl
         PseudoClasses.Set(":pressed", true);
         if (!_textBox.IsFocused)
             FocusInput();
+
+        // Source InputField: a press on the field (not on an icon) expands the search bar.
+        RequestExpansion();
     }
 
     /// <inheritdoc />
@@ -479,8 +602,123 @@ public class MaterialSearchBar : TemplatedControl
 
     private void OnInputKeyDown(object? sender, KeyEventArgs e)
     {
-        if (!e.Handled && HandleKey(e.Key))
+        if (e.Handled)
+            return;
+
+        // Source InputField preview handler: Down expands a collapsed bar. The expanded view
+        // moves focus into its suggestion list from its own tunnel handler.
+        if (!IsExpanded && e.Key is Key.Down or Key.NumPad2)
+        {
             e.Handled = true;
+            RequestExpansion();
+            return;
+        }
+
+        if (HandleKey(e.Key))
+            e.Handled = true;
+    }
+
+    private void RequestExpansion()
+    {
+        if (IsExpanded)
+            return;
+        ExpansionRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+
+    private void OnTextBoxGotFocus(object? sender, FocusChangedEventArgs e) => ApplySelectionToTextBox();
+
+    private void OnTextBoxPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (_textBox is not { } box)
+            return;
+        if (e.Property == TextBox.TextProperty)
+        {
+            // TextChanged is posted by Avalonia: an anchor update made while expanded could
+            // otherwise arrive after collapse restored focus and reopen the view. Observe the
+            // edit synchronously, while its focus/expansion state still describes that edit.
+            var previousLength = e.GetOldValue<string?>()?.Length ?? 0;
+            if ((box.Text?.Length ?? 0) > previousLength && box.IsFocused)
+                RequestExpansion();
+            return;
+        }
+        if (e.Property != TextBox.SelectionStartProperty && e.Property != TextBox.SelectionEndProperty)
+            return;
+
+        // Avalonia clears the native selection when focus leaves (ClearSelectionOnLostFocus) and
+        // clamps it when text is replaced externally. The pinned source keeps one TextFieldState
+        // selection shared by the collapsed bar and the expanded field, so an unfocused field must
+        // not overwrite it; FocusInput/GotFocus re-applies it to the native field on return.
+        if (!box.IsFocused)
+            return;
+
+        _syncingSelection = true;
+        SetCurrentValue(SelectionStartProperty, box.SelectionStart);
+        SetCurrentValue(SelectionEndProperty, box.SelectionEnd);
+        _syncingSelection = false;
+    }
+
+    /// <summary>Pushes <see cref="SelectionStart"/>/<see cref="SelectionEnd"/> into the native field.</summary>
+    private void ApplySelectionToTextBox()
+    {
+        if (_textBox is not { } box || _syncingSelection)
+            return;
+
+        var length = box.Text?.Length ?? 0;
+        var start = Math.Clamp(SelectionStart, 0, length);
+        var end = Math.Clamp(SelectionEnd, 0, length);
+        if (box.SelectionStart == start && box.SelectionEnd == end && box.CaretIndex == end)
+            return;
+
+        // Avalonia's TextBox caret setter collapses the selection to the caret
+        // (OnCaretIndexChanged writes SelectionStart/End = CaretIndex), so move the caret first and
+        // rebuild the range afterwards; the reverse order leaves only a caret and loses 2..5.
+        _syncingSelection = true;
+        box.CaretIndex = end;
+        box.SelectionStart = start;
+        box.SelectionEnd = end;
+        _syncingSelection = false;
+    }
+
+    private void UpdateAutomationState()
+    {
+        // Source semantics: the input field is described as "Search"; while expanded it also
+        // reports that suggestions are available. Avalonia has no state description, so the
+        // latter maps to HelpText.
+        var name = this.TryFindResource("MaterialSearchSearchText", out var nameValue) &&
+                   nameValue is string nameText
+            ? nameText
+            : "Search";
+        string? help = null;
+        if (IsExpanded &&
+            this.TryFindResource("MaterialSearchSuggestionsAvailableText", out var value) &&
+            value is string text)
+        {
+            help = text;
+        }
+
+        AutomationProperties.SetHelpText(this, help);
+        if (_textBox is not null)
+        {
+            AutomationProperties.SetName(_textBox, name);
+            AutomationProperties.SetHelpText(_textBox, help);
+        }
+    }
+
+    private void ClearFocusAfterCollapse()
+    {
+        _focusClearTimer?.Dispose();
+        // Source touch-mode policy: wait out the expansion delay, then clear focus.
+        _focusClearTimer = DispatcherTimer.RunOnce(
+            () =>
+            {
+                _focusClearTimer = null;
+                if (IsExpanded)
+                    return;
+                if (_textBox is { IsFocused: true })
+                    TopLevel.GetTopLevel(this)?.FocusManager?.Focus(null);
+            },
+            TimeSpan.FromMilliseconds(100));
     }
 
     private void OnClearClick(object? sender, RoutedEventArgs e) => Clear();

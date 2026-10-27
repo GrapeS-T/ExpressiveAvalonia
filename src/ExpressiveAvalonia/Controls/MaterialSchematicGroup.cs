@@ -30,12 +30,16 @@ public sealed class MaterialSwatchCopiedEventArgs(string role, string token, Col
 /// optionally in a dark preview.
 /// </summary>
 /// <remarks>
+/// This is a design-source visualization, not an M3 composable. The pinned M3 package has no
+/// schematic component; the roles shown are the library's color scheme, read live.
+/// <para>
 /// Source anatomy (.Schematic group): role/token swatch groups for primary, secondary, tertiary and
 /// error; the fixed-color roles; the surface ladder; and the inverse, scrim and shadow roles. Token
 /// labels follow the source scheme (P-40 in light, P-80 in dark). Swatches are buttons: click,
 /// Enter or Space copies the resolved hex value to the clipboard and raises
 /// <see cref="SwatchCopied"/>. Swatch colors are resource bindings, so a seed or theme change
 /// repaints them without rebuilding the control.
+/// </para>
 /// </remarks>
 public sealed class MaterialSchematicGroup : TemplatedControl
 {

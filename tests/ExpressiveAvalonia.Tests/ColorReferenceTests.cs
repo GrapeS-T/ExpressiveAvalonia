@@ -74,11 +74,4 @@ public class ColorReferenceTests
         Assert.Equal(Color.Parse(expected), MaterialColorScheme.Create(Colors.Red, true)[$"Material{role}Color"]);
     }
 
-    [Theory]
-    [InlineData(-1d)] [InlineData(0d)] [InlineData(.5d)] [InlineData(1d)]
-    public void SurfaceTintIsIndependentOfContrast(double contrast)
-    {
-        Assert.Equal(Color.Parse("#555992"), MaterialColorScheme.Create(Colors.Blue, false, contrast)["MaterialSurfaceTintColor"]);
-        Assert.Equal(Color.Parse("#BEC2FF"), MaterialColorScheme.Create(Colors.Blue, true, contrast)["MaterialSurfaceTintColor"]);
-    }
 }

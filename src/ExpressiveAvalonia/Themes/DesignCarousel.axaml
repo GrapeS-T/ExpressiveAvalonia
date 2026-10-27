@@ -1,6 +1,7 @@
 ﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls">
+                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
   <!-- Material 3 carousel. Geometry follows the assigned source packages:
        Carousel (local-001094: 10 variants = Context Mobile/Tablet x Layout
        Hero, Center-aligned hero, Multi-browse, Uncontained, Multi-aspect ratio),
@@ -97,8 +98,16 @@
                            LetterSpacing="{DynamicResource MaterialLabelSmallLetterSpacing}"
                            TextWrapping="Wrap" MaxLines="1" TextTrimming="CharacterEllipsis" />
               </StackPanel>
-              <Border Name="PART_StateLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
-                      Opacity="0" IsHitTestVisible="False" />
+              <!-- Source RippleNode draws the hover/focus state layer and the bounded press ripple
+                   above the card content. The node clips bounded presses itself, so no extra
+                   pressed alpha is painted. -->
+              <theming:MaterialRipple Name="Ripple"
+                                      Fill="{DynamicResource MaterialOnSurfaceBrush}"
+                                      CornerRadius="{TemplateBinding CornerRadius}"
+                                      PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                      HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                      FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                      IsHitTestVisible="False" />
             </Panel>
           </Border>
           <!-- The source has no selected card treatment; the ring exists so native selection,
@@ -112,19 +121,8 @@
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#PART_StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
+    <!-- Interaction is the shared MaterialRipple; selection and focus rings remain this
+         item's own treatments. -->
     <Style Selector="^:selected /template/ Border#PART_SelectionRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
@@ -133,9 +131,6 @@
     </Style>
     <Style Selector="^:disabled /template/ Border#PART_Card">
       <Setter Property="Opacity" Value="0.38" />
-    </Style>
-    <Style Selector="^:disabled /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:disabled /template/ Border#PART_SelectionRing, ^:disabled /template/ Border#PART_FocusRing">
       <Setter Property="IsVisible" Value="False" />

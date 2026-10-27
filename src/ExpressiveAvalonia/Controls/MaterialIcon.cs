@@ -142,9 +142,19 @@ public static class MaterialIcons
 /// must be an error.
 /// </para>
 /// <para>
-/// Set <see cref="IsDecorative"/> when surrounding text already conveys the meaning; the icon is
-/// then hidden from the accessibility tree. Otherwise it exposes the source layer name as its
-/// automation name and reports an Image control type.
+/// The M3 Icon contract is preserved: the glyph paints at the 24 dp
+/// <c>SmallIconButtonTokens.IconSize</c> default (the theme supplies Width/Height 24), scales to
+/// fill a caller-supplied box with content-scale fit semantics, and tints with
+/// <see cref="TemplatedControl.Foreground"/>, the Avalonia equivalent of <c>LocalContentColor</c>.
+/// Setting Foreground to <c>null</c> preserves the exported glyph fill (#1D1B20), like
+/// <c>Color.Unspecified</c>. Geometry comes from the design export, not Compose icons.
+/// </para>
+/// <para>
+/// <see cref="ContentDescription"/> is the source <c>contentDescription</c>: when it is set the
+/// icon exposes that text with an Image role. Without it (and without an explicit
+/// <see cref="AutomationProperties.Name"/>) the icon is decorative and hidden from the
+/// accessibility tree, exactly like the source's <c>contentDescription = null</c>.
+/// <see cref="IsDecorative"/> is an explicit opt-out for hosts that already expose the meaning.
 /// </para>
 /// </remarks>
 public sealed class MaterialIcon : TemplatedControl
@@ -156,6 +166,13 @@ public sealed class MaterialIcon : TemplatedControl
     /// <summary>Source layer name. Duplicate names resolve to the first exported glyph.</summary>
     public static readonly StyledProperty<string?> IconNameProperty =
         AvaloniaProperty.Register<MaterialIcon, string?>(nameof(IconName));
+
+    /// <summary>
+    /// Accessibility description from the source <c>contentDescription</c> parameter. When null the
+    /// icon is decorative unless an automation name is supplied.
+    /// </summary>
+    public static readonly StyledProperty<string?> ContentDescriptionProperty =
+        AvaloniaProperty.Register<MaterialIcon, string?>(nameof(ContentDescription));
 
     /// <summary>How the glyph fills the control bounds.</summary>
     public static readonly StyledProperty<Stretch> StretchProperty =
@@ -185,9 +202,18 @@ public sealed class MaterialIcon : TemplatedControl
 
     public string? IconName { get => GetValue(IconNameProperty); set => SetValue(IconNameProperty, value); }
 
+    /// <summary>Accessibility description; null makes the icon decorative without an automation name.</summary>
+    public string? ContentDescription { get => GetValue(ContentDescriptionProperty); set => SetValue(ContentDescriptionProperty, value); }
+
     public Stretch Stretch { get => GetValue(StretchProperty); set => SetValue(StretchProperty, value); }
 
     public bool IsDecorative { get => GetValue(IsDecorativeProperty); set => SetValue(IsDecorativeProperty, value); }
+
+    // Both content sources feed the same Image semantics in the source. An explicit decorative
+    // flag or the absence of any description hides the icon from the accessibility tree.
+    private bool HasContentDescription =>
+        !string.IsNullOrWhiteSpace(ContentDescription)
+        || !string.IsNullOrWhiteSpace(AutomationProperties.GetName(this));
 
     /// <summary>The resolved glyph, or <c>null</c> when the requested identity is unknown.</summary>
     public MaterialIconInfo? Icon => _icon;
@@ -225,12 +251,19 @@ public sealed class MaterialIcon : TemplatedControl
         protected override string GetClassNameCore() => nameof(MaterialIcon);
 
         protected override string? GetNameCore() =>
-            AutomationProperties.GetName(owner) is { Length: > 0 } name
-                ? name
-                : owner.Icon?.Name ?? base.GetNameCore();
+            GetIconContentDescription(owner) ?? base.GetNameCore();
 
-        protected override bool IsControlElementCore() => !owner.IsDecorative && base.IsControlElementCore();
+        private static string? GetIconContentDescription(MaterialIcon icon) =>
+            !string.IsNullOrWhiteSpace(icon.ContentDescription)
+                ? icon.ContentDescription
+                : AutomationProperties.GetName(icon) is { Length: > 0 } name
+                    ? name
+                    : null;
 
-        protected override bool IsContentElementCore() => !owner.IsDecorative && base.IsContentElementCore();
+        protected override bool IsControlElementCore() =>
+            !owner.IsDecorative && owner.HasContentDescription && base.IsControlElementCore();
+
+        protected override bool IsContentElementCore() =>
+            !owner.IsDecorative && owner.HasContentDescription && base.IsContentElementCore();
     }
 }

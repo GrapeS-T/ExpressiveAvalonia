@@ -1,12 +1,13 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls">
+                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
   <!-- Navigation drawer family. Geometry follows the source components:
        drawer 360 DIP, radius 16, 12 DIP padding, surface-container-low;
        item 56 DIP, full radius, 16/24 DIP padding, 12 DIP gaps, 24 DIP icon slot;
        section header 56 DIP, 18/16 DIP padding, title-small;
        divider 1 DIP outline-variant inset 16 DIP;
-       drag handle 108x4 DIP, radius 12, 24 DIP grab area. -->
+       drag handle 4x48 DIP, full-radius pill, 12x52 pressed/dragged silhouette. -->
 
   <ControlTheme x:Key="{x:Type controls:MaterialNavigationDrawer}" TargetType="controls:MaterialNavigationDrawer">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
@@ -57,8 +58,6 @@
                   BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="{TemplateBinding BorderThickness}"
                   CornerRadius="{TemplateBinding CornerRadius}" />
-          <Border Name="StateLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
           <Grid Name="ContentRoot" Margin="{TemplateBinding Padding}" ColumnDefinitions="Auto,*,Auto">
             <ContentPresenter Name="IconPresenter" Grid.Column="0" Width="24" Height="24"
                               Margin="0,0,12,0" VerticalAlignment="Center"
@@ -85,31 +84,33 @@
                        LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
                        MaxLines="1" IsVisible="False" />
           </Grid>
+          <!-- NavigationDrawer.kt NavigationDrawerItem passes an onClick to Surface, so the source
+               indication is the shared RippleNode: a bounded press ripple plus the hover/focus state
+               layer above the row content. Its fill is the Surface content color
+               (contentColorFor(containerColor)): OnSurface when unselected, OnSecondaryContainer
+               when selected. The selected container itself stays the separate persistent paint on
+               Surface, so the two alphas never describe the same interaction. -->
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{DynamicResource MaterialOnSurfaceBrush}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  IsBounded="True"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False" />
         </Grid>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^ /template/ Border#Surface">
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <!-- Selected: secondary-container container with on-secondary-container content and an
-         emphasized label, matching the source Nav item Selected=True variants. -->
+    <!-- Selected container colour: NavigationDrawer.kt 1134-1143 passes
+         colors.containerColor(selected).value to Surface and 1297-1301 resolves it through
+         rememberUpdatedState, so the fill changes directly. There is no container colour spring;
+         the old finite BrushTransition is removed. -->
     <Style Selector="^:selected">
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
     </Style>
-    <Style Selector="^:selected /template/ Border#StateLayer">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
+    <Style Selector="^:selected /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Fill" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
     </Style>
     <Style Selector="^:selected /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeEmphasizedFontWeight}" />
@@ -124,19 +125,10 @@
     <Style Selector="^:no-icon">
       <Setter Property="Padding" Value="24,16,24,16" />
     </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:disabled /template/ Grid#ContentRoot">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:selected:disabled /template/ Border#Surface">
@@ -186,9 +178,21 @@
       <ControlTemplate>
         <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
                 MinHeight="{TemplateBinding MinHeight}">
-          <Border Name="PART_Handle" Width="108" Height="4" CornerRadius="12"
-                  Background="{TemplateBinding Foreground}"
-                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Name="PART_Handle" Width="4" Height="48" CornerRadius="24"
+                    Background="{TemplateBinding Foreground}" />
+            <!-- DragHandle.kt .indication(interactionSource, ripple()): the shared MaterialRipple
+                 paints the hover/focus/drag state layer and press ripple. The control snaps its
+                 size and corner radius with the pill, so this indication stays bounded by the
+                 current silhouette; there is no geometry spring. -->
+            <theming:MaterialRipple Name="PART_StateLayer"
+                                    Width="4" Height="48" CornerRadius="24"
+                                    Fill="{TemplateBinding Foreground}"
+                                    PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                    DraggedOpacity="{DynamicResource MaterialDraggedStateLayerOpacity}" />
+          </Panel>
         </Border>
       </ControlTemplate>
     </Setter>
@@ -200,7 +204,8 @@
     <Setter Property="VerticalContentAlignment" Value="Stretch" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Name="PART_Root" ClipToBounds="True">
+        <Panel Name="PART_Root" ClipToBounds="True"
+               Background="{TemplateBinding Background}">
           <ContentPresenter Name="PART_ContentPresenter"
                             Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"

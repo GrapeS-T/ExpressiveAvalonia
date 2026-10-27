@@ -50,8 +50,8 @@ internal sealed class CatalogInspector : ScrollViewer
             syncingTheme = false;
         };
         global.Children.Add(dark);
-        var reduced = new ToggleSwitch { Content = "Меньше движения", IsChecked = theme.Motion == MaterialMotionMode.Reduced };
-        reduced.IsCheckedChanged += (_, _) => theme.Motion = reduced.IsChecked == true ? MaterialMotionMode.Reduced : MaterialMotionMode.Expressive;
+        var reduced = new ToggleSwitch { Content = "Меньше движения", IsChecked = theme.IsReducedMotion };
+        reduced.IsCheckedChanged += (_, _) => theme.IsReducedMotion = reduced.IsChecked == true;
         global.Children.Add(reduced);
         _settings.Children.Add(_pageSettings);
         BuildSharedSettings();

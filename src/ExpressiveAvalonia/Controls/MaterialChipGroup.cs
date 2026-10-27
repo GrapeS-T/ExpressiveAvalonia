@@ -150,7 +150,7 @@ public class MaterialChipGroup : ItemsControl
         ArgumentNullException.ThrowIfNull(chip);
         if (!_registered.Contains(chip))
             throw new ArgumentException("The chip does not belong to this group.", nameof(chip));
-        chip.IsSelected = selected;
+        chip.SetCurrentValue(MaterialChip.IsSelectedProperty, selected);
     }
 
     /// <summary>Clears every chip selection in the group.</summary>
@@ -158,7 +158,7 @@ public class MaterialChipGroup : ItemsControl
     {
         _syncing = true;
         foreach (var chip in _chips)
-            chip.IsSelected = false;
+            chip.SetCurrentValue(MaterialChip.IsSelectedProperty, false);
         _syncing = false;
         SyncSelection();
     }
@@ -250,7 +250,7 @@ public class MaterialChipGroup : ItemsControl
         {
             if (SelectionMode == MaterialChipSelectionMode.None)
             {
-                chip.IsSelected = false;
+                chip.SetCurrentValue(MaterialChip.IsSelectedProperty, false);
             }
             else if (SelectionMode == MaterialChipSelectionMode.Single)
             {
@@ -258,7 +258,7 @@ public class MaterialChipGroup : ItemsControl
                 foreach (var other in _chips)
                 {
                     if (!ReferenceEquals(other, chip) && other.IsSelected)
-                        other.IsSelected = false;
+                        other.SetCurrentValue(MaterialChip.IsSelectedProperty, false);
                 }
                 _syncing = false;
             }
@@ -286,7 +286,7 @@ public class MaterialChipGroup : ItemsControl
             if (SelectionMode == MaterialChipSelectionMode.None)
             {
                 _syncing = true;
-                chip.IsSelected = false;
+                chip.SetCurrentValue(MaterialChip.IsSelectedProperty, false);
                 _syncing = false;
                 SyncSelection();
                 return;
@@ -297,7 +297,7 @@ public class MaterialChipGroup : ItemsControl
                 foreach (var other in _chips)
                 {
                     if (!ReferenceEquals(other, chip) && other.IsSelected)
-                        other.IsSelected = false;
+                        other.SetCurrentValue(MaterialChip.IsSelectedProperty, false);
                 }
                 _syncing = false;
             }
@@ -311,7 +311,7 @@ public class MaterialChipGroup : ItemsControl
         {
             _syncing = true;
             foreach (var chip in _chips)
-                chip.IsSelected = false;
+                chip.SetCurrentValue(MaterialChip.IsSelectedProperty, false);
             _syncing = false;
         }
         else if (SelectionMode == MaterialChipSelectionMode.Single)
@@ -321,7 +321,7 @@ public class MaterialChipGroup : ItemsControl
             foreach (var chip in _chips)
             {
                 if (!ReferenceEquals(chip, keep))
-                    chip.IsSelected = false;
+                    chip.SetCurrentValue(MaterialChip.IsSelectedProperty, false);
             }
             _syncing = false;
         }

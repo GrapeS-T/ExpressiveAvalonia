@@ -7,6 +7,8 @@ using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -32,6 +34,16 @@ public sealed class MaterialNavigationSelectionChangedEventArgs : RoutedEventArg
 
     /// <summary>The destination that gained selection, or null when the drawer was cleared.</summary>
     public MaterialNavigationItem? AddedItem { get; }
+}
+
+/// <summary>The visual contract of a drawer sheet.</summary>
+public enum MaterialNavigationDrawerVariant
+{
+    /// <summary>Standard/permanent/dismissible sheet: surface color and square corners.</summary>
+    Standard,
+
+    /// <summary>Modal sheet: surface-container-low and large end corners (source CornerLargeEnd).</summary>
+    Modal
 }
 
 /// <summary>The Material navigation drawer surface: a grouped, single-selection destination list.</summary>
@@ -76,6 +88,11 @@ public sealed class MaterialNavigationDrawer : ItemsControl
         RoutedEvent.Register<MaterialNavigationDrawer, MaterialNavigationSelectionChangedEventArgs>(
             nameof(SelectionChanged), RoutingStrategies.Bubble);
 
+    /// <summary>Defines the <see cref="Variant"/> property.</summary>
+    public static readonly StyledProperty<MaterialNavigationDrawerVariant> VariantProperty =
+        AvaloniaProperty.Register<MaterialNavigationDrawer, MaterialNavigationDrawerVariant>(
+            nameof(Variant));
+
     private readonly List<MaterialNavigationItem> _registered = [];
     private MaterialNavigationItem? _selected;
     private MaterialNavigationItem? _pendingItem;
@@ -101,6 +118,13 @@ public sealed class MaterialNavigationDrawer : ItemsControl
     {
         get => GetValue(SelectedIndexProperty);
         set => SetValue(SelectedIndexProperty, value);
+    }
+
+    /// <summary>Standard or modal sheet colors and shape. The host updates this for its presentation.</summary>
+    public MaterialNavigationDrawerVariant Variant
+    {
+        get => GetValue(VariantProperty);
+        set => SetValue(VariantProperty, value);
     }
 
     /// <summary>Selects <paramref name="item"/> when it belongs to this drawer.</summary>
@@ -180,9 +204,27 @@ public sealed class MaterialNavigationDrawer : ItemsControl
         }
     }
 
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        base.OnApplyTemplate(e);
+        ApplyVariant();
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+
+        if (change.Property == VariantProperty)
+        {
+            ApplyVariant();
+            return;
+        }
+
+        if (change.Property == FlowDirectionProperty)
+        {
+            ApplyVariant();
+            return;
+        }
 
         if (change.Property == SelectedItemProperty && !_updatingSelection)
         {
@@ -355,6 +397,22 @@ public sealed class MaterialNavigationDrawer : ItemsControl
         return [.. _registered];
     }
 
+    private void ApplyVariant()
+    {
+        var modal = Variant == MaterialNavigationDrawerVariant.Modal;
+        PseudoClasses.Set(":modal", modal);
+        PseudoClasses.Set(":standard", !modal);
+
+        // Source CornerLargeEnd is the end edge; mirror it for right-to-left reading.
+        var key = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft
+            ? "MaterialShapeLargeStartCornerRadius"
+            : "MaterialShapeLargeEndCornerRadius";
+        var radius = modal && this.TryFindResource(key, out var value) && value is CornerRadius corners
+            ? corners
+            : default;
+        SetCurrentValue(CornerRadiusProperty, radius);
+    }
+
     private sealed class MaterialNavigationDrawerAutomationPeer(MaterialNavigationDrawer owner)
         : ItemsControlAutomationPeer(owner), ISelectionProvider
     {
@@ -364,9 +422,13 @@ public sealed class MaterialNavigationDrawer : ItemsControl
 
         public bool IsSelectionRequired => false;
 
-        public IReadOnlyList<AutomationPeer> GetSelection() =>
-            Owner.SelectedItem is { } item
-                ? new[] { CreatePeerForElement(item) }
-                : Array.Empty<AutomationPeer>();
+
+        public IReadOnlyList<AutomationPeer> GetSelection()
+        {
+            if (Owner.SelectedItem is { } item &&
+                ControlAutomationPeer.CreatePeerForElement(item) is { } peer)
+                return [peer];
+            return [];
+        }
     }
 }

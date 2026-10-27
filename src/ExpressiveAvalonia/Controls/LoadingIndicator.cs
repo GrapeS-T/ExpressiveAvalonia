@@ -5,204 +5,307 @@ using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
+using ExpressiveAvalonia.Shapes;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
 
-/// <summary>
-/// The Expressive loading indicator: one silhouette that morphs through the seven source "Steps",
-/// optionally inside the 48 dp circular container.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Source family: Loading indicator (local-004296), axes "Steps" 1–7 and "Show container"
-/// False/True. The seven outlines are the exact source paths (see
-/// <see cref="LoadingIndicatorShapes"/>); <see cref="Step"/> chooses the outline that stays on
-/// screen when motion is unavailable, and also the outline the animation starts from.
-/// </para>
-/// <para>
-/// Motion is the indeterminate Material loading indicator, taken from androidx
-/// <c>LoadingIndicator</c>: every 650 ms the outline morphs into the next step along a spring with
-/// damping 0.6 and stiffness 200, each morph adds a quarter turn, and the whole indicator makes one
-/// slow turn every 4666 ms. The spring settles after ≈298 ms, so the shape holds still for the rest
-/// of each slot. Exactly one outline is filled at full opacity on every frame — the morph
-/// interpolates the silhouette itself, so nothing cross-fades.
-/// </para>
-/// <para>
-/// Motion pauses when the control leaves the visual tree, when it or an ancestor is hidden, and
-/// when <see cref="MaterialMotion.IsReduced"/> is set. In that case the selected step is shown
-/// still, with no substitute geometry.
-/// </para>
-/// </remarks>
+/// <summary>Material loading indicator with determinate polygon morphing and an indeterminate cycle.</summary>
 public sealed class LoadingIndicator : TemplatedControl
 {
-    public static readonly StyledProperty<int> StepProperty =
-        AvaloniaProperty.Register<LoadingIndicator, int>(nameof(Step), 1,
-            coerce: (_, value) => Math.Clamp(value, 1, LoadingIndicatorShapes.Count));
+    public static readonly StyledProperty<double> ProgressProperty =
+        AvaloniaProperty.Register<LoadingIndicator, double>(nameof(Progress), 0,
+            coerce: (_, value) => double.IsNaN(value) ? 0 : Math.Clamp(value, 0, 1));
+    public static readonly StyledProperty<bool> IsIndeterminateProperty =
+        AvaloniaProperty.Register<LoadingIndicator, bool>(nameof(IsIndeterminate), true);
     public static readonly StyledProperty<bool> IsAnimatedProperty =
         AvaloniaProperty.Register<LoadingIndicator, bool>(nameof(IsAnimated), true);
     public static readonly StyledProperty<bool> ShowContainerProperty =
         AvaloniaProperty.Register<LoadingIndicator, bool>(nameof(ShowContainer));
     public static readonly StyledProperty<IBrush?> ContainerBrushProperty =
         AvaloniaProperty.Register<LoadingIndicator, IBrush?>(nameof(ContainerBrush));
-
-    // Indeterminate timing from androidx LoadingIndicator.kt: one morph every 650 ms, one full turn
-    // every 4666 ms, and a quarter turn added by each morph.
-    private const double MorphMilliseconds = 650;
-    private const double RotationMilliseconds = 4666;
-    private const double QuarterTurn = 90;
-
-    // The morph spring: spring(dampingRatio = 0.6f, stiffness = 200f, visibilityThreshold = 0.1f).
-    private const double SpringDamping = 0.6;
-    private const double SpringStiffness = 200;
-    private const double SpringThreshold = 0.1;
-
-    private static readonly double SpringFrequency = Math.Sqrt(SpringStiffness);
-    private static readonly double SpringDampedFrequency =
-        SpringFrequency * Math.Sqrt(1 - SpringDamping * SpringDamping);
-    private static readonly double SpringMilliseconds = SpringDuration();
+    public static readonly StyledProperty<IReadOnlyList<RoundedPolygon>?> PolygonsProperty =
+        AvaloniaProperty.Register<LoadingIndicator, IReadOnlyList<RoundedPolygon>?>(nameof(Polygons),
+            validate: value => value is null || (value.Count >= 2 && value.All(polygon => polygon is not null)));
+    public static readonly StyledProperty<Geometry?> ContainerShapeProperty =
+        AvaloniaProperty.Register<LoadingIndicator, Geometry?>(nameof(ContainerShape));
+    public static readonly StyledProperty<Stretch> ContainerShapeStretchProperty =
+        AvaloniaProperty.Register<LoadingIndicator, Stretch>(nameof(ContainerShapeStretch),
+            Stretch.Uniform);
 
     private readonly ProgressAnimationClock _clock;
+    private readonly LoadingIndicatorCycle _cycle = new();
+    private IReadOnlyList<Morph>? _customMorphs;
+    private RoundedPolygon[]? _customPolygons;
+    private double _customScale;
+    private StreamGeometry? _path;
+    private (Morph Morph, double Progress, double Size, double Scale) _frameKey;
+    private LoadingIndicatorAutomationPeer? _peer;
+    private Geometry? _containerShapeSource;
+    private Geometry? _containerShapeFrame;
+    private Size _containerShapeFrameSize;
+    private Stretch _containerShapeFrameStretch;
 
     static LoadingIndicator()
     {
-        AffectsRender<LoadingIndicator>(StepProperty, ShowContainerProperty, ContainerBrushProperty,
-            ForegroundProperty, IsAnimatedProperty);
+        AffectsRender<LoadingIndicator>(ProgressProperty, IsIndeterminateProperty,
+            ShowContainerProperty, ContainerBrushProperty, ForegroundProperty, IsAnimatedProperty,
+            CornerRadiusProperty, FlowDirectionProperty, ContainerShapeProperty,
+            ContainerShapeStretchProperty);
     }
 
-    public LoadingIndicator() => _clock = new ProgressAnimationClock(this, () => IsAnimated);
+    public LoadingIndicator() => _clock = new ProgressAnimationClock(this, () => IsAnimated && IsIndeterminate);
 
-    /// <summary>Source "Steps" axis: 1–7. Also the first silhouette of the animated cycle.</summary>
-    public int Step { get => GetValue(StepProperty); set => SetValue(StepProperty, value); }
-
-    /// <summary>Morphs through the seven source silhouettes; paused for reduced motion.</summary>
+    /// <summary>Determinate progress, coerced to 0..1. NaN maps to zero.</summary>
+    public double Progress { get => GetValue(ProgressProperty); set => SetValue(ProgressProperty, value); }
+    public bool IsIndeterminate { get => GetValue(IsIndeterminateProperty); set => SetValue(IsIndeterminateProperty, value); }
+    /// <summary>Whether the indeterminate cycle runs. Reduced motion takes precedence.</summary>
     public bool IsAnimated { get => GetValue(IsAnimatedProperty); set => SetValue(IsAnimatedProperty, value); }
-
-    /// <summary>Source "Show container" axis: draws the circular container behind the shape.</summary>
     public bool ShowContainer { get => GetValue(ShowContainerProperty); set => SetValue(ShowContainerProperty, value); }
-
     public IBrush? ContainerBrush { get => GetValue(ContainerBrushProperty); set => SetValue(ContainerBrushProperty, value); }
 
-    protected override Size MeasureOverride(Size availableSize)
+    /// <summary>Optional sequence of at least two immutable polygons. Replace the list to update it.</summary>
+    public IReadOnlyList<RoundedPolygon>? Polygons { get => GetValue(PolygonsProperty); set => SetValue(PolygonsProperty, value); }
+
+    /// <summary>
+    /// Optional container outline, used both to paint the container and to clip the active shape.
+    /// Null keeps the <see cref="TemplatedControl.CornerRadius"/> / full-corner fallback.
+    /// </summary>
+    public Geometry? ContainerShape
     {
-        // The source artboard is 48 dp; shrink only when a parent offers a real, smaller slot.
-        var width = availableSize.Width > 0 && availableSize.Width < 48 ? availableSize.Width : 48;
-        var height = availableSize.Height > 0 && availableSize.Height < 48 ? availableSize.Height : 48;
-        return new Size(width, height);
+        get => GetValue(ContainerShapeProperty);
+        set => SetValue(ContainerShapeProperty, value);
     }
 
-    protected override AutomationPeer OnCreateAutomationPeer() => new LoadingIndicatorAutomationPeer(this);
+    /// <summary>How <see cref="ContainerShape"/> is mapped into the control bounds.</summary>
+    public Stretch ContainerShapeStretch
+    {
+        get => GetValue(ContainerShapeStretchProperty);
+        set => SetValue(ContainerShapeStretchProperty, value);
+    }
+
+    protected override Size MeasureOverride(Size availableSize) =>
+        new(Math.Min(LoadingIndicatorShapes.ContainerWidth, availableSize.Width),
+            Math.Min(LoadingIndicatorShapes.ContainerHeight, availableSize.Height));
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_containerShapeSource is { } source)
+            source.PropertyChanged += ContainerShapeChanged;
+        _containerShapeFrame = null;
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        if (_containerShapeSource is { } source)
+            source.PropertyChanged -= ContainerShapeChanged;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    protected override AutomationPeer OnCreateAutomationPeer() => _peer = new LoadingIndicatorAutomationPeer(this);
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == IsAnimatedProperty)
-            _clock.Refresh();
+        _peer?.NotifyChanged(change);
+        if (change.Property == ContainerShapeProperty)
+        {
+            if (_containerShapeSource is { } previous)
+                previous.PropertyChanged -= ContainerShapeChanged;
+            _containerShapeSource = ContainerShape;
+            if (VisualRoot is not null && _containerShapeSource is { } source)
+                source.PropertyChanged += ContainerShapeChanged;
+            _containerShapeFrame = null;
+        }
+        else if (change.Property == ContainerShapeStretchProperty)
+            _containerShapeFrame = null;
+        if (change.Property == PolygonsProperty || change.Property == IsIndeterminateProperty)
+        {
+            var snapshot = Polygons?.ToArray();
+            // The source remembers the morph sequence and the morph index keyed by the polygon list.
+            // RoundedPolygon.equals compares its feature list, but Feature.Edge/Corner have no equals
+            // override, so distinct RoundedPolygons are never equal: the key is the list length,
+            // order and the same polygon instances. The ported polygons use reference equality, so
+            // a replacement that reuses the same instances does not restart the cycle.
+            if (change.Property == IsIndeterminateProperty ||
+                !SequenceEquals(snapshot, _customPolygons))
+            {
+                // Source LoadingIndicatorImpl keys currentMorphIndex on indicatorPolygons, so a
+                // new list starts again at morph zero; morphProgress and morphRotationTargetAngle
+                // are remembered without that key and keep their in-flight values.
+                if (change.Property == PolygonsProperty && IsIndeterminate && IsAnimated &&
+                    !MaterialMotion.GetIsReduced(this))
+                    _cycle.Restart(_clock.ElapsedMilliseconds);
+                else
+                    _cycle.Reset();
+                if (snapshot is { } polygons)
+                {
+                    _customMorphs = LoadingIndicatorShapes.BuildMorphSequence(polygons, IsIndeterminate);
+                    _customScale = LoadingIndicatorShapes.CalculateScaleFactor(polygons) * LoadingIndicatorShapes.ActiveIndicatorScale;
+                }
+                else _customMorphs = null;
+                _path = null;
+                InvalidateVisual();
+            }
+            _customPolygons = snapshot;
+        }
+        if (change.Property == IsAnimatedProperty || change.Property == IsIndeterminateProperty || change.Property == PolygonsProperty)
+            _clock?.Refresh();
     }
 
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        var size = Math.Min(Bounds.Width, Bounds.Height);
-        if (size <= 0)
-            return;
-
-        var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
-        if (ShowContainer && ContainerBrush is { } container)
-            context.DrawEllipse(container, null, center, size / 2, size / 2);
-
-        var scale = size / LoadingIndicatorShapes.Artboard;
-        if (TryGetMorph(out var step, out var progress, out var angle))
+        var bounds = new Rect(Bounds.Size);
+        // The active indicator keeps the source square aspect ratio inside the container; the
+        // container itself is never limited to that square.
+        var size = Math.Min(bounds.Width, bounds.Height);
+        if (size <= 0) return;
+        var center = new Point(bounds.Width / 2, bounds.Height / 2);
+        // The source applies clip(containerShape).background(containerColor) to the whole layout
+        // bounds, so a non-square container paints its full outline and clips the indicator to the
+        // same shape. An authored ContainerShape replaces the rounded rectangle for both.
+        var containerGeometry = ResolveContainerShape(bounds);
+        var container = containerGeometry is null
+            ? new RoundedRect(bounds, ResolveContainerCornerRadius(bounds))
+            : default;
+        if (ShowContainer && ContainerBrush is { } containerBrush)
         {
-            // Both outlines are centred on the origin, so the turn is about the container centre.
-            using (context.PushTransform(
-                       Matrix.CreateRotation(angle * Math.PI / 180) *
-                       Matrix.CreateScale(scale, scale) *
-                       Matrix.CreateTranslation(center.X, center.Y)))
-                context.DrawGeometry(Foreground, null, LoadingIndicatorShapes.Morph(step, progress));
-            return;
+            if (containerGeometry is { } containerBrushGeometry)
+            {
+                // Stretch.UniformToFill can paint outside the layout bounds; the source shape is
+                // always created for the available size, so the container never exceeds it.
+                using (context.PushClip(bounds))
+                    context.DrawGeometry(containerBrush, null, containerBrushGeometry);
+            }
+            else
+                context.DrawRectangle(containerBrush, null, container);
         }
 
-        // Motion is unavailable: the selected source outline, upright and on its own.
-        using (context.PushTransform(
-                   Matrix.CreateScale(scale, scale) *
-                   Matrix.CreateTranslation(center.X, center.Y)))
-            context.DrawGeometry(Foreground, null, LoadingIndicatorShapes.Get(Step));
+        var morphs = _customMorphs ?? (IsIndeterminate ? LoadingIndicatorShapes.IndeterminateMorphs : LoadingIndicatorShapes.DeterminateMorphs);
+        var scale = _customMorphs is not null ? _customScale : IsIndeterminate ? LoadingIndicatorShapes.IndeterminateScaleFactor : LoadingIndicatorShapes.DeterminateScaleFactor;
+        int index;
+        double progress, angle;
+        if (IsIndeterminate)
+        {
+            var elapsed = IsAnimated && !MaterialMotion.GetIsReduced(this) ? _clock.ElapsedMilliseconds : 0;
+            // The cycle advances the polygon and banks its quarter turn at spring completion,
+            // then holds that endpoint until the next 650 ms slot begins.
+            var frame = _cycle.At(elapsed);
+            index = (int)(frame.Slot % morphs.Count);
+            progress = frame.Progress;
+            // globalRotation is the source Animatable value; the restarted infinite tween re-anchors
+            // to the remembered value, so the cycle supplies it instead of a continuous sweep.
+            angle = (90 + frame.Completed * 90 + progress * 90 + frame.Rotation) % 360;
+        }
+        else
+        {
+            var position = Progress * morphs.Count;
+            index = Math.Min((int)position, morphs.Count - 1);
+            progress = Progress == 1 ? 1 : position % 1;
+            angle = -Progress * 180;
+        }
+        var key = (morphs[index], progress, size, scale);
+        if (_path is null || key != _frameKey)
+        {
+            // Avalonia StreamGeometry.Open appends; a fresh native path is necessary for each
+            // distinct frame. Static/held frames reuse it, and the matched cubics allocate nothing.
+            _path = LoadingIndicatorShapes.CreateFrame(morphs[index], progress, size, scale);
+            _frameKey = key;
+        }
+        using var containerClip = containerGeometry is { } outline
+            ? context.PushGeometryClip(outline)
+            : context.PushClip(container);
+        using var boundsClip = containerGeometry is null
+            ? default(DrawingContext.PushedState)
+            : context.PushClip(bounds);
+        using (context.PushTransform(Matrix.CreateTranslation(-size / 2, -size / 2) *
+                   Matrix.CreateRotation(angle * Math.PI / 180) * Matrix.CreateTranslation(center.X, center.Y)))
+            context.DrawGeometry(Foreground, null, _path);
     }
 
     /// <summary>
-    /// Returns the morph that is on screen right now: the step it starts from, the spring's progress
-    /// (which can run slightly past one before the spring ends, exactly as Compose allows) and the
-    /// turn angle in degrees.
+    /// The authored <see cref="ContainerShape"/> mapped into the control bounds, or null when
+    /// the container should use the rounded-rectangle fallback. The clone is cached per authored
+    /// instance, bounds and stretch so a frame never allocates a geometry.
     /// </summary>
-    private bool TryGetMorph(out int step, out double progress, out double angle)
+    private Geometry? ResolveContainerShape(Rect bounds)
     {
-        step = Step;
-        progress = 0;
-        angle = 0;
-        if (!IsAnimated || MaterialMotion.GetIsReduced(this))
-            return false;
+        if (ContainerShape is not { } source) return null;
+        var stretch = ContainerShapeStretch;
+        if (_containerShapeFrame is { } cached &&
+            ReferenceEquals(source, _containerShapeSource) &&
+            _containerShapeFrameSize == bounds.Size &&
+            _containerShapeFrameStretch == stretch)
+            return cached;
 
-        var elapsed = _clock.ElapsedMilliseconds;
-        var completed = (long)(elapsed / MorphMilliseconds);
-        // Start the cycle at the selected step so Step stays meaningful while animating.
-        step = (int)((completed + Step - 1) % LoadingIndicatorShapes.Count) + 1;
-        progress = Spring(elapsed - completed * MorphMilliseconds);
-        // Compose turns the indicator by the spring's own quarter turn plus the quarter turn banked
-        // for each completed morph, and adds one slow turn every 4666 ms. The banked turns must not
-        // wrap on their own: the spring's quarter turn hands over to the next banked one at each
-        // morph boundary, so the turn never jumps. The phase is shifted so the first frame is the
-        // upright Step outline, which is what the control shows when motion is unavailable.
-        var turn = elapsed / RotationMilliseconds;
-        angle = (completed * QuarterTurn + progress * QuarterTurn +
-                 (turn - Math.Floor(turn)) * 360) % 360;
+        _containerShapeSource = source;
+        _containerShapeFrame = LoadingIndicatorShapes.StretchGeometry(source, bounds, stretch);
+        _containerShapeFrameSize = bounds.Size;
+        _containerShapeFrameStretch = stretch;
+        return _containerShapeFrame;
+    }
+
+    private void ContainerShapeChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
+    {
+        _containerShapeFrame = null;
+        InvalidateVisual();
+    }
+
+    private static bool SequenceEquals(RoundedPolygon[]? left, RoundedPolygon[]? right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+        if (left is null || right is null || left.Length != right.Length) return false;
+        for (var index = 0; index < left.Length; index++)
+        {
+            if (!ReferenceEquals(left[index], right[index])) return false;
+        }
         return true;
     }
 
     /// <summary>
-    /// The source morph spring, evaluated analytically: a 0.6-damped, 200-stiffness spring from 0
-    /// to 1 that settles after <see cref="SpringMilliseconds"/> and is held at exactly 1 from then
-    /// on, which is where Compose ends a spring animation.
+    /// Corner radii of the container outline. The source <c>containerShape</c> defaults to
+    /// <c>ShapeKeyTokens.CornerFull</c>, i.e. a size-relative 50% corner that reads as a circle on
+    /// a square container and as a capsule on a non-square one. A caller-supplied
+    /// <see cref="TemplatedControl.CornerRadius"/> replaces that default, including an explicit
+    /// square value, and keeps its logical start/end meaning through the shared
+    /// <see cref="MaterialAssist.CornerShape"/> resolution.
     /// </summary>
-    private static double Spring(double milliseconds)
+    private CornerRadius ResolveContainerCornerRadius(Rect bounds)
     {
-        if (milliseconds >= SpringMilliseconds)
-            return 1;
-        var seconds = milliseconds / 1000;
-        var decay = Math.Exp(-SpringDamping * SpringFrequency * seconds);
-        var phase = SpringDampedFrequency * seconds;
-        return 1 - decay * (Math.Cos(phase) +
-                            SpringDamping * SpringFrequency / SpringDampedFrequency * Math.Sin(phase));
+        var minDimension = Math.Min(bounds.Width, bounds.Height);
+        var rightToLeft = FlowDirection == FlowDirection.RightToLeft;
+        var shape = IsSet(CornerRadiusProperty)
+            ? MaterialAssist.CornerShape.FromCornerRadius(CornerRadius, rightToLeft)
+            : MaterialAssist.CornerShape.Full;
+        return shape.Resolve(shape, 1, minDimension, rightToLeft);
     }
 
-    /// <summary>
-    /// How long Compose lets this spring run, transcribed from <c>estimateAnimationDurationMillis</c>
-    /// for the under-damped case: the envelope of the displacement has to fall below one visibility
-    /// threshold. For a 0 → 1 morph that is ≈ 298 ms, comfortably inside the 650 ms morph slot.
-    /// </summary>
-    private static double SpringDuration()
-    {
-        var root = -SpringDamping * SpringFrequency;
-        // Displacement in threshold units: one whole morph is 1 / 0.1 = 10 thresholds.
-        var displacement = -1 / SpringThreshold;
-        var sineCoefficient = -root * displacement / SpringDampedFrequency;
-        var envelope = Math.Sqrt(displacement * displacement + sineCoefficient * sineCoefficient);
-        return 1000 * Math.Log(1 / envelope) / root;
-    }
-
-    private sealed class LoadingIndicatorAutomationPeer(LoadingIndicator owner) : ControlAutomationPeer(owner)
+    private sealed class LoadingIndicatorAutomationPeer(LoadingIndicator owner)
+        : ControlAutomationPeer(owner), IRangeValueProvider
     {
         protected override string GetClassNameCore() => nameof(LoadingIndicator);
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.ProgressBar;
-
-        protected override string? GetNameCore() =>
-            base.GetNameCore() is { Length: > 0 } name ? name : "Loading";
-
-        // The indicator is always indeterminate: it reports a status, never a fake percentage.
+        protected override string? GetNameCore() => base.GetNameCore() is { Length: > 0 } name ? name : "Loading";
         protected override string? GetItemStatusCore() =>
-            AutomationProperties.GetItemStatus(owner) ?? "Indeterminate";
-
+            AutomationProperties.GetItemStatus(owner) ?? (owner.IsIndeterminate ? "Indeterminate" : base.GetItemStatusCore());
         protected override object? GetProviderCore(Type providerType) =>
-            providerType == typeof(IRangeValueProvider) ? null : base.GetProviderCore(providerType);
+            providerType == typeof(IRangeValueProvider) ? owner.IsIndeterminate ? null : this : base.GetProviderCore(providerType);
+        internal void NotifyChanged(AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property == ProgressProperty)
+                RaisePropertyChangedEvent(RangeValuePatternIdentifiers.ValueProperty, e.OldValue, e.NewValue);
+            if (e.Property == IsIndeterminateProperty)
+                RaisePropertyChangedEvent(AutomationElementIdentifiers.ItemStatusProperty,
+                    e.OldValue is true ? "Indeterminate" : null, GetItemStatusCore());
+        }
+        bool IRangeValueProvider.IsReadOnly => true;
+        double IRangeValueProvider.Minimum => 0;
+        double IRangeValueProvider.Maximum => 1;
+        double IRangeValueProvider.Value => owner.Progress;
+        double IRangeValueProvider.SmallChange => double.NaN;
+        double IRangeValueProvider.LargeChange => double.NaN;
+        void IRangeValueProvider.SetValue(double value) => throw new InvalidOperationException("Loading progress is read-only to automation.");
     }
 }

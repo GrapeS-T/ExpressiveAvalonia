@@ -1,16 +1,9 @@
 using System;
 using System.ComponentModel;
 using Avalonia;
-using Avalonia.Animation;
-using Avalonia.Animation.Easings;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Controls.Shapes;
-using Avalonia.Input;
-using Avalonia.Media;
-using Avalonia.Media.Transformation;
-using Avalonia.Styling;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
@@ -32,7 +25,7 @@ public enum MaterialFabColorRole
 }
 
 /// <summary>
-/// Shared Material FAB behavior: color role, focus ring geometry, and the pointer ripple.
+/// Shared Material FAB behavior: color role, focus ring geometry and interaction elevation.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -41,15 +34,28 @@ public enum MaterialFabColorRole
 /// come from Avalonia rather than a reimplementation.
 /// </para>
 /// <para>
-/// The template contract is <c>Border#Surface</c>, <c>Border#StateLayer</c>,
-/// <c>Border#FocusRing</c> and <c>Canvas#PART_RippleHost</c>. The ripple is pointer-only and
-/// expands from the press point at the source 8% content layer opacity; it is skipped when
-/// <see cref="MaterialMotion.IsReduced"/> is set, so reduced motion leaves only the static
-/// state layer.
+/// Elevation follows the pinned <c>FloatingActionButton.kt</c> elevation animator: the most
+/// recently activated interaction wins, hover raises the FAB to level 4, every other interaction
+/// settles at level 3, incoming changes take 120 ms and outgoing changes take 150 ms (120 ms when
+/// leaving hover). The shared <see cref="MaterialElevationAnimation"/> publishes the interpolated
+/// token shadow through <see cref="MaterialAssist.AnimatedShadowProperty"/>; the template's
+/// <c>Border#Surface</c> binds it. Disabling snaps to the flat level-0 adaptation, and reduced
+/// motion snaps every change.
+/// </para>
+/// <para>
+/// The template contract is <c>Border#Surface</c>, <c>Border#ContentHost</c>,
+/// <c>Border#FocusRing</c> and a <see cref="MaterialRipple"/> named <c>Ripple</c>. The shared
+/// ripple is the source RippleNode: it draws the hover/focus state layer and the bounded press
+/// ripple from the press origin, with the FAB's 8% pressed alpha and the source release timeline.
+/// It follows reduced motion, so a held press keeps one static indication.
 /// </para>
 /// </remarks>
 public abstract class MaterialFabBase : Button
 {
+    // Fab*Tokens: ContainerElevation/Focused/Pressed = Level3, Hovered = Level4. The pinned FAB
+    // has no disabled elevation token; this port keeps the established flat disabled adaptation.
+    private static readonly MaterialElevationSpecs FabElevationSpecs = new(3, 3, 3, 4, 3, 0);
+
     /// <summary>Defines the <see cref="ColorRole"/> property.</summary>
     public static readonly StyledProperty<MaterialFabColorRole> ColorRoleProperty =
         AvaloniaProperty.Register<MaterialFabBase, MaterialFabColorRole>(
@@ -63,13 +69,18 @@ public abstract class MaterialFabBase : Button
     public static readonly StyledProperty<CornerRadius> FocusRingCornerRadiusProperty =
         AvaloniaProperty.Register<MaterialFabBase, CornerRadius>(nameof(FocusRingCornerRadius));
 
-    private static readonly TimeSpan DefaultRippleDuration = TimeSpan.FromMilliseconds(300);
-    private Canvas? _rippleHost;
+    private readonly MaterialElevationAnimation _elevation;
     private string? _autoAutomationName;
 
     static MaterialFabBase()
     {
         CornerRadiusProperty.Changed.AddClassHandler<MaterialFabBase>((fab, _) => fab.UpdateFocusRingRadius());
+    }
+
+    /// <summary>Initializes the shared interaction elevation animation.</summary>
+    protected MaterialFabBase()
+    {
+        _elevation = new MaterialElevationAnimation(this, () => FabElevationSpecs);
     }
 
     /// <summary>Gets or sets the Material color role of the FAB container.</summary>
@@ -89,36 +100,16 @@ public abstract class MaterialFabBase : Button
     /// <inheritdoc />
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
-        if (_rippleHost is not null)
-            _rippleHost.SizeChanged -= OnRippleHostSizeChanged;
-        ClearRipples();
-
         base.OnApplyTemplate(e);
-
-        _rippleHost = e.NameScope.Find<Canvas>("PART_RippleHost");
-        if (_rippleHost is not null)
-        {
-            _rippleHost.SizeChanged += OnRippleHostSizeChanged;
-            UpdateRippleClip();
-        }
         UpdateFocusRingRadius();
+        _elevation.Refresh(snap: true);
     }
 
-    /// <inheritdoc />
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
-    {
-        base.OnPointerPressed(e);
-        var properties = e.GetCurrentPoint(this).Properties;
-        if (properties.IsLeftButtonPressed || e.Pointer.Type == PointerType.Touch)
-            StartRipple(e.GetPosition(this));
-    }
-
-    /// <inheritdoc />
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        ClearRipples();
-        base.OnDetachedFromVisualTree(e);
-    }
+    /// <summary>
+    /// The interaction elevation currently applied to the FAB surface, in DIP levels.
+    /// </summary>
+    /// <remarks>Assembly diagnostics use only; the rendered value is the animated box shadow.</remarks>
+    internal double ElevationLevel => _elevation.Value;
 
     /// <summary>
     /// Keeps <see cref="AutomationProperties.Name"/> in step with a text label without
@@ -140,104 +131,5 @@ public abstract class MaterialFabBase : Button
         var radius = CornerRadius;
         var uniform = Math.Max(0, radius.TopLeft + 2);
         FocusRingCornerRadius = new CornerRadius(uniform, radius.TopRight + 2, radius.BottomRight + 2, radius.BottomLeft + 2);
-    }
-
-    private void OnRippleHostSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateRippleClip();
-
-    private void UpdateRippleClip()
-    {
-        if (_rippleHost is null)
-            return;
-
-        var width = _rippleHost.Bounds.Width;
-        var height = _rippleHost.Bounds.Height;
-        if (width <= 0 || height <= 0)
-            return;
-
-        var radius = Math.Min(Math.Min(CornerRadius.TopLeft, CornerRadius.TopRight), Math.Min(width, height) / 2);
-        _rippleHost.Clip = radius > 0
-            ? new RectangleGeometry(new Rect(0, 0, width, height), radius, radius)
-            : null;
-    }
-
-    private void ClearRipples()
-    {
-        if (_rippleHost is null)
-            return;
-
-        _rippleHost.Children.Clear();
-    }
-
-    private void StartRipple(Point position)
-    {
-        if (_rippleHost is null || !IsEffectivelyEnabled || MaterialMotion.GetIsReduced(this))
-            return;
-
-        var brush = Foreground;
-        var diameter = Math.Max(Bounds.Width, Bounds.Height) * 1.6;
-        if (brush is null || !(diameter > 0))
-            return;
-
-        // The source's pressed snapshots show a content-colored ripple at 8% over the container.
-        var ellipse = new Ellipse
-        {
-            Width = diameter,
-            Height = diameter,
-            Fill = brush,
-            Opacity = 0.08,
-            IsHitTestVisible = false,
-            RenderTransformOrigin = RelativePoint.Center,
-            RenderTransform = TransformOperations.Parse("scale(0.2)")
-        };
-        Canvas.SetLeft(ellipse, position.X - (diameter / 2));
-        Canvas.SetTop(ellipse, position.Y - (diameter / 2));
-        _rippleHost.Children.Add(ellipse);
-
-        var duration = this.TryFindResource("MaterialDurationMedium2", out var value) && value is TimeSpan time
-            ? time
-            : DefaultRippleDuration;
-
-        var animation = new Animation
-        {
-            Duration = duration,
-            Easing = new CubicEaseOut(),
-            FillMode = FillMode.Forward,
-            Children =
-            {
-                new KeyFrame
-                {
-                    Cue = new Cue(0),
-                    Setters =
-                    {
-                        new Setter(OpacityProperty, 0.08d),
-                        new Setter(RenderTransformProperty, TransformOperations.Parse("scale(0.2)"))
-                    }
-                },
-                new KeyFrame
-                {
-                    Cue = new Cue(1),
-                    Setters =
-                    {
-                        new Setter(OpacityProperty, 0d),
-                        new Setter(RenderTransformProperty, TransformOperations.Parse("scale(1)"))
-                    }
-                }
-            }
-        };
-
-        _ = RunRippleAsync(animation, ellipse, _rippleHost);
-    }
-
-    private static async System.Threading.Tasks.Task RunRippleAsync(Animation animation, Ellipse ellipse, Canvas host)
-    {
-        try
-        {
-            await animation.RunAsync(ellipse);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-
-        host.Children.Remove(ellipse);
     }
 }

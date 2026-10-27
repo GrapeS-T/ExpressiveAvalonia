@@ -50,7 +50,6 @@
                                 Content="{TemplateBinding Icon}"
                                 IsVisible="{Binding Icon, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
               <TextBlock Name="PART_Title" Text="{TemplateBinding Title}" TextWrapping="Wrap"
-                         TextAlignment="Left"
                          AutomationProperties.HeadingLevel="2"
                          FontSize="{DynamicResource MaterialHeadlineSmallFontSize}"
                          FontWeight="{DynamicResource MaterialHeadlineSmallFontWeight}"
@@ -87,15 +86,17 @@
             <Border Name="PART_Divider" Grid.Row="2" Height="1" VerticalAlignment="Top" Margin="0,16,0,0"
                     Background="{DynamicResource MaterialOutlineVariantBrush}"
                     IsVisible="{TemplateBinding ShowDivider}" IsHitTestVisible="False" />
-            <StackPanel Name="PART_Actions" Grid.Row="2" Orientation="Horizontal"
-                        HorizontalAlignment="Right" Spacing="8" Margin="24,20,24,20" />
-            <Border Name="PART_BottomSpacer" Grid.Row="2" Height="24" VerticalAlignment="Top" IsHitTestVisible="False" />
+            <controls:MaterialDialogActionsPanel Name="PART_Actions" Grid.Row="2"
+                                               HorizontalAlignment="Right" Margin="24,20,24,24" />
           </Grid>
         </Border>
       </ControlTemplate>
     </Setter>
     <!-- The source family left-aligns the heading without an icon and centers it when the
          icon sits above it; the supporting text is left-aligned in both variants. -->
+    <Style Selector="^ /template/ TextBlock#PART_Title">
+      <Setter Property="TextAlignment" Value="Left" />
+    </Style>
     <Style Selector="^:icon /template/ TextBlock#PART_Title">
       <Setter Property="TextAlignment" Value="Center" />
     </Style>
@@ -138,8 +139,6 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Grid MinHeight="{TemplateBinding MinHeight}" Background="{TemplateBinding Background}">
-          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                  Opacity="0" IsHitTestVisible="False" />
           <Grid Name="ItemContent" ColumnDefinitions="Auto,*,Auto" Margin="{TemplateBinding Padding}">
             <Border Name="Monogram" Width="40" Height="40" CornerRadius="9999"
                     VerticalAlignment="Center"
@@ -206,6 +205,17 @@
                         AutomationProperties.Name="{Binding Headline, RelativeSource={RelativeSource TemplatedParent}}" />
             </StackPanel>
           </Grid>
+          <!-- Source RippleNode: the shared MaterialRipple draws the hover/focus state layer and the
+               bounded press ripple above the row content. The row itself is the interaction target,
+               so the presentational checkbox and the divider never double-report. -->
+          <theming:MaterialRipple Name="StateLayer"
+                                  Fill="{TemplateBinding Foreground}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  DraggedOpacity="{DynamicResource MaterialDraggedStateLayerOpacity}"
+                                  IsHitTestVisible="False" />
           <Border Name="Divider" Height="1" VerticalAlignment="Bottom" Margin="16,0,0,0"
                   Background="{DynamicResource MaterialOutlineVariantBrush}"
                   IsVisible="{TemplateBinding ShowDivider}" IsHitTestVisible="False" />
@@ -214,30 +224,13 @@
         </Grid>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
+    <!-- Interaction is the shared MaterialRipple: it owns the press ripple and the
+         hover/focus layer, so no opacity transition or duplicated pressed alpha remains. -->
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled /template/ Grid#ItemContent">
       <Setter Property="Opacity" Value="0.38" />
-    </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:disabled /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="False" />
