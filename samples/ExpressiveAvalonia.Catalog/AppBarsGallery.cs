@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
@@ -24,10 +25,49 @@ public static class AppBarsGallery
 internal sealed class AppBarsPlayground : Grid, IComponentPlayground
 {
     private static readonly string[] ComponentNames =
-        ["App bar", "Bottom app bar", "Toolbar", "Section header", "Page header"];
+        ["App bar", "Bottom app bar", "Toolbar", "Section header", "Page header", "Scaffold"];
 
     private static readonly string[] ActionLabels =
         ["Поиск", "Избранное", "Поделиться", "Изменить", "Настройки", "Палитра"];
+
+    private static readonly MaterialAppBarConfiguration[] AppBarConfigurations =
+    [
+        MaterialAppBarConfiguration.Small,
+        MaterialAppBarConfiguration.SmallCentered,
+        MaterialAppBarConfiguration.SmallImage,
+        MaterialAppBarConfiguration.Search,
+        MaterialAppBarConfiguration.Medium,
+        MaterialAppBarConfiguration.Large,
+        MaterialAppBarConfiguration.MediumFlexible,
+        MaterialAppBarConfiguration.LargeFlexible,
+    ];
+
+    private static readonly string[] AppBarConfigurationNames =
+        ["Small", "Small-centred", "Small-image", "Search", "Medium", "Large",
+            "Medium flexible", "Large flexible"];
+
+    private static readonly string[] BottomConfigurationNames = ["Classic", "Flexible"];
+
+    private static readonly MaterialFloatingToolbarExitDirection[] ToolbarExitDirections =
+    [
+        MaterialFloatingToolbarExitDirection.Bottom,
+        MaterialFloatingToolbarExitDirection.Top,
+        MaterialFloatingToolbarExitDirection.Start,
+        MaterialFloatingToolbarExitDirection.End,
+    ];
+
+    private static readonly string[] ToolbarExitDirectionNames = ["Bottom", "Top", "Start", "End"];
+
+    private static readonly MaterialBarScrollMode[] AppBarScrollModes =
+    [
+        MaterialBarScrollMode.None,
+        MaterialBarScrollMode.Pinned,
+        MaterialBarScrollMode.EnterAlways,
+        MaterialBarScrollMode.ExitUntilCollapsed,
+    ];
+
+    private static readonly string[] AppBarScrollModeNames =
+        ["None", "Pinned", "Enter always", "Exit until collapsed"];
 
     private static readonly Geometry[] ActionIcons =
     [
@@ -44,14 +84,44 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
     private static readonly Geometry Add = Geometry.Parse("M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z");
     private static readonly Geometry Person = Geometry.Parse("M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z");
 
-    private readonly MaterialAppBar _appBar = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly MaterialAppBar _appBar = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+        VerticalAlignment = VerticalAlignment.Top,
+    };
     private readonly ScrollViewer _appBarScroll;
-    private readonly StackPanel _appBarStage;
-    private readonly MaterialBottomAppBar _bottomBar = new() { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Grid _appBarStage;
+    private readonly MaterialBottomAppBar _bottomBar = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+        VerticalAlignment = VerticalAlignment.Bottom,
+    };
+    private readonly ScrollViewer _bottomScroll;
+    private readonly Grid _bottomBarStage;
+    private readonly ScrollViewer _toolbarScroll;
+    private readonly Grid _toolbarStage;
     private readonly MaterialToolbar _toolbar = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly MaterialSectionHeader _sectionHeader = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly MaterialPageHeader _pageHeader = new() { VerticalAlignment = VerticalAlignment.Center };
+
+    private readonly MaterialScaffold _scaffold = new();
+    private readonly MaterialAppBar _scaffoldTopBar = new()
+    {
+        Configuration = MaterialAppBarConfiguration.Small,
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+    };
+    private readonly MaterialBottomAppBar _scaffoldBottomBar = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+    };
+    private readonly TextBlock _scaffoldSnackbar = new() { Text = "Snackbar", FontSize = 14 };
+    private readonly TextBlock _scaffoldPaddingLabel = new() { FontSize = 13, Opacity = 0.8 };
+    private readonly ScrollViewer _scaffoldScroll;
+    private readonly MaterialFab _scaffoldFab;
     private readonly MaterialFab _bottomFab;
+    private readonly MaterialFab _toolbarFab;
+    private readonly Control _toolbarLeading;
+    private readonly Control _toolbarTrailing;
     private readonly Control _thumbnail;
     private readonly Control _personAvatar;
     private readonly PathIcon _sectionIcon = new() { Data = ActionIcons[5], Width = 20, Height = 20 };
@@ -69,6 +139,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
 
     private readonly StackPanel _appBarGroup;
     private readonly ComboBox _appBarConfiguration;
+    private readonly ComboBox _appBarScrollMode;
     private readonly TextBox _appBarTitle;
     private readonly TextBox _appBarSubtitle;
     private readonly ComboBox _appBarElevation;
@@ -78,14 +149,20 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
     private readonly Slider _appBarVisible;
 
     private readonly StackPanel _bottomGroup;
+    private readonly ComboBox _bottomConfiguration;
     private readonly Slider _bottomActions;
     private readonly ToggleSwitch _bottomFabToggle;
+    private readonly ToggleSwitch _bottomScrollToggle;
 
     private readonly StackPanel _toolbarGroup;
     private readonly ComboBox _toolbarConfiguration;
     private readonly ComboBox _toolbarOrientation;
     private readonly ComboBox _toolbarColor;
+    private readonly ComboBox _toolbarExitDirection;
     private readonly Slider _toolbarActions;
+    private readonly ToggleSwitch _toolbarFabToggle;
+    private readonly ToggleSwitch _toolbarExpandedToggle;
+    private readonly ToggleSwitch _toolbarScrollToggle;
 
     private readonly StackPanel _sectionGroup;
     private readonly TextBox _sectionLabel;
@@ -98,18 +175,29 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
     private readonly TextBox _pageLink;
     private readonly ToggleSwitch _pageDivider;
 
+    private readonly StackPanel _scaffoldGroup;
+    private readonly ToggleSwitch _scaffoldInsetsToggle;
+    private readonly ToggleSwitch _scaffoldConsumedToggle;
+
     private int _invocations;
+    private MaterialBarScrollMode? _appBarMode;
+    private MaterialFloatingToolbarExitDirection? _toolbarExit;
 
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
     internal AppBarsPlayground()
     {
-        var list = new StackPanel { Spacing = 4, Margin = new Thickness(8) };
-        for (var i = 1; i <= 20; i++)
-            list.Children.Add(new TextBlock { Text = $"Строка {i}", Margin = new Thickness(16, 8) });
-        _appBarScroll = new ScrollViewer { Content = list, Height = 200, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        _appBarStage = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { _appBar, _appBarScroll } };
+        _appBarScroll = ScrollList("Строка");
+        _appBarStage = new Grid { Children = { _appBarScroll, _appBar } };
         _appBar.ScrollSource = _appBarScroll;
+
+        _bottomScroll = ScrollList("Пункт");
+        _bottomBarStage = new Grid { Children = { _bottomScroll, _bottomBar } };
+        _bottomBar.ScrollBehavior = MaterialAppBarScrollBehavior.ExitAlways();
+        _bottomBar.ScrollSource = _bottomScroll;
+
+        _toolbarScroll = ScrollList("Элемент");
+        _toolbarStage = new Grid { Children = { _toolbarScroll, _toolbar } };
 
         _bottomFab = new MaterialFab
         {
@@ -119,15 +207,62 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         };
         AutomationProperties.SetName(_bottomFab, "Создать");
         _bottomBar.Fab = _bottomFab;
+        _toolbarFab = new MaterialFab
+        {
+            Content = new PathIcon { Data = Add },
+            ColorRole = MaterialFabColorRole.PrimaryContainer,
+            Command = Command("Создать в toolbar"),
+        };
+        AutomationProperties.SetName(_toolbarFab, "Создать в toolbar");
+        _toolbarLeading = new PathIcon { Data = Menu, Width = 24, Height = 24 };
+        _toolbarTrailing = new PathIcon { Data = Person, Width = 24, Height = 24 };
+        _toolbar.LeadingContent = _toolbarLeading;
+        _toolbar.TrailingContent = _toolbarTrailing;
         _thumbnail = Thumbnail("Витрина");
         _personAvatar = PersonAvatar();
+
+        _scaffoldTopBar.Title = "Scaffold";
+        _scaffoldTopBar.LeadingIcon = Menu;
+        _scaffoldTopBar.LeadingText = "Меню";
+        _scaffoldScroll = ScrollList("Контент");
+        _scaffoldScroll.Bind(Layoutable.MarginProperty,
+            new Binding(nameof(MaterialScaffold.ContentPadding)) { Source = _scaffold });
+        _scaffoldFab = new MaterialFab
+        {
+            Content = new PathIcon { Data = Add },
+            ColorRole = MaterialFabColorRole.PrimaryContainer,
+            Command = Command("Создать в scaffold"),
+        };
+        AutomationProperties.SetName(_scaffoldFab, "Создать в scaffold");
+        var snackbar = new Border
+        {
+            Padding = new Thickness(16, 8),
+            CornerRadius = new CornerRadius(8),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Child = _scaffoldSnackbar,
+        };
+        snackbar.Bind(Border.BackgroundProperty,
+            snackbar.GetResourceObservable("MaterialInverseSurfaceBrush"));
+        _scaffoldSnackbar.Bind(TextBlock.ForegroundProperty,
+            _scaffoldSnackbar.GetResourceObservable("MaterialInverseOnSurfaceBrush"));
+        _scaffold.Content = _scaffoldScroll;
+        _scaffold.TopBar = _scaffoldTopBar;
+        _scaffold.BottomBar = _scaffoldBottomBar;
+        _scaffold.SnackbarHost = snackbar;
+        _scaffold.FloatingActionButton = _scaffoldFab;
+        _scaffold.ContentInsets = new Thickness(16, 12, 16, 12);
+        _scaffold.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == MaterialScaffold.ContentPaddingProperty)
+                _scaffoldPaddingLabel.Text = $"ContentPadding = {_scaffold.ContentPadding}";
+        };
 
         _pageHeader.Logo = new PathIcon { Data = ActionIcons[5], Width = 40, Height = 40 };
         _pageHeader.LinkCommand = Command("See design guideline");
 
         var stageContent = new Grid
         {
-            Children = { _appBarStage, _bottomBar, _toolbar, _sectionHeader, _pageHeader },
+            Children = { _appBarStage, _bottomBarStage, _toolbarStage, _sectionHeader, _pageHeader, _scaffold },
         };
         var stage = new Border
         {
@@ -159,12 +294,21 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _appBarGroup.Children.Add(new TextBlock { Text = "Конфигурация" });
         _appBarConfiguration = new ComboBox
         {
-            ItemsSource = new[] { "Small", "Small-centred", "Small-image", "Search", "Medium", "Large" },
+            ItemsSource = AppBarConfigurationNames,
             SelectedIndex = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         AutomationProperties.SetName(_appBarConfiguration, "Конфигурация app bar");
         _appBarGroup.Children.Add(_appBarConfiguration);
+        _appBarGroup.Children.Add(new TextBlock { Text = "Прокрутка" });
+        _appBarScrollMode = new ComboBox
+        {
+            ItemsSource = AppBarScrollModeNames,
+            SelectedIndex = 3,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_appBarScrollMode, "Поведение прокрутки app bar");
+        _appBarGroup.Children.Add(_appBarScrollMode);
         _appBarTitle = Field(_appBarGroup, "Заголовок", "Входящие");
         _appBarSubtitle = Field(_appBarGroup, "Подпись", "Поддерживающий текст");
         _appBarGroup.Children.Add(new TextBlock { Text = "Тень" });
@@ -187,13 +331,23 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _appBarGroup.Children.Add(_appBarAvatar);
         _appBarLeading = Toggle(_appBarGroup, "Ведущая иконка", true);
         _appBarActions = Number(_appBarGroup, "Действий", 0, 6, 2);
-        _appBarVisible = Number(_appBarGroup, "Видимых действий", 0, 4, 3);
+        _appBarVisible = Number(_appBarGroup, "Лимит действий", 0, 4, 3);
         Settings.Children.Add(_appBarGroup);
 
         _bottomGroup = new StackPanel { Spacing = 12 };
         _bottomGroup.Children.Add(new TextBlock { Text = "Bottom app bar", FontSize = 16, FontWeight = FontWeight.Bold });
+        _bottomGroup.Children.Add(new TextBlock { Text = "Конфигурация" });
+        _bottomConfiguration = new ComboBox
+        {
+            ItemsSource = BottomConfigurationNames,
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_bottomConfiguration, "Конфигурация bottom app bar");
+        _bottomGroup.Children.Add(_bottomConfiguration);
         _bottomActions = Number(_bottomGroup, "Действий", 0, 6, 4);
         _bottomFabToggle = Toggle(_bottomGroup, "FAB в трейлинге", true);
+        _bottomScrollToggle = Toggle(_bottomGroup, "Скрывать при прокрутке", true);
         Settings.Children.Add(_bottomGroup);
 
         _toolbarGroup = new StackPanel { Spacing = 12 };
@@ -202,7 +356,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _toolbarConfiguration = new ComboBox
         {
             ItemsSource = new[] { "Docked", "Floating" },
-            SelectedIndex = 0,
+            SelectedIndex = 1,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         AutomationProperties.SetName(_toolbarConfiguration, "Конфигурация toolbar");
@@ -225,7 +379,19 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         };
         AutomationProperties.SetName(_toolbarColor, "Цвет toolbar");
         _toolbarGroup.Children.Add(_toolbarColor);
+        _toolbarGroup.Children.Add(new TextBlock { Text = "Направление выхода" });
+        _toolbarExitDirection = new ComboBox
+        {
+            ItemsSource = ToolbarExitDirectionNames,
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_toolbarExitDirection, "Направление выхода toolbar");
+        _toolbarGroup.Children.Add(_toolbarExitDirection);
         _toolbarActions = Number(_toolbarGroup, "Действий", 0, 6, 6);
+        _toolbarFabToggle = Toggle(_toolbarGroup, "FAB рядом", true);
+        _toolbarExpandedToggle = Toggle(_toolbarGroup, "Развёрнут", true);
+        _toolbarScrollToggle = Toggle(_toolbarGroup, "Сворачивать при прокрутке", true);
         Settings.Children.Add(_toolbarGroup);
 
         _sectionGroup = new StackPanel { Spacing = 12 };
@@ -244,6 +410,16 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _pageDivider = Toggle(_pageGroup, "Разделитель", true);
         Settings.Children.Add(_pageGroup);
 
+        _scaffoldGroup = new StackPanel { Spacing = 12 };
+        _scaffoldGroup.Children.Add(new TextBlock
+        {
+            Text = "Scaffold", FontSize = 16, FontWeight = FontWeight.Bold,
+        });
+        _scaffoldInsetsToggle = Toggle(_scaffoldGroup, "Отступы контента", true);
+        _scaffoldConsumedToggle = Toggle(_scaffoldGroup, "Отступы уже потреблены", false);
+        _scaffoldGroup.Children.Add(_scaffoldPaddingLabel);
+        Settings.Children.Add(_scaffoldGroup);
+
         Settings.Children.Add(new TextBlock
         {
             Text = "Tab и стрелки перемещают фокус между действиями, Home/End — к краям, Enter/Space " +
@@ -258,13 +434,16 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
 
         _component.SelectionChanged += (_, _) => Apply();
         _appBarConfiguration.SelectionChanged += (_, _) => Apply();
+        _appBarScrollMode.SelectionChanged += (_, _) => Apply();
         _appBarTitle.TextChanged += (_, _) => Apply();
         _appBarSubtitle.TextChanged += (_, _) => Apply();
         _appBarElevation.SelectionChanged += (_, _) => Apply();
         _appBarAvatar.SelectionChanged += (_, _) => Apply();
+        _bottomConfiguration.SelectionChanged += (_, _) => Apply();
         _toolbarConfiguration.SelectionChanged += (_, _) => Apply();
         _toolbarOrientation.SelectionChanged += (_, _) => Apply();
         _toolbarColor.SelectionChanged += (_, _) => Apply();
+        _toolbarExitDirection.SelectionChanged += (_, _) => Apply();
         _sectionLabel.TextChanged += (_, _) => Apply();
         _pageTitle.TextChanged += (_, _) => Apply();
         _pageDefinition.TextChanged += (_, _) => Apply();
@@ -273,7 +452,9 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
             slider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
         foreach (var toggle in new[]
                  {
-                     _appBarLeading, _bottomFabToggle, _sectionLeading, _sectionTrailing, _pageDivider,
+                     _appBarLeading, _bottomFabToggle, _bottomScrollToggle, _toolbarFabToggle,
+                     _toolbarExpandedToggle, _toolbarScrollToggle, _sectionLeading, _sectionTrailing,
+                     _pageDivider, _scaffoldInsetsToggle, _scaffoldConsumedToggle,
                  })
             toggle.IsCheckedChanged += (_, _) => Apply();
 
@@ -285,32 +466,52 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         var component = Math.Clamp(_component.SelectedIndex, 0, ComponentNames.Length - 1);
 
         _appBarStage.IsVisible = component == 0;
-        _bottomBar.IsVisible = component == 1;
-        _toolbar.IsVisible = component == 2;
+        _bottomBarStage.IsVisible = component == 1;
+        _toolbarStage.IsVisible = component == 2;
         _sectionHeader.IsVisible = component == 3;
         _pageHeader.IsVisible = component == 4;
+        _scaffold.IsVisible = component == 5;
 
         _appBarGroup.IsVisible = component == 0;
         _bottomGroup.IsVisible = component == 1;
         _toolbarGroup.IsVisible = component == 2;
         _sectionGroup.IsVisible = component == 3;
         _pageGroup.IsVisible = component == 4;
+        _scaffoldGroup.IsVisible = component == 5;
 
         ApplyAppBar();
         ApplyBottomBar();
         ApplyToolbar();
         ApplyHeaders();
+        ApplyScaffold();
     }
 
     private void ApplyAppBar()
     {
-        var configuration = (MaterialAppBarConfiguration)Math.Clamp(_appBarConfiguration.SelectedIndex, 0, 5);
+        var configurationIndex = Math.Clamp(_appBarConfiguration.SelectedIndex, 0, AppBarConfigurations.Length - 1);
+        var configuration = AppBarConfigurations[configurationIndex];
         var elevation = _appBarElevation.SelectedIndex == 1
             ? MaterialAppBarElevation.OnScroll
             : MaterialAppBarElevation.Flat;
         var title = string.IsNullOrWhiteSpace(_appBarTitle.Text) ? "Заголовок" : _appBarTitle.Text;
         var subtitle = string.IsNullOrWhiteSpace(_appBarSubtitle.Text) ? null : _appBarSubtitle.Text;
         var hasLeading = _appBarLeading.IsChecked == true;
+        var modeIndex = Math.Clamp(_appBarScrollMode.SelectedIndex, 0, AppBarScrollModes.Length - 1);
+        var mode = AppBarScrollModes[modeIndex];
+
+        if (_appBarMode != mode)
+        {
+            _appBarMode = mode;
+            _appBar.ScrollBehavior = mode switch
+            {
+                MaterialBarScrollMode.Pinned => MaterialAppBarScrollBehavior.Pinned(),
+                MaterialBarScrollMode.EnterAlways => MaterialAppBarScrollBehavior.EnterAlways(),
+                MaterialBarScrollMode.ExitUntilCollapsed =>
+                    MaterialAppBarScrollBehavior.ExitUntilCollapsed(),
+                _ => null
+            };
+        }
+        _appBar.ScrollSource = _appBarScroll;
 
         _appBar.Configuration = configuration;
         _appBar.Elevation = elevation;
@@ -326,14 +527,26 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _appBar.Thumbnail = _thumbnail;
         _appBar.AvatarText = _appBarAvatar.SelectedIndex == 1 ? "A" : null;
         _appBar.AvatarContent = _appBarAvatar.SelectedIndex == 2 ? _personAvatar : null;
-        _appBar.MaxVisibleActions = (int)Math.Round(_appBarVisible.Value);
+        _appBar.MaxItemCount = (int)Math.Round(_appBarVisible.Value);
         FillActions(_appBar, (int)Math.Round(_appBarActions.Value));
-        _appBarScroll.IsVisible = elevation == MaterialAppBarElevation.OnScroll;
     }
 
     private void ApplyBottomBar()
     {
+        _bottomBar.Configuration = _bottomConfiguration.SelectedIndex == 1
+            ? MaterialBottomAppBarConfiguration.Flexible
+            : MaterialBottomAppBarConfiguration.Classic;
         _bottomBar.IsFabVisible = _bottomFabToggle.IsChecked == true;
+        if (_bottomScrollToggle.IsChecked == true)
+        {
+            if (_bottomBar.ScrollBehavior is null)
+                _bottomBar.ScrollBehavior = MaterialAppBarScrollBehavior.ExitAlways();
+            _bottomBar.ScrollSource = _bottomScroll;
+        }
+        else
+        {
+            _bottomBar.ScrollBehavior = null;
+        }
         FillActions(_bottomBar, (int)Math.Round(_bottomActions.Value));
     }
 
@@ -342,13 +555,36 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         var configuration = _toolbarConfiguration.SelectedIndex == 1
             ? MaterialToolbarConfiguration.Floating
             : MaterialToolbarConfiguration.Docked;
+        var floating = configuration == MaterialToolbarConfiguration.Floating;
         var orientation = _toolbarOrientation.SelectedIndex == 1 ? Orientation.Vertical : Orientation.Horizontal;
+        var exitIndex = Math.Clamp(_toolbarExitDirection.SelectedIndex, 0, ToolbarExitDirections.Length - 1);
+        var exit = ToolbarExitDirections[exitIndex];
+
         _toolbar.Configuration = configuration;
         _toolbar.Orientation = orientation;
         _toolbar.HorizontalAlignment = configuration == MaterialToolbarConfiguration.Docked && orientation == Orientation.Horizontal
             ? HorizontalAlignment.Stretch
             : HorizontalAlignment.Center;
         _toolbar.Color = _toolbarColor.SelectedIndex == 1 ? MaterialToolbarColor.Vibrant : MaterialToolbarColor.Standard;
+        _toolbar.Fab = floating && _toolbarFabToggle.IsChecked == true ? _toolbarFab : null;
+        _toolbar.IsExpanded = !floating || _toolbarExpandedToggle.IsChecked == true;
+        _toolbar.ExpandOnScroll = floating && _toolbarScrollToggle.IsChecked == true;
+
+        if (floating && _toolbarScrollToggle.IsChecked == true)
+        {
+            if (_toolbarExit != exit || _toolbar.ScrollBehavior is null)
+            {
+                _toolbar.ScrollBehavior = MaterialAppBarScrollBehavior.FloatingToolbar(exitDirection: exit);
+                _toolbarExit = exit;
+            }
+            _toolbar.ScrollSource = _toolbarScroll;
+        }
+        else
+        {
+            _toolbar.ScrollBehavior = null;
+            _toolbarExit = null;
+        }
+
         FillActions(_toolbar, (int)Math.Round(_toolbarActions.Value));
     }
 
@@ -364,6 +600,17 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _pageHeader.ShowDivider = _pageDivider.IsChecked == true;
     }
 
+    private void ApplyScaffold()
+    {
+        var insets = _scaffoldInsetsToggle.IsChecked == true
+            ? new Thickness(16, 12, 16, 12)
+            : default;
+        _scaffold.ContentInsets = insets;
+        _scaffold.ConsumedInsets = _scaffoldConsumedToggle.IsChecked == true ? insets : default;
+        _scaffoldBottomBar.IsFabVisible = false;
+        FillActions(_scaffoldBottomBar, 2);
+    }
+
     private void FillActions(MaterialBarBase bar, int count)
     {
         bar.Actions.Clear();
@@ -377,6 +624,18 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
     {
         _invocations++;
         _status.Text = $"Действий: {_invocations} · {label}";
+    }
+
+    private static ScrollViewer ScrollList(string prefix)
+    {
+        var list = new StackPanel { Spacing = 4, Margin = new Thickness(8) };
+        for (var i = 1; i <= 30; i++)
+            list.Children.Add(new TextBlock { Text = $"{prefix} {i}", Margin = new Thickness(16, 8) });
+        return new ScrollViewer
+        {
+            Content = list,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        };
     }
 
     private static Control Thumbnail(string caption) => new Border

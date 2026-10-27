@@ -3,10 +3,12 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
 
@@ -97,7 +99,7 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         stage.Children.Add(_readout);
         Children.Add(stage);
 
-        _type = Choice("Тип меню", new[] { "Menu button (flyout)", "Context menu", "Menu bar" }, 0);
+        _type = Choice("Тип меню", new[] { "Menu button (flyout)", "Context menu", "Menu bar", "Exposed dropdown / search", "Groups (standalone)" }, 0);
         _surface = Choice("Поверхность", new[] { "Baseline", "Expressive" }, 1);
 
         _variantPanel.Children.Add(new TextBlock { Text = "Вариант" });
@@ -148,9 +150,10 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         {
             Text = "Один живой экземпляр меню. Menu button открывает MenuFlyout (клик, Enter, Space, ↓), " +
                    "Context menu — нативный ContextMenu (клик или правая кнопка), Menu bar — Menu с вложенным " +
-                   "подменю. Стрелки, Home/End, Escape и доступные клавиши обрабатывает Avalonia. " +
-                   "Поверхность Baseline использует плотность 56/48/40 dp, Expressive — 16 dp радиус и " +
-                   "варианты Standard/Vibrant.",
+                   "подменю, Exposed dropdown / search — keyed ComboBox и поле поиска, Groups — три " +
+                   "MaterialMenuGroup с формами Leading/Middle/Trailing. Стрелки, Home/End, Escape и " +
+                   "доступные клавиши обрабатывает Avalonia. Поверхность Baseline использует плотность " +
+                   "56/48/40 dp, Expressive — 16 dp радиус, формы пунктов и варианты Standard/Vibrant.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
         });
@@ -198,7 +201,7 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         _densityPanel.IsVisible = !expressive;
         _countCaption.Text = $"Пунктов в меню: {(int)Math.Round(_count.Value)}";
 
-        var type = Math.Clamp(_type.SelectedIndex, 0, 2);
+        var type = Math.Clamp(_type.SelectedIndex, 0, 4);
         switch (type)
         {
             case 1:
@@ -208,6 +211,14 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
             case 2:
                 _host.Content = BuildMenuBar();
                 _hint.Text = "Откройте «Файл» или «Вид»: подменю и радиопункты работают нативно.";
+                break;
+            case 3:
+                _host.Content = BuildExposedDropdown();
+                _hint.Text = "Exposed dropdown сохраняет выбор ComboBox и IME; поле поиска фильтрует строки, ↑/↓/Enter/Escape работают из поля.";
+                break;
+            case 4:
+                _host.Content = BuildGroups();
+                _hint.Text = "Три группы: Leading 16/8, Middle 8 и Trailing 8/16. Наведите и уведите курсор — углы переходят в inactive 8.";
                 break;
             default:
                 _host.Content = BuildMenuButton();
@@ -229,6 +240,80 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
                 menu.Close();
                 break;
         }
+
+        foreach (var combo in _host.GetVisualDescendants().OfType<ComboBox>())
+            combo.IsDropDownOpen = false;
+    }
+
+    private Control BuildExposedDropdown()
+    {
+        var panel = new StackPanel { Spacing = 16, MinWidth = 260 };
+
+        var dropdown = new ComboBox
+        {
+            Theme = FindTheme("MaterialExposedDropdownMenu"),
+            ItemsSource = new[] { "Автоматически", "Светлая", "Тёмная" },
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(dropdown, "Тема оформления");
+        panel.Children.Add(dropdown);
+
+        var search = new MaterialMenuTextField
+        {
+            Label = "Поиск команды",
+            PlaceholderText = "Введите название",
+            SupportingText = "Стрелки и Enter работают, не покидая поле",
+            MaxMenuHeight = 220,
+        };
+        search.Items.Add(new MaterialMenuTextFieldItem("Копировать", "Ctrl+C", new PathIcon { Data = Copy }));
+        search.Items.Add(new MaterialMenuTextFieldItem("Вставить", "Ctrl+V"));
+        search.Items.Add(new MaterialMenuTextFieldItem("Удалить", "Необратимо"));
+        search.Items.Add(new MaterialMenuTextFieldItem("Свойства"));
+        search.ItemInvoked += (_, args) => Report($"Поле меню: {args.Item.Label}");
+        panel.Children.Add(search);
+
+        // The exposed dropdown stays on the baseline menu surface: the keyed ComboBox theme is the
+        // source ExposedDropdownMenuBox anchor and its popup is the MenuTokens container.
+        return panel;
+    }
+
+    private Control BuildGroups()
+    {
+        var card = new Border
+        {
+            Padding = new Thickness(8),
+            CornerRadius = new CornerRadius(16),
+            MinWidth = 240,
+        };
+        card.Bind(Border.BackgroundProperty, card.GetResourceObservable("MaterialSurfaceContainerBrush"));
+
+        var stack = new StackPanel { Spacing = 0 };
+        var positions = new[]
+        {
+            MaterialMenuGroupPosition.Leading,
+            MaterialMenuGroupPosition.Middle,
+            MaterialMenuGroupPosition.Trailing,
+        };
+        var labels = new[] { "Первая", "Средняя", "Последняя" };
+        for (var index = 0; index < positions.Length; index++)
+        {
+            var label = labels[index];
+            var group = new MaterialMenuGroup { Header = label, Position = positions[index] };
+            MaterialMenu.SetSurfaceStyle(group, MaterialMenuSurfaceStyle.Expressive);
+            MaterialMenu.SetVariant(group, Variant);
+            for (var row = 1; row <= 2; row++)
+            {
+                var item = new MenuItem { Header = $"{label}: пункт {row}" };
+                MaterialMenu.SetItemPosition(item,
+                    row == 1 ? MaterialMenuItemPosition.Leading : MaterialMenuItemPosition.Trailing);
+                item.Click += (_, _) => Report($"Группа: {label}");
+                group.Items.Add(item);
+            }
+            stack.Children.Add(group);
+        }
+        card.Child = stack;
+        return card;
     }
 
     private Control BuildMenuButton()
@@ -249,6 +334,7 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         MaterialMenu.SetVariant(menu, Variant);
         MaterialMenu.SetDensity(menu, Density);
         MaterialMenu.SetShowScrollBar(menu, _scroll.IsChecked == true);
+        MaterialMenu.SetAnimateContextMenu(menu, true);
         Populate(item => menu.Items.Add(item));
         button.ContextMenu = menu;
         button.Click += (_, _) => menu.Open(button);
@@ -294,9 +380,14 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
 
     private MenuFlyout BuildFlyout()
     {
-        var flyout = new MenuFlyout
+        var flyout = new MaterialMenuFlyout
         {
             FlyoutPresenterTheme = FlyoutPresenterTheme(),
+            Placement = PlacementMode.Bottom,
+            PlacementConstraintAdjustment = PopupPositionerConstraintAdjustment.FlipX
+                | PopupPositionerConstraintAdjustment.FlipY
+                | PopupPositionerConstraintAdjustment.SlideX
+                | PopupPositionerConstraintAdjustment.SlideY,
         };
         Populate(item => flyout.Items.Add(item));
         return flyout;
@@ -340,6 +431,13 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
             };
             KeyGesture? gesture = index == 0 ? new KeyGesture(Key.O, KeyModifiers.Control) : null;
             var item = Item(header, gesture, _icons.IsChecked == true ? icon : null, null);
+            MaterialMenu.SetItemPosition(item, count == 1
+                ? MaterialMenuItemPosition.Standalone
+                : index == 0
+                    ? MaterialMenuItemPosition.Leading
+                    : index == count - 1
+                        ? MaterialMenuItemPosition.Trailing
+                        : MaterialMenuItemPosition.Middle);
             if (_supporting.IsChecked == true && index == 0)
                 MaterialMenu.SetSupportingText(item, "Второй строкой");
             if (_divider.IsChecked == true && index == 0)

@@ -35,6 +35,7 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _threeState;
     private readonly ToggleSwitch _error;
     private readonly ToggleSwitch _icons;
+    private readonly ToggleSwitch _contentIcons;
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _rtl;
     private string _checkLabel = "Согласен с условиями";
@@ -100,16 +101,18 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
         _switchSettings = new StackPanel { Spacing = 16 };
         _switchState = Choice(_switchSettings, "Состояние", new[] { "Off", "On" }, 1);
         _icons = Toggle(_switchSettings, "Встроенные иконки (ShowSwitchIcons)", true);
+        _contentIcons = Toggle(_switchSettings, "Иконки контента (OnContent/OffContent)", false);
         Settings.Children.Add(_switchSettings);
 
         _enabled = Toggle(Settings, "Доступен", true);
         _rtl = Toggle(Settings, "Справа налево (RTL)", false);
         Settings.Children.Add(new TextBlock
         {
-            Text = "MD3 Expressive использует шаблон Selection: контейнер флажка 18 dp, " +
+            Text = "MD3 Expressive использует шаблон Selection: контейнер флажка 20 dp, " +
                    "глиф радиокнопки 20 dp, дорожка переключателя 52 × 32 dp. Клик, Space, Enter и стрелки — настоящие состояния; " +
                    "трёхпозиционный флажок циклически проходит Off → On → Indeterminate. Подпись меняется справа, " +
-                   "а состояние примера всегда отражается в инспекторе.",
+                   "а состояние примера всегда отражается в инспекторе. Иконки контента — это нативные OnContent/OffContent; " +
+                   "они так же расширяют ручку до 24 dp.",
             TextWrapping = TextWrapping.Wrap, FontSize = 13
         });
 
@@ -161,6 +164,7 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
         _error.IsCheckedChanged += (_, _) => DataValidationErrors.SetErrors(_check,
             _error.IsChecked == true ? new object[] { "Обязательное поле" } : null);
         _icons.IsCheckedChanged += (_, _) => MaterialSelection.SetShowSwitchIcons(_switch, _icons.IsChecked == true);
+        _contentIcons.IsCheckedChanged += (_, _) => ApplySwitchContent();
         _enabled.IsCheckedChanged += (_, _) => _host.IsEnabled = _enabled.IsChecked == true;
         _rtl.IsCheckedChanged += (_, _) =>
             _host.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
@@ -219,6 +223,18 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
         }
         UpdateReadout();
     }
+
+    private void ApplySwitchContent()
+    {
+        var show = _contentIcons.IsChecked == true;
+        _switch.OnContent = show ? SwitchIcon(
+            "M3.8 8.01667L0 4.21667L0.95 3.26667L3.8 6.11667L9.91667 0L10.8667 0.95L3.8 8.01667Z") : null;
+        _switch.OffContent = show ? SwitchIcon(
+            "M0.933333 9.33333L0 8.4L3.73333 4.66667L0 0.933333L0.933333 0L4.66667 3.73333L8.4 0L9.33333 0.933333L5.6 4.66667L9.33333 8.4L8.4 9.33333L4.66667 5.6L0.933333 9.33333Z") : null;
+    }
+
+    private static PathIcon SwitchIcon(string data) =>
+        new() { Data = Geometry.Parse(data), Width = 16, Height = 16 };
 
     private void RadioChanged(int index)
     {

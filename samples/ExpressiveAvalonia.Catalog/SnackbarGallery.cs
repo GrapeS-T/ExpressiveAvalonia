@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
 
@@ -17,13 +19,23 @@ namespace ExpressiveAvalonia.Catalog;
 /// The inspector edits the message, the action label, the line count, the action placement, the
 /// close affordance and the duration of the single snackbar; changes reach a snackbar that is
 /// already on screen. The demo buttons exercise the real host queue, the programmatic dismissal
-/// and the window overlay host.
+/// and the window overlay host. Window overlay snackbars requested here are page-owned: the page
+/// cancels its own requests when the tab detaches, so an indefinite overlay does not outlive the
+/// page that owns its action, while the embedded host and other pages' overlays are unaffected.
 /// </remarks>
 public static class SnackbarGallery
 {
     public static Control Create() => new SnackbarPlayground();
 }
 
+/// <summary>
+/// Live snackbar coverage for N08 (F05 shared lifecycle). Source mapping: 4 s default and
+/// indefinite-with-action durations, source-measured auto text sizing (unlimited wrapped lines, no
+/// ellipsis), the explicit one/two-line cap extensions, inline/stacked action, close affordance,
+/// queue result on dismissal start, outgoing-item fade/scale overlap and live-region announcement
+/// from Snackbar.kt and SnackbarHost.kt. Accessibility timeout and focus pause are documented
+/// desktop adaptations.
+/// </summary>
 internal sealed class SnackbarPlayground : Grid, IComponentPlayground
 {
     private const string ShortText = "Snackbar supporting text";
@@ -47,6 +59,7 @@ internal sealed class SnackbarPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _close;
     private readonly ComboBox _duration;
     private MaterialSnackbar? _open;
+    private readonly List<(MaterialSnackbarHost Host, MaterialSnackbar Snackbar)> _overlaySnackbars = [];
 
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
@@ -123,7 +136,7 @@ internal sealed class SnackbarPlayground : Grid, IComponentPlayground
         AutomationProperties.SetName(_action, "Текст действия");
         Settings.Children.Add(_action);
 
-        _lines = Choice(Settings, "Строк текста", ["1 строка", "2 строки"]);
+        _lines = Choice(Settings, "Строк текста", ["По тексту (auto)", "1 строка", "2 строки"]);
         _placementGroup = new StackPanel { Spacing = 6 };
         _placementGroup.Children.Add(new TextBlock { Text = "Размещение действия" });
         _placement = Group(_placementGroup, ["В строке текста", "Под текстом"]);
@@ -175,8 +188,12 @@ internal sealed class SnackbarPlayground : Grid, IComponentPlayground
         snackbar.Duration = Duration();
     }
 
-    private MaterialSnackbarLineCount Lines() =>
-        _lines.SelectedIndex == 1 ? MaterialSnackbarLineCount.TwoLines : MaterialSnackbarLineCount.OneLine;
+    private MaterialSnackbarLineCount Lines() => _lines.SelectedIndex switch
+    {
+        1 => MaterialSnackbarLineCount.OneLine,
+        2 => MaterialSnackbarLineCount.TwoLines,
+        _ => MaterialSnackbarLineCount.Auto,
+    };
 
     private MaterialSnackbarActionPlacement Placement() =>
         _placement.SelectedIndex == 1 ? MaterialSnackbarActionPlacement.Below : MaterialSnackbarActionPlacement.Inline;
@@ -225,13 +242,37 @@ internal sealed class SnackbarPlayground : Grid, IComponentPlayground
         Track(snackbar);
         try
         {
-            _ = MaterialSnackbarHost.Show(topLevel, snackbar);
+            // The overlay host lives in the window, outside this page. Remember the pair so a
+            // tab switch cancels these snackbars instead of leaving an indefinite one covering
+            // the next page; the embedded host and other pages' overlays are untouched.
+            var host = MaterialSnackbarHost.GetHost(topLevel);
+            _ = host.Show(snackbar);
+            _overlaySnackbars.Add((host, snackbar));
             _status.Text = "Показан в оверлее окна.";
         }
         catch (InvalidOperationException exception)
         {
             _status.Text = exception.Message;
         }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        CancelOwnedOverlaySnackbars();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void CancelOwnedOverlaySnackbars()
+    {
+        if (_overlaySnackbars.Count == 0)
+            return;
+
+        // Dismissing can synchronously raise Closed, which removes the entry from the tracked
+        // list; cancel from a snapshot. Only this page's requests are affected.
+        var owned = new List<(MaterialSnackbarHost Host, MaterialSnackbar Snackbar)>(_overlaySnackbars);
+        _overlaySnackbars.Clear();
+        foreach (var (host, snackbar) in owned)
+            host.Cancel(snackbar);
     }
 
     private void Track(MaterialSnackbar snackbar)
@@ -241,6 +282,11 @@ internal sealed class SnackbarPlayground : Grid, IComponentPlayground
         {
             if (ReferenceEquals(_open, snackbar))
                 _open = null;
+            for (var i = _overlaySnackbars.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(_overlaySnackbars[i].Snackbar, snackbar))
+                    _overlaySnackbars.RemoveAt(i);
+            }
             _status.Text = $"Snackbar закрыт: {Describe(e.Reason)}.";
         };
     }

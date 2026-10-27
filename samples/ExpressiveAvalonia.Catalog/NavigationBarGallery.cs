@@ -42,11 +42,16 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
     private readonly TextBlock _pageTitle = new();
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly MaterialButtonGroup _axis;
+    private readonly MaterialButtonGroup _kind;
+    private readonly MaterialButtonGroup _arrangement;
     private readonly MaterialButtonGroup _itemOrientation;
     private readonly MaterialButtonGroup _badge;
     private readonly ToggleSwitch _labels;
+    private readonly ToggleSwitch _alwaysShowLabel;
+    private readonly ToggleSwitch _rtl;
     private readonly ToggleSwitch _disabledLast;
     private readonly Slider _count;
+    private readonly Slider _cardWidth;
     private readonly TextBox _badgeText;
     private readonly ComboBox _selected;
     private bool _sync;
@@ -98,27 +103,33 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
         Children.Add(stage);
 
         _axis = Choice("Ось полосы", ["Горизонтальная", "Вертикальная"]);
-        _itemOrientation = Choice("Расположение пунктов", ["Авто", "В ряд", "В столбец"]);
+        _kind = Choice("Вариант", ["Классическая", "Short (выразительная)"]);
+        _arrangement = Choice("Раскладка Short", ["Равные", "По центру"]);
+        _itemOrientation = Choice("Расположение пунктов", ["Авто", "Иконка слева", "Иконка сверху"]);
         _count = Number("Количество пунктов", 3, 6, 4, 1);
         _labels = Toggle("Подписи пунктов", true);
+        _alwaysShowLabel = Toggle("Подписи у всех пунктов", true);
         _badge = Choice("Badge «Избранное»", ["Нет", "Точка", "Число"]);
+        _rtl = Toggle("RTL (справа налево)", false);
         _badgeText = new TextBox { Text = "3", HorizontalAlignment = HorizontalAlignment.Stretch };
         MaterialTextField.SetLabel(_badgeText, "Текст badge");
         MaterialTextField.SetVariant(_badgeText, MaterialTextFieldVariant.Outlined);
         AutomationProperties.SetName(_badgeText, "Текст badge");
         Settings.Children.Add(_badgeText);
         _disabledLast = Toggle("Последний пункт недоступен", false);
+        _cardWidth = Number("Ширина панели", 240, 720, 560, 20);
 
         Settings.Children.Add(new TextBlock { Text = "Выбранный пункт" });
         _selected = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
         AutomationProperties.SetName(_selected, "Выбранный пункт");
         Settings.Children.Add(_selected);
 
-        foreach (var group in new[] { _axis, _itemOrientation, _badge })
+        foreach (var group in new[] { _axis, _kind, _arrangement, _itemOrientation, _badge })
             group.SelectionChanged += (_, _) => Apply();
-        foreach (var toggle in new[] { _labels, _disabledLast })
+        foreach (var toggle in new[] { _labels, _alwaysShowLabel, _rtl, _disabledLast })
             toggle.IsCheckedChanged += (_, _) => Apply();
         _count.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
+        _cardWidth.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
         _badgeText.TextChanged += (_, _) => Apply();
         _selected.SelectionChanged += (_, _) =>
         {
@@ -145,19 +156,28 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
     private void Apply()
     {
         var vertical = _axis.SelectedIndex == 1;
+        var shortBar = _kind.SelectedIndex == 1;
         _sync = true;
         try
         {
+            _bar.Kind = shortBar ? MaterialNavigationBarKind.Short : MaterialNavigationBarKind.Classic;
+            _bar.ShortArrangement = _arrangement.SelectedIndex == 1
+                ? MaterialShortNavigationBarArrangement.Centered
+                : MaterialShortNavigationBarArrangement.EqualWeight;
+            _arrangement.IsEnabled = shortBar;
             _bar.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
-            _bar.ItemOrientation = _itemOrientation.SelectedIndex switch
+            _bar.ItemIconPosition = _itemOrientation.SelectedIndex switch
             {
-                1 => MaterialNavigationBarItemOrientation.Horizontal,
-                2 => MaterialNavigationBarItemOrientation.Vertical,
-                _ => MaterialNavigationBarItemOrientation.Auto,
+                1 => MaterialNavigationItemIconPosition.Start,
+                2 => MaterialNavigationItemIconPosition.Top,
+                _ => MaterialNavigationItemIconPosition.Auto,
             };
+            _bar.FlowDirection = _rtl.IsChecked == true
+                ? Avalonia.Media.FlowDirection.RightToLeft
+                : Avalonia.Media.FlowDirection.LeftToRight;
             DockPanel.SetDock(_bar, vertical ? Dock.Left : Dock.Bottom);
             _bar.Width = vertical ? 240 : double.NaN;
-            _card.Width = vertical ? 620 : 560;
+            _card.Width = _cardWidth.Value;
             _card.Height = 440;
 
             var count = (int)Math.Round(_count.Value);
@@ -213,6 +233,7 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
             if (_bar.Items[i] is not MaterialNavigationBarItem item)
                 continue;
             item.ShowLabel = showLabels;
+            item.AlwaysShowLabel = _alwaysShowLabel.IsChecked == true;
             item.IsEnabled = !(i == count - 1 && _disabledLast.IsChecked == true);
             item.SelectedIcon = i == 2 ? Geometry.Parse(StarFilledIcon) : null;
             item.Badge = i == 2 ? badge : MaterialNavigationBarBadge.None;

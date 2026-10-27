@@ -56,12 +56,28 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
     private readonly MaterialButtonGroup _shape;
     private readonly MaterialButtonGroup _selection;
     private readonly MaterialButtonGroup _orientation;
+    private readonly MaterialSplitButton _split = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+        Content = "Сохранить",
+    };
+    private readonly MaterialSplitButton _splitToggle = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+        Content = "В избранное",
+        IsTrailingCheckable = true,
+    };
+    private readonly MenuFlyout _splitMenu = new();
     private readonly ComboBox _variant;
     private readonly ComboBox _size;
     private readonly ToggleSwitch _check;
     private readonly ToggleSwitch _replace;
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _rtl;
+    private readonly ToggleSwitch _splitPrimaryEnabled;
+    private readonly ToggleSwitch _splitTrailingEnabled;
     private readonly Slider _density;
     private readonly Slider _count;
     private readonly TextBox _labels;
@@ -87,9 +103,44 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         };
         stage.Children.Add(_group);
         stage.Children.Add(_readout);
+
+        // Split button anatomy: two independent halves, a real MenuFlyout on the trailing half,
+        // hover/press seam-corner morphs and RTL mirroring.
+        var splitIcon = new MaterialIcon { IconName = "share", IsDecorative = true };
+        splitIcon.Bind(TemplatedControl.ForegroundProperty,
+            _split.GetObservable(TemplatedControl.ForegroundProperty));
+        _split.Icon = splitIcon;
+        _split.Flyout = _splitMenu;
+        _split.Click += (_, _) => _readout.Text = "Split: выполнено ведущее действие";
+        foreach (var label in new[] { "Экспорт", "В архив" })
+        {
+            var menuItem = new MenuItem { Header = label };
+            menuItem.Click += (_, _) => _readout.Text = $"Split: меню «{label}»";
+            _splitMenu.Items.Add(menuItem);
+        }
+        stage.Children.Add(_split);
+
+        // Checkable trailing variant without a popup: native activation toggles the trailing half,
+        // morphs it to the full-round checked shape and paints the 10% content-colored layer.
+        var toggleIcon = new MaterialIcon { IconName = "star", IsDecorative = true };
+        toggleIcon.Bind(TemplatedControl.ForegroundProperty,
+            _splitToggle.GetObservable(TemplatedControl.ForegroundProperty));
+        _splitToggle.Icon = toggleIcon;
+        _splitToggle.TrailingCheckedChanged += (_, _) =>
+        {
+            _readout.Text = _splitToggle.IsTrailingChecked
+                ? "Split: дополнительное действие включено"
+                : "Split: дополнительное действие выключено";
+        };
+        stage.Children.Add(_splitToggle);
+
         Children.Add(stage);
 
         AutomationProperties.SetName(_group, "Группа кнопок");
+        AutomationProperties.SetName(_split, "Кнопка с меню");
+        AutomationProperties.SetName(_splitToggle, "Кнопка с переключаемым действием");
+        AutomationProperties.SetName(splitIcon, "Действие");
+        AutomationProperties.SetName(toggleIcon, "Избранное");
 
         _kind = Choice(Settings, "Семейство", new[] { "Standard", "Connected", "Segmented" }, 0);
         _content = Choice(Settings, "Содержимое", new[] { "Текст", "Иконка", "Текст и иконка" }, 2);
@@ -137,12 +188,16 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
 
         _enabled = Toggle(Settings, "Доступна", true);
         _rtl = Toggle(Settings, "Справа налево (RTL)", false);
+        _splitPrimaryEnabled = Toggle(Settings, "Split: ведущее действие доступно", true);
+        _splitTrailingEnabled = Toggle(Settings, "Split: действие меню доступно", true);
         Settings.Children.Add(new TextBlock
         {
             Text = "Standard разделяет кнопки и не хранит выбор; Connected соединяет сегменты 2 dp и " +
                    "рисует выбранный сегмент пилюлей; Segmented делит общую рамку 1 dp, а плотность 0…-3 " +
                    "понижает высоту на 4 dp за шаг. Стрелки, Home/End и Space работают нативно: " +
-                   "переключение вида, размера или формы сохраняет выбранный сегмент.",
+                   "переключение вида, размера или формы сохраняет выбранный сегмент. " +
+                   "Split без меню переключает trailing-половину: checked даёт пилюлю и слой 10%, " +
+                   "а команда видит уже новое состояние.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
         });
@@ -155,7 +210,11 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
             choice.SelectionChanged += (_, _) => Apply();
         _variant.SelectionChanged += (_, _) => Apply();
         _size.SelectionChanged += (_, _) => Apply();
-        foreach (var toggle in new[] { _check, _replace, _enabled, _rtl })
+        foreach (var toggle in new[]
+                 {
+                     _check, _replace, _enabled, _rtl,
+                     _splitPrimaryEnabled, _splitTrailingEnabled,
+                 })
             toggle.IsCheckedChanged += (_, _) => Apply();
         foreach (var slider in new[] { _density, _count })
             slider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
@@ -209,6 +268,15 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         _group.Density = kind == MaterialButtonGroupKind.Segmented ? (int)Math.Round(_density.Value) : 0;
         _group.IsEnabled = _enabled.IsChecked == true;
         _group.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+
+        _split.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        _split.IsPrimaryEnabled = _splitPrimaryEnabled.IsChecked == true;
+        _split.IsTrailingEnabled = _splitTrailingEnabled.IsChecked == true;
+
+        // The checkable variant shares the RTL and trailing-enabled controls so both splits show
+        // the same mirrored seam and disabled composition; it deliberately has no popup.
+        _splitToggle.FlowDirection = _split.FlowDirection;
+        _splitToggle.IsTrailingEnabled = _split.IsTrailingEnabled;
 
         SyncItems(count, labels, showText, showIcon);
         RestoreSelection(mode, count);

@@ -17,10 +17,26 @@ namespace ExpressiveAvalonia.Catalog;
 /// toolbar, a navigation bar, a navigation rail or the modal dialog.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Every element is the real control, so pointer and keyboard activation, single selection,
 /// commands, focus rings and the native modal dialog lifecycle are exercised rather than drawn.
 /// The gallery does not claim spatial runtime support; it demonstrates the desktop interaction
 /// model of the XR components.
+/// </para>
+/// <para>
+/// Classification against the pinned <c>xr/compose/material3</c> source: the navigation bar and
+/// rail are desktop compositions of SpatialNavigationBar/SpatialNavigationRail with their 2D
+/// metrics (80/8/50% and 96/20/50%); the inspector's short-bar switch composes
+/// SpatialShortNavigationBar (32 padding and gap), whose geometry comes only from the pinned
+/// tokens because the local design source has no short-bar package. The rail's wide switch
+/// composes SpatialWideNavigationRail (96 collapsed, 220–360 expanded, 20 padding and gap, header
+/// slot) without the Orbiter. The toolbar and app bar are
+/// desktop compositions of the Orbiter-wrapped common controls without the Orbiter; dialog, icon
+/// buttons, labeled toggles and keyboard navigation are local extensions. The rail uses the pinned
+/// 20 DIP destination gap, and the toolbar exposes the pinned expanded leading/trailing slots as a
+/// desktop composition. SpaceToggleButton, Orbiter properties,
+/// ThreePaneScaffold and ListDetailPaneScaffold have no desktop port here.
+/// </para>
 /// </remarks>
 public static class XrGallery
 {
@@ -94,14 +110,30 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
     private readonly ComboBox _toolbarOrientation;
     private readonly Slider _toolbarItems;
     private readonly ToggleSwitch _toolbarFab;
+    private readonly ToggleSwitch _toolbarExpanded;
+    private readonly ToggleSwitch _toolbarScrollToggle;
+    private readonly XrIconButton _toolbarLeading = new() { Icon = XrIcons.Menu, Label = "Меню" };
+    private readonly XrIconButton _toolbarTrailing = new() { Icon = XrIcons.Close, Label = "Закрыть" };
+    private readonly ScrollViewer _toolbarScroll;
+    private readonly Grid _toolbarStage;
 
     private readonly StackPanel _navBarGroup;
     private readonly Slider _navBarCount;
+    private readonly ToggleSwitch _navBarShort;
 
     private readonly StackPanel _railGroup;
+    private readonly ToggleSwitch _railWide;
+    private readonly ToggleSwitch _railExpanded;
+    private readonly Slider _railWidth;
     private readonly ToggleSwitch _railFab;
     private readonly ToggleSwitch _railLabels;
     private readonly ToggleSwitch _railMenu;
+    private readonly TextBlock _railHeader = new()
+    {
+        Text = "XR",
+        FontSize = 14,
+        FontWeight = FontWeight.Bold,
+    };
 
     private readonly StackPanel _dialogGroup;
     private readonly TextBox _dialogTitle;
@@ -134,9 +166,14 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
             },
         };
 
+        _toolbar.LeadingContent = _toolbarLeading;
+        _toolbar.TrailingContent = _toolbarTrailing;
+        _toolbarScroll = ScrollList();
+        _toolbarStage = new Grid { Children = { _toolbarScroll, _toolbar } };
+
         var stageContent = new Grid
         {
-            Children = { _appBar, _iconButton, _toggleButton, _toolbar, _navBar, _rail, _dialogPanel },
+            Children = { _appBar, _iconButton, _toggleButton, _toolbarStage, _navBar, _rail, _dialogPanel },
         };
         var stage = new Border
         {
@@ -223,17 +260,23 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
         _toolbarGroup.Children.Add(_toolbarOrientation);
         _toolbarItems = Number(_toolbarGroup, "Действий", 3, 6, 6);
         _toolbarFab = Toggle(_toolbarGroup, "FAB в toolbar", true);
+        _toolbarExpanded = Toggle(_toolbarGroup, "Развёрнут", true);
+        _toolbarScrollToggle = Toggle(_toolbarGroup, "Скрывать при прокрутке", true);
         Settings.Children.Add(_toolbarGroup);
 
         _navBarGroup = new StackPanel { Spacing = 12 };
         _navBarGroup.Children.Add(new TextBlock { Text = "Navigation bar", FontSize = 16, FontWeight = FontWeight.Bold });
         _navBarCount = Number(_navBarGroup, "Пунктов", 3, 5, 4);
+        _navBarShort = Toggle(_navBarGroup, "Короткая панель", false);
         Settings.Children.Add(_navBarGroup);
 
         _railGroup = new StackPanel { Spacing = 12 };
         _railGroup.Children.Add(new TextBlock { Text = "Navigation rail", FontSize = 16, FontWeight = FontWeight.Bold });
+        _railWide = Toggle(_railGroup, "Широкая панель", false);
+        _railExpanded = Toggle(_railGroup, "Развёрнута", false);
+        _railWidth = Number(_railGroup, "Ширина широкой панели", 220, 360, 300);
         _railFab = Toggle(_railGroup, "FAB в rail", true);
-        _railLabels = Toggle(_railGroup, "Подписи пунктов", false);
+        _railLabels = Toggle(_railGroup, "Подписи пунктов", true);
         _railMenu = Toggle(_railGroup, "Кнопка меню", true);
         Settings.Children.Add(_railGroup);
 
@@ -291,11 +334,14 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
         _toolbarOrientation.SelectionChanged += (_, _) => Apply();
         _toolbarItems.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
         _navBarCount.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
+        _railWidth.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
         _dialogTitle.TextChanged += (_, _) => Apply();
         _dialogText.TextChanged += (_, _) => Apply();
         foreach (var toggle in new[]
                  {
-                     _selected, _enabled, _toolbarFab, _railFab, _railLabels, _railMenu,
+                     _selected, _enabled, _toolbarFab, _toolbarExpanded, _toolbarScrollToggle,
+                     _railWide, _railExpanded, _railFab, _railLabels, _railMenu,
+                     _navBarShort,
                      _dialogIcon, _dialogDivider, _dialogSecondary,
                  })
             toggle.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
@@ -313,7 +359,7 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
         _appBar.IsVisible = component == 0;
         _iconButton.IsVisible = component == 1;
         _toggleButton.IsVisible = component == 2;
-        _toolbar.IsVisible = component == 3;
+        _toolbarStage.IsVisible = component == 3;
         _navBar.IsVisible = component == 4;
         _rail.IsVisible = component == 5;
         _dialogPanel.IsVisible = component == 6;
@@ -365,13 +411,34 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
         _toolbar.Orientation = _toolbarOrientation.SelectedIndex == 1 ? Orientation.Vertical : Orientation.Horizontal;
         _toolbar.Elevation = surface;
         _toolbar.ShowFab = _toolbarFab.IsChecked == true;
+        _toolbar.IsExpanded = _toolbarExpanded.IsChecked == true;
+        _toolbarLeading.Surface = surface;
+        _toolbarTrailing.Surface = surface;
+        if (_toolbarScrollToggle.IsChecked == true)
+        {
+            if (_toolbar.ScrollBehavior is null)
+                _toolbar.ScrollBehavior = MaterialAppBarScrollBehavior.FloatingToolbar();
+            _toolbar.ScrollSource = _toolbarScroll;
+        }
+        else
+        {
+            _toolbar.ScrollBehavior = null;
+        }
         SyncToolbar(surface);
 
+        _rail.Variant = _railWide.IsChecked == true
+            ? XrNavigationRailVariant.Wide
+            : XrNavigationRailVariant.Standard;
+        _rail.IsExpanded = _railExpanded.IsChecked == true;
+        _rail.ExpandedWidth = _railWidth.Value;
         _rail.ShowFab = _railFab.IsChecked == true;
         _rail.ShowMenu = _railMenu.IsChecked == true;
         foreach (var item in _rail.Items.OfType<XrNavigationRailItem>())
             item.ShowLabel = _railLabels.IsChecked == true;
 
+        _navBar.Variant = _navBarShort.IsChecked == true
+            ? XrNavigationBarVariant.Short
+            : XrNavigationBarVariant.Standard;
         if (component == 4)
             BuildNavigationBar();
     }
@@ -458,6 +525,7 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
         }
 
         _rail.SelectedIndex = 0;
+        _rail.Header = _railHeader;
     }
 
     private XrIconButton LeadingButton()
@@ -513,6 +581,18 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
             // instead of letting an async void handler take the process down.
             _status.Text = exception.Message;
         }
+    }
+
+    private static ScrollViewer ScrollList()
+    {
+        var list = new StackPanel { Spacing = 4, Margin = new Thickness(8) };
+        for (var i = 1; i <= 30; i++)
+            list.Children.Add(new TextBlock { Text = $"Элемент {i}", Margin = new Thickness(16, 8) });
+        return new ScrollViewer
+        {
+            Content = list,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+        };
     }
 
     private static ComboBox Select(StackPanel target, string label, string[] options, int selected)

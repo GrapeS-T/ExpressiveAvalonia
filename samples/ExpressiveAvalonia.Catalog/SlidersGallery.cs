@@ -76,6 +76,8 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
         {
             if (e.Property == MaterialRangeSlider.LowerValueProperty || e.Property == MaterialRangeSlider.UpperValueProperty) SyncValues();
         };
+        // The range readout only claims a finished interaction when the range reports one.
+        _range.ValueChangeCompleted += (_, _) => SyncValues(completed: true);
         Apply();
     }
 
@@ -181,7 +183,7 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
         SyncValues();
     }
 
-    private void SyncValues()
+    private void SyncValues(bool completed = false)
     {
         if (_syncing) return;
         _syncing = true;
@@ -189,7 +191,8 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
         _lower.Value = (decimal)_range.LowerValue;
         _upper.Value = (decimal)_range.UpperValue;
         _readout.Text = _kind.SelectedIndex == 2
-            ? $"Диапазон: {_range.LowerValue:0.##} — {_range.UpperValue:0.##}"
+            ? $"Диапазон: {_range.LowerValue:0.##} — {_range.UpperValue:0.##}" +
+              (completed ? " · изменение завершено" : "")
             : $"Значение: {_single.Value:0.##}";
         _syncing = false;
     }
@@ -223,7 +226,7 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
                 var index = i;
                 var item = new MenuItem
                 {
-                    Header = options[i], MinWidth = 240, MinHeight = 56,
+                    Header = options[i], MinWidth = 240,
                     Icon = new PathIcon { Data = icon, Width = 24, Height = 24 }
                 };
                 MaterialMenu.SetSurfaceStyle(item, MaterialMenuSurfaceStyle.Expressive);

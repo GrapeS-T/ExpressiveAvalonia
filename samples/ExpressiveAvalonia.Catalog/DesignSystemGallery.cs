@@ -37,6 +37,9 @@ internal static class DesignSystemGallery
         Add("Carousel", CarouselGallery.Create);
         Add("Time pickers", TimePickersGallery.Create);
         Add("Examples", ExamplesGallery.Create);
+        Add("Pull to refresh", PullToRefreshGallery.Create);
+        Add("Scroll fields", ScrollFieldGallery.Create);
+        Add("Scrollbars", ScrollbarsGallery.Create);
         void Add(string title, Func<Control> create) => pages.Items.Add(new TabItem { Header = title, Content = new DeferredGallery(create) });
         return pages;
     }

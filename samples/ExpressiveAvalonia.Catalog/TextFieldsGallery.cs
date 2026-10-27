@@ -18,6 +18,9 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
 {
     private readonly TextBox _field = new() { Width = 320, Text = "Input text", VerticalAlignment = VerticalAlignment.Center };
     private readonly MaterialButtonGroup _variant;
+    private readonly MaterialButtonGroup _labelPosition;
+    private readonly MaterialButtonGroup _labelAlignment;
+    private readonly ToggleSwitch _alwaysMinimized;
     private readonly TextBox _label;
     private readonly TextBox _placeholder;
     private readonly TextBox _supporting;
@@ -53,6 +56,30 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
         _variant.Items.Add(new MaterialButtonGroupItem { Content = "Filled" });
         _variant.Items.Add(new MaterialButtonGroupItem { Content = "Outlined" });
         Settings.Children.Add(_variant);
+        Settings.Children.Add(new TextBlock { Text = "Положение подписи" });
+        _labelPosition = new MaterialButtonGroup
+        {
+            Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round,
+            ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true, SelectedIndex = 0
+        };
+        _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Авто" });
+        _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Внутри" });
+        _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Вырез" });
+        _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Сверху" });
+        Settings.Children.Add(_labelPosition);
+        Settings.Children.Add(new TextBlock { Text = "Выравнивание подписи" });
+        _labelAlignment = new MaterialButtonGroup
+        {
+            Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round,
+            ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single,
+            ShowSelectedIcon = true, SelectedIndex = 0
+        };
+        _labelAlignment.Items.Add(new MaterialButtonGroupItem { Content = "Старт" });
+        _labelAlignment.Items.Add(new MaterialButtonGroupItem { Content = "Центр" });
+        _labelAlignment.Items.Add(new MaterialButtonGroupItem { Content = "Конец" });
+        Settings.Children.Add(_labelAlignment);
+        _alwaysMinimized = Toggle("Подпись всегда минимизирована", false);
         var widthLabel = new TextBlock { Text = "Ширина: 320 dp" };
         Settings.Children.Add(widthLabel);
         _width = new Slider { Minimum = 240, Maximum = 560, Value = 320, TickFrequency = 1, IsSnapToTickEnabled = true };
@@ -89,9 +116,11 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
             TextWrapping = TextWrapping.Wrap, FontSize = 13
         });
         _variant.SelectionChanged += (_, _) => Apply();
+        _labelPosition.SelectionChanged += (_, _) => Apply();
+        _labelAlignment.SelectionChanged += (_, _) => Apply();
         foreach (var editor in new[] { _label, _placeholder, _supporting, _prefix, _suffix })
             editor.TextChanged += (_, _) => Apply();
-        foreach (var toggle in new[] { _leading, _trailing, _clear, _password, _multiline, _error, _enabled, _readOnly, _rtl })
+        foreach (var toggle in new[] { _leading, _trailing, _clear, _password, _multiline, _error, _enabled, _readOnly, _rtl, _alwaysMinimized })
             toggle.IsCheckedChanged += (_, _) => Apply();
         Apply();
     }
@@ -121,6 +150,17 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
         MaterialTextField.SetVariant(_field, (MaterialTextFieldVariant)_variant.SelectedIndex);
         _field.Width = _width.Value;
         MaterialTextField.SetLabel(_field, _label.Text);
+        var position = (MaterialTextFieldLabelPosition)_labelPosition.SelectedIndex;
+        MaterialTextField.SetLabelPosition(_field, position);
+        // Above is always minimized in the source; the other positions expose the flag.
+        _alwaysMinimized.IsEnabled = position != MaterialTextFieldLabelPosition.Above;
+        MaterialTextField.SetIsLabelAlwaysMinimized(_field,
+            position != MaterialTextFieldLabelPosition.Above && _alwaysMinimized.IsChecked == true);
+        // Source label alignment: minimized/expanded for Inside/Cutout, a single value for Above.
+        var alignment = (MaterialTextFieldLabelAlignment)_labelAlignment.SelectedIndex;
+        MaterialTextField.SetExpandedLabelAlignment(_field, alignment);
+        MaterialTextField.SetMinimizedLabelAlignment(_field, alignment);
+        MaterialTextField.SetAboveLabelAlignment(_field, alignment);
         Avalonia.Automation.AutomationProperties.SetName(_field, string.IsNullOrEmpty(_label.Text) ? "Text field" : _label.Text);
         _field.PlaceholderText = _placeholder.Text;
         MaterialTextField.SetSupportingText(_field, _supporting.Text);
