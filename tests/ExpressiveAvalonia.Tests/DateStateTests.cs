@@ -149,4 +149,60 @@ public class DateStateTests
             window.Close();
         }
     }
+    [AvaloniaFact]
+    public void ExtremeMonthsRenderAndNavigateWithoutOverflow()
+    {
+        foreach (var mode in new[] { MaterialDatePickerMode.Modal, MaterialDatePickerMode.FullScreen })
+        foreach (var (year, month, direction) in new[] { (1, 1, -1), (9999, 12, 1) })
+        {
+            var picker = new MaterialDatePicker
+            {
+                Mode = mode,
+                MinimumYear = year,
+                MaximumYear = year,
+                DisplayDate = Day(year, month, 1),
+                SelectedDate = Day(year, month, 1),
+            };
+            var window = Show(picker);
+            try
+            {
+                picker.NavigateMonth(direction);
+                picker.NavigateYear(direction);
+                window.UpdateLayout();
+                Assert.Equal(new DateTime(year, month, 1), picker.DisplayDate?.Date);
+                picker.View = MaterialDatePickerView.Month;
+                window.UpdateLayout();
+                picker.View = MaterialDatePickerView.Day;
+                window.UpdateLayout();
+            }
+            finally { window.Close(); }
+        }
+    }
+
+    [AvaloniaFact]
+    public void LocalizedDecimalDigitsAreAcceptedAndNormalizedInInputAndParsing()
+    {
+        var picker = new MaterialDatePicker
+        {
+            Culture = CultureInfo.InvariantCulture,
+            MinimumYear = 1,
+            MaximumYear = 9999,
+            IsInputMode = true,
+        };
+        var window = Show(picker);
+        try
+        {
+            var input = picker.GetVisualDescendants().OfType<TextBox>()
+                .Single(box => box.Name == "PART_StartInput");
+            Assert.True(input.Focus());
+            input.Text = "٠٦٢٥٢٠٢٦";
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("06/25/2026", input.Text);
+            Assert.Equal(new DateTime(2026, 6, 25), picker.SelectedDate?.Date);
+            Assert.True(picker.TryParseDate("०६२५२०२६", out var parsed));
+            Assert.Equal(new DateTime(2026, 6, 25), parsed);
+        }
+        finally { window.Close(); }
+    }
+
 }

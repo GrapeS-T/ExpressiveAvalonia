@@ -128,7 +128,7 @@ internal sealed class MaterialDateInputFormat
         var limit = Math.Clamp(caret, 0, formatted.Length);
         for (var i = 0; i < limit; i++)
         {
-            if (char.IsAsciiDigit(formatted[i]))
+            if (char.IsDigit(formatted[i]))
                 digits++;
         }
         return digits;
@@ -142,7 +142,7 @@ internal sealed class MaterialDateInputFormat
         var digits = 0;
         for (var i = 0; i < formatted.Length; i++)
         {
-            if (!char.IsAsciiDigit(formatted[i]))
+            if (!char.IsDigit(formatted[i]))
                 continue;
             digits++;
             if (digits == digitOffset)
@@ -772,7 +772,7 @@ public sealed class MaterialDatePicker : TemplatedControl
 
         var trimmed = text.Trim();
         var format = InputFormat;
-        var digits = new string(trimmed.Where(char.IsAsciiDigit).ToArray());
+        var digits = DigitsOf(trimmed);
         var culture = EffectiveCulture;
         if (digits.Length == format.DigitCount &&
             DateTime.TryParseExact(digits, format.PatternWithoutDelimiters, culture,
@@ -881,7 +881,7 @@ public sealed class MaterialDatePicker : TemplatedControl
     public void NavigateMonth(int delta) => AnimateMonthNavigation(delta);
 
     /// <summary>Moves the displayed year by the given amount, clamped to the bounds.</summary>
-    public void NavigateYear(int delta) => SetDisplayMonth(DisplayMonth.AddMonths(delta * 12));
+    public void NavigateYear(int delta) => SetDisplayMonth(AddMonthsClamped(DisplayMonth, (long)delta * 12));
 
     /// <summary>Shows the month of today (or the nearest allowed month).</summary>
     public void GoToToday()
@@ -1441,7 +1441,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         var display = DisplayMonth;
         var first = new DateTime(display.Year, display.Month, 1);
         var offset = ((int)first.DayOfWeek - (int)FirstDayOfWeek + 7) % 7;
-        var start = first.AddDays(-offset);
+        var startDay = first.Ticks / TimeSpan.TicksPerDay - offset;
         var culture = EffectiveCulture;
 
         if (_dayCells.Count != DayCellCount)
@@ -1469,11 +1469,13 @@ public sealed class MaterialDatePicker : TemplatedControl
 
         for (var i = 0; i < DayCellCount; i++)
         {
-            var date = start.AddDays(i);
+            var day = startDay + i;
+            var date = day >= 0 && day <= DateTime.MaxValue.Ticks / TimeSpan.TicksPerDay
+                ? new DateTime(day * TimeSpan.TicksPerDay) : (DateTime?)null;
             var cell = _dayCells[i];
             cell.Tag = date;
             cell.ContextMonth = display;
-            cell.Content = date.Day.ToString(culture);
+            cell.Content = date?.Day.ToString(culture);
         }
 
         _dayGrid.Children.Clear();
@@ -1737,13 +1739,15 @@ public sealed class MaterialDatePicker : TemplatedControl
         block.MonthOffset = offset;
         for (var i = 0; i < DayCellCount; i++)
         {
-            var date = first.AddDays(i - offset);
+            var day = first.Ticks / TimeSpan.TicksPerDay + i - offset;
+            var date = day >= 0 && day <= DateTime.MaxValue.Ticks / TimeSpan.TicksPerDay
+                ? new DateTime(day * TimeSpan.TicksPerDay) : (DateTime?)null;
             var cell = block.Cells[i];
-            if (date.Year == month.Year && date.Month == month.Month)
+            if (date is { } validDate && validDate.Year == month.Year && validDate.Month == month.Month)
             {
-                cell.Tag = date;
+                cell.Tag = validDate;
                 cell.ContextMonth = month;
-                cell.Content = date.Day.ToString(culture);
+                cell.Content = validDate.Day.ToString(culture);
                 cell.Opacity = 1;
                 cell.IsHitTestVisible = true;
             }
@@ -2532,7 +2536,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         if (delta == 0)
             return false;
         var current = DisplayMonth;
-        var target = ClampMonthToBounds(current.AddMonths(delta));
+        var target = ClampMonthToBounds(AddMonthsClamped(current, delta));
         // Same guard as SetDisplayMonth: months outside the year range are not addressable.
         if (!IsYearInRange(target.Year))
             return false;
@@ -2811,6 +2815,9 @@ public sealed class MaterialDatePicker : TemplatedControl
     {
         if (pageIndex == _livePageIndex)
             return;
+        var monthIndex = (long)(_pageOrigin.Year - 1) * 12 + _pageOrigin.Month - 1 + pageIndex;
+        if (monthIndex < 0 || monthIndex >= 9999 * 12)
+            return;
         var month = _pageOrigin.AddMonths(pageIndex);
         MonthPageLayer? slot = null;
         if (_pageSlotA is { HasMonth: true } slotA && slotA.Month == month)
@@ -2865,13 +2872,15 @@ public sealed class MaterialDatePicker : TemplatedControl
     {
         var first = new DateTime(month.Year, month.Month, 1);
         var offset = ((int)first.DayOfWeek - (int)FirstDayOfWeek + 7) % 7;
-        var start = first.AddDays(-offset);
+        var startDay = first.Ticks / TimeSpan.TicksPerDay - offset;
         layer.Month = month;
         layer.HasMonth = true;
         for (var i = 0; i < DayCellCount; i++)
         {
             var cell = layer.Cells[i];
-            cell.Tag = start.AddDays(i);
+            var day = startDay + i;
+            cell.Tag = day >= 0 && day <= DateTime.MaxValue.Ticks / TimeSpan.TicksPerDay
+                ? new DateTime(day * TimeSpan.TicksPerDay) : null;
             cell.ContextMonth = month;
         }
         ApplyCellStates(layer.Cells);
@@ -3319,7 +3328,17 @@ public sealed class MaterialDatePicker : TemplatedControl
         {
             var cell = cells[i];
             if (cell.Tag is not DateTime date)
+            {
+                cell.Content = null;
+                cell.IsEnabled = false;
+                cell.Opacity = 0;
+                cell.IsHitTestVisible = false;
+                AutomationProperties.SetName(cell, string.Empty);
+                AutomationProperties.SetHelpText(cell, null);
                 continue;
+            }
+            cell.Opacity = 1;
+            cell.IsHitTestVisible = true;
 
             var isStart = start == date;
             var isEnd = end == date;
@@ -3412,7 +3431,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         if (start is not { } s)
             return false;
         var first = new DateTime(year, month, 1);
-        var last = first.AddMonths(1).AddDays(-1);
+        var last = new DateTime(year, month, DateTime.DaysInMonth(year, month));
         var stop = end ?? s;
         return s <= last && stop >= first;
     }
@@ -3430,10 +3449,10 @@ public sealed class MaterialDatePicker : TemplatedControl
     private void UpdateNavigationState()
     {
         var display = DisplayMonth;
-        var canPreviousMonth = CanShowMonth(display.AddMonths(-1));
-        var canNextMonth = CanShowMonth(display.AddMonths(1));
-        var canPreviousYear = CanShowMonth(display.AddMonths(-12));
-        var canNextYear = CanShowMonth(display.AddMonths(12));
+        var canPreviousMonth = display > DateTime.MinValue && CanShowMonth(display.AddMonths(-1));
+        var canNextMonth = (display.Year < 9999 || display.Month < 12) && CanShowMonth(display.AddMonths(1));
+        var canPreviousYear = display.Year > 1 && CanShowMonth(display.AddMonths(-12));
+        var canNextYear = display.Year < 9999 && CanShowMonth(display.AddMonths(12));
 
         if (_prevMonthButton is not null) _prevMonthButton.IsEnabled = canPreviousMonth;
         if (_nextMonthButton is not null) _nextMonthButton.IsEnabled = canNextMonth;
@@ -3451,7 +3470,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         if (!IsYearInRange(month.Year))
             return false;
         var first = new DateTime(month.Year, month.Month, 1);
-        var last = first.AddMonths(1).AddDays(-1);
+        var last = new DateTime(month.Year, month.Month, DateTime.DaysInMonth(month.Year, month.Month));
         return (MinimumDate is not { } min || last.Date >= min.Date) &&
                (MaximumDate is not { } max || first.Date <= max.Date);
     }
@@ -3779,8 +3798,8 @@ public sealed class MaterialDatePicker : TemplatedControl
         var builder = new StringBuilder(InputFormat.DigitCount);
         foreach (var c in text)
         {
-            if (char.IsAsciiDigit(c))
-                builder.Append(c);
+            if (char.IsDigit(c))
+                builder.Append((char)('0' + (int)char.GetNumericValue(c)));
         }
         return builder.ToString();
     }
@@ -3817,7 +3836,7 @@ public sealed class MaterialDatePicker : TemplatedControl
             // DateInputTransformation accepts digits only; the visible delimiters are supplied by
             // the output mask, so any other character (including a pasted foreign delimiter) is
             // rejected and the previous value restored.
-            if (!char.IsAsciiDigit(c) && c != format.Delimiter)
+            if (!char.IsDigit(c) && c != format.Delimiter)
             {
                 invalidCharacter = true;
                 break;
@@ -4217,7 +4236,7 @@ public sealed class MaterialDatePicker : TemplatedControl
             // transition that is still in flight.
             if (horizontal && _pageActive)
                 return true;
-            var next = ClampToBounds(date.AddDays(delta));
+            var next = ClampToBounds(AddDaysClamped(date, delta));
             if (next is { } value)
                 MoveFocus(value, animateMonth: horizontal);
             return true;
@@ -4226,16 +4245,16 @@ public sealed class MaterialDatePicker : TemplatedControl
         switch (e.Key)
         {
             case Key.PageUp:
-                MoveFocus(ClampToBounds(date.AddMonths(shift ? -12 : -1)) ?? date);
+                MoveFocus(ClampToBounds(AddMonthsClamped(date, shift ? -12 : -1)) ?? date);
                 return true;
             case Key.PageDown:
-                MoveFocus(ClampToBounds(date.AddMonths(shift ? 12 : 1)) ?? date);
+                MoveFocus(ClampToBounds(AddMonthsClamped(date, shift ? 12 : 1)) ?? date);
                 return true;
             case Key.Home:
                 MoveFocus(StartOfWeek(date));
                 return true;
             case Key.End:
-                MoveFocus(StartOfWeek(date).AddDays(6));
+                MoveFocus(AddDaysClamped(date, 6 - (((int)date.DayOfWeek - (int)FirstDayOfWeek + 7) % 7)));
                 return true;
             case Key.Enter:
             case Key.Space:
@@ -4257,22 +4276,22 @@ public sealed class MaterialDatePicker : TemplatedControl
         switch (e.Key)
         {
             case Key.Left:
-                date = date.AddMonths(rtl ? 1 : -1);
+                date = AddMonthsClamped(date, rtl ? 1 : -1);
                 break;
             case Key.Right:
-                date = date.AddMonths(rtl ? -1 : 1);
+                date = AddMonthsClamped(date, rtl ? -1 : 1);
                 break;
             case Key.Up:
-                date = date.AddMonths(-3);
+                date = AddMonthsClamped(date, -3);
                 break;
             case Key.Down:
-                date = date.AddMonths(3);
+                date = AddMonthsClamped(date, 3);
                 break;
             case Key.PageUp:
-                date = date.AddYears(-1);
+                date = AddMonthsClamped(date, -12);
                 break;
             case Key.PageDown:
-                date = date.AddYears(1);
+                date = AddMonthsClamped(date, 12);
                 break;
             case Key.Home:
                 date = new DateTime(DisplayMonth.Year, 1, 1);
@@ -4334,8 +4353,23 @@ public sealed class MaterialDatePicker : TemplatedControl
         return true;
     }
 
+    private static DateTime AddMonthsClamped(DateTime date, long months)
+    {
+        var index = Math.Clamp((long)(date.Year - 1) * 12 + date.Month - 1 + months, 0, 9999 * 12 - 1);
+        var year = (int)(index / 12) + 1;
+        var month = (int)(index % 12) + 1;
+        return new DateTime(year, month, Math.Min(date.Day, DateTime.DaysInMonth(year, month)));
+    }
+
+    private static DateTime AddDaysClamped(DateTime date, int days)
+    {
+        var day = Math.Clamp(date.Ticks / TimeSpan.TicksPerDay + days, 0,
+            DateTime.MaxValue.Ticks / TimeSpan.TicksPerDay);
+        return new DateTime(day * TimeSpan.TicksPerDay);
+    }
+
     private DateTime StartOfWeek(DateTime date) =>
-        date.AddDays(-(((int)date.DayOfWeek - (int)FirstDayOfWeek + 7) % 7));
+        AddDaysClamped(date, -(((int)date.DayOfWeek - (int)FirstDayOfWeek + 7) % 7));
 
     private string GetText(string key, string fallback) =>
         this.TryFindResource(key, out var value) && value is string text ? text : fallback;

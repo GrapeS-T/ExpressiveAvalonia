@@ -57,6 +57,31 @@ public class ChipBindingTests
     }
 
     [AvaloniaFact]
+    public void DisabledTabStopMovesToEnabledChip()
+    {
+        var first = FilterChip("first", "First");
+        var second = FilterChip("second", "Second");
+        var group = new MaterialChipGroup();
+        group.Items.Add(first);
+        group.Items.Add(second);
+        var window = new Window { Content = group };
+        window.Show();
+        window.UpdateLayout();
+        try
+        {
+            Assert.True(KeyboardNavigation.GetIsTabStop(first));
+            first.IsEnabled = false;
+            Assert.False(KeyboardNavigation.GetIsTabStop(first));
+            Assert.True(KeyboardNavigation.GetIsTabStop(second));
+            second.IsEnabled = false;
+            Assert.False(KeyboardNavigation.GetIsTabStop(second));
+            first.IsEnabled = true;
+            Assert.True(KeyboardNavigation.GetIsTabStop(first));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void ClickSelectionKeepsStyleBindingLive()
     {
         var source = new SelectionSource();

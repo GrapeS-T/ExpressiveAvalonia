@@ -1,8 +1,14 @@
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Headless.XUnit;
+using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Layout;
+using System.Windows.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using ExpressiveAvalonia.Controls;
@@ -138,5 +144,39 @@ public class PullToRefreshTests
             Assert.Equal(32d, translation.Y); // loading container is 48: 80 - 48
         }
         finally { window.Close(); }
+    }
+    [AvaloniaFact]
+    public void KeyboardAndAutomationRequestRefreshWithoutRepeatingWhileBusy()
+    {
+        var refresh = new MaterialPullToRefresh();
+        var requests = 0;
+        var command = new RefreshTestCommand();
+        refresh.RefreshCommand = command;
+        refresh.RefreshRequested += (_, _) => requests++;
+        var window = Show(refresh);
+        try
+        {
+            Assert.True(refresh.Focus());
+            window.KeyPress(Key.F5, RawInputModifiers.None, PhysicalKey.None, null);
+            window.KeyRelease(Key.F5, RawInputModifiers.None, PhysicalKey.None, null);
+            Assert.Equal(1, requests);
+            var peer = ControlAutomationPeer.CreatePeerForElement(refresh);
+            var invoke = Assert.IsAssignableFrom<IInvokeProvider>(peer);
+            invoke.Invoke();
+            Assert.Equal(2, requests);
+            Assert.Equal(2, command.Executions);
+            refresh.IsRefreshing = true;
+            window.KeyPress(Key.F5, RawInputModifiers.None, PhysicalKey.None, null);
+            Assert.Throws<ElementNotEnabledException>(() => invoke.Invoke());
+            Assert.Equal(2, requests);
+        }
+        finally { window.Close(); }
+    }
+    private sealed class RefreshTestCommand : ICommand
+    {
+        public int Executions { get; private set; }
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+        public bool CanExecute(object? parameter) => true;
+        public void Execute(object? parameter) => Executions++;
     }
 }

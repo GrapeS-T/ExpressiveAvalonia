@@ -151,8 +151,9 @@ internal sealed class ProgressPlayground : Grid, IComponentPlayground
     {
         var panel = new StackPanel { Spacing = 8 };
         panel.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup { Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round, ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single, SelectedIndex = 0, ShowSelectedIcon = true };
+        var group = new MaterialButtonGroup { Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round, ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single, ShowSelectedIcon = true };
         foreach (var option in options) group.Items.Add(new MaterialButtonGroupItem { Content = option });
+        group.SelectedIndex = 0;
         panel.Children.Add(group);
         Settings.Children.Add(panel);
         return group;

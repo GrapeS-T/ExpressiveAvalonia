@@ -55,7 +55,7 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         TextAlignment = TextAlignment.Center,
         MaxWidth = 420,
     };
-    private readonly MaterialButtonGroup _type;
+    private readonly ComboBox _type;
     private readonly MaterialButtonGroup _surface;
     private readonly ComboBox _variant;
     private readonly ComboBox _density;
@@ -99,7 +99,15 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         stage.Children.Add(_readout);
         Children.Add(stage);
 
-        _type = Choice("Тип меню", new[] { "Menu button (flyout)", "Context menu", "Menu bar", "Exposed dropdown / search", "Groups (standalone)" }, 0);
+        Settings.Children.Add(new TextBlock { Text = "Тип меню" });
+        _type = new ComboBox
+        {
+            ItemsSource = new[] { "Menu button (flyout)", "Context menu", "Menu bar", "Exposed dropdown / search", "Groups (standalone)" },
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_type, "Тип меню");
+        Settings.Children.Add(_type);
         _surface = Choice("Поверхность", new[] { "Baseline", "Expressive" }, 1);
 
         _variantPanel.Children.Add(new TextBlock { Text = "Вариант" });

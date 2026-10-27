@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Layout;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
 using Xunit;
@@ -190,6 +191,36 @@ public class SwipeAnchorTests
             item.Dismiss(MaterialSwipeState.EndToStart);
             Assert.Equal(MaterialSwipeState.EndToStart, item.SwipeState);
             Assert.Equal(-300, item.SwipeOffset, 3);
+        }
+        finally { window.Close(); }
+    }
+    [AvaloniaFact]
+    public void ActionsAreKeyboardAccessibleAndFollowDirectionChanges()
+    {
+        var item = CreateItem();
+        item.SwipeActions.Add(new MaterialSwipeAction { Label = "Archive" });
+        var window = Show(item);
+        try
+        {
+            var panel = Assert.IsType<StackPanel>(item.BackgroundContent);
+            var button = Assert.IsType<Button>(Assert.Single(panel.Children));
+            Assert.Equal(HorizontalAlignment.Right, panel.HorizontalAlignment);
+            item.EnableDismissFromEndToStart = false;
+            Assert.Same(panel, item.BackgroundContent);
+            Assert.Equal(HorizontalAlignment.Left, panel.HorizontalAlignment);
+            var invoked = 0;
+            item.ActionInvoked += (_, e) => { Assert.False(e.BySwipe); invoked++; };
+            Assert.True(button.IsTabStop);
+            Assert.True(item.Focus());
+            window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.None, null);
+            window.KeyRelease(Key.Tab, RawInputModifiers.None, PhysicalKey.None, null);
+            Assert.True(button.IsFocused);
+            Assert.True(item.SwipeOffset > 0);
+            window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.None, null);
+            window.KeyRelease(Key.Enter, RawInputModifiers.None, PhysicalKey.None, null);
+            Assert.Equal(1, invoked);
+            item.Focus();
+            Assert.Equal(0, item.SwipeOffset, 3);
         }
         finally { window.Close(); }
     }

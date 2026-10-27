@@ -278,6 +278,11 @@ public class MaterialChipGroup : ItemsControl
 
     private void OnChipPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
+        if (e.Property == InputElement.IsEffectivelyEnabledProperty)
+        {
+            UpdateTabStops();
+            return;
+        }
         if (e.Property != MaterialChip.IsSelectedProperty || _syncing || sender is not MaterialChip chip)
             return;
 
@@ -358,7 +363,7 @@ public class MaterialChipGroup : ItemsControl
     {
         if (_chips.Count == 0)
             return;
-        var focused = _chips.FirstOrDefault(chip => chip.IsFocused);
+        var focused = _chips.FirstOrDefault(chip => chip.IsFocused && chip.IsEffectivelyEnabled);
         var selected = _chips.FirstOrDefault(chip => chip.IsSelected && chip.IsEffectivelyEnabled);
         var first = _chips.FirstOrDefault(chip => chip.IsEffectivelyEnabled);
         SetRovingTabStop(focused ?? selected ?? first);

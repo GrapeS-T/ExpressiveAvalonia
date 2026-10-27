@@ -345,6 +345,32 @@ public class SearchAppBarTests
     }
 
     [AvaloniaFact]
+    public void ReopeningUnanchoredViewRestoresFocusToLatestCaller()
+    {
+        var first = new Button { Content = "First" };
+        var second = new Button { Content = "Second" };
+        var view = new MaterialSearchView { IsOpen = false, AutoFocus = true };
+        var window = Show(new Grid { Children = { first, second, view } });
+        try
+        {
+            first.Focus();
+            view.Open();
+            window.UpdateLayout();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            view.Dismiss();
+            Assert.True(first.IsFocused);
+
+            second.Focus();
+            view.IsOpen = true;
+            window.UpdateLayout();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            view.Dismiss();
+            Assert.True(second.IsFocused);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void InitiallyOpenViewAdoptsSharedAnchorQuery()
     {
         var anchor = new MaterialSearchBar { Text = "existing query", SelectionStart = 2, SelectionEnd = 5 };

@@ -14,7 +14,7 @@ Avalonia 12.1.4, библиотека `net8.0`, desktop-каталог и тес
 - `MaterialSurface.TonalElevation` и inherited `TonalElevationEnabled` на Card/InteractionSurface: один SurfaceTint по absolute ancestor elevation; shadow независим. Custom/dedicated container brushes и caller Background binding не переписываются.
 - Аналитические прерываемые springs с duration/visibility thresholds, сохранением скорости при retarget и начальной скоростью для реверса; finite tween/delay и spline/exponential decay работают через Avalonia frame callbacks. Oklab color interpolation следует Compose. Reduced motion завершает конечные переходы и останавливает индикаторы; на Windows учитывается настройка анимаций ОС.
 - Button/ToggleButton: standard, filled, tonal, outlined, elevated, text; icon mode; пять Expressive-размеров; round/square shape; focus/disabled/state layers. `Standard` — значение по умолчанию: у labeled-кнопки filled-контейнер, у icon-only контейнера нет.
-- TextBox: filled/outlined, Inside/Cutout/Above label и Start/Center/End alignment (логические края RTL), prefix/suffix, leading/trailing content, supporting/validation text. Password reveal скрывается при уходе фокуса; `MaterialTextField.TextObfuscationMode` задаёт System/Visible/Hidden/RevealLastTyped (1500 ms). Нативные editing/selection/IME/clipboard APIs сохраняются.
+- TextBox: filled/outlined, Inside/Cutout/Above label и Start/Center/End alignment (логические края RTL), prefix/suffix, leading/trailing content, supporting/validation text. Password reveal скрывается при уходе фокуса; `MaterialTextField.TextObfuscationMode` задаёт System/Visible/Hidden/RevealLastTyped (1500 ms). Явные Hidden и RevealLastTyped обеспечивают ненулевой нативный `PasswordChar`, не заменяя исходный binding; при выходе из режима исходное значение восстанавливается. Нативные editing/selection/IME/clipboard APIs сохраняются.
 - CheckBox (включая `:error` и indeterminate), RadioButton, ToggleSwitch; switch использует OnContent/OffContent для необязательных иконок.
 - Slider: horizontal/vertical, ticks, snapping, value labels, expressive handle. MaterialRangeSlider: два endpoints, клавиатура/drag/RTL, clamp при пересечении, snapping и отдельные automation providers.
 - ProgressBar и CircularProgressIndicator: determinate/indeterminate; остановка таймеров при detach, скрытии и reduced motion.
@@ -23,7 +23,7 @@ Avalonia 12.1.4, библиотека `net8.0`, desktop-каталог и тес
 - Tooltip caret — opt-in: `MaterialToolTip.ShowCaret` для plain и `RichTooltip.ShowCaret` для rich. По умолчанию выключен, как `caretShape=null`; треугольник 16×8 DIP следует фактическому native popup placement и anchor.
 - Служебные шаблоны Window/visual layers, ScrollViewer/ScrollBar, Thumb, RepeatButton, ContentControl, presenters, Separator, ComboBox, Calendar и popup hosts.
 - `LoadingIndicator`: determinate/custom polygon sequences, contained/uncontained и семифигурный indeterminate цикл с настоящим RoundedPolygon/Morph из закреплённого AndroidX. `ContainerShape`/`ContainerShapeStretch` задают общий контур fill/clip; live `Polygons` replacement следует remembered morph/rotation state. Локальные нестандартные фигуры сохранены отдельно.
-- `MaterialPullToRefresh`: внешний `IsRefreshing`, threshold/tension и cancellation, Circular/Loading и custom `IndicatorContent`/`IndicatorTemplate`; `MaxDistance` задаёт visual travel независимо от `Threshold`. `MaterialRefreshIndicatorBox` — standalone transform/shape/clip/elevation для custom indicator. Mouse pull — opt-in extension, колесо не вызывает refresh. `MaterialScrollField`: виртуализированное колесо выбора с modulo state, immediate/animated выбором и native automation.
+- `MaterialPullToRefresh`: внешний `IsRefreshing`, threshold/tension и cancellation, Circular/Loading и custom `IndicatorContent`/`IndicatorTemplate`; `MaxDistance` задаёт visual travel независимо от `Threshold`. Обновление также доступно по F5 и через automation Invoke. `MaterialRefreshIndicatorBox` — standalone transform/shape/clip/elevation для custom indicator. Mouse pull — opt-in extension, колесо не вызывает refresh. `MaterialScrollField`: виртуализированное колесо выбора с modulo state, immediate/animated выбором и native automation; automation сообщает индекс видимого варианта, а не внутреннюю страницу.
 - `MaterialSplitButton.IsTrailingCheckable` / `IsTrailingChecked`: независимый trailing toggle без привязки к открытому меню; отдельные commands/disabled flags и native toggle automation.
 - `MaterialCarousel.UserScrollEnabled=false` отключает drag/wheel/paging/automation scroll, но не item content, focus/activation и программный `ScrollToItem`.
 - Time picker/input/scroll: Standard/Vibrant/Uncontained, native edit rejection без фильтрации/обрезки, `Culture` для localized decimal digits; `AutoAdvance` — явная caller policy. Sheet handle предоставляет native Invoke/ExpandCollapse с anchor/veto/dismiss rules.
@@ -133,6 +133,7 @@ Icon-only button: `MaterialAssist.IsIconButton="True"`, Content — geometry/ico
 `MaterialNavigationRailHost.HideOnCollapse` по умолчанию `false`: свёрнутый rail остаётся в layout под модальным expanded rail. Для data `ItemsSource` host создаёт общую по данным/выбору свёрнутую презентацию; для готовых control items задайте отдельный `CollapsedRail` (один Control нельзя разместить в двух visual trees). `CollapsedPresentation` возвращает реально размещённый rail. `HideOnCollapse=true` убирает свёрнутую презентацию и её inset.
 
 Все 32 страницы MD3 Expressive используют живые примеры и профильные настройки справа. Семейства и варианты переключаются там же: Snackbar, FAB/XR, app bars/toolbars/headers, button groups, chips, dialogs/sheets, navigation, date/time pickers, lists, menus/tooltips, shapes/avatars, cards, carousel, pull-to-refresh, scroll field и scrollbars. Assets показывает глиф/палитру; Examples — экран/layout/keyboard/building block/device chrome/color schematic и native rich text/autosize/links. Modal и popup — настоящие controls/hosts. Общие тема/reduced/размер/disabled/RTL остаются в «Настройках».
+`MaterialButtonGroupItem` сохраняет один визуальный экземпляр `Icon` и `Content` при переключении Standard/Connected/Segmented; пользовательские controls не копируются и не получают второго visual parent.
 Нативный `PathIcon` имеет собственный инфраструктурный шаблон: геометрия масштабируется через Viewbox и окрашивается Foreground. Это обеспечивает отрисовку иконок действий и FAB без подключения сторонней темы.
 
 Подписи CheckBox/RadioButton/ToggleSwitch центрируются и переносятся в узком контейнере. Native selection/keyboard/automation сохранены; Checkbox check path и indeterminate gravitation следуют pinned source: enter spring, выход сохраняет силуэт 100 ms и затем snap. Произвольного press scale нет.
@@ -153,10 +154,13 @@ MaterialTextField дополнительно: `Prefix`, `Suffix`, `LeadingConten
 
 Range slider горизонтальный. LowerValue не может превышать UpperValue; endpoints не меняются местами. SmallChange/LargeChange задают шаг клавиатуры. Имена endpoints можно локализовать через шаблон.
 Активная полоса диапазона отделена зазором 8 dp от центра каждой ручки. При совпадении значений две ручки остаются раздельными, без активной заливки и дополнительной точки между ними.
+`ValueChangeCompleted` вызывается также после отпускания Up/Down. Дискретная шкала использует одинаковую геометрию для отображения и указателя.
 
 ### Lists
 
 На нативном `ListBoxItem` доступны `MaterialList.Headline`, `SupportingText`, `LeadingContent`, `TrailingContent`, `LineCount` (1/2/3). Минимальная высота — 56/72/88 dp соответственно. Без `Headline` сохраняются обычные `Content`/`ContentTemplate`. Leading/trailing content принимает пользовательские иконки, аватары или контролы.
+
+`MaterialSwipeListItem` раскрывает действия при переходе к ним клавиатурным фокусом; их кнопки доступны через Tab. Смена разрешённого направления жеста обновляет сторону панели действий.
 
 ### Tabs, rich tooltip и motion
 

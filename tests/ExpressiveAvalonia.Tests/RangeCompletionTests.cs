@@ -163,6 +163,29 @@ public class RangeCompletionTests
     }
 
     [AvaloniaFact]
+    public void DiscreteDragUsesRenderedTrackCoordinates()
+    {
+        var range = NewRange();
+        range.IsSnapToTickEnabled = true;
+        range.TickFrequency = 1;
+        var window = Show(range);
+        try
+        {
+            var canvas = range.GetVisualDescendants().OfType<Canvas>().Single(c => c.Name == "PART_TrackCanvas");
+            var target = range.GetVisualPositions(canvas.Bounds.Width).Lower;
+            range.LowerValue = 40;
+            window.UpdateLayout();
+            var start = Center(Thumb(range, "PART_LowerThumb"), window);
+            var destination = canvas.TranslatePoint(new Point(target, canvas.Bounds.Height / 2), window)!.Value;
+            window.MouseDown(start, MouseButton.Left);
+            window.MouseMove(destination);
+            window.MouseUp(destination, MouseButton.Left);
+            Assert.Equal(20, range.LowerValue);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void DisableAndDetachCancelThePointerInteractionWithoutCompleting()
     {
         var range = NewRange();
@@ -219,16 +242,25 @@ public class RangeCompletionTests
             Assert.Equal(1, completed);
             Assert.Equal(30, observed);
 
+            Press(window, Key.Up);
+            Release(window, Key.Up);
+            Assert.Equal(2, completed);
+            Assert.Equal(40, observed);
+            Press(window, Key.Down);
+            Release(window, Key.Down);
+            Assert.Equal(3, completed);
+            Assert.Equal(30, observed);
+
             // Keys that never change an endpoint do not complete an interaction.
             Press(window, Key.A);
             Release(window, Key.A);
             Press(window, Key.Space);
             Release(window, Key.Space);
-            Assert.Equal(1, completed);
+            Assert.Equal(3, completed);
 
             Press(window, Key.End);
             Release(window, Key.End);
-            Assert.Equal(2, completed);
+            Assert.Equal(4, completed);
             Assert.Equal(80, observed);
         }
         finally { window.Close(); }

@@ -105,10 +105,11 @@ public sealed class MaterialSnackbarHost : TemplatedControl
 
         if (_retiring.Remove(snackbar))
         {
-            // The same item is re-presented while it was fading out: retarget its springs and
-            // listen to it as the current item again.
+            // A queued reuse must not remain in the overlay with stale close handlers.
+            // Detach it now; AttachCurrent will subscribe again when its turn arrives.
             snackbar.Closing -= OnCurrentClosing;
             snackbar.Closed -= OnCurrentClosed;
+            _items?.Children.Remove(snackbar);
         }
 
         var completion = new TaskCompletionSource<MaterialSnackbarCloseReason>(
@@ -225,15 +226,9 @@ public sealed class MaterialSnackbarHost : TemplatedControl
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
-        if (_items is not null)
-            _items.SizeChanged -= OnItemsSizeChanged;
-
         base.OnApplyTemplate(e);
         _items = e.NameScope.Find<Panel>("PART_Items");
-        if (_items is not null)
-            _items.SizeChanged += OnItemsSizeChanged;
         AttachCurrent();
-        UpdateItemWidths();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -266,9 +261,6 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         _current = null;
         _currentShown = false;
         _previousFocus = null;
-
-        if (_items is not null)
-            _items.SizeChanged -= OnItemsSizeChanged;
 
         base.OnDetachedFromVisualTree(e);
     }
@@ -304,10 +296,9 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         _current.Closed -= OnCurrentClosed;
         _current.Closing += OnCurrentClosing;
         _current.Closed += OnCurrentClosed;
-        _current.HorizontalAlignment = HorizontalAlignment.Center;
+        _current.HorizontalAlignment = HorizontalAlignment.Stretch;
         _current.VerticalAlignment = VerticalAlignment.Bottom;
         _items.Children.Add(_current);
-        UpdateItemWidths();
 
         if (_currentShown)
             return;
@@ -324,7 +315,6 @@ public sealed class MaterialSnackbarHost : TemplatedControl
                 if (ReferenceEquals(_current, snackbar) && !_currentShown)
                 {
                     _currentShown = true;
-                    UpdateItemWidths();
                     snackbar.Show();
                 }
             },
@@ -398,28 +388,6 @@ public sealed class MaterialSnackbarHost : TemplatedControl
 
         if (_pending.Remove(snackbar, out var completion))
             completion.TrySetResult(reason);
-    }
-
-    private void OnItemsSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateItemWidths();
-
-    /// <summary>
-    /// One-row snackbars take <c>min(availableWidth, 600)</c> in Snackbar.kt. The width is applied
-    /// only when the consumer did not set one, so deliberately narrow snackbars keep their size.
-    /// </summary>
-    private void UpdateItemWidths()
-    {
-        if (_items is null)
-            return;
-
-        var width = _items.Bounds.Width;
-        if (width <= 0)
-            return;
-
-        if (_current is not null && double.IsNaN(_current.Width))
-            _current.Width = width;
-        foreach (var retiring in _retiring)
-            if (double.IsNaN(retiring.Width))
-                retiring.Width = width;
     }
 
     private static bool IsFocusWithin(Visual root, IInputElement? focus) =>

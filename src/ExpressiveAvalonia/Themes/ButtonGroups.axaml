@@ -40,58 +40,31 @@
                     CornerRadius="{TemplateBinding CornerRadius}" />
           </Panel>
 
-          <!-- Standard and connected anatomy: optional leading icon, the check mark, then the label. -->
+          <!-- One presenter owns each caller-provided visual across all group kinds. -->
           <StackPanel Name="ContentHost" Orientation="Horizontal"
-                      Spacing="{TemplateBinding ContentSpacing}"
                       HorizontalAlignment="Center" VerticalAlignment="Center"
                       Margin="{TemplateBinding Padding}">
-            <Viewbox Width="{TemplateBinding IconSize}" Height="{TemplateBinding IconSize}" Stretch="Uniform"
-                     IsVisible="{TemplateBinding ShowIconContent}">
-              <ContentPresenter Content="{TemplateBinding Icon}" />
-            </Viewbox>
-            <Path Name="PART_CheckMark" Width="{TemplateBinding IconSize}" Height="{TemplateBinding IconSize}"
-                  Data="M2,9 L7,14 L16,3"
-                  Stroke="{TemplateBinding Foreground}" StrokeThickness="2"
-                  StrokeLineCap="Round" StrokeJoin="Round" Stretch="Uniform"
-                  RenderTransformOrigin="0%,100%"
-                  IsVisible="{TemplateBinding ShowCheckIcon}" />
-            <ContentPresenter Name="PART_ContentPresenter"
-                              Content="{TemplateBinding Content}"
-                              ContentTemplate="{TemplateBinding ContentTemplate}"
-                              IsVisible="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static data:ObjectConverters.IsNotNull}}"
-                              VerticalAlignment="Center"
-                              RecognizesAccessKey="True" />
-          </StackPanel>
-
-          <!-- Segmented anatomy: an always-reserved 18 + 8 DIP slot. When neither the leading icon
-               nor the check mark occupies it, the label slides 13 DIP toward the start through the
-               animated SegmentedContentOffset, exactly like SegmentedButtonContentMeasurePolicy. -->
-          <StackPanel Name="SegmentedContentHost" Orientation="Horizontal"
-                      HorizontalAlignment="Center" VerticalAlignment="Center"
-                      Margin="{TemplateBinding Padding}" IsVisible="False">
-            <Panel Width="{TemplateBinding SegmentedIconSlotWidth}" Height="{TemplateBinding IconSize}"
-                   HorizontalAlignment="Left" VerticalAlignment="Center">
-              <Viewbox Width="{TemplateBinding IconSize}" Height="{TemplateBinding IconSize}"
-                       Stretch="Uniform" HorizontalAlignment="Left"
-                       IsVisible="{TemplateBinding ShowIconSlot}"
-                       Opacity="{TemplateBinding ContentIconOpacity}">
+            <Panel Name="IconSlot" Height="{TemplateBinding IconSize}">
+              <Viewbox Name="IconView" Width="{TemplateBinding IconSize}" Height="{TemplateBinding IconSize}"
+                       Stretch="Uniform" HorizontalAlignment="Left">
                 <ContentPresenter Content="{TemplateBinding Icon}" />
               </Viewbox>
               <Path Name="PART_SegmentedCheckMark" Width="{TemplateBinding IconSize}"
                     Height="{TemplateBinding IconSize}" Data="M2,9 L7,14 L16,3"
                     Stroke="{TemplateBinding Foreground}" StrokeThickness="2"
                     StrokeLineCap="Round" StrokeJoin="Round" Stretch="Uniform"
-                    HorizontalAlignment="Left"
-                    RenderTransformOrigin="0%,100%"
-                    IsVisible="{TemplateBinding ShowCheckIcon}" />
+                    HorizontalAlignment="Left" RenderTransformOrigin="0%,100%" />
             </Panel>
-            <ContentPresenter Name="PART_SegmentedContent"
-                              Content="{TemplateBinding Content}"
+            <Path Name="PART_CheckMark" Width="{TemplateBinding IconSize}" Height="{TemplateBinding IconSize}"
+                  Data="M2,9 L7,14 L16,3" Stroke="{TemplateBinding Foreground}" StrokeThickness="2"
+                  StrokeLineCap="Round" StrokeJoin="Round" Stretch="Uniform"
+                  RenderTransformOrigin="0%,100%" />
+            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                               ContentTemplate="{TemplateBinding ContentTemplate}"
-                              VerticalAlignment="Center"
-                              RecognizesAccessKey="True">
+                              IsVisible="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static data:ObjectConverters.IsNotNull}}"
+                              VerticalAlignment="Center" RecognizesAccessKey="True">
               <ContentPresenter.RenderTransform>
-                <TranslateTransform X="{TemplateBinding SegmentedContentOffset}" />
+                <TranslateTransform X="{Binding SegmentedContentOffset, RelativeSource={RelativeSource TemplatedParent}}" />
               </ContentPresenter.RenderTransform>
             </ContentPresenter>
           </StackPanel>
@@ -116,6 +89,19 @@
         </Panel>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^ /template/ StackPanel#ContentHost">
+      <Setter Property="Spacing" Value="{Binding ContentSpacing, RelativeSource={RelativeSource TemplatedParent}}" />
+    </Style>
+    <Style Selector="^ /template/ Panel#IconSlot">
+      <Setter Property="Width" Value="{Binding IconSize, RelativeSource={RelativeSource TemplatedParent}}" />
+      <Setter Property="IsVisible" Value="{Binding ShowIconContent, RelativeSource={RelativeSource TemplatedParent}}" />
+    </Style>
+    <Style Selector="^ /template/ Path#PART_CheckMark">
+      <Setter Property="IsVisible" Value="{Binding ShowCheckIcon, RelativeSource={RelativeSource TemplatedParent}}" />
+    </Style>
+    <Style Selector="^ /template/ Path#PART_SegmentedCheckMark">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
 
     <!-- Labels never wrap in the source button group: the item grows to its intrinsic width and
          the group moves items into the overflow menu when they no longer fit. -->
@@ -176,10 +162,21 @@
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
     </Style>
     <Style Selector="^[Kind=Segmented] /template/ StackPanel#ContentHost">
+      <Setter Property="Spacing" Value="0" />
+    </Style>
+    <Style Selector="^[Kind=Segmented] /template/ Panel#IconSlot">
+      <Setter Property="Width" Value="{Binding SegmentedIconSlotWidth, RelativeSource={RelativeSource TemplatedParent}}" />
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^[Kind=Segmented] /template/ Viewbox#IconView">
+      <Setter Property="IsVisible" Value="{Binding ShowIconSlot, RelativeSource={RelativeSource TemplatedParent}}" />
+      <Setter Property="Opacity" Value="{Binding ContentIconOpacity, RelativeSource={RelativeSource TemplatedParent}}" />
+    </Style>
+    <Style Selector="^[Kind=Segmented] /template/ Path#PART_CheckMark">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <Style Selector="^[Kind=Segmented] /template/ StackPanel#SegmentedContentHost">
-      <Setter Property="IsVisible" Value="True" />
+    <Style Selector="^[Kind=Segmented] /template/ Path#PART_SegmentedCheckMark">
+      <Setter Property="IsVisible" Value="{Binding ShowCheckIcon, RelativeSource={RelativeSource TemplatedParent}}" />
     </Style>
     <Style Selector="^[Kind=Segmented] /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="False" />
