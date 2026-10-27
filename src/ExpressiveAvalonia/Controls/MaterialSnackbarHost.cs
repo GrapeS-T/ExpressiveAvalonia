@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Threading;
@@ -18,9 +19,11 @@ namespace ExpressiveAvalonia.Controls;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Material shows one snackbar at a time: a second request waits in a FIFO queue and appears
-/// after the current snackbar has finished its exit transition. <see cref="Show"/> returns a task
-/// that completes with the <see cref="MaterialSnackbarCloseReason"/> when that snackbar is gone.
+/// Material shows one snackbar at a time: a second request waits in a FIFO queue. The task
+/// returned by <see cref="Show"/> completes with the <see cref="MaterialSnackbarCloseReason"/> as
+/// soon as the snackbar starts closing, matching the source continuation which resumes on
+/// performAction/dismiss rather than after the fade. The dismissed surface stays in the overlay
+/// until its exit springs settle, so the next item can animate in while the previous fades out.
 /// </para>
 /// <para>
 /// The host can be placed in a window (usually in a grid overlay) or created automatically in the
@@ -34,8 +37,9 @@ public sealed class MaterialSnackbarHost : TemplatedControl
     private static readonly ConditionalWeakTable<TopLevel, MaterialSnackbarHost> Hosts = new();
 
     private readonly Queue<MaterialSnackbar> _queue = new();
+    private readonly List<MaterialSnackbar> _retiring = [];
     private readonly Dictionary<MaterialSnackbar, TaskCompletionSource<MaterialSnackbarCloseReason>> _pending = new();
-    private StackPanel? _items;
+    private Panel? _items;
     private MaterialSnackbar? _current;
     private bool _currentShown;
     private IInputElement? _previousFocus;
@@ -85,8 +89,8 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         GetHost(topLevel).Show(snackbar);
 
     /// <summary>
-    /// Queues a snackbar and completes when it has closed. The same instance may only be shown
-    /// once at a time; the returned task is shared if it is already current or queued.
+    /// Queues a snackbar and completes when it starts closing. The same instance may only be
+    /// shown once at a time; the returned task is shared if it is already current or queued.
     /// </summary>
     public Task<MaterialSnackbarCloseReason> Show(MaterialSnackbar snackbar)
     {
@@ -98,6 +102,14 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         if (snackbar.GetVisualParent() is not null && !ReferenceEquals(snackbar.GetVisualParent(), _items))
             throw new InvalidOperationException(
                 "The snackbar is already attached to a visual tree. Remove it or create a new instance.");
+
+        if (_retiring.Remove(snackbar))
+        {
+            // The same item is re-presented while it was fading out: retarget its springs and
+            // listen to it as the current item again.
+            snackbar.Closing -= OnCurrentClosing;
+            snackbar.Closed -= OnCurrentClosed;
+        }
 
         var completion = new TaskCompletionSource<MaterialSnackbarCloseReason>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -114,6 +126,57 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         }
 
         return completion.Task;
+    }
+
+    /// <summary>
+    /// Cancels one snackbar without touching the current item or the rest of the queue.
+    /// </summary>
+    /// <returns>True when the snackbar was current or queued.</returns>
+    public bool Cancel(MaterialSnackbar snackbar,
+        MaterialSnackbarCloseReason reason = MaterialSnackbarCloseReason.Programmatic)
+    {
+        ArgumentNullException.ThrowIfNull(snackbar);
+
+        if (ReferenceEquals(_current, snackbar))
+        {
+            if (_currentShown)
+            {
+                snackbar.Dismiss(reason);
+            }
+            else
+            {
+                DetachCurrent(snackbar, reason);
+                _current = null;
+                _currentShown = false;
+                _previousFocus = null;
+                Advance();
+            }
+            return true;
+        }
+
+        if (!_queue.Contains(snackbar))
+            return false;
+
+        var remaining = new Queue<MaterialSnackbar>(_queue.Count);
+        var found = false;
+        while (_queue.Count > 0)
+        {
+            var item = _queue.Dequeue();
+            if (ReferenceEquals(item, snackbar))
+            {
+                found = true;
+                if (_pending.Remove(item, out var completion))
+                    completion.TrySetResult(reason);
+            }
+            else
+            {
+                remaining.Enqueue(item);
+            }
+        }
+        while (remaining.Count > 0)
+            _queue.Enqueue(remaining.Dequeue());
+
+        return found;
     }
 
     /// <summary>Dismisses the visible snackbar; queued snackbars continue afterwards.</summary>
@@ -162,9 +225,15 @@ public sealed class MaterialSnackbarHost : TemplatedControl
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
+        if (_items is not null)
+            _items.SizeChanged -= OnItemsSizeChanged;
+
         base.OnApplyTemplate(e);
-        _items = e.NameScope.Find<StackPanel>("PART_Items");
+        _items = e.NameScope.Find<Panel>("PART_Items");
+        if (_items is not null)
+            _items.SizeChanged += OnItemsSizeChanged;
         AttachCurrent();
+        UpdateItemWidths();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -177,11 +246,29 @@ public sealed class MaterialSnackbarHost : TemplatedControl
                 completion.TrySetResult(MaterialSnackbarCloseReason.Programmatic);
         }
 
+        foreach (var retiring in _retiring.ToArray())
+        {
+            retiring.Closing -= OnCurrentClosing;
+            retiring.Closed -= OnCurrentClosed;
+            _items?.Children.Remove(retiring);
+        }
+        _retiring.Clear();
+
         if (_current is not null && _pending.Remove(_current, out var currentCompletion))
         {
             currentCompletion.TrySetResult(MaterialSnackbarCloseReason.Programmatic);
+            _current.Closing -= OnCurrentClosing;
+            _current.Closed -= OnCurrentClosed;
             _current.Dismiss(MaterialSnackbarCloseReason.Programmatic);
+            _items?.Children.Remove(_current);
         }
+
+        _current = null;
+        _currentShown = false;
+        _previousFocus = null;
+
+        if (_items is not null)
+            _items.SizeChanged -= OnItemsSizeChanged;
 
         base.OnDetachedFromVisualTree(e);
     }
@@ -191,7 +278,11 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         if (_current is null || _items is null)
             return;
         if (ReferenceEquals(_current.GetVisualParent(), _items))
+        {
+            if (!_currentShown)
+                ScheduleShow(_current);
             return;
+        }
 
         // A re-applied template produces a new PART_Items; move the snackbar to the new host.
         if (_current.GetVisualParent() is Panel previous)
@@ -213,19 +304,27 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         _current.Closed -= OnCurrentClosed;
         _current.Closing += OnCurrentClosing;
         _current.Closed += OnCurrentClosed;
+        _current.HorizontalAlignment = HorizontalAlignment.Center;
+        _current.VerticalAlignment = VerticalAlignment.Bottom;
         _items.Children.Add(_current);
+        UpdateItemWidths();
 
         if (_currentShown)
             return;
 
-        var snackbar = _current;
+        ScheduleShow(_current);
+    }
+
+    private void ScheduleShow(MaterialSnackbar snackbar)
+    {
         // One layout pass lets the hidden initial style apply before :open starts the transition.
         Dispatcher.UIThread.Post(
             () =>
             {
-                if (ReferenceEquals(_current, snackbar))
+                if (ReferenceEquals(_current, snackbar) && !_currentShown)
                 {
                     _currentShown = true;
+                    UpdateItemWidths();
                     snackbar.Show();
                 }
             },
@@ -234,17 +333,26 @@ public sealed class MaterialSnackbarHost : TemplatedControl
 
     private void OnCurrentClosing(object? sender, MaterialSnackbarCloseEventArgs e)
     {
-        if (sender is not MaterialSnackbar snackbar)
+        if (sender is not MaterialSnackbar snackbar || !ReferenceEquals(_current, snackbar))
             return;
 
         var focus = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
-        if (!IsFocusWithin(snackbar, focus))
-            return;
-
-        if (_previousFocus is Control { IsEffectivelyEnabled: true, IsVisible: true } control &&
+        if (IsFocusWithin(snackbar, focus) &&
+            _previousFocus is Control { IsEffectivelyEnabled: true, IsVisible: true } control &&
             control.IsAttachedToVisualTree())
             control.Focus(NavigationMethod.Unspecified);
         _previousFocus = null;
+
+        // SnackbarHostState resumes on performAction/dismiss, not after the fade. Complete the
+        // waiter and let the next queued item appear while this one runs its exit springs.
+        if (_pending.Remove(snackbar, out var completion))
+            completion.TrySetResult(e.Reason);
+
+        if (!_retiring.Contains(snackbar))
+            _retiring.Add(snackbar);
+        _current = null;
+        _currentShown = false;
+        Advance();
     }
 
     private void OnCurrentClosed(object? sender, MaterialSnackbarCloseEventArgs e)
@@ -252,21 +360,33 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         if (sender is not MaterialSnackbar snackbar)
             return;
 
-        DetachCurrent(snackbar, e.Reason);
+        if (_pending.Remove(snackbar, out var completion))
+            completion.TrySetResult(e.Reason);
+
+        snackbar.Closing -= OnCurrentClosing;
+        snackbar.Closed -= OnCurrentClosed;
+        _items?.Children.Remove(snackbar);
+        _retiring.Remove(snackbar);
 
         if (ReferenceEquals(_current, snackbar))
+        {
             _current = null;
-        _currentShown = false;
-        _previousFocus = null;
-        Advance();
+            _currentShown = false;
+            _previousFocus = null;
+            Advance();
+        }
     }
 
     private void Advance()
     {
-        if (_current is null && _queue.Count > 0)
+        while (_current is null && _queue.Count > 0)
         {
-            _current = _queue.Dequeue();
+            var next = _queue.Dequeue();
+            if (!_pending.ContainsKey(next))
+                continue; // Cancelled while waiting.
+            _current = next;
             AttachCurrent();
+            return;
         }
     }
 
@@ -278,6 +398,28 @@ public sealed class MaterialSnackbarHost : TemplatedControl
 
         if (_pending.Remove(snackbar, out var completion))
             completion.TrySetResult(reason);
+    }
+
+    private void OnItemsSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateItemWidths();
+
+    /// <summary>
+    /// One-row snackbars take <c>min(availableWidth, 600)</c> in Snackbar.kt. The width is applied
+    /// only when the consumer did not set one, so deliberately narrow snackbars keep their size.
+    /// </summary>
+    private void UpdateItemWidths()
+    {
+        if (_items is null)
+            return;
+
+        var width = _items.Bounds.Width;
+        if (width <= 0)
+            return;
+
+        if (_current is not null && double.IsNaN(_current.Width))
+            _current.Width = width;
+        foreach (var retiring in _retiring)
+            if (double.IsNaN(retiring.Width))
+                retiring.Width = width;
     }
 
     private static bool IsFocusWithin(Visual root, IInputElement? focus) =>

@@ -16,17 +16,18 @@ public static class MaterialTokens
     /// <see cref="TimeSpan"/>.
     /// </summary>
     /// <remarks>
-    /// Values follow Google's Material Web v0.192 system tokens:
-    /// https://github.com/material-components/material-web/tree/main/tokens/versions/v0_192
-    /// (md-sys-typescale, md-ref-typeface, md-sys-shape, md-sys-state,
-    /// md-sys-elevation, md-sys-motion, and md-sys-easing).
-    /// The Web type scale is converted from rem at its baseline of 16 pixels.
-    /// MaterialFontFamily uses bundled Roboto (SIL OFL 1.1); applications can override it.
-    /// Tracking/emphasis and state opacity follow AndroidX Material3 generated tokens.
-    /// Elevation includes distances and corresponding two-layer BoxShadows. Spring parameters
-    /// are exposed as separate stiffness/damping tokens; <see cref="Theming.MaterialMotion"/>
-    /// consumes them. Text strings are resources, never literals inside templates, so an
-    /// application can localize them by overriding the key in its own resource dictionary.
+    /// Values follow the pinned AndroidX Material3 ShapeTokens, StateTokens, ElevationTokens,
+    /// MotionTokens, TypeScaleTokens and TypefaceTokens. dp/sp map to Avalonia DIPs at baseline
+    /// text scale. MaterialFontFamily uses bundled Roboto (SIL OFL 1.1), replaceable by the app.
+    /// Easing and spring resources default to the pinned Standard motion scheme; an application
+    /// opts into Expressive through <see cref="Theming.MaterialTheme.MotionScheme"/>. Spring
+    /// parameters are exposed as separate stiffness/damping tokens consumed by
+    /// <see cref="Theming.MaterialMotion"/>. Corner radii are Avalonia CornerRadius values, while
+    /// MaterialShapeCornerValue* doubles carry the upstream CornerSize values for interpolation.
+    /// Elevation distances are upstream tokens; the two-layer BoxShadow resources are an Avalonia
+    /// adaptation of Material Web geometry, not the Compose tonal/shadow renderer.
+    /// Text strings are resources, never literals inside templates, so an application can
+    /// localize them by overriding the key in its own resource dictionary.
     /// </remarks>
     public static ResourceDictionary CreateResources()
     {
@@ -39,6 +40,27 @@ public static class MaterialTokens
             ["MaterialShapeMediumCornerRadius"] = new CornerRadius(12),
             ["MaterialShapeLargeCornerRadius"] = new CornerRadius(16),
             ["MaterialShapeExtraLargeCornerRadius"] = new CornerRadius(28),
+            ["MaterialShapeLargeIncreasedCornerRadius"] = new CornerRadius(20),
+            ["MaterialShapeExtraLargeIncreasedCornerRadius"] = new CornerRadius(32),
+            ["MaterialShapeExtraExtraLargeCornerRadius"] = new CornerRadius(48),
+            ["MaterialShapeExtraSmallTopCornerRadius"] = new CornerRadius(4, 4, 0, 0),
+            ["MaterialShapeLargeTopCornerRadius"] = new CornerRadius(16, 16, 0, 0),
+            ["MaterialShapeExtraLargeTopCornerRadius"] = new CornerRadius(28, 28, 0, 0),
+            // Logical start/end corners from ShapeTokens.CornerLargeStart/CornerLargeEnd. Avalonia's
+            // CornerRadius is physical, so RTL consumers swap these two keys; the token values
+            // themselves remain the exact upstream radii.
+            ["MaterialShapeLargeStartCornerRadius"] = new CornerRadius(16, 0, 0, 16),
+            ["MaterialShapeLargeEndCornerRadius"] = new CornerRadius(0, 16, 16, 0),
+            // CornerSize values, kept separately from CornerRadius for shape interpolation/clamping.
+            ["MaterialShapeCornerValueNone"] = 0d,
+            ["MaterialShapeCornerValueExtraSmall"] = 4d,
+            ["MaterialShapeCornerValueSmall"] = 8d,
+            ["MaterialShapeCornerValueMedium"] = 12d,
+            ["MaterialShapeCornerValueLarge"] = 16d,
+            ["MaterialShapeCornerValueLargeIncreased"] = 20d,
+            ["MaterialShapeCornerValueExtraLarge"] = 28d,
+            ["MaterialShapeCornerValueExtraLargeIncreased"] = 32d,
+            ["MaterialShapeCornerValueExtraExtraLarge"] = 48d,
             // Material's full corner uses an oversized radius, clamped by the renderer.
             ["MaterialShapeFullCornerRadius"] = new CornerRadius(9999),
             ["MaterialHoverStateLayerOpacity"] = 0.08d,
@@ -51,6 +73,8 @@ public static class MaterialTokens
             ["MaterialElevationLevel3"] = 6d,
             ["MaterialElevationLevel4"] = 8d,
             ["MaterialElevationLevel5"] = 12d,
+            // Public dp distances. Shadow consumers use matching logical LevelN tokens;
+            // MaterialSurface applies tonal elevation independently of the shadow axis.
 
             // md.sys.motion.easing. Templates inline the same curves so transitions do not
             // depend on resource lookup inside a Transitions collection.
@@ -64,21 +88,6 @@ public static class MaterialTokens
             ["MaterialEasingLegacyAccelerate"] = new SplineEasing(0.4, 0, 1, 1),
             ["MaterialEasingLegacyDecelerate"] = new SplineEasing(0, 0, 0.2, 1),
             ["MaterialEasingLinear"] = new SplineEasing(0, 0, 1, 1),
-
-            // AndroidX Material3 ExpressiveMotionTokens: spatial and effects springs.
-            // The table is the single source of truth shared with MaterialMotion.
-            ["MaterialSpringSpatialDefaultStiffness"] = MaterialSpringTokens.Get(MaterialSpring.SpatialDefault).Stiffness,
-            ["MaterialSpringSpatialDefaultDamping"] = MaterialSpringTokens.Get(MaterialSpring.SpatialDefault).DampingRatio,
-            ["MaterialSpringSpatialFastStiffness"] = MaterialSpringTokens.Get(MaterialSpring.SpatialFast).Stiffness,
-            ["MaterialSpringSpatialFastDamping"] = MaterialSpringTokens.Get(MaterialSpring.SpatialFast).DampingRatio,
-            ["MaterialSpringSpatialSlowStiffness"] = MaterialSpringTokens.Get(MaterialSpring.SpatialSlow).Stiffness,
-            ["MaterialSpringSpatialSlowDamping"] = MaterialSpringTokens.Get(MaterialSpring.SpatialSlow).DampingRatio,
-            ["MaterialSpringEffectsDefaultStiffness"] = MaterialSpringTokens.Get(MaterialSpring.EffectsDefault).Stiffness,
-            ["MaterialSpringEffectsDefaultDamping"] = MaterialSpringTokens.Get(MaterialSpring.EffectsDefault).DampingRatio,
-            ["MaterialSpringEffectsFastStiffness"] = MaterialSpringTokens.Get(MaterialSpring.EffectsFast).Stiffness,
-            ["MaterialSpringEffectsFastDamping"] = MaterialSpringTokens.Get(MaterialSpring.EffectsFast).DampingRatio,
-            ["MaterialSpringEffectsSlowStiffness"] = MaterialSpringTokens.Get(MaterialSpring.EffectsSlow).Stiffness,
-            ["MaterialSpringEffectsSlowDamping"] = MaterialSpringTokens.Get(MaterialSpring.EffectsSlow).DampingRatio,
 
             // Template strings. Override these keys to localize built-in automation names,
             // tooltips, and context-menu commands.
@@ -102,6 +111,12 @@ public static class MaterialTokens
         };
 
         MaterialDurationTokens.Apply(resources, reduced: false);
+        // Standard is the upstream MaterialTheme default; Expressive is opt-in per application.
+        // MaterialSpringTokens.Apply is the single writer of spring and scheme resources.
+        MaterialSpringTokens.Apply(resources, MaterialMotionScheme.Standard);
+        // The accessibility policy is separate from the scheme; MaterialTheme overwrites this
+        // when the application or platform requests reduced motion.
+        resources["MaterialReducedMotion"] = false;
 
         AddTypography(resources, "DisplayLarge", 57, 64, FontWeight.Normal);
         AddTypography(resources, "DisplayMedium", 45, 52, FontWeight.Normal);

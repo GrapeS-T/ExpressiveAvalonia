@@ -47,8 +47,7 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
     private readonly MaterialNavigationDivider[] _dividerItems;
     private readonly MaterialNavigationItem[] _destinations;
     private readonly object?[] _destinationIcons;
-    private bool? _lastModal;
-    private double _lastWidth = double.NaN;
+    private MaterialNavigationDrawerPresentation? _lastPresentation;
     private bool _sync;
 
     public StackPanel Settings { get; } = new() { Spacing = 16 };
@@ -96,13 +95,13 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
 
         _host.Content = _page;
         _host.Drawer = _drawer;
-        _host.IsModal = false;
+        _host.Presentation = MaterialNavigationDrawerPresentation.Permanent;
         _host.IsDrawerOpen = true;
 
         var stage = new Border { Margin = new Thickness(24), Child = _card };
         Children.Add(stage);
 
-        _mode = Choice("Режим", ["Встроенный", "Модальный"]);
+        _mode = Choice("Режим", ["Постоянный", "Выдвижной", "Модальный"]);
         _openToggle = Toggle("Drawer открыт", true);
         _closeOnSelection = Toggle("Закрывать при выборе", true);
         _lightDismiss = Toggle("Закрытие по scrim", true);
@@ -202,20 +201,29 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
 
     private void Apply()
     {
-        var modal = _mode.SelectedIndex == 1;
+        var presentation = _mode.SelectedIndex switch
+        {
+            1 => MaterialNavigationDrawerPresentation.Dismissible,
+            2 => MaterialNavigationDrawerPresentation.Modal,
+            _ => MaterialNavigationDrawerPresentation.Permanent,
+        };
+        var modal = presentation == MaterialNavigationDrawerPresentation.Modal;
         _sync = true;
         try
         {
-            if (_lastModal != modal)
+            if (_lastPresentation != presentation)
             {
-                _lastModal = modal;
-                _host.IsModal = modal;
-                // Switching presentation starts from the natural state: docked is always open,
-                // modal starts closed so the opener and the focus lifecycle stay observable.
-                _host.IsDrawerOpen = !modal;
-                _hostState.Text = modal
-                    ? "Модальный режим · откройте drawer кнопкой; Escape, scrim или выбор закроют его"
-                    : "Встроенный режим · открытый drawer сдвигает содержимое страницы";
+                _lastPresentation = presentation;
+                _host.Presentation = presentation;
+                // Permanent drawers are always visible; dismissible and modal drawers start
+                // closed so the opener and the focus lifecycle stay observable.
+                _host.IsDrawerOpen = presentation == MaterialNavigationDrawerPresentation.Permanent;
+                _hostState.Text = presentation switch
+                {
+                    MaterialNavigationDrawerPresentation.Permanent => "Постоянный drawer · содержимое сдвинуто, фон не блокируется",
+                    MaterialNavigationDrawerPresentation.Dismissible => "Выдвижной drawer · откройте кнопкой, содержимое смещается на долю открытия",
+                    _ => "Модальный drawer · откройте кнопкой; Escape, scrim или выбор закроют его",
+                };
             }
             else if (_openToggle.IsChecked != _host.IsDrawerOpen)
             {
@@ -228,16 +236,6 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
             _host.DrawerMargin = new Thickness(_margin.Value);
             var width = _width.Value;
             _drawer.Width = width;
-            if (!_lastWidth.Equals(width))
-            {
-                _lastWidth = width;
-                // The host measures the docked inset when the drawer is presented, so a width
-                // change while docked needs a fresh presentation pass. Re-applying the current
-                // modal flag does that without detaching the drawer (which would reset focus).
-                var modalNow = _host.IsModal;
-                _host.IsModal = !modalNow;
-                _host.IsModal = modalNow;
-            }
 
             foreach (var header in _headerItems)
                 header.IsVisible = _headers.IsChecked == true;
@@ -256,13 +254,14 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
             if (!_destinations[3].IsEnabled && _drawer.SelectedIndex == 3)
                 _drawer.SelectedIndex = 0;
 
-            _closeOnSelection.IsVisible = modal;
+            _closeOnSelection.IsVisible = !(_lastPresentation == MaterialNavigationDrawerPresentation.Permanent);
             _lightDismiss.IsVisible = modal;
             _scrim.IsVisible = modal;
             _margin.IsVisible = modal;
+            _openToggle.IsVisible = presentation != MaterialNavigationDrawerPresentation.Permanent;
             _openToggle.IsChecked = _host.IsDrawerOpen;
-            _open.IsVisible = modal && !_host.IsDrawerOpen;
-            _close.IsVisible = modal && _host.IsDrawerOpen;
+            _open.IsVisible = presentation != MaterialNavigationDrawerPresentation.Permanent && !_host.IsDrawerOpen;
+            _close.IsVisible = presentation != MaterialNavigationDrawerPresentation.Permanent && _host.IsDrawerOpen;
             SyncSelectedChoice();
         }
         finally
@@ -285,8 +284,9 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
             _sync = previous;
         }
 
-        _open.IsVisible = _host.IsModal && !open;
-        _close.IsVisible = _host.IsModal && open;
+        var nonPermanent = _host.Presentation != MaterialNavigationDrawerPresentation.Permanent;
+        _open.IsVisible = nonPermanent && !open;
+        _close.IsVisible = nonPermanent && open;
     }
 
     private void SyncSelectedChoice()

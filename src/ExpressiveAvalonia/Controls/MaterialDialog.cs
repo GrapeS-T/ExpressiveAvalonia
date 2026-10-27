@@ -18,6 +18,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ExpressiveAvalonia.Theming;
+using ExpressiveAvalonia.Tokens;
 using Path = Avalonia.Controls.Shapes.Path;
 
 namespace ExpressiveAvalonia.Controls;
@@ -116,7 +117,9 @@ public sealed class MaterialDialogClosedEventArgs(object? result) : EventArgs
 /// top level's <see cref="OverlayLayer"/>, a scrim blocks pointer input to the page, focus moves
 /// into the dialog and Tab/Shift+Tab cycle inside it. Escape and scrim clicks dismiss the dialog
 /// unless disabled; Enter activates the action marked <see cref="MaterialDialogAction.IsDefault"/>.
-/// When the dialog closes, focus returns to the element that had it before it was shown.
+/// When the topmost dialog closes, focus returns to the element that had it before it was shown.
+/// A newer still-open dialog keeps focus and inherits that restoration target. An accepted close
+/// makes the presentation inert until it is shown again.
 /// </para>
 /// <para>
 /// <see cref="Content"/> is the body slot below the header and <see cref="List"/> is a full-bleed
@@ -129,7 +132,7 @@ public sealed class MaterialDialogClosedEventArgs(object? result) : EventArgs
 /// </para>
 /// </remarks>
 [PseudoClasses(":open", ":icon")]
-public class MaterialDialog : ContentControl
+public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
 {
     /// <summary>Design source identity of the icon used by the source dialog family.</summary>
     public const string IconSourceId = "local-004360";
@@ -165,8 +168,7 @@ public class MaterialDialog : ContentControl
     private readonly Dictionary<MaterialDialogAction, Button> _buttons = [];
     private readonly Dictionary<Button, MaterialButtonVariant> _buttonVariants = [];
     private readonly Dictionary<Button, IDisposable> _foregroundBindings = [];
-    private StackPanel? _actionsPanel;
-    private Border? _bottomSpacer;
+    private MaterialDialogActionsPanel? _actionsPanel;
     private INotifyCollectionChanged? _observedActions;
     private TopLevel? _owner;
     private OverlayLayer? _overlay;
@@ -174,7 +176,8 @@ public class MaterialDialog : ContentControl
     private Border? _scrim;
     private IInputElement? _previousFocus;
     private TaskCompletionSource<object?>? _completion;
-    private TimeSpan _exitDuration;
+    private MaterialSpringValue? _openProgress;
+    private double _progress;
     private double _previousMaxHeight = double.PositiveInfinity;
     private Thickness _previousMargin;
     private HorizontalAlignment _previousHorizontalAlignment;
@@ -183,6 +186,13 @@ public class MaterialDialog : ContentControl
     private bool _appliedLayout;
     private bool _isOpen;
     private bool _closing;
+    private bool _focusRestored;
+    private bool _ownedFocusAtClose;
+    private bool _closeCompletionPending;
+    private bool _startingExitAnimation;
+    private bool _inputSuppressed;
+    private bool _previousIsEnabled;
+    private bool _previousIsHitTestVisible;
 
     public MaterialDialog()
     {
@@ -261,7 +271,8 @@ public class MaterialDialog : ContentControl
             Width = 24,
             Height = 24,
         };
-        path.Bind(Shape.FillProperty, path.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
+        // DialogTokens.IconColor is the secondary role, not on-surface-variant.
+        path.Bind(Shape.FillProperty, path.GetResourceObservable("MaterialSecondaryBrush"));
         return path;
     }
 
@@ -297,6 +308,12 @@ public class MaterialDialog : ContentControl
         _previousFocus = owner.FocusManager?.GetFocusedElement();
         _completion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
         _closing = false;
+        _focusRestored = false;
+        _ownedFocusAtClose = false;
+        _closeCompletionPending = false;
+        // A previous accepted close left the presentation inert until it is shown again.
+        if (_inputSuppressed)
+            RestoreInputState();
 
         var host = new Panel { ClipToBounds = false };
         _host = host;
@@ -315,6 +332,9 @@ public class MaterialDialog : ContentControl
         // Attach first so resource lookups resolve through the owner's theme, then build the
         // scrim and transitions from the actual tokens of that theme.
         host.AddHandler(InputElement.KeyDownEvent, OnHostKeyDown, RoutingStrategies.Tunnel);
+        host.AddHandler(InputElement.KeyUpEvent, OnHostKeyUp, RoutingStrategies.Tunnel);
+        host.AddHandler(InputElement.TextInputEvent, OnHostTextInput, RoutingStrategies.Tunnel);
+        host.AddHandler(InputElement.PointerPressedEvent, OnHostPointerPressed, RoutingStrategies.Tunnel);
         overlay.Children.Add(host);
         UpdateHostSize();
 
@@ -332,47 +352,30 @@ public class MaterialDialog : ContentControl
         RenderTransform = scale;
         RenderTransformOrigin = RelativePoint.Center;
         Opacity = 0;
-
-        var enter = GetDuration("MaterialDurationMedium2", TimeSpan.FromMilliseconds(300));
-        _exitDuration = GetDuration("MaterialDurationShort4", TimeSpan.FromMilliseconds(200));
-        if (enter > TimeSpan.Zero)
-        {
-            var easing = new SplineEasing(0.2, 0, 0, 1);
-            Transitions = new Transitions
-            {
-                new DoubleTransition { Property = OpacityProperty, Duration = enter, Easing = easing },
-            };
-            scale.Transitions = new Transitions
-            {
-                new DoubleTransition { Property = ScaleTransform.ScaleXProperty, Duration = enter, Easing = easing },
-                new DoubleTransition { Property = ScaleTransform.ScaleYProperty, Duration = enter, Easing = easing },
-            };
-            scrim.Transitions = new Transitions
-            {
-                new DoubleTransition { Property = OpacityProperty, Duration = enter, Easing = easing },
-            };
-        }
+        scrim.Opacity = 0;
+        _progress = 0;
+        _openProgress = new MaterialSpringValue(this, 0, ApplyOpenProgress);
 
         owner.Closed += OnOwnerClosed;
         owner.PropertyChanged += OnOwnerPropertyChanged;
         overlay.PropertyChanged += OnOverlayPropertyChanged;
+        MaterialOverlayLifecycle.Register(owner, this);
 
         _isOpen = true;
         RaisePropertyChanged(IsOpenProperty, false, true);
         PseudoClasses.Set(":open", true);
         UpdateAutomationName();
 
-        var scrimOpacity = ResolveScrimOpacity();
         Dispatcher.UIThread.Post(
             () =>
             {
                 if (_host is null || _closing)
                     return;
-                Opacity = 1;
-                scale.ScaleX = 1;
-                scale.ScaleY = 1;
-                scrim.Opacity = scrimOpacity;
                 FocusInitial();
+                // N06.3: AlertDialog.kt has no shared composable transition; Android animates the
+                // dialog window. This fade/scale is an explicitly marked desktop composition that
+                // uses the shared default-spatial spring, not an upstream animation spec.
+                _openProgress?.AnimateTo(1, MaterialSpring.SpatialDefault, null, 0.01);
                 Opened?.Invoke(this, EventArgs.Empty);
             },
             DispatcherPriority.Loaded);
@@ -390,14 +393,96 @@ public class MaterialDialog : ContentControl
         if (args.Cancel)
             return;
         _closing = true;
-        _ = FinishCloseAsync(result);
+        // Disabling the presentation for the exit animation also takes keyboard focus away from
+        // whatever inside it was focused, so remember that this layer owned focus before the
+        // suppression, otherwise the saved restoration target would look orphaned on detach.
+        _ownedFocusAtClose = _owner is { } focusOwner && OwnsFocus(focusOwner);
+        // An accepted close must not leave native action commands reachable while the exit
+        // animation runs. Make the presentation inert now, but keep the scrim intercepting
+        // pointers so a closing dialog cannot leak clicks to the page below it.
+        SuppressInput();
+        if (_isOpen)
+        {
+            _isOpen = false;
+            RaisePropertyChanged(IsOpenProperty, true, false);
+        }
+        PseudoClasses.Set(":open", false);
+
+        // The exit spring may already be settled when the close is accepted (reduced motion or
+        // no progress to animate); only that inline settle removes the host right away. A later
+        // settle is finished on its own dispatcher turn, because it can arrive from an inherited
+        // property notification that is still walking the visual tree.
+        _startingExitAnimation = true;
+        try
+        {
+            if (_openProgress is null)
+                CompleteClose(result);
+            else
+                // The same spring retargets the current progress, so close-during-open keeps both
+                // the sampled position and velocity instead of restarting from a static duration.
+                _openProgress.AnimateTo(0, MaterialSpring.SpatialDefault, () => CompleteClose(result), 0.01);
+        }
+        finally
+        {
+            _startingExitAnimation = false;
+        }
+    }
+
+    private void SuppressInput()
+    {
+        if (_inputSuppressed)
+            return;
+        _inputSuppressed = true;
+        _previousIsEnabled = IsEnabled;
+        _previousIsHitTestVisible = IsHitTestVisible;
+        // SetCurrentValue changes the effective presentation state without replacing a consumer's
+        // binding. Disabled controls lose native command execution and expose disabled automation
+        // peers; non-hit-testable content leaves the still-visible scrim as the pointer target.
+        SetCurrentValue(InputElement.IsEnabledProperty, false);
+        SetCurrentValue(InputElement.IsHitTestVisibleProperty, false);
+        foreach (var button in _buttons.Values)
+            button.IsEnabled = false;
+    }
+
+    private void RestoreInputState()
+    {
+        if (!_inputSuppressed)
+            return;
+        _inputSuppressed = false;
+        SetCurrentValue(InputElement.IsEnabledProperty, _previousIsEnabled);
+        SetCurrentValue(InputElement.IsHitTestVisibleProperty, _previousIsHitTestVisible);
+        foreach (var pair in _buttons)
+            pair.Value.IsEnabled = pair.Key.IsEnabled;
+    }
+
+    IInputElement? IMaterialOverlayFocusChain.RestoreFocusTarget
+    {
+        get => _previousFocus;
+        set => _previousFocus = value;
+    }
+
+    private bool OwnsFocus(TopLevel owner) =>
+        owner.FocusManager?.GetFocusedElement() is { } focused &&
+        (ReferenceEquals(focused, this) || (focused is Visual visual && this.IsVisualAncestorOf(visual)));
+
+    private void ApplyOpenProgress(double value)
+    {
+        _progress = Math.Clamp(value, 0, 1);
+        Opacity = _progress;
+        if (RenderTransform is ScaleTransform scale)
+        {
+            var factor = 0.92 + (0.08 * _progress);
+            scale.ScaleX = factor;
+            scale.ScaleY = factor;
+        }
+        if (_scrim is not null)
+            _scrim.Opacity = ResolveScrimOpacity() * _progress;
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         base.OnApplyTemplate(e);
-        _actionsPanel = e.NameScope.Find<StackPanel>("PART_Actions");
-        _bottomSpacer = e.NameScope.Find<Border>("PART_BottomSpacer");
+        _actionsPanel = e.NameScope.Find<MaterialDialogActionsPanel>("PART_Actions");
         UpdateActions();
     }
 
@@ -444,13 +529,6 @@ public class MaterialDialog : ContentControl
             ? opacity
             : 0.32;
 
-    private TimeSpan GetDuration(string key, TimeSpan fallback)
-    {
-        if (MaterialMotion.GetIsReduced(this))
-            return TimeSpan.Zero;
-        return this.TryFindResource(key, out var value) && value is TimeSpan duration ? duration : fallback;
-    }
-
     private void UpdateConstraints(TopLevel owner)
     {
         var height = owner.ClientSize.Height;
@@ -496,10 +574,20 @@ public class MaterialDialog : ContentControl
 
     private void OnHostKeyDown(object? sender, KeyEventArgs e)
     {
+        if (_inputSuppressed)
+        {
+            // Suppression applies from the focused element's tunnel through the host, before any
+            // native button or editor can act on the key.
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape)
         {
             // A popup opened from inside the dialog (combo box, menu) owns Escape while it is up.
             if (!IsDismissible || IsInPopup(e.Source))
+                return;
+            // A newer overlay (another dialog, a sheet above this one) owns Escape.
+            if (_owner is null || !MaterialOverlayLifecycle.IsTopmost(_owner, this))
                 return;
             InvokeCancel();
             e.Handled = true;
@@ -518,6 +606,24 @@ public class MaterialDialog : ContentControl
                 e.Handled = true;
             }
         }
+    }
+
+    private void OnHostKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (_inputSuppressed)
+            e.Handled = true;
+    }
+
+    private void OnHostTextInput(object? sender, TextInputEventArgs e)
+    {
+        if (_inputSuppressed)
+            e.Handled = true;
+    }
+
+    private void OnHostPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_inputSuppressed)
+            e.Handled = true;
     }
 
     private void OnScrimPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -545,7 +651,7 @@ public class MaterialDialog : ContentControl
 
     private void Invoke(MaterialDialogAction action, bool executeCommand)
     {
-        if (!action.IsEnabled)
+        if (_closing || !action.IsEnabled)
             return;
         if (executeCommand && action.Command is { } command && command.CanExecute(action.CommandParameter))
             command.Execute(action.CommandParameter);
@@ -579,8 +685,14 @@ public class MaterialDialog : ContentControl
         _actionsPanel.Children.Clear();
         if (Actions is not null)
         {
-            foreach (var action in Actions)
+            // AlertDialogFlowRow lays the source's [confirm, dismiss] items out with a flipped
+            // direction: horizontally that puts dismiss to the left, vertically it puts confirm
+            // on top. Our Actions collection is documented in visual order, so feeding it to the
+            // flipped panel in reverse reproduces both arrangements (and reverse tab order, which
+            // is also the source's composition order).
+            for (var i = Actions.Count - 1; i >= 0; i--)
             {
+                var action = Actions[i];
                 var button = CreateActionButton(action);
                 _buttons[action] = button;
                 _actionsPanel.Children.Add(button);
@@ -597,7 +709,7 @@ public class MaterialDialog : ContentControl
         var button = new Button { VerticalAlignment = VerticalAlignment.Center };
         button.Click += (_, _) =>
         {
-            if (action.CloseOnInvoke)
+            if (!_closing && action.CloseOnInvoke)
                 Close(action.Result);
         };
         ApplyActionProperties(button, action);
@@ -607,7 +719,7 @@ public class MaterialDialog : ContentControl
     private void ApplyActionProperties(Button button, MaterialDialogAction action)
     {
         button.Content = action.Text;
-        button.IsEnabled = action.IsEnabled;
+        button.IsEnabled = !_inputSuppressed && action.IsEnabled;
         button.Command = action.Command;
         button.CommandParameter = action.CommandParameter;
         MaterialAssist.SetIcon(button, action.Icon);
@@ -641,11 +753,8 @@ public class MaterialDialog : ContentControl
 
     private void UpdateActionLayout()
     {
-        var hasActions = _actionsPanel is { Children.Count: > 0 };
         if (_actionsPanel is not null)
-            _actionsPanel.IsVisible = hasActions;
-        if (_bottomSpacer is not null)
-            _bottomSpacer.IsVisible = !hasActions;
+            _actionsPanel.IsVisible = _actionsPanel.Children.Count > 0;
     }
 
     private void FocusInitial()
@@ -668,63 +777,61 @@ public class MaterialDialog : ContentControl
         AutomationProperties.SetName(this, string.IsNullOrWhiteSpace(Title) ? fallback : Title);
     }
 
-    private async Task FinishCloseAsync(object? result)
+    private void CompleteClose(object? result)
     {
-        try
-        {
-            if (_isOpen)
-            {
-                _isOpen = false;
-                RaisePropertyChanged(IsOpenProperty, true, false);
-            }
-            PseudoClasses.Set(":open", false);
+        if (_host is null)
+            return;
 
-            // Retarget the transitions to the exit duration so the surface, its scale and the
-            // scrim all finish together before the host is removed.
-            if (_exitDuration > TimeSpan.Zero)
-            {
-                var easing = new SplineEasing(0.2, 0, 0, 1);
-                Transitions = new Transitions
-                {
-                    new DoubleTransition { Property = OpacityProperty, Duration = _exitDuration, Easing = easing },
-                };
-                if (RenderTransform is ScaleTransform scale)
-                {
-                    scale.Transitions = new Transitions
-                    {
-                        new DoubleTransition { Property = ScaleTransform.ScaleXProperty, Duration = _exitDuration, Easing = easing },
-                        new DoubleTransition { Property = ScaleTransform.ScaleYProperty, Duration = _exitDuration, Easing = easing },
-                    };
-                }
-                if (_scrim is not null)
-                {
-                    _scrim.Transitions = new Transitions
-                    {
-                        new DoubleTransition { Property = OpacityProperty, Duration = _exitDuration, Easing = easing },
-                    };
-                }
-            }
-
-            Opacity = 0;
-            if (RenderTransform is ScaleTransform exitScale)
-            {
-                exitScale.ScaleX = 0.92;
-                exitScale.ScaleY = 0.92;
-            }
-            if (_scrim is not null)
-                _scrim.Opacity = 0;
-            if (_exitDuration > TimeSpan.Zero)
-                await Task.Delay(_exitDuration);
-        }
-        finally
+        // A spring can settle from a frame or from an inherited property notification (for example
+        // when reduced motion is enabled while the exit runs). Detaching the host there would
+        // restructure the visual tree that is still being traversed, so an exit that settles
+        // outside the close request finishes on its own dispatcher turn instead.
+        if (_startingExitAnimation)
         {
-            Detach(restoreFocus: true);
-            var completion = _completion;
-            _completion = null;
-            completion?.TrySetResult(result);
-            if (completion is not null)
-                Closed?.Invoke(this, new MaterialDialogClosedEventArgs(result));
+            FinishClose(result);
+            return;
         }
+
+        if (_closeCompletionPending)
+            return;
+        _closeCompletionPending = true;
+        var completion = _completion;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                // Abort or a new presentation may have finished this one before the turn ran.
+                if (!ReferenceEquals(_completion, completion))
+                    return;
+                _closeCompletionPending = false;
+                FinishClose(result);
+            },
+            DispatcherPriority.Loaded);
+    }
+
+    private void FinishClose(object? result)
+    {
+        if (_host is null)
+            return;
+
+        if (_isOpen)
+        {
+            _isOpen = false;
+            RaisePropertyChanged(IsOpenProperty, true, false);
+        }
+        PseudoClasses.Set(":open", false);
+
+        // The spring has already applied its final frame; stop it before removing the host so
+        // detaching the control cannot replay a frame.
+        _openProgress?.Dispose();
+        _openProgress = null;
+        _progress = 0;
+
+        Detach(restoreFocus: true);
+        var completion = _completion;
+        _completion = null;
+        completion?.TrySetResult(result);
+        if (completion is not null)
+            Closed?.Invoke(this, new MaterialDialogClosedEventArgs(result));
     }
 
     private void Abort()
@@ -738,6 +845,9 @@ public class MaterialDialog : ContentControl
             RaisePropertyChanged(IsOpenProperty, true, false);
         }
         PseudoClasses.Set(":open", false);
+        _openProgress?.Dispose();
+        _openProgress = null;
+        _progress = 0;
         Detach(restoreFocus: false);
         var completion = _completion;
         _completion = null;
@@ -751,6 +861,13 @@ public class MaterialDialog : ContentControl
         var overlay = _overlay;
         var owner = _owner;
         var previous = _previousFocus;
+        // Decide ownership before the layer leaves the registry and before its visual tree is
+        // detached. A lower dialog must never restore over the modal that is still above it.
+        var wasTopmost = owner is null || MaterialOverlayLifecycle.IsTopmost(owner, this);
+        // Suppressing input for the exit animation clears focus from inside the layer, so a
+        // dialog that owned focus when its close was accepted must still restore the target.
+        var ownsFocus = _ownedFocusAtClose || (owner is not null && OwnsFocus(owner));
+        _ownedFocusAtClose = false;
 
         _host = null;
         _overlay = null;
@@ -761,8 +878,11 @@ public class MaterialDialog : ContentControl
 
         if (owner is not null)
         {
+            if (restoreFocus)
+                MaterialOverlayLifecycle.RebaseFocusTargets(owner, this, previous);
             owner.Closed -= OnOwnerClosed;
             owner.PropertyChanged -= OnOwnerPropertyChanged;
+            MaterialOverlayLifecycle.Unregister(owner, this);
         }
         if (overlay is not null)
         {
@@ -773,6 +893,9 @@ public class MaterialDialog : ContentControl
         if (host is not null)
         {
             host.RemoveHandler(InputElement.KeyDownEvent, OnHostKeyDown);
+            host.RemoveHandler(InputElement.KeyUpEvent, OnHostKeyUp);
+            host.RemoveHandler(InputElement.TextInputEvent, OnHostTextInput);
+            host.RemoveHandler(InputElement.PointerPressedEvent, OnHostPointerPressed);
             host.Children.Remove(this);
         }
 
@@ -793,8 +916,120 @@ public class MaterialDialog : ContentControl
             _appliedMaxHeight = false;
         }
 
-        if (restoreFocus && previous is Control { IsEffectivelyEnabled: true, IsVisible: true } control &&
-            control.IsAttachedToVisualTree())
+        if (!_focusRestored && restoreFocus && wasTopmost && ownsFocus &&
+            previous is Control { IsEffectivelyEnabled: true, IsVisible: true } control &&
+            control.IsAttachedToVisualTree() &&
+            owner is not null && ReferenceEquals(TopLevel.GetTopLevel(control), owner))
             control.Focus(NavigationMethod.Unspecified);
+        _focusRestored = true;
+    }
+}
+
+/// <summary>
+/// Right-aligned, wrapping action row for <see cref="MaterialDialog"/>.
+/// </summary>
+/// <remarks>
+/// Desktop equivalent of <c>AlertDialogFlowRow</c> in AlertDialog.kt. Items are packed from the
+/// trailing edge with 8 DIP between them and wrap onto new right-aligned lines. The dialog adds
+/// its actions in reverse collection order, and the flipped packing then reproduces the source's
+/// horizontal [dismiss, confirm] and stacked [confirm above dismiss] arrangements.
+/// </remarks>
+public sealed class MaterialDialogActionsPanel : Panel
+{
+    private const double ItemSpacing = 8d;
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        var maxWidth = double.IsPositiveInfinity(availableSize.Width)
+            ? double.PositiveInfinity
+            : Math.Max(0, availableSize.Width);
+
+        var childConstraintWidth = double.IsPositiveInfinity(maxWidth)
+            ? double.PositiveInfinity
+            : Math.Max(0, maxWidth);
+        foreach (var child in Children)
+            child.Measure(new Size(childConstraintWidth, availableSize.Height));
+
+        var lines = BuildLines(maxWidth);
+        var width = 0d;
+        var height = 0d;
+        foreach (var line in lines)
+        {
+            var lineWidth = 0d;
+            var lineHeight = 0d;
+            for (var i = 0; i < line.Count; i++)
+            {
+                lineWidth += line[i].DesiredSize.Width;
+                lineHeight = Math.Max(lineHeight, line[i].DesiredSize.Height);
+                if (i > 0)
+                    lineWidth += ItemSpacing;
+            }
+            width = Math.Max(width, lineWidth);
+            height += lineHeight;
+        }
+        if (lines.Count > 1)
+            height += ItemSpacing * (lines.Count - 1);
+        if (!double.IsPositiveInfinity(maxWidth))
+            width = Math.Min(width, maxWidth);
+
+        return new Size(width, height);
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        var lines = BuildLines(finalSize.Width);
+        var y = 0d;
+        foreach (var line in lines)
+        {
+            var lineWidth = 0d;
+            var lineHeight = 0d;
+            for (var i = 0; i < line.Count; i++)
+            {
+                lineWidth += line[i].DesiredSize.Width;
+                lineHeight = Math.Max(lineHeight, line[i].DesiredSize.Height);
+                if (i > 0)
+                    lineWidth += ItemSpacing;
+            }
+
+            // Pack from the trailing edge: the first composition item sits rightmost.
+            var cursor = finalSize.Width;
+            foreach (var child in line)
+            {
+                cursor -= child.DesiredSize.Width;
+                child.Arrange(new Rect(cursor, y, child.DesiredSize.Width, lineHeight));
+                cursor -= ItemSpacing;
+            }
+
+            y += lineHeight + ItemSpacing;
+        }
+
+        return finalSize;
+    }
+
+    private List<List<Control>> BuildLines(double maxWidth)
+    {
+        var lines = new List<List<Control>>();
+        var line = new List<Control>();
+        var lineWidth = 0d;
+
+        foreach (var child in Children)
+        {
+            var childWidth = child.DesiredSize.Width;
+            var nextWidth = line.Count == 0 ? childWidth : lineWidth + ItemSpacing + childWidth;
+            if (line.Count > 0 && !double.IsPositiveInfinity(maxWidth) && nextWidth > maxWidth)
+            {
+                lines.Add(line);
+                line = new List<Control>();
+                lineWidth = 0;
+                nextWidth = childWidth;
+            }
+
+            line.Add(child);
+            lineWidth = nextWidth;
+        }
+
+        if (line.Count > 0)
+            lines.Add(line);
+        return lines;
     }
 }

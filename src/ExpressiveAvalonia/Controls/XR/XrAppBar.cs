@@ -12,10 +12,17 @@ namespace ExpressiveAvalonia.Controls;
 /// slot, in centered or small configurations.
 /// </summary>
 /// <remarks>
+/// Desktop composition of <c>SpatialTopAppBar</c>/<c>SpatialTwoRowsTopAppBar</c> from the pinned XR
+/// source: those wrap the common <c>TopAppBar</c> in a top-center Orbiter with a 24 dp offset and
+/// the 50% container shape. A desktop window has no Orbiter or spatial elevation, so this control
+/// supplies the 2D equivalent only: a 72 unit bar whose 36 radius is the 50% shape for that height.
+/// The TopAppBar content contract itself belongs to the shared app-bar family.
+/// <para>
 /// The slots accept any control; place <see cref="XrIconButton"/> instances there to get native
 /// pointer, keyboard, command, and automation behavior. The source's "show 1st/2nd/3rd trailing
 /// icon" switches are expressed by the content of <see cref="TrailingContent"/>, so any number
 /// of actions can be supplied without dead boolean properties.
+/// </para>
 /// </remarks>
 public class XrAppBar : TemplatedControl
 {

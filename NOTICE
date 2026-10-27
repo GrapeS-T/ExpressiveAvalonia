@@ -12,6 +12,36 @@ https://github.com/material-components/material-web
 https://github.com/androidx/androidx
 https://github.com/material-foundation/material-color-utilities
 
+The analytical spring in Theming/SpringSimulation.cs is adapted from AndroidX
+Compose animation-core SpringSimulation.kt (Copyright 2019 The Android Open
+Source Project), Apache-2.0, commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+Changes: Kotlin to C#, immutable configuration, double state and seconds,
+existing positive-damping validation; no Kotlin Float output rounding.
+See licenses/Apache-2.0.txt.
+
+The duration estimator (Theming/SpringDuration.cs), Oklab color conversion
+(Theming/MaterialColorInterpolation.cs), system motion/shape/type tokens and
+loading-indicator behavior are adapted from the same pinned AndroidX commit.
+Changes: Kotlin to C#, Avalonia frame scheduling and sRGB byte-color adapter;
+retained seed generation is MCU Tonal Spot Spec2021, not Android wallpaper color.
+
+Finite tween and decay helpers (Theming/MaterialMotion.Tween.cs,
+MaterialMotion.Decay.cs and MotionDecay.cs) adapt Compose tween timing,
+FloatDecayAnimationSpec.kt, SplineBasedDecay.kt and FlingCalculator.kt from
+the same pinned AndroidX commit (Copyright 2020 The Android Open Source
+Project). Changes: C#, double state, Avalonia frame/lifecycle scheduling,
+DIP density-one adapter; Android ViewConfiguration scroll friction is 0.015.
+
+The polygon, cubic, rounding, measurement, feature matching and morph code in
+Geometry/ is adapted from AndroidX graphics-shapes (Copyright 2023 The Android
+Open Source Project), Apache-2.0, at the same pinned commit. Changes: C# value
+types and double precision, cached MaterialShapes, Avalonia StreamGeometry paths.
+Component layout, state, interaction and animation algorithms adapted from
+Compose Material3 have source attribution in the register below. Native
+Avalonia input, focus, automation and desktop popup adapters replace Android UI
+runtime infrastructure. Custom assets and XR desktop compositions are identified
+as project extensions, not official AndroidX component implementations.
+
 Avalonia template contracts and structural template patterns are based on
 Avalonia 12.1.4 sources, Copyright AvaloniaUI contributors, MIT:
 https://github.com/AvaloniaUI/Avalonia/blob/12.1.4/licence.md
@@ -20,5 +50,621 @@ Bundled Roboto font: Copyright 2011 The Roboto Project Authors.
 Licensed under SIL Open Font License 1.1, see licenses/Roboto-OFL.txt.
 Source: https://github.com/google/fonts/tree/main/ofl/roboto
 
+Bundled design SVGs, boards and avatar/placeholder images originate from the
+Material 3 Design Kit (Community), Google Material Design team, version 1.24:
+https://www.figma.com/design/9E1K4Zre3KHLd43nK2BVpb/
+Export captured 2026-10-24, source version 2413947062282405848.
+The source's overview node 58956:9362 states: "This resource is available
+under CC BY 4.0" and links https://creativecommons.org/licenses/by/4.0/.
+See licenses/CC-BY-4.0.txt. Source JSON SHA-256:
+a3c1f8b1f3573060922589ed6d439773897f028d3a7db83aa915bfd023f5cfbd.
+Changes: anonymized node identities; exported SVG paths and board resources;
+generated C# geometry/lookup tables. Avatar and placeholder PNG exports are
+copied without resampling. No endorsement is implied. This copyright license
+does not grant trademark, privacy, publicity or personality rights; see its
+Section 2(b). It is separate from the AndroidX Apache-2.0 license.
+
 Dependencies retain their own licenses. This notice does not assert affiliation
 with or endorsement by Google or AvaloniaUI.
+
+Source-file attribution register
+===============================
+The following notices were relocated from source-file headers. Paths are relative
+to src/ExpressiveAvalonia/. These entries preserve copyright, license, source
+mapping and adaptation notes; they do not change the applicable licenses.
+
+Controls/Carousel/CarouselArrangement.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from androidx.compose.material3.carousel.Arrangement,
+AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Controls/Carousel/CarouselKeylines.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from androidx.compose.material3.carousel.Keylines/KeylineList,
+AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+Kotlin Float/Density pixels are mapped to Avalonia DIPs (dp == DIP), so no density
+conversion is applied; all values are doubles instead of Kotlin Floats.
+
+
+Controls/Carousel/CarouselParallax.cs
+Copyright 2026 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from CarouselParallaxScrollEffect.kt, calculateItemInfo/getMaskIntensity,
+AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1. Kotlin Float to C# double.
+
+Controls/Carousel/CarouselStrategy.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from androidx.compose.material3.carousel.Strategy / KeylineSnapPosition,
+AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Controls/LoadingIndicator.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from LoadingIndicator.kt, AndroidX 77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+Controls/LoadingIndicatorShapes.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from androidx.compose.material3 LoadingIndicator.kt at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Controls/MaterialAppBar.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Continued adaptation of AppBar.kt, AndroidX commit
+77b2199d6f056c2fe829ce25523c34a905e769c1. See the file header above for the mapping.
+
+Controls/MaterialBarAction.cs
+Copyright 2025 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from AppBarDsl.kt (AppBarScope, ClickableAppBarItem, ToggleableAppBarItem,
+CustomAppBarItem, AppBarMenuState), AndroidX commit
+77b2199d6f056c2fe829ce25523c34a905e769c1. Avalonia adaptation: commands and bindable
+properties replace composable lambdas; the overflow menu state is a bindable object.
+
+Controls/MaterialBarBase.cs
+Copyright 2025 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from AppBarDsl.kt, AppBarRow.kt and AppBarColumn.kt, AndroidX commit
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+Avalonia adaptations: OverflowMeasurePolicy is ported into MaterialBarActionsPanel; hidden
+actions stay in the visual tree at zero size (Avalonia cannot compose selectively during
+measure) with focus, hit testing and the content accessibility view suppressed, and their
+commands remain reachable from the overflow flyout. Flyout hosting replaces DropdownMenu.
+
+Controls/MaterialBottomAppBar.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from AppBar.kt (BottomAppBar, BottomAppBarDefaults, BottomAppBarLayout,
+FlexibleBottomAppBar, settleAppBarBottom), AndroidX commit
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+Avalonia adaptation: the ScrollViewer adapter and pointer drag replace nested scroll and
+draggable gestures; content padding is resolved to a Thickness; window insets become
+SafeAreaPadding with a bottom-edge focus.
+
+Controls/MaterialBottomSheet.cs
+Copyright 2026 ExpressiveAvalonia contributors.
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+
+Anatomy, anchors, gesture thresholds and motion adapted from AndroidX Compose Material 3
+BottomSheet.kt, ModalBottomSheet.kt and SheetDefaults.kt at commit
+77b2199d6f056c2fe829ce25523c34a905e769c1 (Apache-2.0). Android's nested-scroll and
+predictive-back integration is replaced by the desktop adaptations documented on each member.
+
+Controls/MaterialBottomSheetScaffold.cs
+Copyright 2026 ExpressiveAvalonia contributors.
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+
+Layout, peek anchors and slot composition adapted from AndroidX Compose Material 3
+BottomSheetScaffold.kt, SheetDefaults.kt and BottomSheet.kt at commit
+77b2199d6f056c2fe829ce25523c34a905e769c1 (Apache-2.0). The desktop adapter replaces the
+Compose Layout with a native Grid, keeps the source z-order (body, top bar, sheet, snackbar)
+and drops the Android predictive-back and window-inset plumbing described on each member.
+
+Controls/MaterialCarousel.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from androidx.compose.material3.carousel.Carousel, CarouselState and
+CarouselItemScope, AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Controls/MaterialCarouselItem.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from androidx.compose.material3.carousel.CarouselItemScope and the design-source
+carousel card blocks, AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Controls/MaterialCarouselPanel.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from androidx.compose.material3.carousel.Carousel (CarouselPageSize and the
+carouselItem modifier), AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+The Compose Pager's end-to-end page layout, per-item keyline mask/translation and
+beyondViewportPageCount realization window are mapped to an Avalonia VirtualizingPanel.
+
+
+Controls/MaterialClockDial.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from TimePicker.kt (selector, face crossfade and pointer selection), AndroidX
+commit 77b2199d6f056c2fe829ce25523c34a905e769c1; native Avalonia rendering/input.
+
+Controls/MaterialDatePicker.cs
+Copyright 2022 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from DatePicker.kt and DateRangePicker.kt, AndroidX commit
+77b2199d6f056c2fe829ce25523c34a905e769c1; native Avalonia layout/input and .NET calendar.
+
+Controls/MaterialIcon.cs
+Copyright 2021 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Icon contract adapted from Icon.kt, AndroidX Material3 commit
+77b2199d6f056c2fe829ce25523c34a905e769c1. Glyph geometry comes from the project's own
+design-source export (tools/DesignAssets) and is not an official Compose icons set.
+
+Controls/MaterialLabel.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from Label.kt and the plain-tooltip visuals of Tooltip.kt, AndroidX Material3
+commit 77b2199d6f056c2fe829ce25523c34a905e769c1. Compose popup tooltip -> Avalonia overlay.
+
+Controls/MaterialMenuFlyout.cs
+Copyright 2026 ExpressiveAvalonia contributors.
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Menu.kt DropdownMenuContent transition adapted to Avalonia's native flyout lifecycle.
+AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1; Kotlin → C#/Avalonia.
+
+Controls/MaterialNavigationRailHost.cs
+Copyright 2024 The Android Open Source Project
+Copyright 2026 ExpressiveAvalonia contributors.
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+
+Drag dismissal, anchor set, positional threshold and fling policy adapted from AndroidX
+Compose Material 3 WideNavigationRail.kt and WideNavigationRailState.kt plus foundation
+AnchoredDraggable.kt at commit 77b2199d6f056c2fe829ce25523c34a905e769c1 (Apache-2.0).
+Compose's gesture and coroutine wiring is replaced by native Avalonia routed pointer capture
+and the existing MaterialMotion springs, as documented on each member.
+
+Controls/MaterialOverlayLifecycle.cs
+Copyright 2026 ExpressiveAvalonia contributors.
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+
+This file contains no AndroidX source. It is the small desktop lifecycle layer that the
+Material 3 dialog, sheet and snackbar adapters share: topmost-overlay arbitration for Escape,
+and a finite spring driver built on the project's MaterialMotion engine. The Material 3
+component sources are AndroidX Compose Material 3 at commit
+77b2199d6f056c2fe829ce25523c34a905e769c1; see the individual component files for anchors.
+
+Controls/MaterialPullToRefresh.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+PullToRefresh.kt, AndroidX 77b2199d6f056c2fe829ce25523c34a905e769c1.
+Avalonia adapter: native nested ScrollViewer, touch/pen and opt-in mouse drag.
+
+Controls/MaterialRangeSlider.cs
+Copyright 2022 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from Slider.kt range geometry/state, AndroidX commit
+77b2199d6f056c2fe829ce25523c34a905e769c1; native Avalonia input/automation.
+
+Controls/MaterialRefreshIndicatorBox.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+PullToRefresh.kt, PullToRefreshDefaults.IndicatorBox, AndroidX 77b2199d6f056c2fe829ce25523c34a905e769c1.
+Avalonia adapter: native geometry clip, translation and theme elevation instead of Compose layers.
+
+Controls/MaterialScaffold.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from Scaffold.kt (Scaffold, ScaffoldLayout, FabPosition, FabPlacement, ScaffoldDefaults),
+AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+Avalonia adaptation: window insets are a Thickness (start = Left, end = Right) and hosts may
+declare insets already consumed by an ancestor. Content is arranged edge-to-edge exactly like
+upstream; consumers apply the exposed ContentPadding themselves, so it is never applied twice.
+
+Controls/MaterialScrollField.cs
+Adapted from androidx.compose.material3 ScrollField.kt at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+Copyright 2026 The Android Open Source Project
+Licensed under the Apache License, Version 2.0.
+
+
+Controls/MaterialScrollbarGeometry.cs
+Adapted from androidx.compose.material3 Scrollbar.kt at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+Copyright 2026 The Android Open Source Project
+Licensed under the Apache License, Version 2.0.
+
+
+Controls/MaterialScrollbarOverlay.cs
+Adapted from androidx.compose.material3 Scrollbar.kt at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+Copyright 2026 The Android Open Source Project
+Licensed under the Apache License, Version 2.0.
+
+
+Controls/MaterialSearchAppBar.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Port of AppBarWithSearch and its search-specific scroll state, AndroidX commit
+77b2199d6f056c2fe829ce25523c34a905e769c1 (SearchBar.kt).
+
+Controls/MaterialShapeGeometries.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Catalog geometry adapted from androidx.compose.material3 MaterialShapes.kt at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Controls/MaterialSheet.cs
+Copyright 2026 ExpressiveAvalonia contributors.
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+
+Sheet lifecycle adapted from AndroidX Compose Material 3 SheetDefaults.kt,
+ModalBottomSheet.kt and internal/DraggableAnchors.kt at commit
+77b2199d6f056c2fe829ce25523c34a905e769c1 (Apache-2.0). Kotlin coroutines are replaced by
+Avalonia tasks and the shared MaterialMotion spring engine; the focus/scrim policy is the
+desktop adaptation described on each member.
+
+Controls/MaterialSideSheet.cs
+Copyright 2026 ExpressiveAvalonia contributors.
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+
+This file is an ExpressiveAvalonia extension, not a port of an upstream Compose component.
+AndroidX Material 3 at commit 77b2199d6f056c2fe829ce25523c34a905e769c1 has no SideSheet.kt;
+the side sheet is composed from the shared MaterialSheet lifecycle (the same anchored open,
+scrim, focus and veto primitives as the ported bottom sheet) plus the anatomy already exported
+from the project's design source. Do not describe it as an upstream port.
+
+Controls/MaterialSnackbar.cs
+Copyright 2026 ExpressiveAvalonia contributors.
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+
+Anatomy, duration defaults and accessibility notes adapted from AndroidX Compose Material 3
+Snackbar.kt and SnackbarHost.kt at commit 77b2199d6f056c2fe829ce25523c34a905e769c1
+(Apache-2.0). The host in upstream owns the enter/exit animation; in this desktop composition
+the snackbar item owns the same opacity (fast effects) and scale (fast spatial) springs so a
+hostless snackbar behaves the same as a queued one.
+
+Controls/MaterialSnackbarHost.cs
+Copyright 2026 ExpressiveAvalonia contributors.
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+
+Queue and crossfade semantics adapted from AndroidX Compose Material 3 SnackbarHost.kt
+(SnackbarHostState, SnackbarHost, FadeInFadeOutWithScale) at commit
+77b2199d6f056c2fe829ce25523c34a905e769c1 (Apache-2.0). The desktop host keeps the dismissed
+item in the overlay while its exit springs run, then shows the next queued item immediately,
+which is what the source's retained FadeInFadeOutState items do.
+
+Controls/MaterialStateLayer.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted to C#/Avalonia from AndroidX Material 3 at commit
+77b2199d6f056c2fe829ce25523c34a905e769c1:
+material-ripple commonMain Ripple.kt (StateLayer and RippleAlpha).
+The state layer is hover/focus/drag only: the press indication is the ripple itself
+(MaterialRipple), exactly as RippleNode draws StateLayer and then Ripples.
+
+
+Controls/MaterialTimeInputSegment.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from TimePicker.kt input state, AndroidX commit
+77b2199d6f056c2fe829ce25523c34a905e769c1; native Avalonia TextBox editing.
+
+Controls/MaterialTimePicker.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from TimePicker.kt, AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1;
+native Avalonia editing, focus and desktop presentation.
+
+Controls/MaterialToolbar.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from FloatingToolbar.kt (HorizontalFloatingToolbar, VerticalFloatingToolbar,
+FloatingToolbarDefaults, FloatingToolbarState, settleFloatingToolbar,
+VerticalNestedScrollExpansionNode), AndroidX commit
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+Avalonia adaptation: leading/trailing visibility is animated by width plus opacity; the shadow
+elevation is the continuous blend of the pinned collapsed and expanded level tokens, because
+Avalonia BoxShadows cannot carry the source dp value; ScrollViewer supplies nested scroll, drag
+and threshold expansion.
+
+Controls/MaterialTransitionHost.cs
+Copyright 2026 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Avalonia adapter for androidx.compose.material3.MaterialTransitions,
+AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Controls/RefreshArrowIndicator.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+PullToRefresh.kt CircularArrowProgressIndicator, AndroidX 77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+Geometry/CornerRounding.cs
+Copyright 2022 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes CornerRounding.kt (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/Cubic.cs
+Copyright 2022 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes Cubic.kt (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/Feature.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes Features.kt (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/FeatureDetector.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes FeatureDetector.kt (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/FeatureMapping.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes FeatureMapping.kt (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/FloatMapping.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes FloatMapping.kt (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/MaterialShapeCatalog.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.compose.material3 MaterialShapes.kt at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/Morph.cs
+Copyright 2022 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes Morph.kt (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/PolygonMeasure.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes PolygonMeasure.kt (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/RoundedPolygon.cs
+Copyright 2022 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes RoundedPolygon.kt (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/RoundedShapes.cs
+Copyright 2022 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes Shapes.kt (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/ShapePath.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.compose.material3.internal ShapeUtil.kt at
+77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+
+Geometry/ShapePoint.cs
+Copyright 2023 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Ported from androidx.graphics.shapes (graphics/graphics-shapes) at
+77b2199d6f056c2fe829ce25523c34a905e769c1. Kotlin Float points are C# doubles so the
+geometry pipeline can feed Avalonia path data without a lossy intermediate float step.
+
+
+Theming/MaterialAssist.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted to C#/Avalonia from AndroidX Material 3 at commit
+77b2199d6f056c2fe829ce25523c34a905e769c1:
+- internal/AnimatedShape.kt (AnimatedShapeState: corner morph, reverse with continued
+  velocity, captured interpolated start, MotionSchemeKeyTokens.DefaultEffects spec);
+- Button.kt / ToggleButton.kt / IconButton.kt shapeByInteraction, ButtonElevation, and
+  ToggleButton.kt animateBorderStrokeAsState (FastSpatial width, DefaultEffects color);
+- material-ripple commonMain RippleAnimation.kt and Ripple.kt (RippleNode, StateLayer),
+  plus M3 Ripple.kt defaults (StateTokens);
+- internal/Elevation.kt elevation specs;
+- HorizontalCenterOptically.kt is deliberately not used: no button call site uses it.
+Kotlin formatting/Compose runtime is not ported; the Avalonia frame clock, native input and
+native button state are the adapters.
+
+
+Theming/MaterialColorInterpolation.cs
+Copyright 2019 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from Compose ColorVectorConverter.kt and colorspace/Oklab.kt at
+77b2199d6f056c2fe829ce25523c34a905e769c1. sRGB/D65-only Avalonia Color adapter.
+
+
+Theming/MaterialElevationAnimation.cs
+Copyright 2021 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from internal/Elevation.kt and the interaction lists in FloatingActionButton.kt,
+FloatingActionButtonMenu.kt and Chip.kt, AndroidX 77b2199d6f056c2fe829ce25523c34a905e769c1.
+Compose Animatable/TweenSpec is replaced by the shared Avalonia frame-driven tween adapter.
+
+Theming/MaterialOpticalCenter.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from HorizontalCenterOptically.kt, AndroidX Material3 commit
+77b2199d6f056c2fe829ce25523c34a905e769c1. Kotlin layout modifier -> Avalonia decorator.
+
+Theming/MaterialPrecisionPointer.cs
+Adapted from androidx.compose.material3 PrecisionPointer.kt and PrecisionPointer.android.kt
+at 77b2199d6f056c2fe829ce25523c34a905e769c1.
+Copyright 2025 The Android Open Source Project
+Licensed under the Apache License, Version 2.0.
+
+
+Theming/MaterialSelection.cs
+Copyright 2025 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from Checkbox.kt, RadioButton.kt and Switch.kt, AndroidX commit
+77b2199d6f056c2fe829ce25523c34a905e769c1; native Avalonia CheckBox/RadioButton/ToggleSwitch
+input, grouping, drag and automation are preserved.
+
+Theming/MaterialSlider.cs
+Copyright 2022 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from Slider.kt, AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1;
+native Avalonia Slider/Track input, larger-size and value-label extensions.
+
+Theming/MaterialSurface.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted to C#/Avalonia from AndroidX Material 3 at commit
+77b2199d6f056c2fe829ce25523c34a905e769c1:
+- Surface.kt:100-130 (absolute tonal elevation = inherited absolute + local tonalElevation) and
+  Surface.kt:563-590 (the content-color Surface overload: LocalAbsoluteTonalElevation is
+  provided to the subtree, the tonal overlay is driven by that absolute elevation while
+  shadowElevation only drives the graphics-layer shadow);
+- ColorScheme.kt:1146-1160 (surfaceColorAtElevation: one logarithmic tint overlay);
+- ColorScheme.kt:1546-1590 (applyTonalElevation and LocalTonalElevationEnabled: the tint is
+  applied only when the component color is exactly the surface role and tonal elevation is
+  enabled).
+
+Kotlin composition locals have no Avalonia equivalent. The inherited absolute tonal elevation is
+therefore summed from the native visual (with a logical fallback) parent chain on demand: a
+nested surface reads its ancestors' current tonal elevation without a propagation copy, so a
+theme, seed or ancestor change is observed on the next refresh and never goes stale. The overlay
+is a single tint of the exact surface role; it is not a second translucent layer, so an ancestor
+and a descendant cannot double-tint the same pixels.
+
+
+Theming/MaterialTextAutoSize.cs
+Copyright 2025 The Android Open Source Project
+SPDX-License-Identifier: Apache-2.0
+Adapted from foundation TextAutoSize.kt, AndroidX 77b2199d6f056c2fe829ce25523c34a905e769c1.
+Native Avalonia TextBlock measurement preserves shaping, rich runs and embedded controls.
+
+Theming/MaterialTransitions.cs
+Copyright 2026 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from androidx.compose.material3.MaterialTransitions,
+AndroidX commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+Kotlin ContentTransform -> Avalonia content-independent specs plus pure gesture math.
+
+
+Theming/MaterialTypography.Text.cs
+Copyright 2025 The Android Open Source Project
+SPDX-License-Identifier: Apache-2.0
+Text.kt default link styles and opt-in autosize, adapted from AndroidX
+77b2199d6f056c2fe829ce25523c34a905e769c1 to native Avalonia text and focus.
+
+Theming/MotionDecay.cs
+Copyright 2020 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from SplineBasedDecay.kt, FlingCalculator.kt and FloatDecayAnimationSpec.kt,
+AndroidX 77b2199d6f056c2fe829ce25523c34a905e769c1. Double/DIP adapter, millisecond sampling.
+
+Theming/SpringDuration.cs
+Copyright 2020 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from AndroidX animation-core SpringEstimation.kt, commit
+77b2199d6f056c2fe829ce25523c34a905e769c1. C# double adapter; no Float rounding.
+
+
+Theming/SpringSimulation.cs
+Copyright 2019 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted to C#/Avalonia from AndroidX SpringSimulation.updateValues:
+commit 77b2199d6f056c2fe829ce25523c34a905e769c1,
+compose/animation/animation-core/src/commonMain/kotlin/androidx/compose/animation/core/SpringSimulation.kt.
+Uses double state and seconds to preserve MaterialMotion's existing double API;
+unlike Kotlin's Float result, this adapter does not round state to float.
+
+
+Tokens/MaterialSpringTokens.cs
+Copyright 2024 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+Adapted from StandardMotionTokens.kt / ExpressiveMotionTokens.kt, AndroidX
+commit 77b2199d6f056c2fe829ce25523c34a905e769c1.
+
+Tokens/MaterialTokens.cs
+Copyright 2022 The Android Open Source Project
+Licensed under the Apache License, Version 2.0. See licenses/Apache-2.0.txt.
+System token values adapted from AndroidX Material3 at
+77b2199d6f056c2fe829ce25523c34a905e769c1; Avalonia resource/shadow adapters below.
+
+Controls/CircularProgressIndicator.cs
+Portions derived from AndroidX Compose Material 3 at
+77b2199d6f056c2fe829ce25523c34a905e769c1:
+  ProgressIndicator.kt, WavyProgressIndicator.kt,
+  internal/LinearWavyProgressModifiers.kt, internal/CircularWavyProgressModifiers.kt,
+  tokens LinearProgressIndicatorTokens.kt / CircularProgressIndicatorTokens.kt /
+  ProgressIndicatorTokens.kt, and the shapes helpers (graphics-shapes).
+Apache-2.0; adapted Kotlin -> C#/Avalonia. The native Avalonia range, input and automation
+contracts are preserved: ProgressBar remains a real progress bar, and the circular control keeps
+RangeBase plus a ProgressBarAutomationPeer.
+
+
+Theming/MaterialProgress.cs
+Portions derived from AndroidX Compose Material 3 at
+77b2199d6f056c2fe829ce25523c34a905e769c1 (ProgressIndicator.kt,
+WavyProgressIndicator.kt and their tokens), Apache-2.0. Adapted Kotlin -> C#/Avalonia.
+
+
+Controls/MaterialBadge.cs
+Ported from AndroidX Material3 <c>Badge.kt</c> at commit
+<c>77b2199d6f056c2fe829ce25523c34a905e769c1</c> (Apache-2.0). Compose selects the shape and
+Places a badge relative to anchor content, ported from the <c>BadgedBox</c> measure policy in
+AndroidX Material3 <c>Badge.kt</c> at commit
+<c>77b2199d6f056c2fe829ce25523c34a905e769c1</c> (Apache-2.0).
+
+Controls/MaterialCard.cs
+Container, shape, colors, elevation states and interaction behavior are ported from AndroidX
+Material3 <c>Card.kt</c>, <c>Surface.kt</c> and <c>internal/Elevation.kt</c> at commit
+<c>77b2199d6f056c2fe829ce25523c34a905e769c1</c> (Apache-2.0):
+
+Controls/MaterialMenuGroup.cs
+<para>
+Source: material3/Menu.kt (DropdownMenuGroup, shapeByInteraction), MenuDefaults.kt
+(groupShape, groupStandardContainerColor, groupVibrantContainerColor) at
+77b2199d6f056c2fe829ce25523c34a905e769c1. Kotlin → C#/Avalonia adaptation, Apache-2.0.
+</para>
+
+Controls/MaterialSwipeListItem.cs
+Ported from AndroidX Material3 <c>SwipeToDismissBox.kt</c> and
+<c>foundation/gestures/AnchoredDraggable.kt</c> at commit
+<c>77b2199d6f056c2fe829ce25523c34a905e769c1</c> (Apache-2.0). Anchors are
+
+Theming/MaterialList.cs
+Geometry, typography, colors and interaction shape are ported from AndroidX Material3
+<c>ListItem.kt</c> and <c>ListItemDefaults.kt</c> at commit
+<c>77b2199d6f056c2fe829ce25523c34a905e769c1</c> (Apache-2.0), for the interactive
+
+Theming/MaterialMenu.cs
+Source: material3/Menu.kt, MenuDefaults.kt, internal/MenuPosition.kt,
+tokens/MenuTokens.kt, StandardMenuTokens.kt, VibrantMenuTokens.kt,
+SegmentedMenuTokens.kt at 77b2199d6f056c2fe829ce25523c34a905e769c1. Kotlin → C#/Avalonia
+adaptation under Apache-2.0.
+

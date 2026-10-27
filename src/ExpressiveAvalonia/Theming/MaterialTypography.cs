@@ -12,7 +12,7 @@ public enum MaterialTypeStyle
 }
 
 /// <summary>Applies dynamic type tokens without replacing content or templates.</summary>
-public sealed class MaterialTypography : AvaloniaObject
+public sealed partial class MaterialTypography : AvaloniaObject
 {
     public static readonly AttachedProperty<MaterialTypeStyle> StyleProperty = AvaloniaProperty.RegisterAttached<MaterialTypography, Control, MaterialTypeStyle>("Style", MaterialTypeStyle.BodyLarge);
     public static readonly AttachedProperty<bool> EmphasizedProperty = AvaloniaProperty.RegisterAttached<MaterialTypography, Control, bool>("Emphasized");
@@ -22,10 +22,11 @@ public sealed class MaterialTypography : AvaloniaObject
     {
         StyleProperty.Changed.AddClassHandler<Control>((control, _) => Apply(control));
         EmphasizedProperty.Changed.AddClassHandler<Control>((control, _) => Apply(control));
+        AutoSizeProperty.Changed.AddClassHandler<TextBlock>((text, _) => UpdateAutoSize(text));
     }
 
     public static MaterialTypeStyle GetStyle(Control control) => control.GetValue(StyleProperty);
-    /// <summary>Applies the type role. Safe to call repeatedly; existing bindings are reused.</summary>
+    /// <summary>Applies the type role. Safe to call repeatedly; existing token bindings are replaced.</summary>
     public static void SetStyle(Control control, MaterialTypeStyle value)
     {
         control.SetValue(StyleProperty, value);

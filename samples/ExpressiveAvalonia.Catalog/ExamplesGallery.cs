@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Documents;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
@@ -42,6 +43,8 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
         ".Building Blocks/Content (local-000218)",
         "Slot (local-004633)",
         "General item (local-000261)",
+        "Label on slider (Label.kt)",
+        "Native rich text / autosize / links",
     };
 
     private static readonly string[] ChromeNames =
@@ -526,9 +529,9 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
 
     private void RenderBlocks()
     {
-        var block = Math.Clamp(_block.SelectedIndex, 0, 3);
+        var block = Math.Clamp(_block.SelectedIndex, 0, 5);
         _overline.IsEnabled = block <= 1;
-        _blockSupporting.IsEnabled = block != 2;
+        _blockSupporting.IsEnabled = block != 2 && block != 4;
         _slotFilled.IsEnabled = block == 2;
         _tileSelected.IsEnabled = block == 3;
         _tileText.IsEnabled = block == 3;
@@ -575,6 +578,29 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
                 _status.Text = "General item: активируется указателем, Enter и Space.";
                 break;
             }
+            case 4:
+            {
+                content = BuildLabelBlock();
+                _status.Text = "Label.kt: постоянный label над значением и label по наведению/нажатию. " +
+                               "В source Label оборачивает thumb; здесь label привязан к Slider сверху, " +
+                               "а следование за thumb — обёртка thumb в шаблоне Slider.";
+                break;
+            }
+            case 5:
+            {
+                var single = new TextBlock { Text = "Native text autosize", Width = 320, Height = 60 };
+                MaterialTypography.SetAutoSize(single, MaterialTextAutoSize.StepBased(12, 48, 1));
+                var multiple = new TextBlock { Text = "Resize-aware native multiline text, shaped and measured by Avalonia.", Width = 320, Height = 100, TextWrapping = TextWrapping.Wrap, MaxLines = 2 };
+                MaterialTypography.SetAutoSize(multiple, MaterialTextAutoSize.StepBased(12, 36, 1));
+                var rich = new TextBlock { Width = 320, TextWrapping = TextWrapping.Wrap };
+                rich.Inlines!.Add(new Run("Native inline "));
+                rich.Inlines.Add(new Bold { Inlines = { new Run("content") } });
+                rich.Inlines.Add(new Run(" and "));
+                rich.Inlines.Add(MaterialTypography.CreateLink("action link", () => _status.Text = "Native link activated."));
+                content = new StackPanel { Spacing = 16, Children = { single, multiple, rich } };
+                _status.Text = "Native TextBlock/Inlines: discrete autosize; inline HyperlinkButton preserves keyboard action.";
+                break;
+            }
             default:
             {
                 content = new MaterialContentBlock
@@ -593,6 +619,57 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
         }
         _stage.Content = content;
     }
+
+    private Control BuildLabelBlock()
+    {
+        // Label.kt anchors a plain tooltip above its content. The persistent variant binds to the
+        // slider value; the interactive variant appears on hover or press. The label never owns
+        // the value: the native Slider keeps its own editing, keyboard and automation contract.
+        var persistent = new Slider { Minimum = 0, Maximum = 100, Value = 40, Width = 320 };
+        var persistentLabel = new MaterialLabel
+        {
+            Content = persistent,
+            IsPersistent = true,
+            Label = FormatSliderValue(persistent.Value),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 32, 0, 0),
+        };
+        persistent.PropertyChanged += (_, change) =>
+        {
+            if (change.Property == RangeBase.ValueProperty)
+                persistentLabel.Label = FormatSliderValue(persistent.Value);
+        };
+
+        var interactive = new Slider { Minimum = 0, Maximum = 100, Value = 65, Width = 320 };
+        var interactiveLabel = new MaterialLabel
+        {
+            Content = interactive,
+            Label = FormatSliderValue(interactive.Value),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 32, 0, 0),
+        };
+        interactive.PropertyChanged += (_, change) =>
+        {
+            if (change.Property == RangeBase.ValueProperty)
+                interactiveLabel.Label = FormatSliderValue(interactive.Value);
+        };
+
+        var panel = new StackPanel { Spacing = 12, HorizontalAlignment = HorizontalAlignment.Left };
+        panel.Children.Add(Caption("Постоянный label"));
+        panel.Children.Add(persistentLabel);
+        panel.Children.Add(Caption("Label по наведению и нажатию"));
+        panel.Children.Add(interactiveLabel);
+        return panel;
+
+        static TextBlock Caption(string text)
+        {
+            var caption = new TextBlock { Text = text, FontSize = 13 };
+            caption.Bind(TextBlock.ForegroundProperty, caption.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
+            return caption;
+        }
+    }
+
+    private static string FormatSliderValue(double value) => value.ToString("0");
 
     // ---- chrome -------------------------------------------------------------------------
 

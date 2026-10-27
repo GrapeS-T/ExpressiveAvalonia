@@ -113,10 +113,10 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
         _rtl = Toggle(Settings, "Справа налево (RTL)", false);
         Settings.Children.Add(new TextBlock
         {
-            Text = "Assist только выполняет действие; Filter, Input и Suggestion переключают IsSelected. " +
+            Text = "Assist и Suggestion только выполняют действие; Filter и Input переключают IsSelected. " +
                    "Tab входит в группу одним шагом, стрелки и Home/End двигают фокус, Space/Enter " +
                    "переключают, Delete или крестик удаляют Input-чип. Смена вида, иконки, ширины или " +
-                   "раскладки не сбрасывает выбор и не пересоздаёт чипы; Assist не хранит выбор.",
+                   "раскладки не сбрасывает выбор и не пересоздаёт чипы; Assist и Suggestion не хранят выбор.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
         });
@@ -160,9 +160,10 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
 
         var kind = (MaterialChipKind)Math.Clamp(_kind.SelectedIndex, 0, 3);
         var variant = _variant.SelectedIndex == 1 ? MaterialChipVariant.Elevated : MaterialChipVariant.Outlined;
-        var selectionMode = kind == MaterialChipKind.Assist
-            ? MaterialChipSelectionMode.None
-            : (MaterialChipSelectionMode)Math.Clamp(_selection.SelectedIndex, 0, 2);
+        var selectable = kind is MaterialChipKind.Filter or MaterialChipKind.Input;
+        var selectionMode = selectable
+            ? (MaterialChipSelectionMode)Math.Clamp(_selection.SelectedIndex, 0, 2)
+            : MaterialChipSelectionMode.None;
         var layout = (MaterialChipGroupLayout)Math.Clamp(_layout.SelectedIndex, 0, 1);
         var count = (int)Math.Round(_count.Value);
         var labels = ParseLabels(count);
@@ -173,7 +174,7 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
         _avatarSettings.IsVisible = kind == MaterialChipKind.Input;
         _trailingSettings.IsVisible = kind == MaterialChipKind.Filter;
         _removeSettings.IsVisible = kind == MaterialChipKind.Input;
-        _selectionSettings.IsVisible = kind != MaterialChipKind.Assist;
+        _selectionSettings.IsVisible = selectable;
 
         _group.SelectionMode = selectionMode;
         _group.Layout = layout;

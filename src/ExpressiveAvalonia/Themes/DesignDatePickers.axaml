@@ -15,6 +15,8 @@
 
     All motion uses the shared duration tokens, which MaterialTheme zeroes under reduced motion,
     so state-layer fades and selection transitions collapse instead of being suppressed in code.
+    The local action templates (icon, text and menu buttons) draw hover/focus/press with the
+    shared MaterialRipple instead of a separate state-layer Border.
   -->
   <StreamGeometry x:Key="MaterialDatePickerCalendarGeometry">M19,3h-1V1h-2v2H8V1H6v2H5C3.9,3 3,3.9 3,5v14c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2V5C21,3.9 20.1,3 19,3zM19,19H5V8h14V19z</StreamGeometry>
   <StreamGeometry x:Key="MaterialDatePickerEditGeometry">M3,17.25V21h3.75L17.81,9.94l-3.75,-3.75L3,17.25zM20.71,7.04c0.39,-0.39 0.39,-1.02 0,-1.41l-2.34,-2.34c-0.39,-0.39 -1.02,-0.39 -1.41,0l-1.83,1.83 3.75,3.75 1.83,-1.83z</StreamGeometry>
@@ -23,6 +25,16 @@
   <StreamGeometry x:Key="MaterialDatePickerPreviousGeometry">M15.41,7.41L14,6l-6,6 6,6 1.41,-1.41L10.83,12z</StreamGeometry>
   <StreamGeometry x:Key="MaterialDatePickerNextGeometry">M8.59,16.59L10,18l6,-6 -6,-6 -1.41,1.41L13.17,12z</StreamGeometry>
   <StreamGeometry x:Key="MaterialDatePickerClearGeometry">M19,6.41L17.59,5 12,10.59 6.41,5 5,6.41 10.59,12 5,17.59 6.41,19 12,13.41 17.59,19 19,17.59 13.41,12z</StreamGeometry>
+
+  <!-- Per-component disabled colors from DatePickerColors defaults (DisabledAlpha = 0.38). -->
+  <SolidColorBrush x:Key="MaterialDatePickerDisabledDayContentBrush"
+                   Color="{DynamicResource MaterialOnSurfaceColor}" Opacity="0.38" />
+  <SolidColorBrush x:Key="MaterialDatePickerDisabledYearContentBrush"
+                   Color="{DynamicResource MaterialOnSurfaceVariantColor}" Opacity="0.38" />
+  <SolidColorBrush x:Key="MaterialDatePickerDisabledSelectedContentBrush"
+                   Color="{DynamicResource MaterialOnPrimaryColor}" Opacity="0.38" />
+  <SolidColorBrush x:Key="MaterialDatePickerDisabledSelectedContainerBrush"
+                   Color="{DynamicResource MaterialPrimaryColor}" Opacity="0.38" />
 
   <!-- Template strings. Override these keys to localize the whole family. -->
   <x:String x:Key="MaterialDatePickerSelectDateText">Select date</x:String>
@@ -51,7 +63,9 @@
   <x:String x:Key="MaterialDatePickerRangeEndpointText">Selected range endpoint</x:String>
   <x:String x:Key="MaterialDatePickerOutsideMonthText">Outside month</x:String>
   <x:String x:Key="MaterialDatePickerInvalidDateText">Enter a valid date</x:String>
-  <x:String x:Key="MaterialDatePickerOutOfRangeText">Date is outside the allowed range</x:String>
+  <x:String x:Key="MaterialDatePickerOutOfRangeText">Enter a date between {0} and {1}</x:String>
+  <x:String x:Key="MaterialDatePickerRangeOrderText">The end date must be on or after the start date</x:String>
+  <x:String x:Key="MaterialDatePickerDateNotAllowedText">This date cannot be selected</x:String>
 
   <!-- 48x48 icon button with a 40x40 round state layer, used for navigation and header actions. -->
   <ControlTheme x:Key="MaterialDatePickerIconButton" TargetType="Button">
@@ -67,32 +81,26 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
-          <Border Name="StateLayer" Margin="4" CornerRadius="{TemplateBinding CornerRadius}"
-                  Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             TextElement.Foreground="{TemplateBinding Foreground}" />
+          <!-- Source IconButtonImpl: the 40 DIP content container inside the 48 DIP target clips
+               the bounded ripple, so the state layer keeps the 4 DIP inset. -->
+          <theming:MaterialRipple Name="StateLayer" Margin="4"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  Fill="{TemplateBinding Foreground}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False" IsHitTestVisible="False" />
           <Border Name="FocusRing" Margin="2" CornerRadius="{TemplateBinding CornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
@@ -117,8 +125,6 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
-          <Border Name="StateLayer" CornerRadius="{TemplateBinding CornerRadius}"
-                  Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             Padding="{TemplateBinding Padding}"
@@ -128,25 +134,20 @@
                             TextElement.FontSize="{TemplateBinding FontSize}"
                             TextElement.FontWeight="{TemplateBinding FontWeight}"
                             TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}" />
+          <!-- Source TextButton (M3 Button): the ripple is bounded by the pill shape. -->
+          <theming:MaterialRipple Name="StateLayer"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  Fill="{TemplateBinding Foreground}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False" IsHitTestVisible="False" />
           <Border Name="FocusRing" Margin="-4" CornerRadius="{TemplateBinding CornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
@@ -171,8 +172,6 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
-          <Border Name="StateLayer" CornerRadius="{TemplateBinding CornerRadius}"
-                  Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
           <StackPanel Orientation="Horizontal" Spacing="8" Margin="{TemplateBinding Padding}"
                       HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
@@ -183,31 +182,33 @@
                               TextElement.FontSize="{TemplateBinding FontSize}"
                               TextElement.FontWeight="{TemplateBinding FontWeight}"
                               TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}" />
-            <PathIcon Width="18" Height="18" VerticalAlignment="Center"
+            <PathIcon Name="PART_Chevron" Width="18" Height="18" VerticalAlignment="Center"
                       Foreground="{TemplateBinding Foreground}"
                       Data="{StaticResource MaterialDatePickerChevronGeometry}" />
           </StackPanel>
+          <!-- Source YearPickerMenuButton: a TextButton with CircleShape, so the bounded ripple
+               covers the 40 high pill and reuses the content color. -->
+          <theming:MaterialRipple Name="StateLayer"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  Fill="{TemplateBinding Foreground}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False" IsHitTestVisible="False" />
           <Border Name="FocusRing" Margin="0" CornerRadius="{TemplateBinding CornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- DatePicker.kt YearPickerMenuButton: expanded = yearPickerVisible rotates the dropdown
+         chevron 180 degrees. The picker applies a regular class to native Button parts. -->
+    <Style Selector="^.expanded /template/ PathIcon#PART_Chevron">
+      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+      <Setter Property="RenderTransform" Value="rotate(180deg)" />
     </Style>
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
@@ -238,15 +239,18 @@
                   Background="{DynamicResource MaterialSecondaryContainerBrush}" IsVisible="False" />
           <Border Name="TodayRing" Margin="4" CornerRadius="{DynamicResource MaterialShapeFullCornerRadius}"
                   BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="1" IsVisible="False" />
+          <!-- Source dayContainerColor/dayContentColor are painted by MaterialDateCell, which
+               springs the styled Background and Foreground targets into these parts. The circle
+               geometry is unchanged; the brush is transparent until a selection target is
+               reached, so the container is always present while it animates. -->
           <Border Name="Selection" Margin="4" CornerRadius="{DynamicResource MaterialShapeFullCornerRadius}"
-                  Background="{DynamicResource MaterialPrimaryBrush}" IsVisible="False" />
+                  IsHitTestVisible="False" />
           <Border Name="StateLayer" Margin="4" CornerRadius="{DynamicResource MaterialShapeFullCornerRadius}"
                   Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                            TextElement.Foreground="{TemplateBinding Foreground}"
                             TextElement.FontSize="{TemplateBinding FontSize}"
                             TextElement.FontWeight="{TemplateBinding FontWeight}"
                             TextBlock.LineHeight="{DynamicResource MaterialBodyLargeLineHeight}" />
@@ -291,11 +295,10 @@
       <Setter Property="IsVisible" Value="False" />
     </Style>
     <Style Selector="^:selected">
+      <!-- Source selectedDayContainerColor: the styled target for the animated day container. -->
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
-    </Style>
-    <Style Selector="^:selected /template/ Border#Selection">
-      <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:selected /template/ Border#TodayRing">
       <Setter Property="IsVisible" Value="False" />
@@ -328,7 +331,35 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Opacity" Value="0.38" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDatePickerDisabledDayContentBrush}" />
+    </Style>
+    <Style Selector="^:disabled:selected">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDatePickerDisabledSelectedContentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialDatePickerDisabledSelectedContainerBrush}" />
+    </Style>
+    <Style Selector="^:rtl:range-start /template/ Border#HighlightLeft">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:rtl:range-start /template/ Border#HighlightRight">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:rtl:range-end /template/ Border#HighlightRight">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:rtl:range-end /template/ Border#HighlightLeft">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:rtl:range-preview-start /template/ Border#HighlightLeft">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:rtl:range-preview-start /template/ Border#HighlightRight">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:rtl:range-preview-end /template/ Border#HighlightRight">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:rtl:range-preview-end /template/ Border#HighlightLeft">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
   </ControlTheme>
 
@@ -348,8 +379,7 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
-          <Border Name="Surface" Margin="0,8" CornerRadius="{TemplateBinding CornerRadius}"
-                  Background="{TemplateBinding Background}" />
+          <Border Name="Surface" Margin="0,8" CornerRadius="{TemplateBinding CornerRadius}" />
           <Border Name="StateLayer" Margin="0,8" CornerRadius="{TemplateBinding CornerRadius}"
                   Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
@@ -357,7 +387,6 @@
                             Margin="{TemplateBinding Padding}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                            TextElement.Foreground="{TemplateBinding Foreground}"
                             TextElement.FontSize="{TemplateBinding FontSize}"
                             TextElement.FontWeight="{TemplateBinding FontWeight}" />
           <Border Name="FocusRing" Margin="0,6" CornerRadius="{TemplateBinding CornerRadius}"
@@ -382,13 +411,27 @@
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
+    <Style Selector="^:current">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:current /template/ Border#Surface">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
     <Style Selector="^:selected">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
       <Setter Property="FontWeight" Value="Medium" />
     </Style>
+    <Style Selector="^:selected /template/ Border#Surface">
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Opacity" Value="0.38" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDatePickerDisabledYearContentBrush}" />
+    </Style>
+    <Style Selector="^:selected:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDatePickerDisabledSelectedContentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialDatePickerDisabledSelectedContainerBrush}" />
     </Style>
   </ControlTheme>
 
@@ -407,7 +450,7 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
-          <Border Name="Surface" Background="{TemplateBinding Background}" CornerRadius="4" Margin="8,0" />
+          <Border Name="Surface" CornerRadius="4" Margin="8,0" />
           <Border Name="StateLayer" Background="{TemplateBinding Foreground}" CornerRadius="4" Margin="8,0"
                   Opacity="0" IsHitTestVisible="False" />
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
@@ -415,7 +458,6 @@
                             Margin="{TemplateBinding Padding}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                            TextElement.Foreground="{TemplateBinding Foreground}"
                             TextElement.FontSize="{TemplateBinding FontSize}"
                             TextElement.FontWeight="{TemplateBinding FontWeight}" />
           <Border Name="FocusRing" Margin="8,2" CornerRadius="4"
@@ -440,13 +482,27 @@
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
+    <Style Selector="^:current">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:current /template/ Border#Surface">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
     <Style Selector="^:selected">
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
       <Setter Property="FontWeight" Value="Medium" />
     </Style>
+    <Style Selector="^:selected /template/ Border#Surface">
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Opacity" Value="0.38" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDatePickerDisabledYearContentBrush}" />
+    </Style>
+    <Style Selector="^:selected:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDatePickerDisabledSelectedContentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialDatePickerDisabledSelectedContainerBrush}" />
     </Style>
   </ControlTheme>
 
@@ -571,10 +627,20 @@
               <Grid Name="PART_DayView" RowDefinitions="Auto,Auto" Margin="12,0"
                     Background="{DynamicResource MaterialSurfaceContainerLowestBrush}">
                 <UniformGrid Name="PART_WeekdayRow" Grid.Row="0" Columns="7" />
-                <UniformGrid Name="PART_DayGrid" Grid.Row="1" Columns="7" />
+                <!-- DatePicker.kt HorizontalMonthsList: the month pages form one horizontal
+                     paging surface. PART_DayGrid is the page that owns the live 6x7 cells; the
+                     picker composes at most two neighbouring month pages beside it while a
+                     previous/next animation or a swipe is in flight. -->
+                <Panel Name="PART_MonthPager" Grid.Row="1" ClipToBounds="True" Background="Transparent">
+                  <UniformGrid Name="PART_DayGrid" Columns="7" />
+                </Panel>
               </Grid>
 
+              <!-- DatePicker.kt 1672-1688 overlays the year picker on the calendar inside a
+                   clipped Box; its column is opaque (YearPicker background = containerColor) and
+                   expands/shrinks vertically while it fades. -->
               <ScrollViewer Name="PART_ChoiceScroll" IsVisible="False" MaxHeight="336"
+                            Background="{TemplateBinding Background}" ClipToBounds="True"
                             HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <Panel Name="PART_ChoiceHost" Margin="12,0" />
               </ScrollViewer>
@@ -582,9 +648,13 @@
               <Grid Name="PART_FullScreenView" RowDefinitions="Auto,*" IsVisible="False"
                     Background="{DynamicResource MaterialSurfaceContainerLowestBrush}">
                 <UniformGrid Name="PART_FullScreenWeekdayRow" Grid.Row="0" Columns="7" Margin="12,0" />
-                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled"
+                <!-- DateRangePicker.kt VerticalMonthsList: a LazyColumn over every month in
+                     yearRange. The Canvas carries the full virtual extent; the picker
+                     materializes and recycles only the viewport window (PART_MonthGroup). -->
+                <ScrollViewer Name="PART_FullScreenScroll" Grid.Row="1" Margin="12,0"
+                              HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto">
-                  <StackPanel Name="PART_MonthGroup" />
+                  <Canvas Name="PART_MonthGroup" ClipToBounds="True" />
                 </ScrollViewer>
               </Grid>
 
@@ -664,9 +734,18 @@
     <Style Selector="^:view-month /template/ Grid#PART_DayView">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <Style Selector="^:view-year /template/ Grid#PART_DayView">
+    <!-- DatePicker.kt MonthsNavigation: the month arrows are composed only when
+         yearPickerVisible is false; while the year overlay is open the navigation row holds the
+         year caption alone. -->
+    <Style Selector="^:view-year /template/ Button#PART_PrevButton">
       <Setter Property="IsVisible" Value="False" />
     </Style>
+    <Style Selector="^:view-year /template/ Button#PART_NextButton">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <!-- The year picker is an overlay over the still-composed calendar (DatePicker.kt Box), so
+         the day view keeps its default visibility behind the vertical reveal; the opaque year
+         surface covers it once expanded. -->
     <Style Selector="^:text-input /template/ Grid#PART_DayView">
       <Setter Property="IsVisible" Value="False" />
     </Style>
@@ -690,6 +769,9 @@
     </Style>
     <Style Selector="^:fullscreen /template/ Grid#PART_FullScreenView">
       <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:fullscreen:text-input /template/ Grid#PART_FullScreenView">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
   </ControlTheme>
 

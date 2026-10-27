@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
                     xmlns:theming="using:ExpressiveAvalonia.Theming">
   <!-- AndroidX Button*Tokens, *ToggleButtonTokens and *IconButtonTokens. Visual containers are
        distinct from touch targets: ContainerInset reserves the 48-DIP target while the Surface
@@ -14,14 +15,28 @@
          Medium    56         24,16        title/medium 16/24 24    8
          Large     96         48,32        headline/small 24/32 32  12
          XLarge    136        64,48        headline/large 32/40 40  16
-       Square corner radii are 12/12/16/28/28; pressed radii are 8/8/12/16/16 and the
-       selected silhouette inverts (Round becomes the square radius, Square becomes full).
-       The focus indicator is 2 DIPs outside the container with a 3 DIP secondary stroke. -->
-  <!-- Transitions: state-layer and elevation changes use md.sys.motion duration tokens through
-       DynamicResource (short4 = 200 ms). MaterialTheme zeroes those tokens under Motion="Reduced",
-       which collapses every transition. The curve is inlined because TransitionBase.Easing is a
-       direct property that does not resolve DynamicResource; the MaterialEasing* resources carry
-       the same md.sys.motion.easing values for code and for consumer styles. -->
+       Round corners are CornerFull (a true half-min-dimension pill); Square corners are the
+       CornerMedium/CornerLarge/CornerExtraLarge token per size, pressed corners are
+       CornerSmall/CornerMedium/CornerLarge, and the checked silhouette swaps Round<->Square
+       exactly as ToggleButtonDefaults/IconButtonDefaults specify. MaterialAssist resolves every
+       corner logically (start/end), maps them for RTL, clamps each edge pair to the smaller
+       dimension and re-resolves a percentage corner when the bounds change. -->
+  <!-- Interaction: MaterialAssist.MaterialRipple is the source RippleNode, not a vector overlay.
+       It draws the hover/focus state layer at StateTokens opacity and the bounded press ripple
+       (75 ms fade-in / 225 ms radius / 150 ms fade-out, 30% start radius, 10 DIP extra end radius,
+       pointer origin and centre target). Keyboard Space/Enter and non-button hosts start at the
+       centre. The ripple is the only pressed indication: there is no second state-layer alpha in
+       this template. -->
+  <!-- Motion: MaterialAssist uses MotionSchemeKeyTokens.DefaultEffects for Button and every
+       IconButton (including icon toggles; 1600 stiffness / 1 damping in both schemes) and
+       FastSpatial for a labeled ToggleButton, exactly like the pinned sources. Plain Button.kt
+       documents DefaultEffects as intentional to prevent any bounce. Both use the Float
+       visibility threshold 0.01. Elevation uses the pinned 120 ms incoming / 150 ms outgoing
+       tweens. The labeled ToggleButton BorderStroke also follows animateBorderStrokeAsState:
+       its width interpolates with FastSpatial and its solid color with DefaultEffects, so the
+       Outline border paints the animated channel, not the caller's target properties. All
+       honour MaterialMotion.IsReduced: reduced mode snaps to the final interactive state and
+       the ripple renders statically while pressed. -->
   <ControlTheme x:Key="MaterialButtonBase" TargetType="Button">
     <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
@@ -44,26 +59,17 @@
           <Panel Margin="{TemplateBinding theming:MaterialAssist.ContainerInset}">
           <Border Name="Surface"
                   Background="{TemplateBinding Background}"
+                  BoxShadow="{TemplateBinding theming:MaterialAssist.AnimatedShadow}"
                   CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}" />
-          <Border Name="StateLayer"
-                  Background="{TemplateBinding Foreground}"
-                  CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}"
-                  Opacity="0" IsHitTestVisible="False" />
-          <!-- Pressed ripple: the source draws the Ripple vector clipped by the container, so the
-               presenter clips to the same animated silhouette. It sits above the 0.08 state layer
-               and below the content, exactly like the Figma State-layer frame. -->
-          <theming:MaterialRipple Name="Ripple"
-                                  Fill="{TemplateBinding Foreground}"
-                                  CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}"
-                                  RippleWidth="{TemplateBinding theming:MaterialAssist.RippleWidth}"
-                                  RippleHeight="{TemplateBinding theming:MaterialAssist.RippleHeight}"
-                                  Opacity="0.1" IsHitTestVisible="False" />
-          <!-- The outline is a separate border so a disabled outlined button keeps its full
-               strength stroke while only the container fill drops to the 10% token opacity. -->
+          <!-- The outline is a separate border so an outlined button keeps a crisp stroke while
+               its container stays transparent; the stroke is token 1 DIP up to Medium and 2/3 DIP
+               for Large/XLarge. ToggleButton.kt animates the BorderStroke itself: width uses
+               FastSpatial and the solid color uses DefaultEffects, so the template paints the
+               animated channel instead of the styled target. -->
           <Border Name="Outline"
                   Background="Transparent"
-                  BorderBrush="{TemplateBinding BorderBrush}"
-                  BorderThickness="{TemplateBinding BorderThickness}"
+                  BorderBrush="{TemplateBinding theming:MaterialAssist.AnimatedOutlineBrush}"
+                  BorderThickness="{TemplateBinding theming:MaterialAssist.AnimatedOutlineThickness}"
                   CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}"
                   IsHitTestVisible="False" />
           <Viewbox Name="ContentHost" Stretch="None"
@@ -89,86 +95,33 @@
                             RecognizesAccessKey="True" />
           </StackPanel>
           </Viewbox>
-          <Border Name="FocusRing" Margin="-2"
-                  CornerRadius="{TemplateBinding theming:MaterialAssist.FocusRingCornerRadius}"
-                  BorderBrush="{DynamicResource MaterialSecondaryBrush}"
-                  BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
+          <!-- Source RippleNode draws the state layer and the press ripple above the content of
+               its target. The node clips bounded ripples itself, so no extra ClipToBounds and no
+               second pressed alpha are needed. -->
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{TemplateBinding Foreground}"
+                                  CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False"
+                                  IsHitTestVisible="False" />
+          <!-- 3 DIP secondary ring, two DIPs outside the animated silhouette. Its own bounds are
+               enlarged by the margin, so the binding adds the same two DIPs to the corner. -->
+          <controls:MaterialFocusIndicator Name="FocusRing" Margin="-2"
+                                           IsActive="True" IsVisible="False"
+                                           Stroke="{DynamicResource MaterialSecondaryBrush}"
+                                           StrokeThickness="3"
+                                           CornerRadius="{TemplateBinding theming:MaterialAssist.FocusRingCornerRadius}"
+                                           IsHitTestVisible="False" />
           </Panel>
         </Panel>
       </ControlTemplate>
     </Setter>
 
-    <Style Selector="^ /template/ Border#Surface">
-      <Setter Property="Transitions">
-        <Transitions>
-          <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^ /template/ Border#Outline">
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <ThicknessTransition Property="BorderThickness" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <!-- Ripple geometry sizes. The ripple width/height are the source Ripple vector boxes per
-         size (they are identical for every variant and for selected/unselected toggles):
-         labelled XSmall/Small/Medium/Large/XLarge = 75x22, 84x28, 115x38, 176x58, 248x82;
-         icon buttons use 34x22, 38x28, 46x38, 82x58, 118x82. The vector is anchored to the
-         container's right and bottom edges in every source variant (e.g. XLarge Narrow icon:
-         x=-14 width 118 in a 104-wide box), so a narrower container overflows on the left and is
-         clipped by the rounded silhouette, while a wider one leaves a left inset. -->
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
-      <Setter Property="theming:MaterialAssist.RippleWidth" Value="75" />
-      <Setter Property="theming:MaterialAssist.RippleHeight" Value="22" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Small]">
-      <Setter Property="theming:MaterialAssist.RippleWidth" Value="84" />
-      <Setter Property="theming:MaterialAssist.RippleHeight" Value="28" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
-      <Setter Property="theming:MaterialAssist.RippleWidth" Value="115" />
-      <Setter Property="theming:MaterialAssist.RippleHeight" Value="38" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
-      <Setter Property="theming:MaterialAssist.RippleWidth" Value="176" />
-      <Setter Property="theming:MaterialAssist.RippleHeight" Value="58" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
-      <Setter Property="theming:MaterialAssist.RippleWidth" Value="248" />
-      <Setter Property="theming:MaterialAssist.RippleHeight" Value="82" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
-        <Setter Property="theming:MaterialAssist.RippleWidth" Value="34" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Small]">
-        <Setter Property="theming:MaterialAssist.RippleWidth" Value="38" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
-        <Setter Property="theming:MaterialAssist.RippleWidth" Value="46" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
-        <Setter Property="theming:MaterialAssist.RippleWidth" Value="82" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
-        <Setter Property="theming:MaterialAssist.RippleWidth" Value="118" />
-      </Style>
-    </Style>
-
-    <!-- Color treatments. The state layer reuses Foreground, which is exactly the token's
-         state-layer color in every variant: onPrimary, primary, onSecondaryContainer,
-         onSurfaceVariant and inverseOnSurface. -->
+    <!-- Color treatments. The ripple (state layer + press) reuses Foreground, which is exactly
+         the token's state-layer color in every variant: onPrimary, primary,
+         onSecondaryContainer, onSurfaceVariant and inverseOnSurface. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Filled]">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
@@ -187,15 +140,6 @@
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Elevated] /template/ Border#Surface">
-      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Elevated]:pointerover:not(:disabled) /template/ Border#Surface">
-      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel2Shadow}" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Elevated]:pressed:not(:disabled) /template/ Border#Surface">
-      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
-    </Style>
     <!-- TextButtonTokens: label and icon are Primary and the state layer is Primary. The
          container stays transparent in every enabled state. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]">
@@ -203,7 +147,9 @@
       <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
 
-    <!-- Sizes: container height, token padding, type scale, icon size and icon gap. -->
+    <!-- Sizes: container height, token padding, type scale, icon size and icon gap. The control's
+         MinHeight is the 48 DIP touch target; ContainerInset shrinks the visible Surface to the
+         token container height (32/40 for XSmall/Small). -->
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
       <Setter Property="MinHeight" Value="48" />
       <Setter Property="theming:MaterialAssist.ContainerInset" Value="0,8" />
@@ -316,8 +262,25 @@
       <Setter Property="Spacing" Value="16" />
     </Style>
 
-    <!-- Silhouettes. Round is the full pill; Square uses the CornerMedium/CornerLarge/
-         CornerExtraLarge token per size. -->
+    <!-- The icon gap is a physical right margin in LTR; in RTL the StackPanel reverses the child
+         order, so the same gap must sit on the icon's left. -->
+    <Style Selector="^:rtl /template/ ContentPresenter#IconHost">
+      <Setter Property="Margin" Value="8,0,0,0" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]:rtl /template/ ContentPresenter#IconHost">
+      <Setter Property="Margin" Value="4,0,0,0" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]:rtl /template/ ContentPresenter#IconHost">
+      <Setter Property="Margin" Value="12,0,0,0" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]:rtl /template/ ContentPresenter#IconHost">
+      <Setter Property="Margin" Value="16,0,0,0" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]:rtl /template/ ContentPresenter#IconHost">
+      <Setter Property="Margin" Value="0" />
+    </Style>
+
+    <!-- Silhouettes. Round is CornerFull; Square uses the per-size token. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonShape)=Round]">
       <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
     </Style>
@@ -332,10 +295,13 @@
         <Setter Property="CornerRadius" Value="28" />
       </Style>
     </Style>
-    <!-- Outline weight follows the token stroke: 1 for XSmall/Small/Medium, 2 for Large/XLarge. -->
+    <!-- Outline weight follows the token stroke: 1 for XSmall/Small/Medium, 2 Large, 3 XLarge. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]">
-      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large], ^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
         <Setter Property="BorderThickness" Value="2" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
+        <Setter Property="BorderThickness" Value="3" />
       </Style>
     </Style>
 
@@ -429,8 +395,10 @@
         </Style>
       </Style>
     </Style>
-    <!-- Width axis: root box = max(48, content box + insets). Narrow/Default/Wide content boxes:
-         XSmall 28/32/40, Small 32/40/52, Medium 48/56/72, Large 64/96/128, XLarge 104/136/184. -->
+    <!-- Width axis: root box = max(48, content box + insets). Narrow/Default/Wide content boxes
+         (XSmallIconButtonTokens..XLargeIconButtonTokens): XSmall 28/32/40, Small 32/40/52,
+         Medium 48/56/72, Large 64/96/128, XLarge 104/136/184. Every control is at least the 48 DIP
+         touch target while the visible Surface keeps the token box. -->
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
       <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
         <Style Selector="^[(theming|MaterialAssist.IconButtonWidth)=Narrow]">
@@ -504,35 +472,23 @@
       </Style>
     </Style>
 
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+    <!-- Focus indication is the source 3 DIP secondary ring, shown only for :focus-visible so a
+         pointer click does not paint keyboard-focus affordances. -->
+    <Style Selector="^:focus-visible /template/ controls|MaterialFocusIndicator#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <!-- The source pressed state is the 0.08 hover layer plus the Ripple vector at 0.10 (SVG
-         fill-opacity), so the ripple layer carries the pressed opacity itself. -->
-    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
-      <Setter Property="Opacity" Value="0" />
-    </Style>
-    <!-- Disabled: container OnSurface at 0.10, label and icon OnSurface at 0.38, no state layer. -->
+
+    <!-- Disabled: FilledButtonTokens/ElevatedButtonTokens/OutlinedButtonTokens.
+         Container OnSurface at 10%, label and icon OnSurfaceVariant at 38%, outlined stroke
+         OutlineVariant at the same 10%. Text and outlined containers stay transparent so no
+         blanket grey fill appears. No state layer and no ripple react while disabled. -->
     <Style Selector="^:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
       <Setter Property="BorderBrush" Value="Transparent" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
-      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
     </Style>
     <Style Selector="^:disabled /template/ Border#Surface">
       <Setter Property="Opacity" Value="0.10" />
-      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
     </Style>
     <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Opacity" Value="0.38" />
@@ -540,17 +496,80 @@
     <Style Selector="^:disabled /template/ ContentPresenter#IconHost">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <!-- Standard and text icon buttons have no container in any state, disabled included. -->
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ controls|MaterialFocusIndicator#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <!-- FilledTonalButtonTokens: the disabled tonal container is OnSurface at 12%, not 10%, and
+         the label/icon role is OnSurface. -->
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled /template/ Border#Surface">
+      <Setter Property="Opacity" Value="0.12" />
+    </Style>
+    <!-- Outlined disabled: transparent container, OutlineVariant stroke at 10%. -->
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Surface">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Outline">
+      <Setter Property="Opacity" Value="0.10" />
+    </Style>
+    <!-- Text disabled: transparent container, OnSurfaceVariant at 38%. -->
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled /template/ Border#Surface">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <!-- Icon buttons: Standard/Text keep transparent containers; their disabled glyph is
+         OnSurfaceVariant at 38% (StandardIconButtonTokens.DisabledOpacity). Filled/Tonal use an
+         OnSurface container at 10% with an OnSurface 38% glyph (FilledIconButtonTokens.
+         DisabledContainerOpacity/DisabledOpacity and their FilledTonal counterparts). Outlined
+         keeps a transparent container and OnSurface 38% glyph; IconButtonDefaults.
+         outlinedIconButtonBorder applies OutlinedIconButtonTokens.DisabledOpacity (0.38) to the
+         stroke, so the icon stroke is 38%, not the labeled OutlinedButton 10%. Elevated has no
+         upstream icon-button token set; it deliberately follows the filled container here. -->
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
+        <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      </Style>
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled /template/ Border#Surface, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled /template/ Border#Surface">
+        <Setter Property="Opacity" Value="1" />
+      </Style>
       <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
         <Setter Property="Background" Value="Transparent" />
       </Style>
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="0" />
+    <!-- FilledTonalIconButtonTokens.DisabledContainerOpacity is 0.1, not the labeled
+         FilledTonalButtonTokens 0.12 the shared Tonal rule above paints. -->
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled /template/ Border#Surface">
+        <Setter Property="Opacity" Value="0.10" />
+      </Style>
     </Style>
-    <Style Selector="^:disabled /template/ Border#FocusRing">
-      <Setter Property="IsVisible" Value="False" />
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Surface">
+        <Setter Property="Opacity" Value="1" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Outline">
+        <Setter Property="Opacity" Value="0.38" />
+      </Style>
     </Style>
   </ControlTheme>
 
@@ -601,8 +620,6 @@
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:checked:not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialInverseSurfaceBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialInverseOnSurfaceBrush}" />
-      <Setter Property="BorderBrush" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Elevated]:checked:not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
@@ -620,20 +637,89 @@
         <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
       </Style>
     </Style>
-    <!-- Disabled: the selected and unselected containers collapse to the same 10% OnSurface
-         container, while an outline keeps its stroke. -->
+    <!-- Toggle disabled uses ToggleButtonColors/TonalButtonTokens/ElevatedButtonTokens: container
+         OnSurface at 10%, content OnSurfaceVariant at 38%, selected and unselected collapse to
+         that one disabled pair. An outlined toggle paints the OutlineVariant 10% container that
+         OutlinedToggleButtonDefaults resolves. -->
     <Style Selector="^:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
       <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
+    <Style Selector="^:disabled /template/ Border#Surface">
+      <Setter Property="Opacity" Value="0.10" />
+    </Style>
+    <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ ContentPresenter#IconHost">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ controls|MaterialFocusIndicator#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <!-- ToggleButtonColors uses TonalButtonTokens (not FilledTonalButtonTokens): a disabled
+         tonal toggle is OnSurface at 10% with OnSurfaceVariant content. -->
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled /template/ Border#Surface">
+      <Setter Property="Opacity" Value="0.10" />
+    </Style>
+    <!-- FilledIconButtonTokens/FilledTonalIconButtonTokens disabled glyphs are OnSurface at 38%. -->
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Filled]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Elevated]:disabled">
+        <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      </Style>
+    </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialOutlineVariantBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
       <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
         <Setter Property="Background" Value="Transparent" />
       </Style>
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled /template/ Border#Surface, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled /template/ Border#Surface">
+        <Setter Property="Opacity" Value="1" />
+      </Style>
     </Style>
+    <!-- Outlined icon toggles are IconToggleButton, not ToggleButton: defaultOutlinedIcon-
+         ToggleButtonColors keeps disabledContainerColor transparent (the labeled outlined toggle
+         paints the OutlineVariant 10% container below) and disabledContentColor at
+         OutlinedIconButtonTokens.DisabledOpacity 0.38. IconButtonDefaults.outlinedIconToggle-
+         ButtonBorder returns outlinedIconButtonBorder(enabled) while unchecked, so the disabled
+         stroke is also 38%; the checked rule further down still drops the stroke entirely. -->
+    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Surface">
+        <Setter Property="Opacity" Value="1" />
+      </Style>
+      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Outline">
+        <Setter Property="Opacity" Value="0.38" />
+      </Style>
+    </Style>
+    <!-- OutlinedToggleButtonDefaults.border / outlinedIconToggleButtonBorder return null while
+         checked, independently of enabled; the animated width and color then target zero and
+         transparent. Keep this after the disabled outline so a checked disabled item resolves the
+         same null stroke as the source. -->
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:checked">
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+  </ControlTheme>
+  <ControlTheme x:Key="{x:Type HyperlinkButton}" TargetType="HyperlinkButton" BasedOn="{StaticResource MaterialButtonBase}">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="theming:MaterialAssist.ButtonVariant" Value="Text" />
   </ControlTheme>
 </ResourceDictionary>

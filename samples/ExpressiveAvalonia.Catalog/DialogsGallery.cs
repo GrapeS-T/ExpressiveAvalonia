@@ -18,6 +18,12 @@ public static class DialogsGallery
     public static Control Create() => new DialogPlayground();
 }
 
+/// <summary>
+/// Live dialog coverage for N06 (F05 shared lifecycle). Source mapping: AlertDialog.kt slots,
+/// icon/title/supporting-text/action anatomy, 280-560 DIP width, wrapping action flow, action
+/// result/cancel, scrim and Escape dismissal, focus trap/restore and the desktop fade/scale
+/// composition around the platform-window animation the source leaves to the host.
+/// </summary>
 internal sealed class DialogPlayground : Grid, IComponentPlayground
 {
     private enum DialogFamily { Basic, Icon, List, ScrollableList, Input, NonDismissible }

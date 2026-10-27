@@ -83,7 +83,9 @@ public static class MaterialTonalPalettes
     /// construction as <c>MaterialColorScheme</c>: primary chroma 36, secondary 16, tertiary 24,
     /// neutral 6, neutral-variant 8 and the fixed error hue 25 / chroma 84. With the library's
     /// default seed the tone 40 cells equal the generated primary, secondary, tertiary and error
-    /// roles, so the board stays consistent with the active theme.
+    /// roles, so the board stays consistent with the active theme. This is a read-only
+    /// visualization derived through MaterialColorUtilities HCT; it is not M3
+    /// <c>TonalPalette.kt</c> theme data and does not add a dynamic-color API.
     /// </summary>
     public static IReadOnlyList<MaterialTonalPaletteRow> FromSeed(Color seed)
     {
@@ -309,6 +311,14 @@ public sealed class MaterialTonalSwatch : Button
 /// navigation, copy-to-clipboard activation and automation names.
 /// </summary>
 /// <remarks>
+/// <para>
+/// This is a design-source visualization, not the pinned <c>TonalPalette.kt</c> theme data.
+/// <see cref="MaterialTonalPalettes.Source"/> is the fixed <c>.Tonal palettes</c> board exported
+/// from the design source; <see cref="MaterialTonalPalettes.FromSeed"/> is a live Tonal Spot
+/// palette computed with MaterialColorUtilities HCT from a seed, which is the same construction
+/// <c>MaterialColorScheme</c> uses for its roles. Neither replaces M3's dynamic-color API: Android
+/// wallpaper dynamic colors stay an OS service.
+/// </para>
 /// <para>
 /// Set <see cref="Palettes"/> to draw explicit rows, for example
 /// <see cref="MaterialTonalPalettes.Source"/> for the exact source board colors, or leave it

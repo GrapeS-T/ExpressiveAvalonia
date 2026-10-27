@@ -26,6 +26,8 @@ public static class MaterialColorScheme
     /// <remarks>
     /// Uses the explicit 2021 MD3 specification and phone role set from Material Color Utilities.
     /// Tonal Spot is a palette-generation choice, independent of expressive motion and typography.
+    /// Surface tint follows Compose's <c>surfaceTint = primary</c> default rather than exposing a
+    /// separate dynamic-scheme role.
     /// </remarks>
     public static IReadOnlyDictionary<string, Color> Create(Color seed, bool dark, double contrast = 0)
     {
@@ -87,7 +89,9 @@ public static class MaterialColorScheme
             ["MaterialOutlineVariantColor"] = ToColor(scheme.OutlineVariant),
             ["MaterialShadowColor"] = ToColor(scheme.Shadow),
             ["MaterialScrimColor"] = ToColor(scheme.Scrim),
-            ["MaterialSurfaceTintColor"] = ToColor(scheme.SurfaceTint)
+            // Compose's lightColorScheme/darkColorScheme default surfaceTint to primary
+            // (ColorScheme.kt:896), not to a separate dynamic-scheme role.
+            ["MaterialSurfaceTintColor"] = ToColor(scheme.Primary)
         });
     }
 

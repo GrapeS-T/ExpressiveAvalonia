@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="using:ExpressiveAvalonia.Controls">
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
   <!-- Source: Snackbar (local-004643) and its two building blocks
        .Building Blocks/Snackbar-action (local-000654) and
        .Building Blocks/Snackbar-close-affordance (local-000659).
@@ -46,15 +47,23 @@
         <Panel Background="Transparent">
           <Border Name="Surface" Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}" />
-          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                  CornerRadius="{TemplateBinding CornerRadius}"
-                  Opacity="0" IsHitTestVisible="False" />
+          <!-- Source action-button indication: the shared MaterialRipple paints the bounded press
+               ripple plus the hover/focus state layer in inversePrimary, replacing the old
+               opacity-only Border layer so press has one owner. -->
           <ContentPresenter Name="PART_ContentPresenter"
                             Padding="{TemplateBinding Padding}"
                             Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{TemplateBinding Foreground}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  IsBounded="True"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False" />
           <!-- The indicator sits 2 DIP outside the container with a 3 DIP secondary stroke. -->
           <Border Name="FocusRing" Margin="-2"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
@@ -63,22 +72,6 @@
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
@@ -87,6 +80,9 @@
     </Style>
     <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Opacity" Value="0" />
     </Style>
   </ControlTheme>
 
@@ -111,14 +107,22 @@
                   Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}">
             <Panel>
-              <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                      CornerRadius="{TemplateBinding CornerRadius}"
-                      Opacity="0" IsHitTestVisible="False" />
+              <!-- Source close affordance indication: a bounded ripple clipped to the 40 DIP
+                   circular container inside the 48 DIP target, in inverseOnSurface. -->
               <!-- Source close glyph: the 14x14 vector from the design, centred in the 24 DIP icon box. -->
               <Path Data="M1.4 14L0 12.6L5.6 7L0 1.4L1.4 0L7 5.6L12.6 0L14 1.4L8.4 7L14 12.6L12.6 14L7 8.4Z"
                     Fill="{TemplateBinding Foreground}"
                     Width="14" Height="14" Stretch="None"
                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <theming:MaterialRipple Name="Ripple" Width="40" Height="40"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      Fill="{TemplateBinding Foreground}"
+                                      CornerRadius="{TemplateBinding CornerRadius}"
+                                      IsBounded="True"
+                                      PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                      HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                      FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                      EnableDrag="False" />
             </Panel>
           </Border>
           <Border Name="FocusRing" Width="44" Height="44"
@@ -129,22 +133,6 @@
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
@@ -153,9 +141,11 @@
   <ControlTheme x:Key="{x:Type controls:MaterialSnackbar}" TargetType="controls:MaterialSnackbar">
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialInverseOnSurfaceBrush}" />
-    <Setter Property="MinWidth" Value="344" />
-    <Setter Property="MaxWidth" Value="672" />
+    <!-- Snackbar.kt: the container width is min(available width, 600 DIP). The host supplies the
+         available width; a directly hosted snackbar keeps its natural width up to the same cap. -->
+    <Setter Property="MaxWidth" Value="600" />
     <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Bottom" />
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
@@ -163,20 +153,10 @@
           <Border Name="PART_Container"
                   Background="{DynamicResource MaterialInverseSurfaceBrush}"
                   CornerRadius="{DynamicResource MaterialShapeExtraSmallCornerRadius}"
-                  BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}"
-                  Padding="16,14,16,14"
-                  Opacity="0"
-                  RenderTransform="translateY(16px)">
-            <Border.Transitions>
-              <Transitions>
-                <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-                <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-              </Transitions>
-            </Border.Transitions>
+                  BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}">
             <Grid Name="PART_Layout" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
               <TextBlock Name="PART_Text" Grid.Row="0" Grid.Column="0"
                          Text="{TemplateBinding Text}"
-                         TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxLines="1"
                          VerticalAlignment="Center"
                          Foreground="{DynamicResource MaterialInverseOnSurfaceBrush}"
                          FontSize="{DynamicResource MaterialBodyMediumFontSize}"
@@ -202,15 +182,29 @@
       </ControlTemplate>
     </Setter>
 
-    <!-- Entrance/exit. The transition durations are the md.sys.motion tokens, so reduced motion
-         (which zeroes those resources) removes the fade and slide. -->
-    <Style Selector="^:open /template/ Border#PART_Container">
-      <Setter Property="Opacity" Value="1" />
-      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    <!-- Base anatomy before the per-configuration overrides. Values that a selector changes live in
+       styles rather than template attributes so the specific style actually wins. -->
+    <Style Selector="^ /template/ Border#PART_Container">
+      <Setter Property="Padding" Value="16,14,16,14" />
+    </Style>
+    <Style Selector="^ /template/ TextBlock#PART_Text">
+      <!-- Snackbar.kt measures the text with no line cap: it wraps and the container grows past
+           the 48 DIP single-line minimum. No trimming/ellipsis is applied by default. -->
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="TextTrimming" Value="None" />
     </Style>
 
+    <!-- Explicit one-line cap (library extension for the catalog's fixed anatomy). -->
+    <Style Selector="^:one-line /template/ TextBlock#PART_Text">
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="MaxLines" Value="1" />
+    </Style>
+
+    <!-- Explicit two-line cap: wraps and trims at two lines; reserves the source's 40 DIP. -->
     <Style Selector="^:two-line /template/ TextBlock#PART_Text">
       <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
       <Setter Property="MaxLines" Value="2" />
       <!-- The source reserves both lines (40 DIP) even when the message happens to fit one. -->
       <Setter Property="MinHeight" Value="40" />
@@ -225,23 +219,25 @@
     <!-- Padding matrix from the ten exported configurations. Thickness is
          (left, top, right, bottom); the Figma export lists (left, right, top, bottom), so the
          pairs are swapped. Each row reproduces the source's outer height: 48 DIP one line,
-         68 DIP two lines, 112 DIP for the stacked "longer action" configuration. -->
+         68 DIP two lines, 112 DIP for the stacked "longer action" configuration. The
+         :multi-line rows also serve Auto, whose height is the source's measured max(48, text);
+         the explicit TwoLines cap additionally reserves both lines. -->
     <Style Selector="^:with-action /template/ Border#PART_Container">
       <Setter Property="Padding" Value="16,4,8,4" />
     </Style>
-    <Style Selector="^:two-line:with-action /template/ Border#PART_Container">
+    <Style Selector="^:multi-line:with-action /template/ Border#PART_Container">
       <Setter Property="Padding" Value="16,14,8,14" />
     </Style>
     <Style Selector="^:with-close /template/ Border#PART_Container">
       <Setter Property="Padding" Value="16,0,0,0" />
     </Style>
-    <Style Selector="^:two-line:with-close /template/ Border#PART_Container">
+    <Style Selector="^:multi-line:with-close /template/ Border#PART_Container">
       <Setter Property="Padding" Value="16,10,0,10" />
     </Style>
     <Style Selector="^:with-action:with-close /template/ Border#PART_Container">
       <Setter Property="Padding" Value="16,0,0,0" />
     </Style>
-    <Style Selector="^:two-line:with-action:with-close /template/ Border#PART_Container">
+    <Style Selector="^:multi-line:with-action:with-close /template/ Border#PART_Container">
       <Setter Property="Padding" Value="16,10,0,10" />
     </Style>
 
@@ -263,15 +259,14 @@
     </Style>
   </ControlTheme>
 
-  <!-- Host: one snackbar at a time, 16 DIP from the bottom edge, bottom-centred. -->
+  <!-- Host: one snackbar at a time; the outgoing item stays in the overlay while it fades, exactly
+       like SnackbarHost.kt's FadeInFadeOutWithScale. Snackbar(snackbarData) adds 12 DIP padding. -->
   <ControlTheme x:Key="{x:Type controls:MaterialSnackbarHost}" TargetType="controls:MaterialSnackbarHost">
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="VerticalAlignment" Value="Stretch" />
     <Setter Property="Template">
       <ControlTemplate>
-        <StackPanel Name="PART_Items"
-                    HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                    Margin="16" Spacing="8" />
+        <Panel Name="PART_Items" Margin="12" ClipToBounds="False" />
       </ControlTemplate>
     </Setter>
   </ControlTheme>

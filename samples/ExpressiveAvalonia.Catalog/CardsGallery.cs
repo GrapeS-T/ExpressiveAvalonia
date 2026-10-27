@@ -94,6 +94,14 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
         slotButton.Click += (_, _) => SetStatus("Нажато действие в слоте; карточка не активировалась.");
         _slotContent.Children.Add(slotButton);
 
+        // N01.4 badge placement: dot/labeled and RTL mirroring of the source BadgedBox.
+        var badgeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 32 };
+        badgeRow.Children.Add(new TextBlock { Text = "Badge", VerticalAlignment = VerticalAlignment.Center });
+        badgeRow.Children.Add(BadgeSample(FlowDirection.LeftToRight, "3"));
+        badgeRow.Children.Add(BadgeSample(FlowDirection.RightToLeft, "12"));
+        badgeRow.Children.Add(BadgeSample(FlowDirection.LeftToRight, null));
+        _slotContent.Children.Add(badgeRow);
+
         Settings.Children.Add(Caption("Вид контейнера"));
         Settings.Children.Add(_variant);
         Settings.Children.Add(Caption("Анатомия"));
@@ -258,6 +266,25 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
         var transfer = new DataTransfer();
         transfer.Add(DataTransferItem.CreateText(text));
         return transfer;
+    }
+
+    private static Control BadgeSample(FlowDirection direction, string? text)
+    {
+        var anchor = new Border
+        {
+            Width = 40,
+            Height = 40,
+            CornerRadius = new CornerRadius(12),
+            Background = new SolidColorBrush(Color.Parse("#FF6750A4")),
+        };
+        var box = new MaterialBadgedBox
+        {
+            FlowDirection = direction,
+            Content = anchor,
+            Badge = new MaterialBadge { Text = text },
+        };
+        AutomationProperties.SetName(box, text is null ? "Badge dot" : $"Badge {text}");
+        return box;
     }
 
     private static TextBlock Caption(string text) => new() { Text = text };

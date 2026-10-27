@@ -3,7 +3,6 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
@@ -46,8 +45,9 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _actions;
     private readonly ToggleSwitch _clear;
     private readonly ToggleSwitch _adjacent;
+    private readonly ToggleSwitch _yearRange;
+    private readonly ToggleSwitch _weekdaysOnly;
     private readonly ComboBox _culture;
-    private readonly Slider _months;
     private readonly TextBox _label;
     private readonly TextBlock _cultureSample = new() { TextWrapping = TextWrapping.Wrap };
     private int _lastMode = -1;
@@ -66,7 +66,6 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
             SelectedDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(9)),
             SelectedEndDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(16)),
             DisplayDate = MaterialDatePicker.ToDateTimeOffset(Today.AddDays(9)),
-            MonthCount = 6,
             AllowInputMode = true,
             Width = 360,
         };
@@ -115,6 +114,8 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
         _actions = Toggle("Кнопки OK / Cancel", true);
         _clear = Toggle("Кнопка очистки", true);
         _adjacent = Toggle("Соседние дни", true);
+        _yearRange = Toggle("Диапазон лет 2020–2030", false);
+        _weekdaysOnly = Toggle("Только будни", false);
 
         Settings.Children.Add(new TextBlock { Text = "Культура" });
         _culture = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -126,8 +127,6 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
         _cultureSample.FontSize = 12;
         _cultureSample.Foreground = Brushes.Gray;
         Settings.Children.Add(_cultureSample);
-
-        _months = Number("Месяцев на экране", 1, 6, 6, 1);
 
         _label = new TextBox { Text = "Дата", HorizontalAlignment = HorizontalAlignment.Stretch };
         MaterialTextField.SetLabel(_label, "Заголовок");
@@ -180,9 +179,8 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
 
         _presentation.SelectionChanged += (_, _) => { if (!_sync) Apply(); };
         _selection.SelectionChanged += (_, _) => { if (!_sync) Apply(); };
-        foreach (var toggle in new[] { _input, _bounds, _actions, _clear, _adjacent })
+        foreach (var toggle in new[] { _input, _bounds, _actions, _clear, _adjacent, _yearRange, _weekdaysOnly })
             toggle.IsCheckedChanged += (_, _) => { if (!_sync) Apply(); };
-        _months.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_sync) Apply(); };
         _label.TextChanged += (_, _) => { if (!_sync) Apply(); };
         _culture.SelectionChanged += (_, _) => { if (!_sync) Apply(); };
 
@@ -214,18 +212,19 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
             }
 
             var range = _selection.SelectedIndex == 1;
+            // Switch the mode first: single mode drops a bound end, so seeding the range end
+            // before the switch would be discarded.
+            _picker.SelectionMode = range ? MaterialDateSelectionMode.Range : MaterialDateSelectionMode.Single;
             if (range && _lastRange != true && _picker.SelectedEndDate is null && _picker.SelectedDate is { } start)
                 _picker.SelectedEndDate = start.AddDays(7);
             _lastRange = range;
 
-            _picker.SelectionMode = range ? MaterialDateSelectionMode.Range : MaterialDateSelectionMode.Single;
             _picker.Mode = mode switch
             {
                 1 => MaterialDatePickerMode.Docked,
                 3 => MaterialDatePickerMode.FullScreen,
                 _ => MaterialDatePickerMode.Modal,
             };
-            _picker.MonthCount = (int)Math.Round(_months.Value);
             _picker.ShowActions = _actions.IsChecked == true;
             _picker.ShowClearButton = _clear.IsChecked == true;
             _picker.ShowAdjacentDays = _adjacent.IsChecked == true;
@@ -235,6 +234,9 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
             _picker.AllowInputMode = true;
             _picker.Label = label;
             _picker.Culture = culture;
+            _picker.MinimumYear = _yearRange.IsChecked == true ? 2020 : 1900;
+            _picker.MaximumYear = _yearRange.IsChecked == true ? 2030 : 2100;
+            _picker.SelectableDates = _weekdaysOnly.IsChecked == true ? WeekdaysOnly.Instance : null;
             _picker.MinimumDate = bounds ? MaterialDatePicker.ToDateTimeOffset(Today) : null;
             _picker.MaximumDate = bounds ? MaterialDatePicker.ToDateTimeOffset(Today.AddDays(14)) : null;
             _picker.Width = mode == 3 ? 420 : 360;
@@ -301,6 +303,9 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
                 SelectedEndDate = _picker.SelectedEndDate,
                 MinimumDate = _picker.MinimumDate,
                 MaximumDate = _picker.MaximumDate,
+                MinimumYear = _picker.MinimumYear,
+                MaximumYear = _picker.MaximumYear,
+                SelectableDates = _picker.SelectableDates,
                 Culture = _picker.Culture,
                 AllowInputMode = true,
             };
@@ -325,6 +330,14 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
         _picker.ClearSelection();
         _field.SelectedDate = null;
         _status.Text = "Выбор очищен";
+    }
+
+    private sealed class WeekdaysOnly : MaterialSelectableDates
+    {
+        public static WeekdaysOnly Instance { get; } = new();
+
+        public override bool IsSelectableDate(DateTime date) =>
+            date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
     }
 
     private Button ActionButton(string content, Action action)
@@ -357,27 +370,5 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
         var toggle = new ToggleSwitch { Content = label, IsChecked = value };
         Settings.Children.Add(toggle);
         return toggle;
-    }
-
-    private Slider Number(string label, double min, double max, double value, double step)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0}" };
-        Settings.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                caption.Text = $"{label}: {slider.Value:0}";
-        };
-        Settings.Children.Add(slider);
-        return slider;
     }
 }

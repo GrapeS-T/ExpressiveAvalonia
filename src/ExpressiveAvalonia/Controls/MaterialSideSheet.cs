@@ -18,15 +18,23 @@ public sealed class SheetBackRequestedEventArgs : System.EventArgs
 }
 
 /// <summary>
-/// A Material side sheet docked to the leading or trailing edge.
+/// A Material-styled side sheet docked to the leading or trailing edge.
 /// </summary>
 /// <remarks>
-/// The source anatomy is a 320-wide panel with a 400 maximum: a 76-tall header with an optional
-/// back affordance, a Title Large headline, a close affordance, the scrolling content slot and an
-/// actions area above a 1-pixel divider. <see cref="IsModal"/> selects the modal presentation
-/// (scrim, 16 rounded container, focus trap) or the standard presentation (no scrim, square
-/// corners, page-level focus). The close affordance and the close command always close the sheet;
-/// <see cref="MaterialSheet.IsDismissEnabled"/> only governs Escape, scrim clicks and drags.
+/// <para>
+/// This is an ExpressiveAvalonia extension rather than a port: the pinned Material 3 snapshot has
+/// no side-sheet composable. It uses the shared <see cref="MaterialSheet"/> state machine (open,
+/// hidden, dismiss veto, focus restore and spring motion) with the design-source anatomy: a
+/// 320-wide panel with a 400 maximum, a 76-tall header with optional back affordance, a Title
+/// Large headline, a close affordance, the scrolling content slot and an actions area above a
+/// 1-pixel divider.
+/// </para>
+/// <para>
+/// <see cref="MaterialSheet.IsModal"/> selects the modal presentation (scrim, 16 rounded
+/// container, focus trap) or the standard presentation (no scrim, square corners, page-level
+/// focus). The close affordance and the close command always close the sheet;
+/// <see cref="MaterialSheet.IsDismissEnabled"/> only governs Escape and scrim taps.
+/// </para>
 /// </remarks>
 public sealed class MaterialSideSheet : MaterialSheet
 {
@@ -72,7 +80,7 @@ public sealed class MaterialSideSheet : MaterialSheet
     /// <summary>Raised when the back affordance is used.</summary>
     public event System.EventHandler<SheetBackRequestedEventArgs>? BackRequested;
 
-    /// <summary>The localized headline. The default "Title" mirrors the source component default.</summary>
+    /// <summary>The localized headline. The default "Title" mirrors the design-source default.</summary>
     public string? Headline
     {
         get => GetValue(HeadlineProperty);
@@ -126,23 +134,29 @@ public sealed class MaterialSideSheet : MaterialSheet
             ? FlowDirection != FlowDirection.RightToLeft
             : FlowDirection == FlowDirection.RightToLeft;
 
+    protected override bool CanUseValue(MaterialSheetValue value) =>
+        value != MaterialSheetValue.PartiallyExpanded;
+
     protected override string? GetSheetAccessibleName() => Headline;
 
-    protected override double GetClosedOffset()
+    protected override double GetPosition(MaterialSheetValue value)
     {
-        var width = SheetSurface?.Bounds.Width ?? 0;
-        if (width <= 0)
-            width = SheetWidth;
-        return width;
+        if (value == MaterialSheetValue.Hidden)
+        {
+            var width = SheetSurface?.Bounds.Width ?? 0;
+            return width > 0 ? width : SheetWidth;
+        }
+
+        return 0;
     }
 
-    protected override void ApplyOffset(double offset)
+    protected override void ApplyPosition(double position)
     {
         if (SheetTransform is null)
             return;
 
         // The offset is always a positive travel distance; only the sign depends on the edge.
-        SheetTransform.X = IsSurfaceOnRight ? offset : -offset;
+        SheetTransform.X = IsSurfaceOnRight ? position : -position;
         SheetTransform.Y = 0;
     }
 
@@ -160,6 +174,13 @@ public sealed class MaterialSideSheet : MaterialSheet
         _closeButton = e.NameScope.Find<Button>("PART_CloseButton");
         _headline = e.NameScope.Find<TextBlock>("PART_Headline");
 
+        if (SheetSurface is not null)
+        {
+            var slide = new TranslateTransform();
+            SheetTransform = slide;
+            SheetSurface.RenderTransform = slide;
+        }
+
         if (_backButton is not null)
             _backButton.Click += OnBackClick;
         if (_closeButton is not null)
@@ -170,6 +191,7 @@ public sealed class MaterialSideSheet : MaterialSheet
         UpdateHeaderLayout();
         UpdateSideLayout();
         UpdateAccessibleName();
+        ApplyPosition(0);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -205,11 +227,12 @@ public sealed class MaterialSideSheet : MaterialSheet
             : Avalonia.Layout.HorizontalAlignment.Left;
         SheetSurface.BorderThickness = right ? new Thickness(1, 0, 0, 0) : new Thickness(0, 0, 1, 0);
 
-        // The source docks both presentations full height; only the modal container is rounded (16).
+        // The design docks both presentations full height; only the modal container is rounded (16).
         SheetSurface.CornerRadius = new CornerRadius(IsModal ? 16 : 0);
 
-        if (!IsOpen)
-            ApplyClosedOffset();
+        // The translation direction and closed distance depend on the edge and on the width the
+        // surface actually received. The base class reconciles the current state after layout.
+        ApplyPosition(SheetPosition);
     }
 
     private void OnCloseClick(object? sender, RoutedEventArgs e)

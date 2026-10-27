@@ -9,18 +9,29 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ExpressiveAvalonia.Theming;
+using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Controls;
 
-/// <summary>How many lines of supporting text the snackbar reserves.</summary>
+/// <summary>How the snackbar reserves lines of supporting text.</summary>
 /// <remarks>
-/// Mirrors the source component's "# of lines" axis. Text still wraps and is trimmed at the
-/// configured limit; the value only fixes the vertical anatomy (48 DIP one-line, 68 DIP two-line).
+/// <para>
+/// <see cref="Auto"/> is the source behavior: Snackbar.kt measures the supporting text with
+/// unlimited lines, wraps it and grows the container beyond the 48 DIP single-line minimum, so a
+/// long message is never clipped or ellipsized. The source has no line cap at all.
+/// </para>
+/// <para>
+/// <see cref="OneLine"/> and <see cref="TwoLines"/> are library extensions kept for the catalog's
+/// explicit anatomy controls. They cap the text (one line ellipsizes; two lines trim) and reserve
+/// the fixed 48/68 DIP heights from SnackbarTokens.kt. Use them only when the design requires a
+/// fixed cap; the default <see cref="Auto"/> follows the measured source layout.
+/// </para>
 /// </remarks>
-public enum MaterialSnackbarLineCount { OneLine, TwoLines }
+public enum MaterialSnackbarLineCount { Auto, OneLine, TwoLines }
 
 /// <summary>Where the action button sits relative to the supporting text.</summary>
 /// <remarks>
@@ -58,14 +69,26 @@ public sealed class MaterialSnackbarCloseEventArgs : EventArgs
 /// <para>
 /// The control is a plain templated control so it can be placed directly in a panel or queued by
 /// <see cref="MaterialSnackbarHost"/>. It starts hidden; <see cref="Show"/> reveals it, starts the
-/// entrance transition and starts the automatic-dismiss timer. <see cref="Dismiss"/> begins the
-/// exit transition and raises <see cref="Closed"/> once the transition would have finished.
+/// entrance springs and starts the automatic-dismiss timer. <see cref="Dismiss"/> starts the exit
+/// springs and raises <see cref="Closed"/> once both have settled.
+/// </para>
+/// <para>
+/// Durations follow SnackbarHostState: 4 seconds by default, indefinite whenever an action is
+/// present (the source default for <c>actionLabel != null</c>), or the explicit
+/// <see cref="Duration"/>. Android's <c>AccessibilityManager.calculateRecommendedTimeoutMillis</c>
+/// has no Avalonia equivalent; set <see cref="Duration"/> from the application's accessibility
+/// policy instead. Keeping the snackbar open while keyboard focus is inside it is an explicitly
+/// marked desktop extension.
+/// </para>
+/// <para>
+/// The supporting text follows Snackbar.kt's measured layout: it wraps without a line cap and the
+/// container grows past the 48 DIP single-line minimum, so a long message is shown in full. The
+/// explicit <see cref="LineCount"/> caps are library extensions; <see cref="MaterialSnackbarLineCount.Auto"/>
+/// is the default and preserves the source behavior.
 /// </para>
 /// <para>
 /// Reduced motion (through <see cref="MaterialMotion.IsReduced"/> or
-/// <c>MaterialTheme.Motion="Reduced"</c>) zeroes the duration tokens, so both transitions collapse
-/// and the snackbar closes synchronously. Escape dismisses an open snackbar when focus is inside
-/// it, and the automatic timer is suspended while keyboard focus is inside.
+/// <c>MaterialTheme.IsReducedMotion="True"</c>) makes both springs settle immediately.
 /// </para>
 /// </remarks>
 public sealed class MaterialSnackbar : TemplatedControl
@@ -96,7 +119,8 @@ public sealed class MaterialSnackbar : TemplatedControl
 
     /// <summary>Defines the <see cref="LineCount"/> property.</summary>
     public static readonly StyledProperty<MaterialSnackbarLineCount> LineCountProperty =
-        AvaloniaProperty.Register<MaterialSnackbar, MaterialSnackbarLineCount>(nameof(LineCount));
+        AvaloniaProperty.Register<MaterialSnackbar, MaterialSnackbarLineCount>(
+            nameof(LineCount), MaterialSnackbarLineCount.Auto);
 
     /// <summary>Defines the <see cref="ActionPlacement"/> property.</summary>
     public static readonly StyledProperty<MaterialSnackbarActionPlacement> ActionPlacementProperty =
@@ -118,12 +142,18 @@ public sealed class MaterialSnackbar : TemplatedControl
     private bool _isOpen;
     private bool _showOnAttach;
     private bool _entrancePending;
+    private bool _detaching;
+    private int _closeGeneration;
+    private int _exitPartsRemaining;
     private MaterialSnackbarCloseReason? _lastCloseReason;
-    private IDisposable? _closeOperation;
+    private MaterialSnackbarCloseReason _exitReason;
     private DispatcherTimer? _autoDismissTimer;
     private Button? _actionButton;
     private Button? _closeButton;
     private StackPanel? _actionsPanel;
+    private ScaleTransform? _scaleTransform;
+    private MaterialSpringValue? _alpha;
+    private MaterialSpringValue? _scale;
 
     public MaterialSnackbar()
     {
@@ -131,11 +161,12 @@ public sealed class MaterialSnackbar : TemplatedControl
         // TextBlock in the template is the polite live region, so assistive technology announces
         // the text when the snackbar appears without interrupting the user.
         AutomationProperties.SetControlTypeOverride(this, AutomationControlType.StatusBar);
-        // The exit transition keeps the snackbar in the tree for one duration token; it must not
-        // intercept pointer input during that time (or while it has never been shown).
+        // The exit springs keep the snackbar in the tree briefly; it must not intercept pointer
+        // input during that time (or while it has never been shown).
         IsHitTestVisible = false;
         // A snackbar that was never shown must not reserve layout space in a host panel.
         IsVisible = false;
+        RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
     }
 
     /// <summary>The supporting message. Live-announced politely when it appears.</summary>
@@ -181,7 +212,16 @@ public sealed class MaterialSnackbar : TemplatedControl
         set => SetValue(IsCloseButtonVisibleProperty, value);
     }
 
-    /// <summary>One or two lines of supporting text; also selects the 48/68 DIP anatomy.</summary>
+    /// <summary>
+    /// How the supporting text is measured: source auto sizing by default, or the explicit
+    /// one/two-line cap extension.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="MaterialSnackbarLineCount.Auto"/> wraps the message and lets the container grow,
+    /// matching Snackbar.kt's measured layout. <see cref="MaterialSnackbarLineCount.OneLine"/> and
+    /// <see cref="MaterialSnackbarLineCount.TwoLines"/> cap the text and reserve the fixed
+    /// 48/68 DIP heights from SnackbarTokens.kt.
+    /// </remarks>
     public MaterialSnackbarLineCount LineCount
     {
         get => GetValue(LineCountProperty);
@@ -199,12 +239,11 @@ public sealed class MaterialSnackbar : TemplatedControl
     /// How long the snackbar stays before closing itself.
     /// </summary>
     /// <remarks>
-    /// <c>null</c> (the default) selects the Material default: 4 seconds for a one-line message
-    /// without an action, 10 seconds for two lines or whenever an action is present (Material's
-    /// accessibility guidance keeps actionable snackbars on screen longer).
-    /// <see cref="Timeout.InfiniteTimeSpan"/> keeps it open until dismissed explicitly.
-    /// A value is ignored while keyboard focus is inside the snackbar; the full duration
-    /// restarts when focus leaves.
+    /// <c>null</c> (the default) selects the source default: 4 seconds without an action and
+    /// <see cref="Timeout.InfiniteTimeSpan"/> when an action is present. An explicit value
+    /// overrides both and is the supported accessibility-timeout adaptation.
+    /// A value is ignored while keyboard focus is inside the snackbar; the full duration restarts
+    /// when focus leaves (desktop extension).
     /// </remarks>
     public TimeSpan? Duration
     {
@@ -221,10 +260,10 @@ public sealed class MaterialSnackbar : TemplatedControl
     /// <summary>Raised when <see cref="Show"/> transitions the snackbar from closed to open.</summary>
     public event EventHandler? Opened;
 
-    /// <summary>Raised once when the snackbar starts closing, before the exit transition.</summary>
+    /// <summary>Raised once when the snackbar starts closing, before the exit springs.</summary>
     public event EventHandler<MaterialSnackbarCloseEventArgs>? Closing;
 
-    /// <summary>Raised when the exit transition has finished and the snackbar may be removed.</summary>
+    /// <summary>Raised when the exit springs have finished and the snackbar may be removed.</summary>
     public event EventHandler<MaterialSnackbarCloseEventArgs>? Closed;
 
     /// <summary>Raised after the action button runs its command.</summary>
@@ -233,8 +272,9 @@ public sealed class MaterialSnackbar : TemplatedControl
     /// <summary>Makes the snackbar visible and starts its automatic-dismiss timer.</summary>
     public void Show()
     {
-        _closeOperation?.Dispose();
-        _closeOperation = null;
+        _closeGeneration++;
+        _exitPartsRemaining = 0;
+        _detaching = false;
 
         var opened = false;
         if (!_isOpen)
@@ -245,19 +285,21 @@ public sealed class MaterialSnackbar : TemplatedControl
         }
 
         SetCurrentValue(Visual.IsVisibleProperty, true);
+        IsHitTestVisible = true;
 
         if (this.IsAttachedToVisualTree())
         {
+            _showOnAttach = false;
             if (opened)
-                BeginOpenAnimation();
+                BeginOpenAnimation(restart: true);
             else
-                UpdateOpenState(open: true);
+                AnimateOpen();
             RestartAutoDismissTimer();
         }
         else
         {
             // Defer the class change until the control has a template and a rendered frame, so
-            // a snackbar shown before it is added to a host still gets its entrance transition.
+            // a snackbar shown before it is added to a host still gets its entrance springs.
             _showOnAttach = true;
         }
 
@@ -265,28 +307,37 @@ public sealed class MaterialSnackbar : TemplatedControl
             Opened?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Starts the exit transition; <paramref name="reason"/> is reported to listeners.</summary>
+    /// <summary>Starts the exit springs; <paramref name="reason"/> is reported to listeners.</summary>
     public void Dismiss(MaterialSnackbarCloseReason reason = MaterialSnackbarCloseReason.Programmatic)
     {
         if (!_isOpen)
             return;
 
         StopAutoDismissTimer();
-        _closeOperation?.Dispose();
-        _closeOperation = null;
         _showOnAttach = false;
         _entrancePending = false;
 
         SetAndRaise(IsOpenProperty, ref _isOpen, false);
         SetAndRaise(LastCloseReasonProperty, ref _lastCloseReason, reason);
-        UpdateOpenState(open: false);
+        IsHitTestVisible = false;
         Closing?.Invoke(this, new MaterialSnackbarCloseEventArgs(reason));
 
-        var delay = this.IsAttachedToVisualTree() ? AnimationDuration : TimeSpan.Zero;
-        if (delay <= TimeSpan.Zero)
-            RaiseClosed(reason);
-        else
-            _closeOperation = DispatcherTimer.RunOnce(() => RaiseClosed(reason), delay, DispatcherPriority.Background);
+        var generation = ++_closeGeneration;
+        _exitReason = reason;
+
+        if (!this.IsAttachedToVisualTree() || MaterialMotion.GetIsReduced(this) || _alpha is null || _scale is null)
+        {
+            _alpha?.JumpTo(0);
+            _scale?.JumpTo(0);
+            RaiseClosed(reason, generation);
+            return;
+        }
+
+        _exitPartsRemaining = 2;
+        _alpha.AnimateTo(0, MaterialSpring.EffectsFast,
+            () => ExitPartSettled(generation), 0.01);
+        _scale.AnimateTo(0, MaterialSpring.SpatialFast,
+            () => ExitPartSettled(generation), 0.01);
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -307,11 +358,14 @@ public sealed class MaterialSnackbar : TemplatedControl
         if (_closeButton is not null)
             _closeButton.Click += OnCloseClick;
 
+        _scaleTransform = new ScaleTransform(1, 1);
+        RenderTransform = _scaleTransform;
+        EnsureDrivers();
+        JumpToOpenState(_showOnAttach ? false : _isOpen);
+
         UpdateVisualState();
-        // A control that is already open and attached (for example after a theme change) keeps its
-        // open style; a pending entrance owns the :open change so the transition can animate.
-        if (!_entrancePending)
-            UpdateOpenState(_isOpen);
+        if (_isOpen && !_showOnAttach && !_entrancePending)
+            AnimateOpen();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -330,7 +384,7 @@ public sealed class MaterialSnackbar : TemplatedControl
         }
         else if (change.Property == IsKeyboardFocusWithinProperty && _isOpen)
         {
-            // Never yank a snackbar away while a keyboard user is inside it.
+            // Desktop extension: never yank a snackbar away while a keyboard user is inside it.
             if (IsKeyboardFocusWithin)
                 StopAutoDismissTimer();
             else
@@ -341,16 +395,29 @@ public sealed class MaterialSnackbar : TemplatedControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        _detaching = false;
+        if (_scaleTransform is null)
+        {
+            _scaleTransform = new ScaleTransform(1, 1);
+            RenderTransform = _scaleTransform;
+        }
+        EnsureDrivers();
+
         if (!_isOpen)
         {
             _showOnAttach = false;
+            JumpToOpenState(false);
             return;
         }
 
         if (_showOnAttach)
         {
             _showOnAttach = false;
-            BeginOpenAnimation();
+            BeginOpenAnimation(restart: true);
+        }
+        else
+        {
+            JumpToOpenState(true);
         }
 
         RestartAutoDismissTimer();
@@ -358,28 +425,36 @@ public sealed class MaterialSnackbar : TemplatedControl
 
     /// <summary>
     /// Applies the open style after the first frame, so the hidden initial style is the starting
-    /// point of the entrance transition instead of being replaced in the same layout pass.
+    /// point of the entrance springs instead of being replaced in the same layout pass.
     /// </summary>
-    private void BeginOpenAnimation()
+    private void BeginOpenAnimation(bool restart)
     {
         if (_entrancePending)
             return;
 
         _entrancePending = true;
-        // Background runs after the render pass, so the zero-opacity frame is committed first.
+        if (restart)
+            JumpToOpenState(false);
+
+        // Background runs after the render pass, so the hidden state is committed first.
         Dispatcher.UIThread.Post(
             () =>
             {
                 _entrancePending = false;
                 if (_isOpen)
-                    UpdateOpenState(open: true);
+                    AnimateOpen();
             },
             DispatcherPriority.Background);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        _detaching = true;
         StopAutoDismissTimer();
+        _alpha?.Dispose();
+        _alpha = null;
+        _scale?.Dispose();
+        _scale = null;
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -391,6 +466,54 @@ public sealed class MaterialSnackbar : TemplatedControl
             Dismiss(MaterialSnackbarCloseReason.UserDismiss);
             e.Handled = true;
         }
+    }
+
+    private void EnsureDrivers()
+    {
+        if (_scaleTransform is null)
+            return;
+
+        var initial = _isOpen && !_entrancePending ? 1 : 0;
+        if (_alpha is null)
+            _alpha = new MaterialSpringValue(this, initial,
+                value => Opacity = Math.Clamp(value, 0, 1));
+        if (_scale is null)
+            _scale = new MaterialSpringValue(this, initial, ApplyScale);
+    }
+
+    /// <summary>Scale 0 is 0.8 and scale 1 is 1.0, matching animatedScale in SnackbarHost.kt.</summary>
+    private void ApplyScale(double value)
+    {
+        if (_scaleTransform is null)
+            return;
+        var scale = 0.8 + (0.2 * Math.Clamp(value, 0, 1));
+        _scaleTransform.ScaleX = scale;
+        _scaleTransform.ScaleY = scale;
+    }
+
+    private void JumpToOpenState(bool open)
+    {
+        _alpha?.JumpTo(open ? 1 : 0);
+        _scale?.JumpTo(open ? 1 : 0);
+        IsHitTestVisible = open;
+    }
+
+    private void AnimateOpen()
+    {
+        if (!_isOpen)
+            return;
+        _alpha?.AnimateTo(1, MaterialSpring.EffectsFast, null, 0.01);
+        _scale?.AnimateTo(1, MaterialSpring.SpatialFast, null, 0.01);
+    }
+
+    private void ExitPartSettled(int generation)
+    {
+        if (generation != _closeGeneration || _isOpen)
+            return;
+
+        _exitPartsRemaining--;
+        if (_exitPartsRemaining <= 0)
+            RaiseClosed(_exitReason, generation);
     }
 
     private void OnActionClick(object? sender, RoutedEventArgs e)
@@ -406,7 +529,12 @@ public sealed class MaterialSnackbar : TemplatedControl
     private void UpdateVisualState()
     {
         var hasAction = ActionContent is not null;
-        PseudoClasses.Set(":two-line", LineCount == MaterialSnackbarLineCount.TwoLines);
+        var lineCount = LineCount;
+        // Auto (the source measured layout) and the explicit TwoLines extension share the
+        // wrapping anatomy and its padding matrix; only the explicit caps change the text limit.
+        PseudoClasses.Set(":one-line", lineCount == MaterialSnackbarLineCount.OneLine);
+        PseudoClasses.Set(":two-line", lineCount == MaterialSnackbarLineCount.TwoLines);
+        PseudoClasses.Set(":multi-line", lineCount != MaterialSnackbarLineCount.OneLine);
         PseudoClasses.Set(":with-action", hasAction);
         PseudoClasses.Set(":with-close", IsCloseButtonVisible);
         PseudoClasses.Set(":stacked-action", hasAction && ActionPlacement == MaterialSnackbarActionPlacement.Below);
@@ -417,43 +545,22 @@ public sealed class MaterialSnackbar : TemplatedControl
             _actionsPanel.IsVisible = hasAction || IsCloseButtonVisible;
     }
 
-    private void UpdateOpenState(bool open)
-    {
-        PseudoClasses.Set(":open", open);
-        // The exit transition is short; keep hit-testing off while it plays out.
-        IsHitTestVisible = open;
-    }
-
     private TimeSpan ResolveDuration()
     {
         if (Duration is { } configured)
             return configured;
 
-        // Material keeps actionable snackbars visible longer than a plain status message.
+        // SnackbarHostState.showSnackbar: Indefinite when an action is present, Short otherwise.
         if (ActionContent is not null)
-            return TimeSpan.FromSeconds(10);
+            return Timeout.InfiniteTimeSpan;
 
-        return LineCount == MaterialSnackbarLineCount.TwoLines
-            ? TimeSpan.FromSeconds(10)
-            : TimeSpan.FromSeconds(4);
-    }
-
-    private TimeSpan AnimationDuration
-    {
-        get
-        {
-            if (MaterialMotion.GetIsReduced(this))
-                return TimeSpan.Zero;
-            return this.TryFindResource("MaterialDurationShort4", out var value) && value is TimeSpan duration
-                ? duration
-                : TimeSpan.FromMilliseconds(200);
-        }
+        return TimeSpan.FromSeconds(4);
     }
 
     private void RestartAutoDismissTimer()
     {
         StopAutoDismissTimer();
-        if (!_isOpen || !this.IsAttachedToVisualTree() || IsKeyboardFocusWithin)
+        if (!_isOpen || !this.IsAttachedToVisualTree() || IsKeyboardFocusWithin || _detaching)
             return;
 
         var duration = ResolveDuration();
@@ -486,11 +593,12 @@ public sealed class MaterialSnackbar : TemplatedControl
         _autoDismissTimer = null;
     }
 
-    private void RaiseClosed(MaterialSnackbarCloseReason reason)
+    private void RaiseClosed(MaterialSnackbarCloseReason reason, int generation)
     {
-        _closeOperation = null;
-        if (_isOpen)
-            return; // Shown again while the exit transition was running.
+        if (generation != _closeGeneration || _isOpen)
+            return; // Shown again while the exit springs were running.
+
+        _exitPartsRemaining = 0;
         SetCurrentValue(Visual.IsVisibleProperty, false);
         Closed?.Invoke(this, new MaterialSnackbarCloseEventArgs(reason));
     }

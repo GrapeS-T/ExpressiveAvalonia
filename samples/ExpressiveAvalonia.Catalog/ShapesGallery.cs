@@ -21,11 +21,11 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
 {
     private static readonly MaterialShapeKind[] Named = Array.FindAll(
         Enum.GetValues<MaterialShapeKind>(),
-        kind => !MaterialShapeGeometries.IsExpressive(kind));
+        kind => !MaterialShapeGeometries.IsExpressive(kind) && kind != MaterialShapeKind.Hexagon);
 
-    private static readonly MaterialShapeKind[] Numbered = Array.FindAll(
+    private static readonly MaterialShapeKind[] Extensions = Array.FindAll(
         Enum.GetValues<MaterialShapeKind>(),
-        MaterialShapeGeometries.IsExpressive);
+        kind => MaterialShapeGeometries.IsExpressive(kind) || kind == MaterialShapeKind.Hexagon);
 
     private static readonly string[] FillKeys =
     {
@@ -88,7 +88,7 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
         stage.Children.Add(_caption);
         Children.Add(stage);
 
-        _family = Choice("Семейство", new[] { "Shape Set (35)", ".Shape (9)" }, 0);
+        _family = Choice("Семейство", new[] { $"MaterialShapes ({Named.Length})", $"Расширения ({Extensions.Length})" }, 0);
 
         Settings.Children.Add(new TextBlock { Text = "Геометрия" });
         _kind = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -162,7 +162,7 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
         PopulateKinds();
     }
 
-    private MaterialShapeKind[] CurrentKinds => _family.SelectedIndex == 1 ? Numbered : Named;
+    private MaterialShapeKind[] CurrentKinds => _family.SelectedIndex == 1 ? Extensions : Named;
 
     private void PopulateKinds()
     {
@@ -213,7 +213,9 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
         _sizeCaption.Text = $"Размер: {_size.Value:0} dp";
         _heightCaption.Text = $"Высота: ×{_height.Value:0.0}";
         _thicknessCaption.Text = $"Толщина обводки: {_thickness.Value:0} dp";
-        _caption.Text = $"{kind} · {_size.Value:0}×{_shape.Height:0} dp · {_shape.Stretch}";
+        var origin = kind == MaterialShapeKind.Hexagon || MaterialShapeGeometries.IsExpressive(kind)
+            ? "расширение design source" : "AndroidX MaterialShapes";
+        _caption.Text = $"{kind} · {origin}\n{_size.Value:0}×{_shape.Height:0} dp · {_shape.Stretch}";
     }
 
     private MaterialButtonGroup Choice(string label, string[] options, int selected)

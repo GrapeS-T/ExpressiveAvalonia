@@ -2,16 +2,26 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:theming="using:ExpressiveAvalonia.Theming"
                     xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls">
-  <!-- Source family: standard, centered and range sliders. Five sizes (XSmall .. XLarge),
-       horizontal and vertical orientation, enabled/hovered/pressed/disabled states, stop
-       indicators, the value indicator pill and the leading icon slot.
+  <!-- Source family (pinned 77b2199 Slider.kt, SliderDefaults, SliderTokens): standard,
+       centred and range sliders, horizontal and vertical, enabled/pressed/focused/disabled,
+       stops and ticks, five sizes (an ExpressiveAvalonia extension around the source XSmall
+       metrics), the value indicator (extension) and the leading icon slot (extension).
        The native Track keeps pointer capture, dragging, keyboard (arrows/Page/Home/End),
        snapping and automation; MaterialSliderTrack only paints the source anatomy.
        Source metrics (track thickness / handle length / outer corner radius):
        XSmall 16/44/8, Small 24/44/8, Medium 40/52/12, Large 56/68/16, XLarge 96/108/28.
+       Only XSmall is a direct source token mapping (SliderTokens TrackHeight/HandleHeight);
+       the larger sizes are ExpressiveAvalonia extensions, like the non-source value indicator.
        The thumb is a transparent 48-DIP touch target; the 4-DIP handle is painted above it.
-       The Track is inset by 18 DIP so the handle center travels from 6 DIP to (length - 6 DIP),
-       matching the source's clear space around the handle. -->
+       The source lays the track inside a 4-DIP thumb gutter, so the handle centre travels
+       from 2 DIP to length-2 DIP and the corner-inset stop/tick grid starts at 2 + radius.
+       The Track is inflated by 22 DIP so its 48-DIP thumb reaches those exact endpoints.
+       Tick roles are the source's inverted defaults: Primary outside the active track and
+       SecondaryContainer inside it; stop indicators use the active track colour (Primary).
+       Vertical source default is topToBottom (minimum at the top), mapped to the native
+       IsDirectionReversed=True default below; set it False for bottom-to-top. Horizontal
+       RTL mirrors the whole root so the native Track and painted track stay aligned; the
+       native Left/Right keys are not direction-aware in Avalonia (documented adapter). -->
   <ControlTheme x:Key="MaterialSliderTrackButtonTheme" TargetType="RepeatButton">
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Template">
@@ -43,31 +53,40 @@
               ActiveBrush="{DynamicResource MaterialPrimaryBrush}"
               InactiveBrush="{DynamicResource MaterialSecondaryContainerBrush}"
               DisabledBrush="{DynamicResource MaterialOnSurfaceBrush}"
-              StopBrush="{DynamicResource MaterialOnSecondaryContainerBrush}"
-              SelectedStopBrush="{DynamicResource MaterialOnPrimaryBrush}"
+              DisabledHandleBrush="{DynamicResource MaterialSliderDisabledHandleBrush}"
+              TickBrush="{DynamicResource MaterialPrimaryBrush}"
+              ActiveTickBrush="{DynamicResource MaterialSecondaryContainerBrush}"
               FocusBrush="{DynamicResource MaterialSecondaryBrush}"
-              IndicatorBackground="{DynamicResource MaterialInverseSurfaceBrush}"
-              IndicatorForeground="{DynamicResource MaterialInverseOnSurfaceBrush}"
+              ValueLabel="{Binding #PART_ValueLabel}"
               IconBrush="{DynamicResource MaterialOnPrimaryBrush}"
               IsHitTestVisible="False" />
-          <Track Name="PART_Track" Margin="-18,0" Orientation="Horizontal"
+          <theming:MaterialSliderNativeTrack Name="PART_Track" Margin="-22,0" Orientation="Horizontal"
                  Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
                  Value="{TemplateBinding Value, Mode=TwoWay}"
                  IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
-            <Track.DecreaseButton>
+            <theming:MaterialSliderNativeTrack.DecreaseButton>
               <RepeatButton Name="PART_DecreaseButton" Theme="{StaticResource MaterialSliderTrackButtonTheme}" />
-            </Track.DecreaseButton>
-            <Track.IncreaseButton>
+            </theming:MaterialSliderNativeTrack.DecreaseButton>
+            <theming:MaterialSliderNativeTrack.IncreaseButton>
               <RepeatButton Name="PART_IncreaseButton" Theme="{StaticResource MaterialSliderTrackButtonTheme}" />
-            </Track.IncreaseButton>
+            </theming:MaterialSliderNativeTrack.IncreaseButton>
             <theming:MaterialSliderThumb Name="PART_Handle" Theme="{StaticResource MaterialSliderThumbTheme}" />
-          </Track>
+          </theming:MaterialSliderNativeTrack>
+          <!-- Extension label host: the shared MaterialLabel plain-tooltip bubble, anchored on
+               the painted handle. MaterialSliderTrack moves the zero-size host with the thumb. -->
+          <Canvas IsHitTestVisible="False">
+            <controls:MaterialLabel Name="PART_ValueLabel" />
+          </Canvas>
         </Grid>
       </ControlTemplate>
     </Setter>
     <Style Selector="^:vertical">
       <Setter Property="MinWidth" Value="44" />
       <Setter Property="MinHeight" Value="120" />
+      <!-- Source VerticalSlider default is topToBottom=True (minimum at the top). Avalonia's
+           native Track uses minimum-at-the-bottom for IsDirectionReversed=False; the style
+           default flips it to the source direction. A local/bound IsDirectionReversed wins. -->
+      <Setter Property="IsDirectionReversed" Value="True" />
       <Setter Property="Template">
         <ControlTemplate>
           <Grid Name="SliderRoot" Background="Transparent">
@@ -78,25 +97,28 @@
                 ActiveBrush="{DynamicResource MaterialPrimaryBrush}"
                 InactiveBrush="{DynamicResource MaterialSecondaryContainerBrush}"
                 DisabledBrush="{DynamicResource MaterialOnSurfaceBrush}"
-                StopBrush="{DynamicResource MaterialOnSecondaryContainerBrush}"
-                SelectedStopBrush="{DynamicResource MaterialOnPrimaryBrush}"
+                DisabledHandleBrush="{DynamicResource MaterialSliderDisabledHandleBrush}"
+                TickBrush="{DynamicResource MaterialPrimaryBrush}"
+                ActiveTickBrush="{DynamicResource MaterialSecondaryContainerBrush}"
                 FocusBrush="{DynamicResource MaterialSecondaryBrush}"
-                IndicatorBackground="{DynamicResource MaterialInverseSurfaceBrush}"
-                IndicatorForeground="{DynamicResource MaterialInverseOnSurfaceBrush}"
+                ValueLabel="{Binding #PART_ValueLabel}"
                 IconBrush="{DynamicResource MaterialOnPrimaryBrush}"
                 IsHitTestVisible="False" />
-            <Track Name="PART_Track" Margin="0,-18" Orientation="Vertical"
+            <theming:MaterialSliderNativeTrack Name="PART_Track" Margin="0,-22" Orientation="Vertical"
                    Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
                    Value="{TemplateBinding Value, Mode=TwoWay}"
                    IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
-              <Track.DecreaseButton>
+              <theming:MaterialSliderNativeTrack.DecreaseButton>
                 <RepeatButton Name="PART_DecreaseButton" Theme="{StaticResource MaterialSliderTrackButtonTheme}" />
-              </Track.DecreaseButton>
-              <Track.IncreaseButton>
+              </theming:MaterialSliderNativeTrack.DecreaseButton>
+              <theming:MaterialSliderNativeTrack.IncreaseButton>
                 <RepeatButton Name="PART_IncreaseButton" Theme="{StaticResource MaterialSliderTrackButtonTheme}" />
-              </Track.IncreaseButton>
+              </theming:MaterialSliderNativeTrack.IncreaseButton>
               <theming:MaterialSliderThumb Name="PART_Handle" Theme="{StaticResource MaterialSliderThumbTheme}" />
-            </Track>
+            </theming:MaterialSliderNativeTrack>
+            <Canvas IsHitTestVisible="False">
+              <controls:MaterialLabel Name="PART_ValueLabel" />
+            </Canvas>
           </Grid>
         </ControlTemplate>
       </Setter>
@@ -114,6 +136,18 @@
          Nested selectors keep the orientation and size conditions in one style tree. -->
     <Style Selector="^:horizontal">
       <Setter Property="MinWidth" Value="120" />
+      <!-- Native Track is not RTL-aware; mirroring the whole template keeps the pointer target
+           under the painted handle and gives the source start-at-right fill direction. -->
+      <Style Selector="^[FlowDirection=RightToLeft] /template/ Grid#SliderRoot">
+        <Setter Property="RenderTransform" Value="scale(-1,1)" />
+        <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+      </Style>
+      <!-- The root mirror also mirrors the value bubble; counter-mirror the label text so the
+           number stays readable while the zero-size host keeps tracking the thumb. -->
+      <Style Selector="^[FlowDirection=RightToLeft] /template/ controls|MaterialLabel#PART_ValueLabel">
+        <Setter Property="RenderTransform" Value="scale(-1,1)" />
+        <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+      </Style>
       <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
         <Setter Property="MinHeight" Value="52" />
       </Style>
@@ -138,11 +172,11 @@
               ActiveBrush="{DynamicResource MaterialPrimaryBrush}"
               InactiveBrush="{DynamicResource MaterialSecondaryContainerBrush}"
               DisabledBrush="{DynamicResource MaterialOnSurfaceBrush}"
-              StopBrush="{DynamicResource MaterialOnSecondaryContainerBrush}"
-              SelectedStopBrush="{DynamicResource MaterialOnPrimaryBrush}"
+              DisabledHandleBrush="{DynamicResource MaterialSliderDisabledHandleBrush}"
+              TickBrush="{DynamicResource MaterialPrimaryBrush}"
+              ActiveTickBrush="{DynamicResource MaterialSecondaryContainerBrush}"
               FocusBrush="{DynamicResource MaterialSecondaryBrush}"
-              IndicatorBackground="{DynamicResource MaterialInverseSurfaceBrush}"
-              IndicatorForeground="{DynamicResource MaterialInverseOnSurfaceBrush}"
+              ValueLabel="{Binding #PART_ValueLabel}"
               IconBrush="{DynamicResource MaterialOnPrimaryBrush}"
               IsHitTestVisible="False" />
           <Canvas Name="PART_TrackCanvas" Background="Transparent">
@@ -152,6 +186,9 @@
             <controls:MaterialRangeThumb Name="PART_UpperThumb"
                 Theme="{StaticResource MaterialSliderThumbTheme}"
                 AutomationProperties.Name="{DynamicResource MaterialRangeUpperValueText}" />
+          </Canvas>
+          <Canvas IsHitTestVisible="False">
+            <controls:MaterialLabel Name="PART_ValueLabel" />
           </Canvas>
         </Grid>
       </ControlTemplate>

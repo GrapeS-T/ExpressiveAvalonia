@@ -28,9 +28,9 @@
   <ControlTheme x:Key="{x:Type MenuItem}" TargetType="MenuItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
-    <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
-    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    <Setter Property="MinHeight" Value="48" />
     <Setter Property="MinWidth" Value="112" />
     <Setter Property="MaxWidth" Value="280" />
     <Setter Property="Padding" Value="0" />
@@ -42,18 +42,25 @@
     <Setter Property="md:MaterialMenu.PopupScrollBarVisibility" Value="Hidden" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Name="Root" Background="Transparent" BorderBrush="{TemplateBinding BorderBrush}"
-                BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="{TemplateBinding CornerRadius}"
-                Padding="{TemplateBinding Padding}">
-          <Panel>
-            <Border Name="Surface" Background="{TemplateBinding Background}"
-                    CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
-            <Border Name="StateLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
-                    CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
-            <StackPanel Name="ContentStack" VerticalAlignment="Center">
-              <Grid Name="Content" ColumnDefinitions="Auto,*,Auto"
-                    Margin="{TemplateBinding (md:MaterialMenu.ContentPadding)}">
+        <!-- Source item anatomy (Menu.kt DropdownMenuItemContent): the row is laid out in a
+             sizeIn(112..280, minHeight) box with DropdownMenuItemContentPadding, and the
+             expressive variant adds DropdownMenuSelectableItemPadding outside the rounded
+             Surface. ItemPadding is computed by MaterialMenu from the surface style and the
+             presence of supporting text. -->
+        <Panel Background="Transparent">
+          <Border Name="ItemContainer"
+                  Padding="{Binding (md:MaterialMenu.ItemPadding), RelativeSource={RelativeSource TemplatedParent}}">
+            <Panel>
+              <!-- The row container is the source Surface. Expressive rows animate the animated
+                   container color (Menu.kt:2012-2020 animateColorAsState FastEffects); MaterialMenu
+                   seeds and retargets that brush, so this binding is the only colour owner and no
+                   BrushTransition competes on the channel. -->
+              <Border Name="Surface"
+                      Background="{Binding (md:MaterialMenu.AnimatedBackground), RelativeSource={RelativeSource TemplatedParent}}"
+                      CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
+              <StackPanel Name="ContentStack" VerticalAlignment="Center">
+                <Grid Name="Content" ColumnDefinitions="Auto,*,Auto"
+                      Margin="{TemplateBinding (md:MaterialMenu.ContentPadding)}">
                   <Panel Name="LeadingHost" Width="24" Margin="0,0,12,0" VerticalAlignment="Center">
                     <ContentPresenter Name="PART_IconPresenter" Content="{TemplateBinding Icon}"
                                       Width="24" Height="24"
@@ -70,22 +77,22 @@
                   <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <ContentPresenter Name="PART_HeaderPresenter" Content="{TemplateBinding Header}"
                                       ContentTemplate="{TemplateBinding HeaderTemplate}" RecognizesAccessKey="True"
-                                      TextBlock.LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
-                                      TextBlock.LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}" />
+                                      TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
+                                      TextBlock.LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}" />
                     <TextBlock Name="SupportingText" Text="{TemplateBinding (md:MaterialMenu.SupportingText)}"
                                FontSize="{DynamicResource MaterialBodyMediumFontSize}"
                                FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
                                Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                                LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
                                LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
-                               MaxLines="1" TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap"
                                IsVisible="{Binding (md:MaterialMenu.SupportingText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static str:StringConverters.IsNotNullOrEmpty}}" />
                   </StackPanel>
                   <StackPanel Name="TrailingHost" Grid.Column="2" Orientation="Horizontal" Spacing="8"
-                              Margin="16,0,0,0" VerticalAlignment="Center">
+                              Margin="12,0,0,0" VerticalAlignment="Center">
                     <TextBlock Name="PART_InputGestureText"
-                               FontSize="{DynamicResource MaterialBodyMediumFontSize}"
-                               FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
+                               FontSize="{DynamicResource MaterialLabelLargeFontSize}"
+                               FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
                                Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                                VerticalAlignment="Center"
                                IsVisible="{Binding InputGesture, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static data:ObjectConverters.IsNotNull}}"
@@ -98,65 +105,71 @@
                           VerticalAlignment="Center" Data="M0,10 L0,0 L5,5 Z"
                           Fill="{DynamicResource MaterialOnSurfaceVariantBrush}" />
                   </StackPanel>
-              </Grid>
-              <Border Name="Divider" Height="1" Margin="2,8"
-                      Background="{DynamicResource MaterialOutlineVariantBrush}"
-                      IsVisible="{TemplateBinding (md:MaterialMenu.ShowDivider)}" />
-            </StackPanel>
-            <Popup Name="PART_Popup" IsLightDismissEnabled="False"
-                   IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}"
-                   Placement="RightEdgeAlignedTop">
-              <Border Name="PopupSurface"
-                      Background="{TemplateBinding (md:MaterialMenu.PopupBackground)}"
-                      CornerRadius="{TemplateBinding (md:MaterialMenu.PopupCornerRadius)}"
-                      Padding="{TemplateBinding (md:MaterialMenu.PopupPadding)}"
-                      BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
-                <ScrollViewer Name="PopupScroller" HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="{TemplateBinding (md:MaterialMenu.PopupScrollBarVisibility)}">
-                  <ItemsPresenter Name="PART_ItemsPresenter" Grid.IsSharedSizeScope="True"
-                                  ItemsPanel="{TemplateBinding ItemsPanel}" />
-                </ScrollViewer>
-              </Border>
-            </Popup>
-          </Panel>
-        </Border>
+                </Grid>
+                <!-- HorizontalDividerPadding is 12 DIP horizontal and 2 DIP vertical. -->
+                <Border Name="Divider" Height="1" Margin="12,2"
+                        Background="{DynamicResource MaterialOutlineVariantBrush}"
+                        IsVisible="{TemplateBinding (md:MaterialMenu.ShowDivider)}" />
+              </StackPanel>
+              <!-- Desktop navigation/open-state highlight (Avalonia's :selected hot tracking and
+                   the IsActive extension). It is suppressed while the ripple owns the indication,
+                   so the same interaction alpha is never painted twice. -->
+              <Border Name="NavigationLayer" Background="{TemplateBinding Foreground}"
+                      CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+              <!-- Source indication: Menu.kt:2159 clickable(indication = ripple(true)) for the
+                   baseline row and Menu.kt:2035 Surface(selected, onClick) for the expressive row.
+                   The shared MaterialRipple is the RippleNode: bounded press ripple plus the
+                   15/45/150 ms hover/focus state layer. It draws above the row content exactly like
+                   the source indication node, and it owns press, so no second pressed alpha. -->
+              <md:MaterialRipple Name="Ripple"
+                                 Fill="{TemplateBinding Foreground}"
+                                 CornerRadius="{TemplateBinding CornerRadius}"
+                                 IsBounded="True"
+                                 PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                 HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                 FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                 EnableDrag="False" />
+            </Panel>
+          </Border>
+          <Border Name="FocusRing" Margin="-2" CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+          <Popup Name="PART_Popup" IsLightDismissEnabled="False"
+                 Placement="RightEdgeAlignedTop"
+                 PlacementConstraintAdjustment="FlipX,FlipY,SlideX,SlideY"
+                 md:MaterialMenu.AnimatePopup="True"
+                 md:MaterialMenu.OpenState="{TemplateBinding IsSubMenuOpen}">
+            <Border Name="PopupSurface"
+                    Background="{TemplateBinding (md:MaterialMenu.PopupBackground)}"
+                    CornerRadius="{TemplateBinding (md:MaterialMenu.PopupCornerRadius)}"
+                    Padding="{TemplateBinding (md:MaterialMenu.PopupPadding)}"
+                    BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
+              <ScrollViewer Name="PopupScroller" HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="{TemplateBinding (md:MaterialMenu.PopupScrollBarVisibility)}">
+                <ItemsPresenter Name="PART_ItemsPresenter" Grid.IsSharedSizeScope="True"
+                                ItemsPanel="{TemplateBinding ItemsPanel}" />
+              </ScrollViewer>
+            </Border>
+          </Popup>
+        </Panel>
       </ControlTemplate>
     </Setter>
 
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^ /template/ Border#Surface">
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-
-    <!-- Baseline states. :selected is the pointer/keyboard selection that follows focus. -->
-    <Style Selector="^:pointerover /template/ Border#StateLayer, ^:selected /template/ Border#StateLayer">
+    <!-- Interaction is the shared MaterialRipple (source indication), so there is no uniform
+         press/hover/focus opacity overlay and no 200 ms state-layer transition. Only the distinct
+         desktop navigation/open state keeps a static layer: Avalonia applies :selected while a
+         pointer or keyboard hot-tracks a row and while its submenu is open, and IsActive is the
+         library's persistent destination highlight. While pointerover or focus-visible drives the
+         ripple's state layer that static layer is suppressed, so their alpha never stacks. -->
+    <Style Selector="^:selected /template/ Border#NavigationLayer, ^[(md|MaterialMenu.IsActive)=True] /template/ Border#NavigationLayer">
       <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
     </Style>
-    <Style Selector="^[(md|MaterialMenu.IsActive)=True] /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    <Style Selector="^:selected:pointerover /template/ Border#NavigationLayer, ^:selected:focus-visible /template/ Border#NavigationLayer, ^[(md|MaterialMenu.IsActive)=True]:pointerover /template/ Border#NavigationLayer, ^[(md|MaterialMenu.IsActive)=True]:focus-visible /template/ Border#NavigationLayer">
+      <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:checked">
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
-    </Style>
-    <Style Selector="^:checked /template/ Border#StateLayer">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
     </Style>
     <Style Selector="^:checked /template/ ContentPresenter#PART_IconPresenter, ^:checked /template/ ContentPresenter#TrailingIconPresenter, ^:checked /template/ TextBlock#SupportingText, ^:checked /template/ TextBlock#PART_InputGestureText">
       <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
@@ -165,7 +178,11 @@
       <Setter Property="Fill" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
     </Style>
 
-    <!-- Baseline density axis: 56 / 48 / 40 DIP rows. -->
+    <!-- Design density axis (ExpressiveAvalonia extension; the pinned composable baseline row is
+         MenuListItemContainerHeight = 48, which is Dense2 here): 56 / 48 / 40 DIP rows. -->
+    <Style Selector="^[(md|MaterialMenu.Density)=Default]">
+      <Setter Property="MinHeight" Value="56" />
+    </Style>
     <Style Selector="^[(md|MaterialMenu.Density)=Dense2]">
       <Setter Property="MinHeight" Value="48" />
     </Style>
@@ -173,14 +190,22 @@
       <Setter Property="MinHeight" Value="40" />
     </Style>
 
-    <!-- Expressive menu item (local-004330 / local-004342). -->
+    <!-- Expressive menu item (Menu.kt DropdownMenuItemContent, SegmentedMenuTokens,
+         StandardMenuTokens, VibrantMenuTokens; design frames local-004330 / local-004342).
+         ItemPadding supplies the 4 DIP horizontal inset plus 2 DIP vertical when the row has
+         supporting text; the surface itself is the 44 DIP SegmentedMenuTokens.Item row. -->
     <Style Selector="^[(md|MaterialMenu.SurfaceStyle)=Expressive]">
-      <Setter Property="MinHeight" Value="48" />
-      <Setter Property="Padding" Value="4,2" />
+      <Setter Property="MinHeight" Value="44" />
       <Setter Property="CornerRadius" Value="4" />
+      <!-- StandardMenuTokens.ContainerColor. The row Surface is opaque in the source; painting
+           the container explicitly (instead of relying on the popup behind it) gives the animated
+           container color a concrete start and end value. -->
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
       <Setter Property="md:MaterialMenu.ContentPadding" Value="12" />
+      <!-- Fallback inset; MaterialMenu raises the vertical inset to 2 DIP when SupportingText is set. -->
+      <Setter Property="md:MaterialMenu.ItemPadding" Value="4,0" />
       <Style Selector="^ /template/ Panel#LeadingHost">
         <Setter Property="Width" Value="20" />
         <Setter Property="Margin" Value="0,0,8,0" />
@@ -194,17 +219,18 @@
         <Setter Property="Height" Value="20" />
       </Style>
       <Style Selector="^ /template/ StackPanel#TrailingHost">
-        <Setter Property="Margin" Value="12,0,0,0" />
+        <Setter Property="Margin" Value="8,0,0,0" />
       </Style>
       <Style Selector="^ /template/ ContentPresenter#PART_HeaderPresenter">
         <Setter Property="TextBlock.LineHeight" Value="{DynamicResource MaterialLabelLargeLineHeight}" />
         <Setter Property="TextBlock.LetterSpacing" Value="{DynamicResource MaterialLabelLargeLetterSpacing}" />
       </Style>
+      <!-- LabelWithSupportingText uses bodyMedium, not bodySmall. -->
       <Style Selector="^ /template/ TextBlock#SupportingText">
-        <Setter Property="FontSize" Value="{DynamicResource MaterialBodySmallFontSize}" />
-        <Setter Property="FontWeight" Value="{DynamicResource MaterialBodySmallFontWeight}" />
-        <Setter Property="LineHeight" Value="{DynamicResource MaterialBodySmallLineHeight}" />
-        <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodySmallLetterSpacing}" />
+        <Setter Property="FontSize" Value="{DynamicResource MaterialBodyMediumFontSize}" />
+        <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyMediumFontWeight}" />
+        <Setter Property="LineHeight" Value="{DynamicResource MaterialBodyMediumLineHeight}" />
+        <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodyMediumLetterSpacing}" />
       </Style>
       <Style Selector="^ /template/ TextBlock#PART_InputGestureText">
         <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
@@ -213,17 +239,25 @@
       <Setter Property="md:MaterialMenu.PopupBackground" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
       <Setter Property="md:MaterialMenu.PopupCornerRadius" Value="16" />
       <Setter Property="md:MaterialMenu.PopupPadding" Value="0" />
-      <!-- Expressive rows are fixed at 48 DIPs; the density axis belongs to the baseline menu. -->
-      <Style Selector="^[(md|MaterialMenu.Density)=Dense2], ^[(md|MaterialMenu.Density)=Dense4]">
-        <Setter Property="MinHeight" Value="48" />
+
+      <!-- MenuDefaults.itemShape / MenuDefaults.leadingItemShape and friends. -->
+      <Style Selector="^[(md|MaterialMenu.ItemPosition)=Leading]">
+        <Setter Property="CornerRadius" Value="12,12,4,4" />
       </Style>
-      <!-- Standard selected row: no container, OnTertiaryContainer content, Tertiary state layer. -->
+      <Style Selector="^[(md|MaterialMenu.ItemPosition)=Middle]">
+        <Setter Property="CornerRadius" Value="4" />
+      </Style>
+      <Style Selector="^[(md|MaterialMenu.ItemPosition)=Trailing]">
+        <Setter Property="CornerRadius" Value="4,4,12,12" />
+      </Style>
+
+      <!-- Standard selected row: StandardMenuTokens.ItemSelectedContainerColor =
+           TertiaryContainer, ItemSelectedLabelTextColor = OnTertiaryContainer,
+           ItemSelectedShape = CornerMedium (12). -->
       <Style Selector="^:checked">
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
-      </Style>
-      <Style Selector="^:checked /template/ Border#StateLayer">
-        <Setter Property="Background" Value="{DynamicResource MaterialTertiaryBrush}" />
+        <Setter Property="CornerRadius" Value="12" />
       </Style>
       <Style Selector="^:checked /template/ ContentPresenter#PART_IconPresenter, ^:checked /template/ ContentPresenter#TrailingIconPresenter, ^:checked /template/ TextBlock#SupportingText, ^:checked /template/ TextBlock#PART_InputGestureText">
         <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
@@ -237,6 +271,8 @@
            only one attached-property bracket; nesting composes the same condition. -->
       <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]">
         <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+        <!-- VibrantMenuTokens.ContainerColor. -->
+        <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
         <Setter Property="md:MaterialMenu.PopupBackground" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
         <Style Selector="^ /template/ ContentPresenter#PART_IconPresenter, ^ /template/ ContentPresenter#TrailingIconPresenter, ^ /template/ TextBlock#SupportingText, ^ /template/ TextBlock#PART_InputGestureText">
           <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
@@ -244,12 +280,10 @@
         <Style Selector="^ /template/ Path#SubmenuArrow">
           <Setter Property="Fill" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
         </Style>
-        <Style Selector="^ /template/ Border#StateLayer">
-          <Setter Property="Background" Value="{DynamicResource MaterialOnTertiaryBrush}" />
-        </Style>
         <Style Selector="^:checked">
           <Setter Property="Background" Value="{DynamicResource MaterialTertiaryBrush}" />
           <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryBrush}" />
+          <Setter Property="CornerRadius" Value="12" />
         </Style>
         <Style Selector="^:checked /template/ ContentPresenter#PART_IconPresenter, ^:checked /template/ ContentPresenter#TrailingIconPresenter, ^:checked /template/ TextBlock#SupportingText, ^:checked /template/ TextBlock#PART_InputGestureText">
           <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnTertiaryBrush}" />
@@ -282,14 +316,69 @@
       <Setter Property="Data" Value="M5,10 L5,0 L0,5 Z" />
     </Style>
 
+    <!-- Disabled rows use the per-component tokens: label/icon/supporting OnSurface at 0.38 for
+         the standard menu, OnTertiaryContainer at 0.38 for the vibrant menu
+         (StandardMenuTokens.ItemDisabled* / VibrantMenuTokens.ItemDisabled*). SelectableMenuItemColors
+         resolves every slot disabled-first (Menu.kt textColor/leadingIconColor/
+         trailingContentColor/containerColor: `if (enabled) selected ? ... : ... else disabled...`),
+         so a disabled checked row uses the disabled roles for the label, both icons, the
+         supporting and gesture text, the arrow and the container; no selected role may leak into
+         a disabled row. -->
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     </Style>
-    <Style Selector="^:disabled /template/ Grid#Content">
+    <Style Selector="^:disabled /template/ Grid#Content, ^:disabled /template/ Border#Surface, ^:disabled /template/ Border#Divider">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
+    <Style Selector="^:disabled /template/ ContentPresenter#PART_IconPresenter, ^:disabled /template/ ContentPresenter#TrailingIconPresenter, ^:disabled /template/ TextBlock#SupportingText, ^:disabled /template/ TextBlock#PART_InputGestureText">
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Path#SubmenuArrow">
+      <Setter Property="Fill" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ md|MaterialRipple#Ripple, ^:disabled /template/ Border#NavigationLayer">
       <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^[(md|MaterialMenu.SurfaceStyle)=Expressive]">
+      <!-- Standard disabled checked row. disabledContainerColor is
+           StandardMenuTokens.ContainerColor (surface-container-low), so the selected tertiary
+           container is dropped; the label and every icon keep the standard OnSurface disabled
+           role, which outranks the selected OnTertiaryContainer content role. -->
+      <Style Selector="^:disabled:checked">
+        <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      </Style>
+      <Style Selector="^:disabled:checked /template/ ContentPresenter#PART_IconPresenter, ^:disabled:checked /template/ ContentPresenter#TrailingIconPresenter, ^:disabled:checked /template/ TextBlock#SupportingText, ^:disabled:checked /template/ TextBlock#PART_InputGestureText">
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      </Style>
+      <Style Selector="^:disabled:checked /template/ Path#SubmenuArrow">
+        <Setter Property="Fill" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      </Style>
+      <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]:disabled">
+        <!-- VibrantMenuTokens.ItemDisabled*Color = OnTertiaryContainer, and
+             disabledContainerColor is the vibrant container itself. -->
+        <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+        <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
+      </Style>
+      <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]:disabled /template/ ContentPresenter#PART_IconPresenter, ^[(md|MaterialMenu.Variant)=Vibrant]:disabled /template/ ContentPresenter#TrailingIconPresenter, ^[(md|MaterialMenu.Variant)=Vibrant]:disabled /template/ TextBlock#SupportingText, ^[(md|MaterialMenu.Variant)=Vibrant]:disabled /template/ TextBlock#PART_InputGestureText">
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+      </Style>
+      <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]:disabled /template/ Path#SubmenuArrow">
+        <Setter Property="Fill" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+      </Style>
+      <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]:disabled:checked">
+        <!-- Vibrant publishes ItemSelectedDisabled* opacity only (no selected-disabled color
+             token), so the selected Tertiary container/content pairs are dropped for the disabled
+             OnTertiaryContainer roles; the container stays the vibrant container. -->
+        <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+      </Style>
+      <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]:disabled:checked /template/ ContentPresenter#PART_IconPresenter, ^[(md|MaterialMenu.Variant)=Vibrant]:disabled:checked /template/ ContentPresenter#TrailingIconPresenter, ^[(md|MaterialMenu.Variant)=Vibrant]:disabled:checked /template/ TextBlock#SupportingText, ^[(md|MaterialMenu.Variant)=Vibrant]:disabled:checked /template/ TextBlock#PART_InputGestureText">
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+      </Style>
+      <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]:disabled:checked /template/ Path#SubmenuArrow">
+        <Setter Property="Fill" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+      </Style>
     </Style>
     <!-- A menu item used as a section label (source Label 01/02 rows). It stays in the menu so the
          native keyboard handler skips it as disabled while still announcing the section. -->
@@ -297,12 +386,16 @@
       <Setter Property="MinHeight" Value="32" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="CornerRadius" Value="4" />
+      <!-- A section label is not a selectable Surface row: it keeps the popup/group behind it. -->
+      <Setter Property="Background" Value="Transparent" />
       <Setter Property="Focusable" Value="False" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
       <Setter Property="md:MaterialMenu.ContentPadding" Value="12,6" />
-      <!-- Expressive vibrant section label: OnTertiaryContainer text on the vibrant surface. -->
+      <!-- The vibrant menu surface is TertiaryContainer, so its label switches to
+           OnTertiaryContainer. The nested form is required because a compound selector accepts
+           only one attached-property bracket. -->
       <Style Selector="^[(md|MaterialMenu.SurfaceStyle)=Expressive]">
         <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]">
           <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
@@ -312,11 +405,16 @@
     <Style Selector="^[(md|MaterialMenu.IsSectionLabel)=True] /template/ Panel#LeadingHost, ^[(md|MaterialMenu.IsSectionLabel)=True] /template/ StackPanel#TrailingHost, ^[(md|MaterialMenu.IsSectionLabel)=True] /template/ Border#Divider, ^[(md|MaterialMenu.IsSectionLabel)=True] /template/ Path#SubmenuArrow">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <Style Selector="^[(md|MaterialMenu.IsSectionLabel)=True] /template/ Border#StateLayer">
+    <Style Selector="^[(md|MaterialMenu.IsSectionLabel)=True] /template/ md|MaterialRipple#Ripple, ^[(md|MaterialMenu.IsSectionLabel)=True] /template/ Border#NavigationLayer">
       <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^[(md|MaterialMenu.IsSectionLabel)=True]:disabled /template/ Grid#Content">
       <Setter Property="Opacity" Value="1" />
+    </Style>
+    <!-- Source focus indicator: MenuTokens.FocusIndicatorColor / SegmentedMenuTokens.
+         ItemFocusIndicatorColor = Secondary, 3 DIP outside the container. -->
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:separator">
       <Setter Property="MinHeight" Value="1" />
@@ -348,7 +446,10 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
-          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
+          <!-- Persistent source/desktop open-state paint for the menu trigger. The menu bar keeps a
+               resting highlight while its popup is open; it is a distinct static layer, suppressed
+               while the ripple owns hover/focus, so the interaction alpha is never doubled. -->
+          <Border Name="NavigationLayer" Background="{TemplateBinding Foreground}"
                   CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
           <StackPanel Orientation="Horizontal" Spacing="8" Margin="{TemplateBinding Padding}"
                       HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -363,12 +464,25 @@
                     HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransform="rotate(0deg)" />
             </Panel>
           </StackPanel>
+          <!-- Source Menu button indication: the shared MaterialRipple paints the bounded press
+               ripple plus the hover/focus state layer above the trigger content. It is the only
+               press indication; the :open resting highlight is the separate layer above. -->
+          <md:MaterialRipple Name="Ripple"
+                             Fill="{TemplateBinding Foreground}"
+                             CornerRadius="{TemplateBinding CornerRadius}"
+                             IsBounded="True"
+                             PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                             HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                             FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                             EnableDrag="False" />
           <Border Name="FocusRing" Margin="-2" CornerRadius="{TemplateBinding CornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
           <Popup Name="PART_Popup" IsLightDismissEnabled="True"
-                 IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}"
                  Placement="BottomEdgeAlignedLeft"
+                 PlacementConstraintAdjustment="FlipX,FlipY,SlideX,SlideY"
+                 md:MaterialMenu.AnimatePopup="True"
+                 md:MaterialMenu.OpenState="{TemplateBinding IsSubMenuOpen}"
                  OverlayInputPassThroughElement="{Binding $parent[Menu]}">
             <Border Name="PopupSurface"
                     Background="{TemplateBinding (md:MaterialMenu.PopupBackground)}"
@@ -386,13 +500,6 @@
       </ControlTemplate>
     </Setter>
 
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
     <Style Selector="^ /template/ Path#Chevron">
       <Setter Property="Transitions">
         <Transitions>
@@ -400,14 +507,11 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer, ^:open /template/ Border#StateLayer">
+    <Style Selector="^:open /template/ Border#NavigationLayer">
       <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
     </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    <Style Selector="^:open:pointerover /template/ Border#NavigationLayer, ^:open:focus-visible /template/ Border#NavigationLayer">
+      <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
@@ -431,7 +535,7 @@
       <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
     </Style>
-    <Style Selector="^[(md|MaterialMenu.Density)=Dense2], ^[(md|MaterialMenu.Density)=Dense4]">
+    <Style Selector="^[(md|MaterialMenu.Density)=Default], ^[(md|MaterialMenu.Density)=Dense2], ^[(md|MaterialMenu.Density)=Dense4]">
       <Setter Property="MinHeight" Value="40" />
     </Style>
     <!-- The submenu uses the same menu anatomy as the containing menu bar. -->
@@ -440,7 +544,7 @@
       <Setter Property="md:MaterialMenu.PopupCornerRadius" Value="16" />
       <Setter Property="md:MaterialMenu.PopupPadding" Value="0" />
       <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]">
-        <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
         <Setter Property="md:MaterialMenu.PopupBackground" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
       </Style>
     </Style>
@@ -456,7 +560,7 @@
     <Style Selector="^:disabled /template/ StackPanel">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
+    <Style Selector="^:disabled /template/ md|MaterialRipple#Ripple, ^:disabled /template/ Border#NavigationLayer">
       <Setter Property="Opacity" Value="0" />
     </Style>
   </ControlTheme>
@@ -508,6 +612,9 @@
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
       <Setter Property="CornerRadius" Value="16" />
       <Setter Property="Padding" Value="0" />
+      <!-- Items add a 4 DIP outer inset, so the item bounds stay within the 280 DIP source
+           DropdownMenuItemDefaultMaxWidth. -->
+      <Setter Property="MaxWidth" Value="288" />
       <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]">
         <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
       </Style>
@@ -544,6 +651,7 @@
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
       <Setter Property="CornerRadius" Value="16" />
       <Setter Property="Padding" Value="0" />
+      <Setter Property="MaxWidth" Value="288" />
       <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]">
         <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
       </Style>
@@ -599,20 +707,28 @@
     </Style>
   </ControlTheme>
 
-  <!-- A labelled group of menu items. One, two or three groups make the source "Groups" axis. -->
+  <!-- A group of menu items. One, two or three groups make the source "Groups" axis; the group
+       position selects the corner shape (MenuDefaults.groupShape): 16 DIP standalone, 16/8 leading,
+       8 middle, 8/16 trailing. CornerRadius is computed by MaterialMenuGroup from the source shape
+       rules and animated on hover (shapeByInteraction, FastSpatial). Content padding is
+       DropdownMenuGroupContentPadding (0 horizontal, 2 DIP vertical); GroupSpacing is 2 DIP, split
+       as a 1 DIP margin above and below so adjacent groups are 2 DIP apart. -->
   <ControlTheme x:Key="{x:Type controls:MaterialMenuGroup}" TargetType="controls:MaterialMenuGroup">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="CornerRadius" Value="0" />
-    <Setter Property="Padding" Value="0" />
+    <Setter Property="Padding" Value="0,2" />
+    <Setter Property="Margin" Value="0,1" />
     <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
     <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"
+        <Border Name="PART_Surface" Background="{TemplateBinding Background}"
                 Padding="{TemplateBinding Padding}">
           <StackPanel>
-            <Border Name="HeaderSurface" Height="32" Padding="12,6" CornerRadius="4"
+            <!-- DropdownMenuGroupLabel: min height 32, min/max width from the menu item, labelLarge,
+                 start 12 / end 4 padding. -->
+            <Border Name="HeaderSurface" Height="32" Padding="12,6,4,6"
                     Background="Transparent"
                     IsVisible="{Binding Header, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static data:ObjectConverters.IsNotNull}}">
               <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -636,7 +752,6 @@
     </Style>
     <Style Selector="^[(md|MaterialMenu.SurfaceStyle)=Expressive]">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
-      <Setter Property="CornerRadius" Value="8" />
       <Style Selector="^[(md|MaterialMenu.Variant)=Vibrant]">
         <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
@@ -663,7 +778,10 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
-          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
+          <!-- Persistent flyout-open/checked trigger highlight. It is the desktop resting paint for
+               an open menu, kept as its own static layer and suppressed while the ripple owns
+               hover/focus so the same interaction alpha is never painted twice. -->
+          <Border Name="NavigationLayer" Background="{TemplateBinding Foreground}"
                   CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
           <StackPanel Orientation="Horizontal" Spacing="8" Margin="{TemplateBinding Padding}"
                       HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
@@ -678,19 +796,22 @@
                     HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransform="rotate(0deg)" />
             </Panel>
           </StackPanel>
+          <!-- Source Menu button indication: the shared MaterialRipple owns press, hover and focus
+               on the trigger; the flyout lifecycle still comes from MaterialMenuButton. -->
+          <md:MaterialRipple Name="Ripple"
+                             Fill="{TemplateBinding Foreground}"
+                             CornerRadius="{TemplateBinding CornerRadius}"
+                             IsBounded="True"
+                             PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                             HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                             FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                             EnableDrag="False" />
           <Border Name="FocusRing" Margin="-2" CornerRadius="{TemplateBinding CornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
     <Style Selector="^ /template/ Path#Chevron">
       <Setter Property="Transitions">
         <Transitions>
@@ -698,14 +819,11 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer, ^:flyout-open /template/ Border#StateLayer, ^:checked /template/ Border#StateLayer">
+    <Style Selector="^:flyout-open /template/ Border#NavigationLayer, ^:checked /template/ Border#NavigationLayer">
       <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
     </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    <Style Selector="^:flyout-open:pointerover /template/ Border#NavigationLayer, ^:flyout-open:focus-visible /template/ Border#NavigationLayer, ^:checked:pointerover /template/ Border#NavigationLayer, ^:checked:focus-visible /template/ Border#NavigationLayer">
+      <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
@@ -722,7 +840,7 @@
     <Style Selector="^:disabled /template/ StackPanel">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
+    <Style Selector="^:disabled /template/ md|MaterialRipple#Ripple, ^:disabled /template/ Border#NavigationLayer">
       <Setter Property="Opacity" Value="0" />
     </Style>
   </ControlTheme>
@@ -747,33 +865,26 @@
         <Panel Background="Transparent">
           <Border Name="Surface" Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}" Margin="4" />
-          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Margin="4" Opacity="0" IsHitTestVisible="False" />
+          <!-- Source icon-button indication: a bounded ripple in the 40 DIP visual container inset
+               4 DIPs inside the 48 DIP target, so press/hover/focus are one shared node and the
+               old opacity-only Border layer is gone. -->
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <md:MaterialRipple Name="Ripple" Margin="4"
+                             Fill="{TemplateBinding Foreground}"
+                             CornerRadius="{TemplateBinding CornerRadius}"
+                             IsBounded="True"
+                             PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                             HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                             FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                             EnableDrag="False" />
           <Border Name="FocusRing" Margin="2" CornerRadius="{TemplateBinding CornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="2"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
@@ -786,7 +897,7 @@
     <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
+    <Style Selector="^:disabled /template/ md|MaterialRipple#Ripple">
       <Setter Property="Opacity" Value="0" />
     </Style>
   </ControlTheme>
@@ -806,24 +917,25 @@
         <Panel Background="Transparent">
           <Border Name="Surface" Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}" Margin="4" />
-          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Margin="4" Opacity="0" IsHitTestVisible="False" />
+          <!-- Source icon-toggle indication: bounded ripple in the 40 DIP visual container. The
+               checked container/surface paint stays the separate persistent selection below. -->
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <md:MaterialRipple Name="Ripple" Margin="4"
+                             Fill="{TemplateBinding Foreground}"
+                             CornerRadius="{TemplateBinding CornerRadius}"
+                             IsBounded="True"
+                             PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                             HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                             FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                             EnableDrag="False" />
           <Border Name="FocusRing" Margin="2" CornerRadius="{TemplateBinding CornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="2"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
     <Style Selector="^ /template/ Border#Surface">
       <Setter Property="Transitions">
         <Transitions>
@@ -834,15 +946,6 @@
     <Style Selector="^:checked">
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
     </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
@@ -861,7 +964,7 @@
     <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
+    <Style Selector="^:disabled /template/ md|MaterialRipple#Ripple">
       <Setter Property="Opacity" Value="0" />
     </Style>
   </ControlTheme>
@@ -883,8 +986,8 @@
         <Panel Background="Transparent">
           <Border Name="Surface" Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}" Margin="0,4" />
-          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Margin="0,4" Opacity="0" IsHitTestVisible="False" />
+          <!-- Source labelled-toggle indication: bounded ripple in the 40 DIP visual container; the
+               checked container paint is the separate persistent selection below. -->
           <ContentPresenter Name="PART_ContentPresenter" Padding="{TemplateBinding Padding}"
                             Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
@@ -892,19 +995,20 @@
                             RecognizesAccessKey="True"
                             TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
                             TextBlock.LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}" />
+          <md:MaterialRipple Name="Ripple" Margin="0,4"
+                             Fill="{TemplateBinding Foreground}"
+                             CornerRadius="{TemplateBinding CornerRadius}"
+                             IsBounded="True"
+                             PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                             HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                             FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                             EnableDrag="False" />
           <Border Name="FocusRing" Margin="0,2" CornerRadius="{TemplateBinding CornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="2"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
     <Style Selector="^ /template/ Border#Surface">
       <Setter Property="Transitions">
         <Transitions>
@@ -915,15 +1019,6 @@
     <Style Selector="^:checked">
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
     </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
@@ -942,7 +1037,7 @@
     <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
+    <Style Selector="^:disabled /template/ md|MaterialRipple#Ripple">
       <Setter Property="Opacity" Value="0" />
     </Style>
   </ControlTheme>
@@ -965,8 +1060,11 @@
       </ControlTemplate>
     </Setter>
     <Style Selector="^.material-rich-tooltip">
+      <!-- RichTooltipTokens: container SurfaceContainer, CornerMedium (12), Level2 elevation,
+           min 40x24, max width 320. RichTooltip supplies the internal paddings (16 horizontal,
+           28-to-first-baseline subhead, 16 body bottom, 36 action min height, 8 action bottom). -->
       <Setter Property="MinWidth" Value="40" /><Setter Property="MinHeight" Value="24" /><Setter Property="MaxWidth" Value="320" />
-      <Setter Property="Padding" Value="16,12" />
+      <Setter Property="Padding" Value="0" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialBodyMediumFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyMediumFontWeight}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
@@ -1002,5 +1100,133 @@
                           TextBlock.TextWrapping="Wrap" />
       </ControlTemplate>
     </Setter>
+  </ControlTheme>
+
+  <!-- PlainTooltip caret (Tooltip.kt PlainTooltip caretShape). The source default is null, so
+       ordinary tooltips keep the {x:Type ToolTip} theme above. When MaterialToolTip.ShowCaret is
+       set, the behavior hosts the same content in this theme, which reserves an 8 DIP margin for
+       the 16 x 8 caret drawn by TooltipCaretRenderer against the actual popup and anchor bounds. -->
+  <ControlTheme x:Key="{x:Type md:MaterialPlainToolTip}" TargetType="md:MaterialPlainToolTip"
+                BasedOn="{StaticResource {x:Type ToolTip}}">
+    <Setter Property="Background" Value="{DynamicResource MaterialInverseSurfaceBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialInverseOnSurfaceBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodySmallFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialBodySmallFontWeight}" />
+    <Setter Property="MinWidth" Value="40" /><Setter Property="MinHeight" Value="24" />
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="MaxWidth" Value="200" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel>
+          <Border Name="PART_Surface" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                              TextBlock.LineHeight="{DynamicResource MaterialBodySmallLineHeight}"
+                              TextBlock.LetterSpacing="{DynamicResource MaterialBodySmallLetterSpacing}"
+                              TextBlock.TextWrapping="Wrap" />
+          </Border>
+          <md:TooltipCaretRenderer Name="PART_Caret" Fill="{TemplateBinding Background}"
+                                   IsHitTestVisible="False" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <!-- Searchable menu field (N04.5). A standalone composition around the shared TextBox and
+       ListBox: the TextBox keeps native editing, IME, selection and clipboard behavior, and typing
+       never dismisses the menu because the field and its rows share one surface. Keyboard: Up/Down
+       move the highlight, Enter invokes, Escape clears the query. Focus stays in the field, which
+       is the source "don't close on input" policy. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialMenuTextField}" TargetType="controls:MaterialMenuTextField">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    <Setter Property="MinWidth" Value="200" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <StackPanel Spacing="4">
+          <TextBlock Name="LabelText" Text="{TemplateBinding Label}"
+                     FontSize="{DynamicResource MaterialBodySmallFontSize}"
+                     Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                     Margin="16,0,0,0"
+                     IsVisible="{Binding Label, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static str:StringConverters.IsNotNullOrEmpty}}" />
+          <TextBox Name="PART_Input"
+                   Text="{TemplateBinding Text, Mode=TwoWay}"
+                   PlaceholderText="{TemplateBinding PlaceholderText}"
+                   MinHeight="48" MinWidth="0" Padding="16,12" />
+          <TextBlock Name="Supporting"
+                     Text="{TemplateBinding SupportingText}"
+                     FontSize="{DynamicResource MaterialBodySmallFontSize}"
+                     Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                     Margin="16,0,0,0"
+                     IsVisible="{Binding SupportingText, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static str:StringConverters.IsNotNullOrEmpty}}" />
+          <Border Background="{TemplateBinding Background}" CornerRadius="16" Padding="0,8"
+                  Margin="0,4,0,0" BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
+            <Panel>
+              <ScrollViewer MaxHeight="{TemplateBinding MaxMenuHeight}"
+                            HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ListBox Name="PART_List" Background="Transparent" BorderThickness="0"
+                         Padding="0" MinWidth="0" />
+              </ScrollViewer>
+              <TextBlock Name="PART_Empty" Text="No results" Margin="16,12"
+                         FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                         Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                         IsVisible="False" />
+            </Panel>
+          </Border>
+        </StackPanel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^ ListBoxItem">
+      <Setter Property="MinHeight" Value="44" />
+      <Setter Property="Padding" Value="16,10" />
+      <Setter Property="Margin" Value="4,0" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
+    </Style>
+    <Style Selector="^ ListBoxItem:selected">
+      <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
+      <Setter Property="CornerRadius" Value="12" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Exposed dropdown anchor (N04.4). This is a keyed theme over the shared ComboBox so it never
+       replaces the global ComboBox theme in Infrastructure.axaml; ComboBox keeps native selection,
+       editable/read-only mode, IME composition, clipboard and keyboard behavior, and the popup
+       already uses the baseline MenuTokens surface (SurfaceContainer, CornerExtraSmall, 8 DIP
+       vertical inset, Level2 shadow). The source ExposedDropdownMenuBox sizes the menu to the
+       anchor width and caps its height at the available window space; Avalonia's popup applies
+       those constraints natively, with the MaxDropDownHeight fallback.
+       Source: material3/ExposedDropdownMenu.kt, MenuDefaults.kt at
+       77b2199d6f056c2fe829ce25523c34a905e769c1. -->
+  <ControlTheme x:Key="MaterialExposedDropdownMenu" TargetType="ComboBox"
+                BasedOn="{StaticResource {x:Type ComboBox}}">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="Padding" Value="16,12" />
+    <Setter Property="CornerRadius" Value="4,4,0,0" />
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="MaxDropDownHeight" Value="320" />
+    <!-- ExposedDropdownMenuDefaults.TrailingIcon rotates 180 degrees while the menu is expanded. -->
+    <Style Selector="^ /template/ ToggleButton">
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^[IsDropDownOpen=true] /template/ ToggleButton">
+      <Setter Property="RenderTransform" Value="rotate(180deg)" />
+    </Style>
   </ControlTheme>
 </ResourceDictionary>

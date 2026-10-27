@@ -1,7 +1,13 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="using:ExpressiveAvalonia.Controls">
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
   <!-- Material avatar, media thumbnail and brand-mark family.
+       These are design-source extensions: the pinned M3 package has no Avatar.kt,
+       Thumbnail.kt or BrandMark.kt, so nothing here is claimed as an official port. The
+       custom crop/content/interactive API is preserved and the controls use the shared
+       Material interaction surface, shared MaterialRipple state/press feedback (only while
+       interactive), typography and motion.
        Geometry, sizes and color roles come from the assigned source packages:
          Generic avatar (local-001642, 3 variants: Style=Avatar/Monogram/Check),
          3D Avatars / 1..30 (local-000001..local-000030, one image each),
@@ -60,8 +66,18 @@
               </Panel>
             </Viewbox>
           </Border>
-          <Border Name="PART_StateLayer" Background="{TemplateBinding StateLayerBrush}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <!-- The shared MaterialRipple draws the state layer and press ripple only while the
+               surface is interactive; an inert surface ignores routed descendant input. -->
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{TemplateBinding StateLayerBrush}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnablePress="{TemplateBinding IsInteractive}"
+                                  EnableHover="{TemplateBinding IsInteractive}"
+                                  EnableFocus="{TemplateBinding IsInteractive}"
+                                  IsHitTestVisible="False" />
           <Border Name="PART_FocusRing" BorderBrush="{TemplateBinding FocusRingBrush}" BorderThickness="2"
                   CornerRadius="{TemplateBinding FocusRingCornerRadius}" Margin="-2"
                   IsVisible="False" IsHitTestVisible="False" />
@@ -96,30 +112,13 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
 
-    <Style Selector="^ /template/ Border#PART_StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:interactive:pointerover:not(:disabled) /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:interactive:pressed:not(:disabled) /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:interactive:focus-visible /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
+    <!-- Interaction is the shared MaterialRipple, gated by IsInteractive. The 2 DIP focus
+         ring is this surface's own treatment and stays outside the ripple. -->
     <Style Selector="^:interactive:focus-visible /template/ Border#PART_FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled /template/ Border#PART_Container">
       <Setter Property="Opacity" Value="0.38" />
-    </Style>
-    <Style Selector="^:disabled /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="0" />
     </Style>
   </ControlTheme>
 
@@ -139,8 +138,18 @@
             <Image Name="PART_Image" Source="{TemplateBinding DisplayedSource}"
                    Stretch="{TemplateBinding Stretch}" />
           </Border>
-          <Border Name="PART_StateLayer" Background="{TemplateBinding StateLayerBrush}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <!-- The shared MaterialRipple draws the state layer and press ripple only while the
+               surface is interactive; an inert surface ignores routed descendant input. -->
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{TemplateBinding StateLayerBrush}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnablePress="{TemplateBinding IsInteractive}"
+                                  EnableHover="{TemplateBinding IsInteractive}"
+                                  EnableFocus="{TemplateBinding IsInteractive}"
+                                  IsHitTestVisible="False" />
           <Border Name="PART_FocusRing" BorderBrush="{TemplateBinding FocusRingBrush}" BorderThickness="2"
                   CornerRadius="{TemplateBinding FocusRingCornerRadius}" Margin="-2"
                   IsVisible="False" IsHitTestVisible="False" />
@@ -148,30 +157,13 @@
       </ControlTemplate>
     </Setter>
 
-    <Style Selector="^ /template/ Border#PART_StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:interactive:pointerover:not(:disabled) /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:interactive:pressed:not(:disabled) /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:interactive:focus-visible /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
+    <!-- Interaction is the shared MaterialRipple, gated by IsInteractive. The 2 DIP focus
+         ring is this surface's own treatment and stays outside the ripple. -->
     <Style Selector="^:interactive:focus-visible /template/ Border#PART_FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled /template/ Border#PART_Container">
       <Setter Property="Opacity" Value="0.38" />
-    </Style>
-    <Style Selector="^:disabled /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="0" />
     </Style>
   </ControlTheme>
 

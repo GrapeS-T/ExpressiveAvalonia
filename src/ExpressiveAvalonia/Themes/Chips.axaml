@@ -1,13 +1,19 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="using:ExpressiveAvalonia.Controls">
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
   <!-- Source packages: assistive-chip local-000058, filter-chip local-001532, input-chip local-003473,
        suggestion-chip local-005030, chip-groups local-001269.
        Anatomy from the source design.json files: 32 DIP container, 8 DIP corner radius (input avatar
        chip is fully rounded), 14/20 label, 18 DIP icons, 24 DIP avatar, 8 DIP gaps, 1 DIP outline.
-       Outlined/selected roles: Outline / Surface / SecondaryContainer. Elevated uses
-       SurfaceContainerLow with the level-1 elevation token. Disabled follows the Material
-       on-surface 12/10/38 percent composition, never a whole-control opacity. -->
+       Outlined/selected roles: OutlineVariant / Surface / SecondaryContainer. Elevated uses
+       SurfaceContainerLow with the level-1 resting elevation, level-2 hover and level-4 dragged
+       elevation animated with the source interaction ramps. Disabled follows the Material
+       on-surface 12/38 percent composition (outline 10/12 percent), never a whole-control opacity
+       and never a double alpha on the label/icons.
+       The 32 DIP container is the visual size; the control reserves the source
+       InteractiveComponentSize 48 DIP target in both axes without stretching the surface, so the
+       Visual panel stays at its natural size (and still grows for custom content). -->
   <ControlTheme x:Key="MaterialChipCloseButton" TargetType="Button">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
@@ -19,7 +25,15 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
-          <Border Name="Hover" CornerRadius="9" Background="{TemplateBinding Foreground}" Opacity="0" />
+          <!-- Shared MaterialRipple: hover/focus/press feedback for this native button. The
+               18 DIP target is circular, matching the source close affordance. -->
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{TemplateBinding Foreground}"
+                                  CornerRadius="9"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  IsHitTestVisible="False" />
           <Path Width="10.5" Height="10.5" Stretch="Fill"
                 Data="M 0,0 L 10.5,10.5 M 10.5,0 L 0,10.5"
                 Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeLineCap="Round"
@@ -27,22 +41,17 @@
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^:pointerover /template/ Border#Hover">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#Hover">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type controls:MaterialChip}" TargetType="controls:MaterialChip">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="8" />
     <Setter Property="Padding" Value="16,6" />
-    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="MinHeight" Value="48" />
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
     <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
@@ -52,31 +61,42 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
-          <Border Name="Surface" Background="{TemplateBinding Background}"
-                  CornerRadius="{TemplateBinding CornerRadius}"
-                  ClipToBounds="True">
-            <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                    CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
-          </Border>
-          <Border Name="Outline" BorderBrush="{TemplateBinding BorderBrush}"
-                  BorderThickness="{TemplateBinding BorderThickness}"
-                  CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
-          <StackPanel Name="Content" Orientation="Horizontal" Spacing="8"
+          <!-- The root reserves the 48 DIP target; the centered Visual panel keeps the 32 DIP
+               container height and still grows with custom content instead of being clipped. -->
+          <Panel Name="Visual" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Name="Surface" Background="{TemplateBinding Background}"
+                    CornerRadius="{TemplateBinding CornerRadius}"
+                    BoxShadow="{TemplateBinding theming:MaterialAssist.AnimatedShadow}"
+                    ClipToBounds="True" />
+            <Border Name="Outline" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
+            <StackPanel Name="Content" Orientation="Horizontal" Spacing="8"
                       Margin="{TemplateBinding Padding}"
                       HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
-            <Path Name="SelectedIcon" Width="18" Height="18" Stretch="None"
-                  Data="M 3.2,9.6 L 6.6,13 L 14.8,4.8"
-                  Stroke="{TemplateBinding Foreground}" StrokeThickness="1.8"
-                  StrokeLineCap="Round" StrokeJoin="Round" IsVisible="False" VerticalAlignment="Center" />
-            <ContentPresenter Name="PART_LeadingIcon" Content="{TemplateBinding Icon}"
-                              Width="18" Height="18" IsVisible="False" VerticalAlignment="Center" />
-            <Border Name="AvatarHost" Width="24" Height="24" CornerRadius="12" ClipToBounds="True"
-                    IsVisible="False" VerticalAlignment="Center">
-              <!-- A Border stretches its single child, so a text avatar would sit on the top of the
-                   fixed 24-unit host. Centre it, matching the card avatar presenter. -->
-              <ContentPresenter Name="PART_Avatar" Content="{TemplateBinding Avatar}"
-                                VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
+            <!-- Leading slot: 18 DIP for an icon or check mark, 24 DIP for an avatar. The slot width
+                 and opacity are animated by the control (FastSpatial / DefaultEffects), and the slot
+                 leaves the layout only after it has fully collapsed. -->
+            <Border Name="LeadingHost" Width="{TemplateBinding LeadingSlotWidth}"
+                    Opacity="{TemplateBinding LeadingSlotOpacity}"
+                    IsVisible="{TemplateBinding IsLeadingSlotVisible}"
+                    ClipToBounds="True" VerticalAlignment="Center">
+              <Panel>
+                <Path Name="SelectedIcon" Width="18" Height="18" Stretch="None"
+                      Data="M 3.2,9.6 L 6.6,13 L 14.8,4.8"
+                      Stroke="{TemplateBinding Foreground}" StrokeThickness="1.8"
+                      StrokeLineCap="Round" StrokeJoin="Round" IsVisible="False"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <ContentPresenter Name="PART_LeadingIcon" Content="{TemplateBinding LeadingSlotIcon}"
+                                  Width="18" Height="18" IsVisible="False"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Border Name="AvatarHost" Width="24" Height="24" CornerRadius="12" ClipToBounds="True"
+                        IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <ContentPresenter Name="PART_Avatar" Content="{TemplateBinding LeadingSlotAvatar}"
+                                    VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
+                </Border>
+              </Panel>
             </Border>
             <ContentPresenter Name="PART_ContentPresenter"
                               Content="{TemplateBinding Content}"
@@ -84,65 +104,79 @@
                               RecognizesAccessKey="True" VerticalAlignment="Center"
                               LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
                               LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}" />
-            <Path Name="TrailingIcon" Width="7.5" Height="3.75" Stretch="Fill"
-                  Data="M 0,0 L 7.5,0 L 3.75,3.75 Z"
-                  Fill="{TemplateBinding Foreground}" IsVisible="False" VerticalAlignment="Center" />
-            <Button Name="PART_RemoveButton" Theme="{StaticResource MaterialChipCloseButton}"
-                    Foreground="{TemplateBinding Foreground}" Width="18" Height="18"
-                    IsVisible="False" VerticalAlignment="Center" />
-          </StackPanel>
-          <Border Name="FocusRing" Margin="-3" CornerRadius="{TemplateBinding CornerRadius}"
-                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
-                  IsVisible="False" IsHitTestVisible="False" />
+            <!-- Trailing slot: 7.5 DIP caret for filter chips, 18 DIP close action for input
+                 chips. Animated with the same expand/shrink and fade specs as the leading slot. -->
+            <Border Name="TrailingHost" Width="{TemplateBinding TrailingSlotWidth}"
+                    Opacity="{TemplateBinding TrailingSlotOpacity}"
+                    IsVisible="{TemplateBinding IsTrailingSlotVisible}"
+                    ClipToBounds="True" VerticalAlignment="Center">
+              <Panel>
+                <Path Name="TrailingIcon" Width="7.5" Height="3.75" Stretch="Fill"
+                      Data="M 0,0 L 7.5,0 L 3.75,3.75 Z"
+                      Fill="{TemplateBinding Foreground}" IsVisible="False"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Button Name="PART_RemoveButton" Theme="{StaticResource MaterialChipCloseButton}"
+                        Foreground="{TemplateBinding Foreground}" Width="18" Height="18"
+                        IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Panel>
+            </Border>
+            </StackPanel>
+            <!-- Source RippleNode draws the hover/focus/drag state layer and the bounded press
+                 ripple above the content; there is no second pressed alpha in this template. -->
+            <theming:MaterialRipple Name="StateLayer"
+                                    Fill="{TemplateBinding Foreground}"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                    DraggedOpacity="{DynamicResource MaterialDraggedStateLayerOpacity}"
+                                    IsDragging="{TemplateBinding IsDragging}"
+                                    IsHitTestVisible="False" />
+            <Border Name="FocusRing" Margin="-3" CornerRadius="{TemplateBinding CornerRadius}"
+                    BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                    IsVisible="False" IsHitTestVisible="False" />
+          </Panel>
         </Panel>
       </ControlTemplate>
     </Setter>
 
-    <Style Selector="^ /template/ Border#Surface">
-      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
-      <Setter Property="RenderTransform" Value="scale(1)" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^ /template/ Border#Outline">
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
-          <ThicknessTransition Property="BorderThickness" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
+    <!-- Container, outline and disabled colors resolve immediately in the pinned source
+         (Surface color/border are recomputed from enabled/selected, not animated). The only
+         animated chip properties are the silhouette, the slot width/opacity and the elevation. -->
+
+    <!-- Interaction comes from the shared MaterialRipple: no duplicate pressed alpha and no
+         decorative press scale (the pinned source has neither for chips). -->
 
     <!-- Variant axis: Outlined / Elevated. Input chips have no style axis and stay outlined. -->
     <Style Selector="^:elevated">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
       <Setter Property="BorderThickness" Value="0" />
     </Style>
-    <Style Selector="^:elevated /template/ Border#Surface">
-      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
-    </Style>
 
     <!-- Assist chips use OnSurface for the label while their leading icon stays Primary. -->
     <Style Selector="^:assist">
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     </Style>
-    <!-- Source geometry: leading icons stay Primary in every selected/unselected state; the
-         filter chip swaps its leading icon for a check mark in the content color instead. -->
+    <!-- Disabled chips use OnSurface for every leading icon; the content parent applies the 38 percent
+         once. The enabled family styles below have higher specificity and list :not(:disabled). -->
     <Style Selector="^ /template/ ContentPresenter#PART_LeadingIcon">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <!-- Assist and suggestion leading icons are Primary for every enabled interaction/state. -->
+    <Style Selector="^:assist:not(:disabled) /template/ ContentPresenter#PART_LeadingIcon,
+                     ^:suggestion:not(:disabled) /template/ ContentPresenter#PART_LeadingIcon">
       <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
+    </Style>
+    <!-- Expressive filter/input chips use ChipsTokens.UnselectedLeadingIconColor when unselected
+         and the selected leading-icon role when selected. The filter chip's selected leading slot
+         is the check mark, whose stroke uses the current Foreground. -->
+    <Style Selector="^:filter:not(:selected):not(:disabled) /template/ ContentPresenter#PART_LeadingIcon,
+                     ^:input:not(:selected):not(:disabled) /template/ ContentPresenter#PART_LeadingIcon">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+    <Style Selector="^:filter:selected:not(:disabled) /template/ ContentPresenter#PART_LeadingIcon,
+                     ^:input:selected:not(:disabled) /template/ ContentPresenter#PART_LeadingIcon">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
     </Style>
 
     <!-- Selected axis: filter, input and suggestion chips. Assist chips coerce selection off. -->
@@ -152,43 +186,15 @@
       <Setter Property="BorderThickness" Value="0" />
     </Style>
 
-    <!-- Outlined unselected hover/focus/press fill uses the Surface role in the source export. -->
-    <Style Selector="^:outlined:not(:selected):pointerover">
-      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
-    </Style>
-    <Style Selector="^:outlined:not(:selected):focus-visible">
-      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
-    </Style>
-    <Style Selector="^:outlined:not(:selected):pressed">
-      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
-    </Style>
+    <!-- Source defaults keep the unselected outlined container transparent for every interaction;
+         the shared MaterialRipple supplies the hover/focus/press state layer. -->
+    <!-- Source geometry: a selected outlined chip keeps level-1 elevation only while hovered;
+         the shared MaterialElevationAnimation resolves this from the latest interaction. -->
 
-    <!-- Source geometry: a selected outlined chip gains level-1 elevation on hover. -->
-    <Style Selector="^:outlined:selected:pointerover /template/ Border#Surface">
-      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
-    </Style>
-
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#Surface">
-      <Setter Property="RenderTransform" Value="scale(0.98)" />
-    </Style>
-    <Style Selector="^:dragged /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialDraggedStateLayerOpacity}" />
-    </Style>
-    <!-- The source dragged state layer uses OnSurface on unselected chips. -->
-    <Style Selector="^:dragged:not(:selected) /template/ Border#StateLayer">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    </Style>
-    <Style Selector="^:dragged /template/ Border#Surface">
-      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel2Shadow}" />
+    <!-- The dragged state layer uses OnSurface on unselected chips, exactly as the source
+         OnSurface dragged container role. The shared ripple owns its alpha and clipping. -->
+    <Style Selector="^:dragged:not(:selected) /template/ theming|MaterialRipple#StateLayer">
+      <Setter Property="Fill" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     </Style>
 
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
@@ -205,6 +211,10 @@
     <Style Selector="^:has-icon:trailing, ^:filter:selected:trailing">
       <Setter Property="Padding" Value="8,6,8,6" />
     </Style>
+    <!-- Assist/Suggestion keep 8 DIP icon gaps; expressive Filter/Input use compact 4 DIP gaps. -->
+    <Style Selector="^:filter:has-icon /template/ StackPanel#Content, ^:input:has-icon /template/ StackPanel#Content, ^:input:has-avatar /template/ StackPanel#Content, ^:filter:selected /template/ StackPanel#Content, ^:trailing /template/ StackPanel#Content, ^:removable /template/ StackPanel#Content">
+      <Setter Property="Spacing" Value="4" />
+    </Style>
     <Style Selector="^:input">
       <Setter Property="Padding" Value="12,6" />
     </Style>
@@ -213,8 +223,6 @@
     </Style>
     <Style Selector="^:input:has-avatar">
       <Setter Property="Padding" Value="4,4,12,4" />
-      <!-- The source avatar chip uses a 30 DIP radius on a 32 DIP container (fully rounded). -->
-      <Setter Property="CornerRadius" Value="16" />
     </Style>
     <Style Selector="^:input:removable">
       <Setter Property="Padding" Value="12,6,8,6" />
@@ -226,65 +234,59 @@
       <Setter Property="Padding" Value="4,4,8,4" />
     </Style>
 
-    <!-- Configuration and trailing/closing icon visibility. -->
-    <Style Selector="^:has-icon /template/ ContentPresenter#PART_LeadingIcon">
+    <!-- Configuration and trailing/closing icon visibility. The control sets these retained slot
+         classes from the source rememberRetainedState semantics: the outgoing child stays visible
+         while its host shrinks/fades and is hidden only once the slot has fully collapsed. -->
+    <Style Selector="^:leading-icon /template/ ContentPresenter#PART_LeadingIcon">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^ /template/ Path#SelectedIcon">
-      <Setter Property="RenderTransform" Value="scale(0.6)" />
-      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort3}" Easing="0.05,0.7,0.1,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:filter:selected /template/ ContentPresenter#PART_LeadingIcon">
-      <Setter Property="IsVisible" Value="False" />
-    </Style>
-    <Style Selector="^:filter:selected /template/ Path#SelectedIcon">
-      <Setter Property="IsVisible" Value="True" />
-      <Setter Property="RenderTransform" Value="scale(1)" />
-    </Style>
-    <Style Selector="^:has-avatar /template/ Border#AvatarHost">
+    <Style Selector="^:leading-avatar /template/ Border#AvatarHost">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:trailing /template/ Path#TrailingIcon">
+    <Style Selector="^:leading-check /template/ Path#SelectedIcon">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:removable /template/ Button#PART_RemoveButton">
+    <Style Selector="^:trailing-caret /template/ Path#TrailingIcon">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:trailing-remove /template/ Button#PART_RemoveButton">
       <Setter Property="IsVisible" Value="True" />
     </Style>
 
-    <!-- Disabled: outlined keeps an outline, elevated and selected use the 10 percent container. -->
+    <!-- Disabled tokens: OnSurface container at 12 percent, OnSurface label/icons at 38 percent;
+         outlined chips keep the OnSurface 12 percent outline instead of a filled container. The
+         38 percent is applied once, by the content parent opacity, so the content colors below are
+         the opaque source roles. -->
     <Style Selector="^:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="Cursor" Value="Arrow" />
     </Style>
     <Style Selector="^:disabled /template/ Border#Surface">
-      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
-      <Setter Property="Opacity" Value="0.10" />
+      <Setter Property="Opacity" Value="0.12" />
     </Style>
-    <Style Selector="^:outlined:disabled">
+    <Style Selector="^:outlined:not(:selected):disabled">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="{DynamicResource MaterialDisabledOutlineBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     </Style>
-    <Style Selector="^:outlined:disabled /template/ Border#Surface">
-      <Setter Property="Opacity" Value="1" />
+    <Style Selector="^:outlined:not(:selected):disabled /template/ Border#Surface">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:outlined:not(:selected):disabled /template/ Border#Outline">
+      <Setter Property="Opacity" Value="0.12" />
     </Style>
     <Style Selector="^:selected:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="^:selected:disabled /template/ Border#Surface">
-      <Setter Property="Opacity" Value="0.10" />
+      <Setter Property="Opacity" Value="0.12" />
     </Style>
     <Style Selector="^:disabled /template/ StackPanel#Content">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#StateLayer">
       <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:disabled /template/ Border#FocusRing">

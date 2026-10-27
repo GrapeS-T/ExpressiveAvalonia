@@ -3,11 +3,13 @@ using Avalonia.Media;
 namespace ExpressiveAvalonia.Controls;
 
 /// <summary>
-/// Material Symbols outline paths used by the XR defaults and by the family gallery.
+/// 24 by 24 glyph paths used by the XR defaults and by the family gallery.
 /// </summary>
 /// <remarks>
-/// Paths are authored on a 24 by 24 view box and are filled with the control foreground,
-/// so they follow the selected, unselected, and disabled roles instead of freezing a color.
+/// These are local path data in the Material icon grid used by the desktop XR composition; they
+/// are not imported from an official Compose material-icons artifact. Paths are filled with the
+/// control foreground, so they follow the selected, unselected, and disabled roles instead of
+/// freezing a color.
 /// </remarks>
 public static class XrIcons
 {

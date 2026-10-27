@@ -13,8 +13,15 @@
        primary indicator at least 24x3 centered at the bottom, secondary indicator full width x 2,
        one-pixel outline-variant divider under the strip, 6px error dot badge, and a
        3px secondary focus ring with a 12px radius. Scrollable headers use 90px tabs and
-       clip/scroll instead of sharing the width. State layers: on-surface 8% hover and
-       pressed, 10% focus; selected primary tabs use the primary role. -->
+       clip/scroll instead of sharing the width.
+
+       Feedback and content tint follow Tab.kt: the selectable indication is a bounded ripple
+       whose color is always the tab's *selected* content role, even while the tab is unselected
+       (the source comment explains that the ripple must show the colour before selection). The
+       shared MaterialRipple owns the press fade/radius/fade-out, the 10% pressed alpha from
+       StateTokens (not an 8% design-snapshot overlay), and the short linear hover/focus tweens.
+       The header content is tinted only by the selected/unselected content-colour transition,
+       owned by MaterialTabs; hover and press deliberately do not add a third foreground. -->
   <ControlTheme x:Key="DesignTabItem" TargetType="TabItem">
     <Setter Property="MinHeight" Value="48" />
     <Setter Property="MinWidth" Value="48" />
@@ -29,8 +36,6 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Grid Background="{TemplateBinding Background}">
-          <Border Name="StateLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
-                  Opacity="0" IsHitTestVisible="False" />
           <Grid Name="HeaderArea" Margin="{TemplateBinding Padding}">
             <StackPanel Name="HeaderContent" Orientation="Horizontal" Spacing="8"
                         HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
@@ -58,11 +63,8 @@
                                     IsVisible="False"
                                     HorizontalContentAlignment="Center" VerticalAlignment="Center" />
                 </StackPanel>
-                <!-- Primary indicator: spans the header content minus the source's 2px inset. -->
-                <Border Grid.Column="0" Name="Indicator" Height="3" MinWidth="24" Margin="2,0" CornerRadius="3,3,0,0"
-                        Background="{DynamicResource MaterialPrimaryBrush}"
-                        HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
-                        IsVisible="False" IsHitTestVisible="False" />
+                <!-- Horizontal primary/secondary indicators are the single shared
+                     PART_Indicator in the TabControl template. -->
               </Grid>
               <Border Name="TrailingBadge" Width="6" Height="6" CornerRadius="3"
                       Background="{DynamicResource MaterialErrorBrush}"
@@ -78,6 +80,18 @@
               </Border>
             </StackPanel>
           </Grid>
+          <!-- Source RippleNode (Tab.kt creates ripple(bounded = true, color =
+               selectedContentColor)): the state layer and the press ripple are painted above the
+               header content. Primary tabs therefore ripple with Primary even while unselected;
+               the .md-secondary rule below swaps the selected role to OnSurface. Pressed alpha is
+               the StateTokens 10%, while hover/focus use the short linear ripple tweens. The node
+               is decorative and never hit-tested; TabItem stays the input owner. -->
+          <md:MaterialRipple Name="StateLayer"
+                             Fill="{DynamicResource MaterialPrimaryBrush}"
+                             PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                             HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                             FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                             EnableDrag="False" IsHitTestVisible="False" />
           <!-- Secondary indicator: spans the whole strip width. -->
           <Border Name="IndicatorSecondary" Height="2" CornerRadius="0"
                   Background="{DynamicResource MaterialPrimaryBrush}"
@@ -104,13 +118,13 @@
       <Setter Property="MinWidth" Value="90" />
     </Style>
 
-    <!-- Primary icon-and-label uses the source's 64px vertical header. -->
-    <Style Selector="^.md-primary.md-icon-and-label">
-      <Setter Property="MinHeight" Value="64" />
+    <!-- Primary icon-and-label uses the source Tab's 72 DIP large header with an 8 DIP gap. -->
+    <Style Selector="^.md-primary.md-icon-and-label, ^.md-secondary.md-icon-and-label">
+      <Setter Property="MinHeight" Value="72" />
     </Style>
-    <Style Selector="^.md-primary.md-icon-and-label /template/ StackPanel#LabelGroup">
+    <Style Selector="^.md-icon-and-label /template/ StackPanel#LabelGroup">
       <Setter Property="Orientation" Value="Vertical" />
-      <Setter Property="Spacing" Value="2" />
+      <Setter Property="Spacing" Value="8" />
     </Style>
 
     <!-- Badges: a dot by default, a pill when BadgeText is present. -->
@@ -140,53 +154,37 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
 
-    <!-- Primary indicator follows the header content with 2dp insets and a 24dp minimum;
-         secondary spans the whole tab width and is 2dp high.
-         The primary/secondary classes are
-         mutually exclusive, so the two styles can never both match. Side placements reuse the
-         edge-aligned IndicatorSecondary because the content-width bar is centered in the header
-         and would otherwise float away from the strip edge. -->
-    <Style Selector="^ /template/ Border#Indicator, ^ /template/ Border#IndicatorSecondary">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Width" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.05,0.7,0.1,1" />
-          <DoubleTransition Property="Height" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.05,0.7,0.1,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^[TabStripPlacement=Bottom] /template/ Border#Indicator, ^[TabStripPlacement=Bottom] /template/ Border#IndicatorSecondary">
-      <Setter Property="VerticalAlignment" Value="Top" />
-    </Style>
-    <!-- Primary: content-width bar for top/bottom strips. The side-strip hide rule must come
-         after the selected-show rule so the later declaration wins for vertical strips. -->
-    <Style Selector="^.md-primary:selected /template/ Border#Indicator">
-      <Setter Property="IsVisible" Value="True" />
-    </Style>
-    <Style Selector="^.md-primary[TabStripPlacement=Left] /template/ Border#Indicator,
-                    ^.md-primary[TabStripPlacement=Right] /template/ Border#Indicator">
+    <!-- Horizontal strips use the single PART_Indicator from the TabControl template (3 DIP
+         primary content width, 3 DIP secondary full tab width, spring motion). Left/Right strips
+         are an Avalonia-only extension with no upstream geometry, so they keep per-tab edge
+         markers: a 3x20 primary marker or a 2 DIP secondary edge rule. -->
+    <Style Selector="^ /template/ Border#IndicatorSecondary">
       <Setter Property="IsVisible" Value="False" />
     </Style>
+    <Style Selector="^[TabStripPlacement=Left] /template/ Border#IndicatorSecondary,
+                    ^[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+    </Style>
     <!-- Primary: 3x20 edge marker for side strips. -->
-    <Style Selector="^.md-primary[TabStripPlacement=Left] /template/ Border#IndicatorSecondary">
+    <Style Selector="^.md-primary[TabStripPlacement=Left] /template/ Border#IndicatorSecondary,
+                    ^.md-primary[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
       <Setter Property="Width" Value="3" />
       <Setter Property="Height" Value="20" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="^.md-primary[TabStripPlacement=Left] /template/ Border#IndicatorSecondary">
       <Setter Property="HorizontalAlignment" Value="Right" />
       <Setter Property="VerticalAlignment" Value="Center" />
-      <Setter Property="CornerRadius" Value="3,0,0,3" />
     </Style>
     <Style Selector="^.md-primary[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
-      <Setter Property="Width" Value="3" />
-      <Setter Property="Height" Value="20" />
       <Setter Property="HorizontalAlignment" Value="Left" />
       <Setter Property="VerticalAlignment" Value="Center" />
-      <Setter Property="CornerRadius" Value="0,3,3,0" />
     </Style>
     <Style Selector="^.md-primary:selected[TabStripPlacement=Left] /template/ Border#IndicatorSecondary,
                     ^.md-primary:selected[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <!-- Secondary: full-width 2px rule (full-height for side strips). -->
+    <!-- Secondary: full-height 2 DIP edge rule for side strips. -->
     <Style Selector="^.md-secondary[TabStripPlacement=Left] /template/ Border#IndicatorSecondary,
                     ^.md-secondary[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
       <Setter Property="Width" Value="2" />
@@ -194,49 +192,27 @@
       <Setter Property="VerticalAlignment" Value="Stretch" />
       <Setter Property="CornerRadius" Value="0" />
     </Style>
-    <Style Selector="^.md-secondary:selected /template/ Border#IndicatorSecondary">
+    <Style Selector="^.md-secondary:selected[TabStripPlacement=Left] /template/ Border#IndicatorSecondary,
+                    ^.md-secondary:selected[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
       <Setter Property="IsVisible" Value="True" />
     </Style>
 
-    <!-- Text and state-layer roles. Hover/focus/pressed precede the selected rules so the
-         selected color survives pointer feedback, matching the source state variants. -->
-    <Style Selector="^:pointerover, ^:focus-visible, ^:pressed">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    </Style>
+    <!-- Content tint roles. Tab.kt supplies exactly two content colours: the selected role and
+         the unselected role. Pointer/keyboard feedback is the ripple's state layer, so hover,
+         focus and press do NOT introduce a third foreground; MaterialTabs animates the header
+         between these two endpoints (DefaultEffects selecting, FastEffects deselecting). -->
     <Style Selector="^:selected">
       <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
-    <Style Selector="^:selected /template/ Border#StateLayer">
-      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
-    </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <!-- The source pressed state layer measures 8%, the same value as hover. -->
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
 
     <Style Selector="^.md-secondary">
-      <Style Selector="^ /template/ StackPanel#LabelGroup">
-        <Setter Property="Orientation" Value="Horizontal" />
-        <Setter Property="Spacing" Value="8" />
-      </Style>
       <Style Selector="^:selected">
         <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       </Style>
-      <Style Selector="^ /template/ Border#StateLayer">
-        <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <!-- Secondary tabs use the secondary (on-surface) role for the ripple too; the source
+           default for secondary tab rows is onSurface, not primary. -->
+      <Style Selector="^ /template/ md|MaterialRipple#StateLayer">
+        <Setter Property="Fill" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       </Style>
     </Style>
 
@@ -258,7 +234,7 @@
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#StateLayer">
+    <Style Selector="^:disabled /template/ md|MaterialRipple#StateLayer">
       <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="^:disabled /template/ Border#FocusRing">
@@ -288,7 +264,17 @@
               <ScrollViewer Name="PART_HeaderScroller" DockPanel.Dock="Top"
                             HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"
                             BringIntoViewOnFocusChange="True">
-                <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+                <Panel Name="HeaderPanel">
+                  <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+                  <!-- Single animated indicator shared by every header (TabRow's indicator).
+                       MaterialTabs positions and springs it; the per-tab side markers remain only
+                       for the Avalonia-only Left/Right strip extension. -->
+                  <Canvas Name="PART_IndicatorLayer" IsHitTestVisible="False">
+                    <Border Name="PART_Indicator" Height="3" CornerRadius="3"
+                            Background="{DynamicResource MaterialPrimaryBrush}"
+                            IsVisible="False" />
+                  </Canvas>
+                </Panel>
               </ScrollViewer>
               <!-- The divider is a one-pixel outline-variant rule owned by the strip, exactly as
                    the source Tabs component places it on the far side of the tab group. -->
@@ -345,15 +331,17 @@
       </Setter>
     </Style>
 
-    <!-- Scrollable configuration: 90px headers that scroll instead of sharing the width. The
-         scrollbar is hidden to preserve the source's 48/64px strip; wheel, keyboard, focus,
-         and selection changes all keep the active header in view. -->
+    <!-- Scrollable configuration: 90 DIP headers that scroll instead of sharing the width, with the
+         source's 52 DIP edge padding so the first and last header can centre. -->
     <Style Selector="^[(md|MaterialTabs.IsScrollable)=True]">
       <Setter Property="ItemsPanel">
         <ItemsPanelTemplate>
           <StackPanel Orientation="Horizontal" />
         </ItemsPanelTemplate>
       </Setter>
+      <Style Selector="^ /template/ ItemsPresenter#PART_ItemsPresenter">
+        <Setter Property="Margin" Value="52,0" />
+      </Style>
       <Style Selector="^ /template/ ScrollViewer#PART_HeaderScroller">
         <Setter Property="HorizontalScrollBarVisibility" Value="Hidden" />
         <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />

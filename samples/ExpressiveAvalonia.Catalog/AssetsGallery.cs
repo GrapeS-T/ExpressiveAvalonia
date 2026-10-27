@@ -232,6 +232,9 @@ internal sealed class AssetsPlayground : Grid, IComponentPlayground
         _glyph.Height = size;
         _glyphName.IsVisible = _showName.IsChecked == true;
         _glyphId.IsVisible = _showName.IsChecked == true;
+        // With the name visible the adjacent text already conveys the meaning, so the glyph is
+        // decorative; hiding the name exposes the ContentDescription/automation name instead.
+        _glyph.IsDecorative = _showName.IsChecked == true;
         _copy.IsEnabled = _icons.Count > 0;
         if (icons)
         {

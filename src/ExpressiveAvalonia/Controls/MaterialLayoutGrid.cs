@@ -48,12 +48,16 @@ public sealed class MaterialSizeClassChangedEventArgs(MaterialWindowSizeClass ol
 /// three navigation-region modes.
 /// </summary>
 /// <remarks>
+/// A design-source desktop composition, not an M3 composable. The pinned M3 artifact has no
+/// adaptive layout-grid component; only the common window size classes are applied.
+/// <para>
 /// The control measures its own width against the Material breakpoints (600, 840, 1200, 1600 dp)
 /// and reflows the navigation region: a bottom bar below 840 dp, a 72 DIP rail from 840 dp, and an
 /// expanded column from 1600 dp when <see cref="ExpandedNavigationContent"/> is supplied. Set
 /// <see cref="RequestedNavigation"/> to force a mode; the resolved mode is published through
 /// <see cref="NavigationRegion"/> and <see cref="SizeClassChanged"/>. All content is hosted in
 /// native presenters, so focus order and automation follow the visual order after each reflow.
+/// </para>
 /// </remarks>
 public sealed class MaterialLayoutGrid : ContentControl
 {

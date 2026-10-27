@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using Avalonia;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -30,17 +32,25 @@ public enum MaterialStateLayerState
 }
 
 /// <summary>
-/// A reusable Material state layer: the translucent on-surface overlay used for hover, focus,
-/// press and drag feedback.
+/// A reusable Material state layer: the translucent on-surface overlay used for hover, focus
+/// and drag feedback.
 /// </summary>
 /// <remarks>
 /// <para>
+/// This control mirrors the <c>StateLayer</c> inside the pinned material-ripple <c>RippleNode</c>.
+/// A press is deliberately not part of the overlay: in the source the press indication is the
+/// ripple itself (<c>StateTokens.PressedStateLayerOpacity</c> is the ripple's pressed alpha), so
+/// components that combine this layer with <see cref="MaterialRipple"/> never paint the same
+/// press alpha twice.
+/// </para>
+/// <para>
 /// With <see cref="IsInteractive"/> left false the layer is a static swatch driven by
-/// <see cref="State"/>, which is what the source state-layer building blocks show. With
-/// <see cref="IsInteractive"/> true the layer is focusable and tracks its own pointer and
-/// keyboard state, using the same priority order as Material components: dragged, then pressed,
-/// then hovered, then focused, then <see cref="State"/> as the resting value. It does not capture
-/// the pointer, so an enclosing button or list item still receives its own input.
+/// <see cref="State"/>; <see cref="MaterialStateLayerState.Pressed"/> is then an explicit preview
+/// value, not an interaction. With <see cref="IsInteractive"/> true it tracks pointer over,
+/// keyboard focus and drag, and shows the most recently arrived interaction, exactly like
+/// <c>interactions.lastOrNull()</c> in the source. Incoming hover is 15 ms linear, incoming focus
+/// and drag are 45 ms linear; outgoing hover and focus are 15 ms linear and outgoing drag is
+/// 150 ms linear. <see cref="State"/> is the resting fallback when no interaction is active.
 /// </para>
 /// <para>
 /// Opacities come from styled properties bound to the <c>Material*StateLayerOpacity</c> tokens,
@@ -50,11 +60,17 @@ public enum MaterialStateLayerState
 /// </para>
 /// <para>
 /// The layer is presentational: it exposes no automation name and takes no tab stop unless
-/// <see cref="IsInteractive"/> is set.
+/// <see cref="IsInteractive"/> is set. Disabling the control clears the overlay immediately:
+/// the source has no disabled state layer.
 /// </para>
 /// </remarks>
 public sealed class MaterialStateLayer : Control
 {
+    private const double DefaultSeconds = 0.015;
+    private const double FocusInSeconds = 0.045;
+    private const double DragInSeconds = 0.045;
+    private const double DragOutSeconds = 0.150;
+
     /// <summary>Defines the <see cref="State"/> property.</summary>
     public static readonly StyledProperty<MaterialStateLayerState> StateProperty =
         AvaloniaProperty.Register<MaterialStateLayer, MaterialStateLayerState>(
@@ -109,23 +125,19 @@ public sealed class MaterialStateLayer : Control
         AvaloniaProperty.RegisterDirect<MaterialStateLayer, MaterialStateLayerState>(
             nameof(EffectiveState), layer => layer._effectiveState);
 
+    private readonly List<MaterialStateLayerState> _interactions = new(3);
     private MaterialStateLayerState _effectiveState = MaterialStateLayerState.Enabled;
+    private MaterialStateLayerState? _currentInteraction;
     private bool _pointerOver;
-    private bool _pressed;
     private double _currentOpacity;
-    private MaterialMotion.SpringAnimation? _opacitySpring;
+    private MaterialMotion.TweenAnimation? _opacityTween;
 
     static MaterialStateLayer()
     {
         AffectsRender<MaterialStateLayer>(
             StateProperty, IsDraggingProperty, BackgroundProperty, CornerRadiusProperty,
             SurfaceFillProperty, ShadowProperty, HoverOpacityProperty, FocusOpacityProperty,
-            PressedOpacityProperty, DraggedOpacityProperty);
-        IsInteractiveProperty.Changed.AddClassHandler<MaterialStateLayer>((layer, _) =>
-        {
-            layer.UpdateEffectiveState();
-            layer.InvalidateVisual();
-        });
+            PressedOpacityProperty, DraggedOpacityProperty, IsInteractiveProperty);
     }
 
     /// <summary>Gets or sets the resting state used when no interaction is active.</summary>
@@ -191,7 +203,7 @@ public sealed class MaterialStateLayer : Control
         set => SetValue(FocusOpacityProperty, value);
     }
 
-    /// <summary>Gets or sets the pressed overlay opacity.</summary>
+    /// <summary>Gets or sets the pressed overlay opacity used by the static preview.</summary>
     public double PressedOpacity
     {
         get => GetValue(PressedOpacityProperty);
@@ -233,6 +245,9 @@ public sealed class MaterialStateLayer : Control
             return;
         }
 
+        // The source draws a circle of the ripple end radius clipped to the target. For any
+        // rectangle that circle covers the whole rounded silhouette, so painting the silhouette
+        // is geometrically equivalent and avoids an offscreen clip.
         using (context.PushOpacity(_currentOpacity))
             context.DrawRectangle(Background, null, rounded);
     }
@@ -241,9 +256,25 @@ public sealed class MaterialStateLayer : Control
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+        if (change.Property == MaterialMotion.IsReducedProperty)
+        {
+            // Switching the system policy on mid-tween must land on the final interactive state,
+            // not leave a half-faded overlay.
+            if (MaterialMotion.GetIsReduced(this))
+                SnapOpacity(OpacityFor(_effectiveState));
+            return;
+        }
+
         if (change.Property == StateProperty
             || change.Property == IsDraggingProperty
-            || change.Property == IsKeyboardFocusWithinProperty)
+            || change.Property == IsInteractiveProperty
+            || change.Property == IsKeyboardFocusWithinProperty
+            || change.Property == IsEnabledProperty
+            || change.Property == IsEffectivelyEnabledProperty
+            || change.Property == HoverOpacityProperty
+            || change.Property == FocusOpacityProperty
+            || change.Property == DraggedOpacityProperty
+            || change.Property == PressedOpacityProperty)
         {
             UpdateEffectiveState();
         }
@@ -262,41 +293,6 @@ public sealed class MaterialStateLayer : Control
     {
         base.OnPointerExited(e);
         _pointerOver = false;
-        _pressed = false;
-        UpdateEffectiveState();
-    }
-
-    /// <inheritdoc />
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
-    {
-        base.OnPointerPressed(e);
-        if (!IsInteractive || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-            return;
-
-        _pressed = true;
-        // An interactive layer is its own target, so a press moves focus to it and the
-        // focused state follows a real keyboard focus rather than a pointer approximation.
-        if (Focusable && !IsKeyboardFocusWithin)
-            Focus();
-        UpdateEffectiveState();
-    }
-
-    /// <inheritdoc />
-    protected override void OnPointerReleased(PointerReleasedEventArgs e)
-    {
-        base.OnPointerReleased(e);
-        if (!_pressed)
-            return;
-
-        _pressed = false;
-        UpdateEffectiveState();
-    }
-
-    /// <inheritdoc />
-    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
-    {
-        base.OnPointerCaptureLost(e);
-        _pressed = false;
         UpdateEffectiveState();
     }
 
@@ -304,69 +300,119 @@ public sealed class MaterialStateLayer : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _opacitySpring?.Dispose();
-        _opacitySpring = null;
+        _opacityTween?.Dispose();
+        _opacityTween = null;
     }
 
     private void UpdateEffectiveState()
     {
-        var state = ResolveState();
-        if (state == _effectiveState)
+        var enabled = IsEffectivelyEnabled;
+        SyncInteraction(MaterialStateLayerState.Hovered, IsInteractive && enabled && _pointerOver);
+        SyncInteraction(MaterialStateLayerState.Focused, IsInteractive && enabled && IsKeyboardFocusWithin);
+        SyncInteraction(MaterialStateLayerState.Dragged, enabled && IsDragging);
+
+        MaterialStateLayerState? nextInteraction = null;
+        if (enabled && _interactions.Count > 0)
+            nextInteraction = _interactions[^1];
+
+        var state = !enabled
+            ? MaterialStateLayerState.Enabled
+            : nextInteraction ?? State;
+
+        var previousInteraction = _currentInteraction;
+        _currentInteraction = nextInteraction;
+        SetEffectiveState(state);
+
+        var target = OpacityFor(state);
+        if (!enabled)
+        {
+            SnapOpacity(0);
             return;
+        }
 
-        var old = _effectiveState;
-        _effectiveState = state;
-        RaisePropertyChanged(EffectiveStateProperty, old, state);
-
-        var targetOpacity = state switch
+        double duration;
+        if (nextInteraction is not null)
         {
-            MaterialStateLayerState.Hovered => HoverOpacity,
-            MaterialStateLayerState.Focused => FocusOpacity,
-            MaterialStateLayerState.Pressed => PressedOpacity,
-            MaterialStateLayerState.Dragged => DraggedOpacity,
-            _ => 0.0,
-        };
-
-        if (!IsInteractive || MaterialMotion.GetIsReduced(this))
+            duration = nextInteraction == previousInteraction
+                ? DefaultSeconds
+                : nextInteraction switch
+                {
+                    MaterialStateLayerState.Focused => FocusInSeconds,
+                    MaterialStateLayerState.Dragged => DragInSeconds,
+                    _ => DefaultSeconds,
+                };
+        }
+        else if (previousInteraction is not null)
         {
-            _opacitySpring?.Dispose();
-            _opacitySpring = null;
-            _currentOpacity = targetOpacity;
-            InvalidateVisual();
+            duration = previousInteraction == MaterialStateLayerState.Dragged
+                ? DragOutSeconds
+                : DefaultSeconds;
         }
         else
         {
-            _opacitySpring?.Dispose();
-            _opacitySpring = MaterialMotion.Animate(
-                this,
-                _currentOpacity,
-                targetOpacity,
-                val =>
-                {
-                    _currentOpacity = val;
-                    InvalidateVisual();
-                },
-                stiffness: targetOpacity > _currentOpacity ? 2800 : 1800,
-                dampingRatio: 1.0);
+            // A caller-driven State change (a static preview or a template pseudo-class) is not
+            // an interaction arrival: the source has no spec for it, so apply it directly.
+            SnapOpacity(target);
+            return;
         }
+
+        AnimateOpacity(target, duration);
     }
 
-    private MaterialStateLayerState ResolveState()
+    private void SyncInteraction(MaterialStateLayerState interaction, bool active)
     {
-        if (IsDragging)
-            return MaterialStateLayerState.Dragged;
+        var index = _interactions.IndexOf(interaction);
+        if (active && index < 0)
+            _interactions.Add(interaction);
+        else if (!active && index >= 0)
+            _interactions.RemoveAt(index);
+    }
 
-        if (IsInteractive)
+    private void SetEffectiveState(MaterialStateLayerState state)
+    {
+        if (state == _effectiveState)
+            return;
+        var old = _effectiveState;
+        _effectiveState = state;
+        RaisePropertyChanged(EffectiveStateProperty, old, state);
+        InvalidateVisual();
+    }
+
+    private double OpacityFor(MaterialStateLayerState state) => state switch
+    {
+        MaterialStateLayerState.Hovered => HoverOpacity,
+        MaterialStateLayerState.Focused => FocusOpacity,
+        MaterialStateLayerState.Pressed => PressedOpacity,
+        MaterialStateLayerState.Dragged => DraggedOpacity,
+        _ => 0.0,
+    };
+
+    private void AnimateOpacity(double target, double duration)
+    {
+        if (MaterialMotion.GetIsReduced(this))
         {
-            if (_pressed)
-                return MaterialStateLayerState.Pressed;
-            if (_pointerOver)
-                return MaterialStateLayerState.Hovered;
-            if (IsKeyboardFocusWithin)
-                return MaterialStateLayerState.Focused;
+            SnapOpacity(target);
+            return;
         }
 
-        return State;
+        if (_opacityTween is null)
+            _opacityTween = MaterialMotion.Tween(this, _currentOpacity, target, duration, 0, ApplyOpacity);
+        else
+            _opacityTween.Retarget(target, duration);
+    }
+
+    private void ApplyOpacity(double value)
+    {
+        _currentOpacity = value;
+        InvalidateVisual();
+    }
+
+    private void SnapOpacity(double value)
+    {
+        _opacityTween?.Dispose();
+        _opacityTween = null;
+        _currentOpacity = value;
+        InvalidateVisual();
     }
 
     private static bool IsOpacity(double value) => double.IsFinite(value) && value is >= 0 and <= 1;

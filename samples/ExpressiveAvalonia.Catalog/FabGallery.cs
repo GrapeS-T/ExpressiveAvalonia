@@ -58,6 +58,9 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
     };
 
     private readonly MaterialButtonGroup _kind;
+    private readonly StackPanel _modeGroup;
+    private readonly MaterialButtonGroup _mode;
+    private readonly ToggleSwitch _showIcon;
     private readonly MaterialButtonGroup _size;
     private readonly StackPanel _sizeGroup;
     private readonly ComboBox _role;
@@ -108,9 +111,13 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
 
         _kind = Choice(Settings, "Компонент", ["FAB", "Extended FAB", "FAB menu"]);
 
+        _modeGroup = new StackPanel { Spacing = 6 };
+        _mode = Choice(_modeGroup, "Режим Extended FAB", ["Expressive", "Classic"]);
+        Settings.Children.Add(_modeGroup);
+
         _sizeGroup = new StackPanel { Spacing = 6 };
         _sizeGroup.Children.Add(new TextBlock { Text = "Размер" });
-        _size = Group(_sizeGroup, ["56", "80", "96"]);
+        _size = Group(_sizeGroup, ["40", "56", "80", "96"]);
         Settings.Children.Add(_sizeGroup);
 
         Settings.Children.Add(new TextBlock { Text = "Цветовая роль" });
@@ -143,6 +150,8 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
 
         _expanded = new ToggleSwitch { Content = "Label развёрнут", IsChecked = true };
         Settings.Children.Add(_expanded);
+        _showIcon = new ToggleSwitch { Content = "С иконкой", IsChecked = true };
+        Settings.Children.Add(_showIcon);
         _enabled = new ToggleSwitch { Content = "Доступен", IsChecked = true };
         Settings.Children.Add(_enabled);
 
@@ -166,6 +175,8 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
         Settings.Children.Add(new TextBlock
         {
             Text = "FAB — обычная кнопка: Enter, Space и указатель дают настоящие состояния. " +
+                   "Классический Extended FAB — 56 в высоту с иконкой 24 и минимумом 80; " +
+                   "без иконки это text-only вариант, который не сворачивается. " +
                    "У FAB menu стрелки открывают список и перемещают фокус, Escape закрывает меню " +
                    "и возвращает фокус на триггер, а пункты выполняют команды.",
             TextWrapping = TextWrapping.Wrap,
@@ -185,12 +196,12 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
             _syncing = false;
         };
 
-        foreach (var choice in new[] { _kind, _size })
+        foreach (var choice in new[] { _kind, _mode, _size })
             choice.SelectionChanged += (_, _) => Apply();
         _role.SelectionChanged += (_, _) => Apply();
         _icon.SelectionChanged += (_, _) => Apply();
         _label.TextChanged += (_, _) => Apply();
-        foreach (var toggle in new[] { _expanded, _enabled, _openMenu })
+        foreach (var toggle in new[] { _expanded, _showIcon, _enabled, _openMenu })
             toggle.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
 
         Apply();
@@ -199,27 +210,58 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
     private void Apply()
     {
         var kind = Math.Clamp(_kind.SelectedIndex, 0, 2);
-        var size = Math.Clamp(_size.SelectedIndex, 0, 2);
         var role = (MaterialFabColorRole)Math.Clamp(_role.SelectedIndex, 0, 5);
         var iconIndex = Math.Clamp(_icon.SelectedIndex, 0, IconData.Length - 1);
         var icon = IconData[iconIndex];
         var label = string.IsNullOrWhiteSpace(_label.Text) ? "Действие" : _label.Text!;
         var enabled = _enabled.IsChecked == true;
+        var mode = _mode.SelectedIndex == 1 ? MaterialExtendedFabMode.Classic : MaterialExtendedFabMode.Expressive;
+        var hasIcon = _showIcon.IsChecked == true;
 
         if (kind != _lastKind)
         {
-            var labels = kind == 1 ? new[] { "Small", "Medium", "Large" } : new[] { "56", "80", "96" };
-            for (var i = 0; i < labels.Length && i < _size.Items.Count; i++)
-                ((MaterialButtonGroupItem)_size.Items[i]!).Content = labels[i];
+            // The regular FAB has four source sizes (40/56/80/96); the extended FAB has three
+            // (56/80/96). Selecting a family keeps the closest source height instead of reusing a
+            // numeric index, and the unused fourth segment leaves the connected row.
+            var previousHeight = _lastKind switch
+            {
+                1 => _size.SelectedIndex switch { 0 => 56, 1 => 80, _ => 96 },
+                0 => _size.SelectedIndex switch { 0 => 40, 1 => 56, 2 => 80, _ => 96 },
+                _ => 56,
+            };
+            var labels = kind == 1 ? new[] { "56", "80", "96" } : new[] { "40", "56", "80", "96" };
+            for (var i = 0; i < _size.Items.Count; i++)
+            {
+                if (_size.Items[i] is not MaterialButtonGroupItem item)
+                    continue;
+                item.Content = i < labels.Length ? labels[i] : null;
+                item.IsVisible = i < labels.Length;
+            }
+
+            int mapped;
+            if (_lastKind < 0)
+                mapped = Math.Clamp(_size.SelectedIndex, 0, labels.Length - 1);
+            else if (kind == 1)
+                mapped = previousHeight <= 56 ? 0 : previousHeight <= 80 ? 1 : 2;
+            else
+                mapped = previousHeight <= 40 ? 0
+                    : previousHeight <= 56 ? 1
+                    : previousHeight <= 80 ? 2
+                    : 3;
             _lastKind = kind;
+            _size.SelectedIndex = mapped;
         }
+
+        var size = Math.Clamp(_size.SelectedIndex, 0, kind == 1 ? 2 : 3);
 
         _fab.IsVisible = kind == 0;
         _extended.IsVisible = kind == 1;
         _menuHost.IsVisible = kind == 2;
-        _sizeGroup.IsVisible = kind != 2;
+        _sizeGroup.IsVisible = kind != 2 && !(kind == 1 && mode == MaterialExtendedFabMode.Classic);
+        _modeGroup.IsVisible = kind == 1;
         _labelGroup.IsVisible = kind == 1;
         _expanded.IsVisible = kind == 1;
+        _showIcon.IsVisible = kind == 1;
         _actionsGroup.IsVisible = kind == 2;
         _openMenu.IsVisible = kind == 2;
 
@@ -229,9 +271,10 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
         _fab.IsEnabled = enabled;
         AutomationProperties.SetName(_fab, $"FAB, {role}, {_fab.Size}");
 
+        _extended.Mode = mode;
         _extended.Size = (MaterialExtendedFabSize)size;
         _extended.ColorRole = role;
-        _extended.Icon = icon;
+        _extended.Icon = hasIcon ? icon : null;
         _extended.Label = label;
         _extended.IsExpanded = _expanded.IsChecked == true;
         _extended.IsEnabled = enabled;

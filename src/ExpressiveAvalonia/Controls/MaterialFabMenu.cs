@@ -11,6 +11,8 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using ExpressiveAvalonia.Theming;
+using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -61,6 +63,7 @@ public class MaterialFabMenuSegment : MaterialFabBase
         _icon = e.NameScope.Find<PathIcon>("PART_Icon");
         if (_icon is not null)
             _icon.IsVisible = Icon is not null;
+        SyncAutomationName(Label);
     }
 
     /// <summary>Gets or sets the icon geometry.</summary>
@@ -133,15 +136,32 @@ public class MaterialFabMenu : ItemsControl
     private const string HiddenClass = "material-fab-menu-hidden";
 
     private readonly HashSet<MaterialFabBase> _menuColoredSegments = [];
+    private readonly Dictionary<Control, ItemReveal> _reveals = [];
+    private readonly SolidColorBrush _triggerBackground = new();
+    private readonly SolidColorBrush _triggerForeground = new();
     private readonly EventHandler<PointerPressedEventArgs> _dismissHandler;
     private Border? _menuHost;
     private MaterialFab? _trigger;
     private PathIcon? _triggerIcon;
+    private PathIcon? _triggerCloseIcon;
     private TopLevel? _topLevel;
-    private DispatcherTimer? _hideTimer;
+    private MaterialMotion.SpringAnimation? _revealCountSpring;
+    private MaterialMotion.SpringAnimation? _triggerProgressSpring;
+    private double _revealCount;
+    private double _triggerProgress;
     private int? _pendingFocusIndex;
     private bool _restoreFocusOnCollapse;
     private bool _detached;
+
+    private sealed class ItemReveal
+    {
+        public int Index;
+        public double FullWidth;
+        public MaterialMotion.SpringAnimation? Width;
+        public MaterialMotion.SpringAnimation? Opacity;
+        public double WidthTarget;
+        public double OpacityTarget;
+    }
 
     static MaterialFabMenu()
     {
@@ -165,6 +185,8 @@ public class MaterialFabMenu : ItemsControl
         _dismissHandler = OnTopLevelPointerPressed;
         AddHandler(LostFocusEvent, OnLostFocus, RoutingStrategies.Bubble);
         AddHandler(Button.ClickEvent, OnDescendantClick, RoutingStrategies.Bubble);
+        // The checked progress interpolates role colors, which change with the theme.
+        ActualThemeVariantChanged += (_, _) => ApplyTriggerProgress(_triggerProgress);
     }
 
     /// <summary>Raised after the action list becomes visible.</summary>
@@ -214,13 +236,6 @@ public class MaterialFabMenu : ItemsControl
         set => SetValue(CollapseAutomationNameProperty, value);
     }
 
-    private MaterialFabColorRole TriggerColorRole => ColorRole switch
-    {
-        MaterialFabMenuColorRole.SecondaryContainer => MaterialFabColorRole.Secondary,
-        MaterialFabMenuColorRole.TertiaryContainer => MaterialFabColorRole.Tertiary,
-        _ => MaterialFabColorRole.Primary
-    };
-
     private MaterialFabColorRole SegmentColorRole => ColorRole switch
     {
         MaterialFabMenuColorRole.SecondaryContainer => MaterialFabColorRole.SecondaryContainer,
@@ -239,24 +254,40 @@ public class MaterialFabMenu : ItemsControl
         {
             _trigger.Click -= OnTriggerClick;
             _trigger.KeyDown -= OnTriggerKeyDown;
+            _trigger.PropertyChanged -= OnTriggerPropertyChanged;
         }
 
         base.OnApplyTemplate(e);
         _menuHost = e.NameScope.Find<Border>("PART_MenuHost");
         _trigger = e.NameScope.Find<MaterialFab>("PART_Trigger");
         _triggerIcon = e.NameScope.Find<PathIcon>("PART_TriggerIcon");
+        _triggerCloseIcon = e.NameScope.Find<PathIcon>("PART_TriggerCloseIcon");
 
         if (_trigger is not null)
         {
             _trigger.Click += OnTriggerClick;
             _trigger.KeyDown += OnTriggerKeyDown;
-            _trigger.ColorRole = TriggerColorRole;
+            _trigger.PropertyChanged += OnTriggerPropertyChanged;
+            _trigger.ColorRole = SegmentColorRole;
         }
 
         UpdateTriggerIcon();
         ApplyExpandedState(IsExpanded);
+        ApplyTriggerProgress(_triggerProgress);
         ApplyColorRoles();
         UpdateTriggerName(IsExpanded);
+    }
+
+    private void OnTriggerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        // Re-apply the shared progress when the trigger's size or enabled state changes, because
+        // both feed the same progress mapping rather than a template style.
+        if (e.Property == MaterialFab.SizeProperty
+            || e.Property == IsEnabledProperty
+            || e.Property == IsEffectivelyEnabledProperty)
+        {
+            ApplyTriggerProgress(_triggerProgress);
+        }
     }
 
     /// <inheritdoc />
@@ -265,6 +296,9 @@ public class MaterialFabMenu : ItemsControl
         base.OnAttachedToVisualTree(e);
         _detached = false;
         ApplyExpandedState(IsExpanded);
+        // Theme resources are guaranteed reachable now; re-apply the current progress if the
+        // template ran before the resource scope was ready.
+        ApplyTriggerProgress(_triggerProgress);
         if (IsExpanded)
             AttachDismiss();
     }
@@ -274,7 +308,6 @@ public class MaterialFabMenu : ItemsControl
     {
         _detached = true;
         DetachDismiss();
-        CancelHide();
         if (IsExpanded)
             SetCurrentValue(IsExpandedProperty, false);
         base.OnDetachedFromVisualTree(e);
@@ -286,6 +319,9 @@ public class MaterialFabMenu : ItemsControl
         base.OnPropertyChanged(change);
         if (change.Property == IsEnabledProperty && !IsEnabled && IsExpanded)
             SetCurrentValue(IsExpandedProperty, false);
+        else if (change.Property == ExpandAutomationNameProperty ||
+                 change.Property == CollapseAutomationNameProperty)
+            UpdateTriggerName(IsExpanded);
     }
 
     /// <inheritdoc />
@@ -309,6 +345,18 @@ public class MaterialFabMenu : ItemsControl
             _menuColoredSegments.Remove(direct);
         foreach (var fab in container.GetVisualDescendants().OfType<MaterialFabBase>().ToList())
             _menuColoredSegments.Remove(fab);
+
+        if (_reveals.Remove(container, out var removedReveal))
+        {
+            removedReveal.Width?.Dispose();
+            removedReveal.Opacity?.Dispose();
+        }
+
+        // An item may disappear while the staggered reveal is running. Re-index what remains and
+        // retarget the reveal count, otherwise the removed container stays in the timeline and the
+        // surviving items keep stale indices.
+        if (IsExpanded)
+            Dispatcher.UIThread.Post(RevealSegments, DispatcherPriority.Render);
 
         base.ClearContainerForItemOverride(container);
     }
@@ -355,17 +403,22 @@ public class MaterialFabMenu : ItemsControl
         PseudoClasses.Set(":expanded", expanded);
         UpdateTriggerName(expanded);
 
+        // Source ToggleFloatingActionButton morphs its container corner radius, color and icon with
+        // one checkedProgress value. The progress mapping below drives all of them per frame, so a
+        // reversal retargets the same spring without a second template transition.
+        AnimateTriggerProgress(expanded ? 1 : 0);
+
         if (_detached)
             return;
 
         if (expanded)
         {
-            CancelHide();
             if (_menuHost is not null)
                 _menuHost.IsVisible = true;
 
-            foreach (var container in GetRealizedContainers())
-                SetContainerHidden(container, true);
+            var containers = GetRealizedContainers().ToList();
+            for (var i = 0; i < containers.Count; i++)
+                PrepareReveal(containers[i], i);
 
             AttachDismiss();
 
@@ -380,10 +433,7 @@ public class MaterialFabMenu : ItemsControl
         else
         {
             DetachDismiss();
-            foreach (var container in GetRealizedContainers())
-                SetContainerHidden(container, true);
-
-            ScheduleHide();
+            StartRevealCount(0);
 
             if (_restoreFocusOnCollapse)
             {
@@ -398,9 +448,288 @@ public class MaterialFabMenu : ItemsControl
         if (!IsExpanded)
             return;
 
-        foreach (var container in GetRealizedContainers())
-            SetContainerHidden(container, false);
+        var containers = GetRealizedContainers().ToList();
+        for (var i = 0; i < containers.Count; i++)
+            PrepareReveal(containers[i], i);
+
+        StartRevealCount(containers.Count);
     }
+
+    // Source menu animation: the number of revealed actions is a single EffectsSlow spring. An item
+    // is interactive once the count reaches its index from the bottom (nearest the trigger first),
+    // its width expands with FastSpatial and its alpha with FastEffects. Width clipping is anchored
+    // at the end via the right-aligned container and ClipToBounds.
+    private void PrepareReveal(Control container, int index)
+    {
+        var fresh = !_reveals.TryGetValue(container, out var reveal);
+        if (fresh || reveal is null)
+        {
+            container.Width = double.NaN;
+            container.Measure(Size.Infinity);
+            var width = container.DesiredSize.Width;
+            reveal = new ItemReveal { FullWidth = width > 0 ? width : 0 };
+            _reveals[container] = reveal;
+        }
+
+        reveal.Index = index;
+        container.ClipToBounds = true;
+        SetContainerHidden(container, false);
+        // A container that was already revealing keeps its current width/opacity, so an interrupted
+        // collapse re-expands from the on-screen position instead of snapping back to zero.
+        if (fresh)
+        {
+            container.Width = 0;
+            container.Opacity = 0;
+        }
+        container.IsHitTestVisible = false;
+    }
+
+    private void StartRevealCount(double target)
+    {
+        if (_reveals.Count == 0)
+        {
+            if (target <= 0)
+                HideMenuHost();
+            return;
+        }
+
+        if (MaterialMotion.GetIsReduced(this))
+        {
+            _revealCount = target;
+            ApplyRevealCount(target);
+            return;
+        }
+
+        if (_revealCountSpring is { } running)
+        {
+            running.Retarget(target);
+            return;
+        }
+
+        _revealCountSpring = MaterialMotion.Animate(this, _revealCount, target, value =>
+        {
+            _revealCount = value;
+            ApplyRevealCount(value);
+        }, MaterialSpring.EffectsSlow, 0.01);
+    }
+
+    private void ApplyRevealCount(double value)
+    {
+        var count = _reveals.Count;
+        foreach (var (container, reveal) in _reveals)
+        {
+            var visible = reveal.Index >= count - value - 0.001;
+            AnimateReveal(container, reveal, visible);
+        }
+
+        if (!IsExpanded && value <= 0.01)
+        {
+            DisposeReveals();
+            HideMenuHost();
+        }
+    }
+
+    private void AnimateReveal(Control container, ItemReveal reveal, bool visible)
+    {
+        var widthTarget = visible ? reveal.FullWidth : 0d;
+        var opacityTarget = visible ? 1d : 0d;
+        if (Math.Abs(reveal.WidthTarget - widthTarget) < 0.01 &&
+            Math.Abs(reveal.OpacityTarget - opacityTarget) < 0.001)
+        {
+            return;
+        }
+
+        reveal.WidthTarget = widthTarget;
+        reveal.OpacityTarget = opacityTarget;
+        container.IsHitTestVisible = visible;
+
+        if (MaterialMotion.GetIsReduced(this))
+        {
+            reveal.Width?.Dispose();
+            reveal.Width = null;
+            reveal.Opacity?.Dispose();
+            reveal.Opacity = null;
+            container.Width = widthTarget;
+            container.Opacity = opacityTarget;
+            return;
+        }
+
+        if (reveal.Width is { } widthSpring)
+            widthSpring.Retarget(widthTarget);
+        else
+            reveal.Width = MaterialMotion.Animate(container,
+                double.IsNaN(container.Width) ? 0 : container.Width, widthTarget,
+                value => container.Width = Math.Max(0, value), MaterialSpring.SpatialFast, 0.5);
+
+        if (reveal.Opacity is { } opacitySpring)
+            opacitySpring.Retarget(opacityTarget);
+        else
+            reveal.Opacity = MaterialMotion.Animate(container, container.Opacity, opacityTarget,
+                value => container.Opacity = value, MaterialSpring.EffectsFast, 0.001);
+    }
+
+    private void DisposeReveals()
+    {
+        foreach (var reveal in _reveals.Values)
+        {
+            reveal.Width?.Dispose();
+            reveal.Opacity?.Dispose();
+        }
+        _reveals.Clear();
+        _revealCountSpring?.Dispose();
+        _revealCountSpring = null;
+        _revealCount = 0;
+    }
+
+    // Source ToggleFloatingActionButton animates container size, corner radius, container/content
+    // colors and icon size from one FastSpatial checkedProgress. A single interruptible spring
+    // drives all of them, so a mid-flight reversal retargets the same position and velocity
+    // instead of restarting separate shape, brush and icon trajectories.
+    private void AnimateTriggerProgress(double target)
+    {
+        if (MaterialMotion.GetIsReduced(this))
+        {
+            _triggerProgressSpring?.Dispose();
+            _triggerProgressSpring = null;
+            _triggerProgress = target;
+            ApplyTriggerProgress(target);
+            return;
+        }
+
+        if (_triggerProgressSpring is { } running)
+        {
+            running.Retarget(target);
+            return;
+        }
+
+        _triggerProgressSpring = MaterialMotion.Animate(this, _triggerProgress, target, value =>
+        {
+            _triggerProgress = value;
+            ApplyTriggerProgress(value);
+        }, MaterialSpring.SpatialFast, 0.001);
+    }
+
+    private void ApplyTriggerProgress(double progress)
+    {
+        progress = Math.Clamp(progress, 0, 1);
+
+        if (_trigger is not null)
+        {
+            // ToggleFloatingActionButtonDefaults.containerSize/CornerRadius: lerp the size's
+            // initial geometry to the 56 DIP full-round close button.
+            var initialSize = _trigger.Size switch
+            {
+                MaterialFabSize.Small => 48d,
+                MaterialFabSize.Medium => 80d,
+                MaterialFabSize.Large => 96d,
+                _ => 56d,
+            };
+            var initialRadius = _trigger.Size switch
+            {
+                MaterialFabSize.Small => 12d,
+                MaterialFabSize.Medium => 20d,
+                MaterialFabSize.Large => 28d,
+                _ => 16d,
+            };
+            var containerSize = initialSize + (56d - initialSize) * progress;
+            _trigger.SetCurrentValue(WidthProperty, containerSize);
+            _trigger.SetCurrentValue(HeightProperty, containerSize);
+            _trigger.SetCurrentValue(TemplatedControl.CornerRadiusProperty,
+                new CornerRadius(initialRadius + (28d - initialRadius) * progress));
+
+            ApplyTriggerColors(progress);
+        }
+
+        // ToggleFloatingActionButtonDefaults.iconSize lerps FabBaselineTokens.IconSize to
+        // FabMenuBaselineTokens.CloseButtonIconSize (20). A 2-DIP inset per side keeps the icon's
+        // outer initial slot stable while the glyph shrinks. The sample swaps the add/close glyph
+        // at >50% progress, matching the source's derivedStateOf threshold.
+        var initialIconSize = _trigger?.Size switch
+        {
+            MaterialFabSize.Medium => 28d,
+            MaterialFabSize.Large => 36d,
+            _ => 24d,
+        };
+        var iconSize = initialIconSize + (20d - initialIconSize) * progress;
+        var inset = new Thickness((24d - iconSize) / 2d);
+        var showsClose = progress > 0.5;
+        if (_triggerIcon is not null)
+        {
+            _triggerIcon.Width = iconSize;
+            _triggerIcon.Height = iconSize;
+            _triggerIcon.Margin = inset;
+            _triggerIcon.Opacity = 1;
+            _triggerIcon.IsVisible = TriggerIcon is not null && !showsClose;
+        }
+
+        if (_triggerCloseIcon is not null)
+        {
+            _triggerCloseIcon.Width = iconSize;
+            _triggerCloseIcon.Height = iconSize;
+            _triggerCloseIcon.Margin = inset;
+            _triggerCloseIcon.Opacity = 1;
+            _triggerCloseIcon.IsVisible = showsClose;
+        }
+    }
+
+    private void ApplyTriggerColors(double progress)
+    {
+        if (_trigger is null)
+            return;
+
+        if (!_trigger.IsEffectivelyEnabled)
+        {
+            // Keep the theme's disabled compositing instead of painting the enabled interpolation.
+            _trigger.ClearValue(TemplatedControl.BackgroundProperty);
+            _trigger.ClearValue(TemplatedControl.ForegroundProperty);
+            return;
+        }
+
+        var (initialContainer, finalContainer, initialContent, finalContent) = ColorRole switch
+        {
+            MaterialFabMenuColorRole.SecondaryContainer =>
+                ("MaterialSecondaryContainerBrush", "MaterialSecondaryBrush",
+                 "MaterialOnSecondaryContainerBrush", "MaterialOnSecondaryBrush"),
+            MaterialFabMenuColorRole.TertiaryContainer =>
+                ("MaterialTertiaryContainerBrush", "MaterialTertiaryBrush",
+                 "MaterialOnTertiaryContainerBrush", "MaterialOnTertiaryBrush"),
+            _ =>
+                ("MaterialPrimaryContainerBrush", "MaterialPrimaryBrush",
+                 "MaterialOnPrimaryContainerBrush", "MaterialOnPrimaryBrush"),
+        };
+
+        if (TryGetRoleColor(initialContainer, out var startContainer) &&
+            TryGetRoleColor(finalContainer, out var endContainer))
+        {
+            _triggerBackground.Color = LerpColor(startContainer, endContainer, progress);
+            _trigger.SetCurrentValue(TemplatedControl.BackgroundProperty, _triggerBackground);
+        }
+
+        if (TryGetRoleColor(initialContent, out var startContent) &&
+            TryGetRoleColor(finalContent, out var endContent))
+        {
+            _triggerForeground.Color = LerpColor(startContent, endContent, progress);
+            _trigger.SetCurrentValue(TemplatedControl.ForegroundProperty, _triggerForeground);
+        }
+    }
+
+    private bool TryGetRoleColor(string key, out Color color)
+    {
+        if (this.TryFindResource(key, ActualThemeVariant, out var value) && value is ISolidColorBrush brush)
+        {
+            color = brush.Color;
+            return true;
+        }
+
+        color = default;
+        return false;
+    }
+
+    private static Color LerpColor(Color from, Color to, double progress) =>
+        MaterialColorVector.Lerp(
+            MaterialColorVector.FromColor(from),
+            MaterialColorVector.FromColor(to),
+            progress).ToColor();
 
     // ItemTemplate containers are presenters, so the reveal class must also reach the segment
     // controls inside them; direct containers are themselves segments.
@@ -420,43 +749,11 @@ public class MaterialFabMenu : ItemsControl
         }
     }
 
-    private void ScheduleHide()
-    {
-        CancelHide();
-        if (_menuHost is null || !_menuHost.IsVisible)
-            return;
-
-        var duration = RevealDuration;
-        if (duration <= TimeSpan.Zero)
-        {
-            HideMenuHost();
-            return;
-        }
-
-        _hideTimer = new DispatcherTimer(duration, DispatcherPriority.Background, (_, _) =>
-        {
-            CancelHide();
-            HideMenuHost();
-        });
-        _hideTimer.Start();
-    }
-
-    private void CancelHide()
-    {
-        _hideTimer?.Stop();
-        _hideTimer = null;
-    }
-
     private void HideMenuHost()
     {
         if (_menuHost is not null && !IsExpanded)
             _menuHost.IsVisible = false;
     }
-
-    private TimeSpan RevealDuration =>
-        this.TryFindResource("MaterialDurationShort4", out var value) && value is TimeSpan duration
-            ? duration
-            : TimeSpan.FromMilliseconds(200);
 
     private string ResourceText(string key, string fallback) =>
         this.TryFindResource(key, out var value) && value is string text ? text : fallback;
@@ -467,16 +764,17 @@ public class MaterialFabMenu : ItemsControl
             AutomationProperties.SetName(_trigger, expanded ? CollapseText : ExpandText);
     }
 
-    private void UpdateTriggerIcon()
-    {
-        if (_triggerIcon is not null)
-            _triggerIcon.IsVisible = TriggerIcon is not null;
-    }
+    private void UpdateTriggerIcon() => ApplyTriggerProgress(_triggerProgress);
 
     private void ApplyColorRoles()
     {
         if (_trigger is not null)
-            _trigger.ColorRole = TriggerColorRole;
+        {
+            // The checked progress interpolates this container role to the matching solid role;
+            // ColorRole only supplies the collapsed fallback (and disabled brush).
+            _trigger.ColorRole = SegmentColorRole;
+            ApplyTriggerProgress(_triggerProgress);
+        }
 
         // Segments can be direct containers or live inside an ItemTemplate, so collect both.
         foreach (var container in GetRealizedContainers())

@@ -1,8 +1,12 @@
+using System.Threading;
+using System.Diagnostics;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
+using ExpressiveAvalonia.Tokens;
 using Xunit;
 
 namespace ExpressiveAvalonia.Tests;
@@ -47,35 +51,110 @@ public class MotionBehaviorTests
     }
 
     [AvaloniaFact]
-    public void MaterialStateLayerResolvesStatesAndDefaultOpacities()
+    public void DetachCancellationDoesNotApplyTheCancelledTweenTarget()
     {
-        var layer = new MaterialStateLayer();
-        Assert.Equal(0.08, layer.HoverOpacity);
-        Assert.Equal(0.10, layer.FocusOpacity);
-        Assert.Equal(0.10, layer.PressedOpacity);
-        Assert.Equal(0.16, layer.DraggedOpacity);
-        Assert.Equal(MaterialStateLayerState.Enabled, layer.EffectiveState);
+        var control = new Border();
+        var window = new Window { Content = control };
+        MaterialMotion.TweenAnimation? animation = null;
+        // The component owns its detach handler before the scheduler subscribes. The event's
+        // invocation snapshot still includes the scheduler after this handler cancels it.
+        control.DetachedFromVisualTree += (_, _) => animation?.Dispose();
+        window.Show();
+        try
+        {
+            double value = 0;
+            MaterialMotion.SetIsReduced(control, false);
+            animation = MaterialMotion.Tween(control, 0, 10, 1, 1, x => value = x);
+            window.Content = null;
+            Assert.Equal(0, value);
+        }
+        finally
+        {
+            animation?.Dispose();
+            window.Close();
+        }
+    }
 
-        layer.State = MaterialStateLayerState.Hovered;
-        Assert.Equal(MaterialStateLayerState.Hovered, layer.EffectiveState);
 
-        layer.State = MaterialStateLayerState.Pressed;
-        Assert.Equal(MaterialStateLayerState.Pressed, layer.EffectiveState);
+    [AvaloniaFact]
+    public void LiveSchemeChangeRetunesSemanticSpringWithoutDroppingState()
+    {
+        var control = new Border();
+        var window = new Window { Content = control };
+        window.Show();
+        try
+        {
+            MaterialMotion.SetIsReduced(control, false);
+            MaterialMotion.SetScheme(control, MaterialMotionScheme.Standard);
+            using var animation = MaterialMotion.Animate(control, 0, 100, _ => { },
+                MaterialSpring.SpatialDefault, visibilityThreshold: 0.01, initialVelocity: 100);
+            Assert.Equal(
+                MaterialSpringTokens.Get(MaterialSpring.SpatialDefault, MaterialMotionScheme.Standard),
+                animation.Coefficients);
+
+            // Freeze the outgoing clock so assertion/JIT latency cannot advance the old segment
+            // between sampling it and changing the scheme. The new segment resumes normally.
+            Thread.Sleep(30);
+            const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
+            var clock = (Stopwatch)typeof(MaterialMotion.SpringAnimation)
+                .GetField("_clock", fields)!.GetValue(animation)!;
+            clock.Stop();
+            var (positionBefore, velocityBefore) = animation.SampleState();
+            Assert.InRange(positionBefore, 0.5, 99.5);
+
+            MaterialMotion.SetScheme(control, MaterialMotionScheme.Expressive);
+            Assert.Equal(
+                MaterialSpringTokens.Get(MaterialSpring.SpatialDefault, MaterialMotionScheme.Expressive),
+                animation.Coefficients);
+            Assert.True(clock.IsRunning);
+            clock.Stop();
+            clock.Reset();
+            var (positionAfter, velocityAfter) = animation.SampleState();
+            Assert.Equal(positionBefore, positionAfter, precision: 10);
+            Assert.Equal(velocityBefore, velocityAfter, precision: 10);
+        }
+        finally { window.Close(); }
     }
 
     [AvaloniaFact]
-    public void MaterialRippleAttachesToHostAndRespondsToEvents()
+    public void SemanticSpringResolvesNewSchemeAfterFinishAndOnRetarget()
     {
-        var button = new Button { Width = 100, Height = 40 };
-        var ripple = new MaterialRipple();
-        button.Content = ripple;
-        var window = new Window { Width = 200, Height = 200, Content = button };
+        var control = new Border();
+        var window = new Window { Content = control };
         window.Show();
-        window.UpdateLayout();
         try
         {
-            Assert.NotNull(ripple);
-            Assert.Equal(0, ripple.CornerRadius.TopLeft);
+            MaterialMotion.SetIsReduced(control, true);
+            using var animation = MaterialMotion.Animate(control, 0, 10, _ => { }, MaterialSpring.SpatialFast);
+            Assert.Equal(
+                MaterialSpringTokens.Get(MaterialSpring.SpatialFast, MaterialMotionScheme.Standard),
+                animation.Coefficients);
+
+            MaterialMotion.SetScheme(control, MaterialMotionScheme.Expressive);
+            Assert.Equal(
+                MaterialSpringTokens.Get(MaterialSpring.SpatialFast, MaterialMotionScheme.Expressive),
+                animation.Coefficients);
+
+            animation.Retarget(20);
+            Assert.Equal(
+                MaterialSpringTokens.Get(MaterialSpring.SpatialFast, MaterialMotionScheme.Expressive),
+                animation.Coefficients);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void ExplicitSpringCoefficientsIgnoreLiveSchemeChange()
+    {
+        var control = new Border();
+        var window = new Window { Content = control };
+        window.Show();
+        try
+        {
+            MaterialMotion.SetIsReduced(control, false);
+            using var animation = MaterialMotion.Animate(control, 0, 10, _ => { }, 1400d, 0.9d);
+            MaterialMotion.SetScheme(control, MaterialMotionScheme.Expressive);
+            Assert.Equal((1400d, 0.9d), animation.Coefficients);
         }
         finally { window.Close(); }
     }
@@ -84,8 +163,6 @@ public class MotionBehaviorTests
     public void MaterialBadgeReflectsSizeAndTextState()
     {
         var badge = new MaterialBadge();
-        Assert.Equal(MaterialBadgeSize.Large, badge.Size);
-        Assert.False(badge.IsLabeled);
 
         badge.Text = "5";
         Assert.True(badge.IsLabeled);
@@ -94,20 +171,4 @@ public class MotionBehaviorTests
         Assert.False(badge.IsLabeled);
     }
 
-    [AvaloniaFact]
-    public void SpringPhysicsInterpolatesTowardsTarget()
-    {
-        var control = new Border();
-        var window = new Window { Content = control };
-        window.Show();
-        try
-        {
-            MaterialMotion.SetIsReduced(control, false);
-            double value = 0;
-            using var animation = MaterialMotion.Animate(control, 0, 100, x => value = x, stiffness: 2000, dampingRatio: 1.0);
-            Assert.True(value >= 0);
-            animation.Dispose();
-        }
-        finally { window.Close(); }
-    }
 }

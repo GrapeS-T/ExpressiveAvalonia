@@ -51,6 +51,7 @@ internal sealed partial class CatalogWindow
             if (!tooltip.IsOpen) throw new InvalidOperationException("Tooltip did not open.");
             action.Focus();
             action.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            await Task.Delay(500);
             if (tooltip.IsOpen) throw new InvalidOperationException("Escape did not dismiss tooltip.");
             Console.WriteLine($"SMOKE PASS: Expressive navigation, theme/seed/contrast, {ExpressivePages.ItemCount * 2} page renders, rich tooltip Escape.");
             Close();

@@ -117,17 +117,20 @@
           <Border Name="PART_Scrim" Background="{DynamicResource MaterialScrimBrush}" Opacity="0" IsVisible="False" />
           <Border Name="PART_Surface"
                   HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
-                  Background="{DynamicResource MaterialSurfaceContainerLowBrush}"
-                  CornerRadius="28,28,0,0"
-                  BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}">
+                  MaxWidth="{TemplateBinding SheetMaxWidth}"
+                  Background="{DynamicResource MaterialSurfaceContainerLowBrush}">
             <Grid RowDefinitions="Auto,Auto,Auto">
-              <Border Name="PART_DragHandle" Background="Transparent" Padding="16"
+              <!-- BottomSheetDefaults.DragHandle: 32x4 inverted capsule in the docked drag-handle
+                   color, with 22 DIP above and below (48 DIP header). SheetDragHandle keeps this
+                   Border anatomy while exposing Invoke plus gesture-gated expand/collapse/dismiss
+                   through its native automation peer. -->
+              <controls:SheetDragHandle Name="PART_DragHandle" Background="Transparent" Padding="0,22"
                       IsVisible="{TemplateBinding ShowDragHandle}"
                       AutomationProperties.Name="{DynamicResource MaterialSheetDragHandleText}">
-                <Border Width="32" Height="4" CornerRadius="2"
+                <Border Width="32" Height="4" CornerRadius="9999"
                         HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Background="{DynamicResource MaterialOutlineBrush}" />
-              </Border>
+                        Background="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+              </controls:SheetDragHandle>
               <ScrollViewer Name="PART_ContentScroll" Grid.Row="1"
                             HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <ContentPresenter Name="PART_ContentHost"
@@ -147,9 +150,63 @@
       </ControlTemplate>
     </Setter>
 
-    <!-- The modal source presentation relies on the scrim instead of a resting shadow. -->
+    <!-- Base surface shape and resting elevation; the modal/standard selectors below adjust them. -->
+    <Style Selector="^ /template/ Border#PART_Surface">
+      <Setter Property="CornerRadius" Value="28,28,0,0" />
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+    </Style>
+
+    <!-- ModalBottomSheet.kt passes tonalElevation 0 and shadowElevation 0 to the modal surface;
+         the scrim carries the separation instead of a resting shadow. Standard sheets use the
+         square ExpandedShape from SheetDefaults.kt; only the modal expanded shape rounds the top. -->
     <Style Selector="^[IsModal=True] /template/ Border#PART_Surface">
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
     </Style>
+    <Style Selector="^[IsModal=False] /template/ Border#PART_Surface">
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Persistent scaffold from BottomSheetScaffold.kt: top bar row, body with the peek-height
+       content inset, the standard bottom sheet over the body and the snackbar above the partial
+       sheet. Placement order is the source z-order (body, top bar, sheet, snackbar); the body
+       presenter is the only element that receives the peek padding, so it is never applied
+       twice. -->
+  <ControlTheme x:Key="{x:Type controls:MaterialBottomSheetScaffold}"
+                TargetType="controls:MaterialBottomSheetScaffold">
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialBodyMediumFontSize}" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Name="PART_Root" ClipToBounds="True" Background="{TemplateBinding Background}">
+          <Grid RowDefinitions="Auto,*">
+            <ContentControl Name="PART_TopBar"
+                            Content="{TemplateBinding TopBar}"
+                            ContentTemplate="{TemplateBinding TopBarTemplate}"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Center" />
+            <Panel Name="PART_Body" Grid.Row="1">
+              <ContentPresenter Name="PART_ContentHost"
+                                Padding="{TemplateBinding ContentPadding}"
+                                Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+              <ContentPresenter Name="PART_SheetHost"
+                                HorizontalContentAlignment="Stretch"
+                                VerticalContentAlignment="Stretch" />
+              <ContentPresenter Name="PART_SnackbarHost"
+                                HorizontalContentAlignment="Stretch"
+                                VerticalContentAlignment="Stretch" />
+            </Panel>
+          </Grid>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
   </ControlTheme>
 </ResourceDictionary>

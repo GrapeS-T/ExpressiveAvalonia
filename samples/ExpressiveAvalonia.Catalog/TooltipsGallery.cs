@@ -55,6 +55,8 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _showOnDisabled;
     private readonly ToggleSwitch _ownerEnabled;
     private readonly ToggleSwitch _exposeHelp;
+    private readonly ToggleSwitch _plainCaret;
+    private readonly ToggleSwitch _richCaret;
     private readonly TextBox _title;
     private readonly TextBox _body;
     private readonly ComboBox _actions;
@@ -130,6 +132,7 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         _showOnDisabled = Toggle(_plainPanel, "Показывать у недоступного владельца", false);
         _ownerEnabled = Toggle(_plainPanel, "Владелец доступен", true);
         _exposeHelp = Toggle(_plainPanel, "Текст помощи для скринридера", true);
+        _plainCaret = Toggle(_plainPanel, "Карат 16×8 (caretShape)", false);
         Settings.Children.Add(_plainPanel);
 
         _richPanel.Children.Add(new TextBlock { Text = "Открытие" });
@@ -172,6 +175,7 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         _showTitle = Toggle(_richPanel, "Показывать заголовок", true);
         _showActions = Toggle(_richPanel, "Показывать действия (ShowActions)", true);
         _showSecondary = Toggle(_richPanel, "Показывать второе действие", true);
+        _richCaret = Toggle(_richPanel, "Карат 16×8 (caretShape)", false);
         Settings.Children.Add(_richPanel);
 
         Settings.Children.Add(new TextBlock
@@ -191,7 +195,7 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         _mode.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         foreach (var box in new[] { _title, _body, _primary, _secondary })
             box.TextChanged += (_, _) => { if (!_syncing) Apply(); };
-        foreach (var toggle in new[] { _longPress, _showOnDisabled, _ownerEnabled, _exposeHelp, _showTitle, _showActions, _showSecondary })
+        foreach (var toggle in new[] { _longPress, _showOnDisabled, _ownerEnabled, _exposeHelp, _plainCaret, _showTitle, _showActions, _showSecondary, _richCaret })
             toggle.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
 
         // Registered after the settings controls exist: the handler reads the open-mode choice.
@@ -242,6 +246,7 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
             ? MaterialPlainToolTipType.MultiLine
             : MaterialPlainToolTipType.SingleLine;
         ToolTip.SetTip(_plainOwner, MaterialToolTip.CreateContent(text, type));
+        MaterialToolTip.SetShowCaret(_plainOwner, _plainCaret.IsChecked == true);
         ToolTip.SetShowDelay(_plainOwner, (int)Math.Round(_delay.Value));
         ToolTip.SetShowOnDisabled(_plainOwner, _showOnDisabled.IsChecked == true);
         MaterialToolTip.SetLongPressEnabled(_plainOwner, _longPress.IsChecked == true);
@@ -267,6 +272,7 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
             Content = _body.Text,
             ShowTitle = _showTitle.IsChecked == true,
             ShowActions = _showActions.IsChecked == true,
+            ShowCaret = _richCaret.IsChecked == true,
         };
 
         switch (_actions.SelectedIndex)

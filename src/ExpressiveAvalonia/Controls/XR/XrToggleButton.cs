@@ -11,9 +11,13 @@ namespace ExpressiveAvalonia.Controls;
 /// A labeled, toggleable XR button: a 40 unit pill with an optional leading icon and a label.
 /// </summary>
 /// <remarks>
+/// Desktop extension from the XR design source; the pinned XR package has no labeled toggle
+/// composable of this anatomy.
+/// <para>
 /// Native <see cref="ToggleButton"/> behavior supplies pointer and Space/Enter toggling,
 /// commands, focus, disabled handling, and the toggle automation peer. The selected container
 /// uses the surface's emphasized role, as in the source building block.
+/// </para>
 /// </remarks>
 public class XrToggleButton : ToggleButton
 {

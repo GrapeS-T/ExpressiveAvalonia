@@ -28,13 +28,26 @@ namespace ExpressiveAvalonia.Controls;
 /// <see cref="SecondaryActionText"/> create the two Material text buttons from the design, each
 /// invoking its command and then closing the tooltip. Assign to Button.Flyout (click, touch and
 /// keyboard activation), Control.ContextFlyout (context key and long press), or call
-/// ShowAt(owner). Unlike a plain ToolTip, opening in the default Standard show mode moves focus
-/// into the content. Escape and light dismiss close it and return focus to the owner; no hover
-/// timer steals focus, and merely moving the pointer away does not dismiss actionable content.
+/// ShowAt(owner). Actionable tooltips use the Standard show mode and move focus into the content;
+/// tooltips without actions use the Transient mode so they never steal focus. Escape and light
+/// dismiss close them and return focus to the owner; no hover timer steals focus, and merely
+/// moving the pointer away does not dismiss actionable content.
 /// <para>
-/// Anatomy follows the source component: 312 px maximum width, 12 px corner radius,
-/// surface-container background with the level 2 elevation, 16/12 content padding, 4 px
-/// title-to-body spacing, an 8 px gap above the actions, and 4 px action insets.
+/// <see cref="IsPersistent"/> reproduces <c>TooltipState.isPersistent</c>. A persistent tooltip
+/// stays until it is closed explicitly or by a light dismiss; a non-persistent one shows for the
+/// source <c>BasicTooltipDefaults.TooltipDuration</c> (1.5 s) and then dismisses itself. When the
+/// property is not set, the source recommendation decides the default: a tooltip with actionable
+/// content is persistent, an actionless one is non-persistent. The source's pointer-enter/exit
+/// branch has no Avalonia Flyout equivalent (the popup owns light dismiss), so an explicit
+/// non-persistent tooltip always uses the timed duration.
+/// </para>
+/// <para>
+/// Anatomy follows RichTooltipTokens and Tooltip.kt: 40 x 24 minimum, 320 px maximum width,
+/// CornerMedium (12), surface-container background with level 2 elevation, 16 px horizontal
+/// padding, 12 px above the subhead (28 px to its first baseline), 4 px between subhead and body,
+/// 16 px below the body, a 36 px minimum action row and 8 px below it. The entrance and exit use
+/// the source FastSpatial 0.8 → 1 scale and FastEffects fade; a re-enter during the exit
+/// retargets the running springs and preserves their velocity.
 /// </para>
 /// </remarks>
 public sealed class RichTooltip : Flyout
@@ -60,6 +73,23 @@ public sealed class RichTooltip : Flyout
     public static readonly StyledProperty<bool> ShowSecondaryActionProperty =
         AvaloniaProperty.Register<RichTooltip, bool>(nameof(ShowSecondaryAction), true);
 
+    /// <summary>
+    /// Adds the source RichTooltip caret: a 16 x 8 triangle on the edge that faces the owner.
+    /// The source default is <c>caretShape = null</c>, so this property defaults to
+    /// <see langword="false"/> and leaves the presenter anatomy untouched.
+    /// </summary>
+    public static readonly StyledProperty<bool> ShowCaretProperty =
+        AvaloniaProperty.Register<RichTooltip, bool>(nameof(ShowCaret));
+
+    /// <summary>Defines the <see cref="IsPersistent"/> property.</summary>
+    /// <remarks>
+    /// The registered default is the source <c>rememberTooltipState(isPersistent = false)</c>
+    /// default. <see cref="EffectiveIsPersistent"/> resolves an unset value from the tooltip's
+    /// action content, so this raw value alone does not decide the behavior.
+    /// </remarks>
+    public static readonly StyledProperty<bool> IsPersistentProperty =
+        AvaloniaProperty.Register<RichTooltip, bool>(nameof(IsPersistent));
+
     public static readonly StyledProperty<string?> PrimaryActionTextProperty =
         AvaloniaProperty.Register<RichTooltip, string?>(nameof(PrimaryActionText));
 
@@ -82,7 +112,7 @@ public sealed class RichTooltip : Flyout
     private TextBlock? _bodyText;
     private ContentPresenter? _bodyPresenter;
     private Border? _contentPanel;
-    private FlyoutPresenter? _presenter;
+    private MaterialRichTooltipPresenter? _presenter;
     private ContentControl? _actionsPresenter;
     private IInputElement? _previousFocus;
     private Control? _keyboardOwner;
@@ -91,6 +121,21 @@ public sealed class RichTooltip : Flyout
     private ScaleTransform? _scale;
     private MaterialMotion.SpringAnimation? _opacityAnimation;
     private MaterialMotion.SpringAnimation? _scaleAnimation;
+    private ScaleTransform? _exitScale;
+    private MaterialMotion.SpringAnimation? _exitOpacityAnimation;
+    private MaterialMotion.SpringAnimation? _exitScaleAnimation;
+    private DispatcherTimer? _exitTimer;
+    private DispatcherTimer? _durationTimer;
+    private bool _exiting;
+    private bool _skipExit;
+
+    // Tooltip.kt BasicTooltipDefaults.TooltipDuration: how long a non-persistent tooltip stays.
+    private const int TooltipDurationMilliseconds = 1500;
+
+    static RichTooltip()
+    {
+        IsPersistentProperty.Changed.AddClassHandler<RichTooltip>((tooltip, _) => tooltip.SyncDurationTimer());
+    }
 
     public RichTooltip()
     {
@@ -139,6 +184,36 @@ public sealed class RichTooltip : Flyout
         get => GetValue(ShowSecondaryActionProperty);
         set => SetValue(ShowSecondaryActionProperty, value);
     }
+
+    /// <summary>Shows the optional 16 x 8 caret; the default matches the source null caret.</summary>
+    public bool ShowCaret
+    {
+        get => GetValue(ShowCaretProperty);
+        set => SetValue(ShowCaretProperty, value);
+    }
+
+    /// <summary>
+    /// Whether the tooltip remains visible until it is dismissed explicitly, mirroring
+    /// <c>TooltipState.isPersistent</c> in Tooltip.kt.
+    /// </summary>
+    /// <remarks>
+    /// An unset value is resolved by <see cref="EffectiveIsPersistent"/>: the source recommends
+    /// <c>isPersistent = true</c> "when there is actionable content being displayed within a
+    /// tooltip", and every RichTooltip sample passes it, so an actionable tooltip is persistent and
+    /// an actionless one is non-persistent. A non-persistent tooltip dismisses itself after
+    /// <c>BasicTooltipDefaults.TooltipDuration</c> (1.5 s).
+    /// </remarks>
+    public bool IsPersistent
+    {
+        get => GetValue(IsPersistentProperty);
+        set => SetValue(IsPersistentProperty, value);
+    }
+
+    /// <summary>
+    /// The persistence actually used: an explicit <see cref="IsPersistent"/> value wins, otherwise
+    /// the tooltip is persistent only when it has actionable content.
+    /// </summary>
+    public bool EffectiveIsPersistent => IsSet(IsPersistentProperty) ? IsPersistent : HasActions();
 
     /// <summary>
     /// Label of the primary text action. Ignored when <see cref="Actions"/> is set. Empty removes
@@ -229,7 +304,8 @@ public sealed class RichTooltip : Flyout
         root.Children.Add(_contentPanel);
         root.Children.Add(_actionsPresenter);
 
-        var presenter = new FlyoutPresenter { Content = root };
+        var presenter = new MaterialRichTooltipPresenter { Content = root };
+        presenter[!MaterialRichTooltipPresenter.ShowCaretProperty] = this[!ShowCaretProperty];
         _presenter = presenter;
         AutomationProperties.SetControlTypeOverride(presenter, AutomationControlType.Pane);
         presenter.AddHandler(InputElement.KeyDownEvent, OnPresenterKeyDown, RoutingStrategies.Tunnel);
@@ -241,6 +317,7 @@ public sealed class RichTooltip : Flyout
 
     protected override void OnOpening(CancelEventArgs args)
     {
+        CancelExit();
         _target = Target;
         if (FlyoutPresenterTheme is null && _target is { } resourceHost &&
             resourceHost.TryFindResource(PresenterThemeKey, out var value) && value is ControlTheme theme)
@@ -249,6 +326,12 @@ public sealed class RichTooltip : Flyout
         base.OnOpening(args);
         if (args.Cancel) return;
 
+        // Source TooltipBox: only an actionable tooltip takes focus and traps Tab; a tooltip
+        // without actions must never steal focus from the owning control.
+        var actionable = _actionsPresenter?.IsVisible == true;
+        ShowMode = actionable ? FlyoutShowMode.Standard : FlyoutShowMode.Transient;
+        if (_presenter is not null)
+            _presenter.Focusable = actionable;
         if (_target is { } target)
         {
             _previousFocus = TopLevel.GetTopLevel(target)?.FocusManager?.GetFocusedElement() ?? target;
@@ -257,6 +340,13 @@ public sealed class RichTooltip : Flyout
             target.AddHandler(InputElement.KeyDownEvent, OnPresenterKeyDown, RoutingStrategies.Tunnel);
             target.DetachedFromVisualTree -= OnTargetDetached;
             target.DetachedFromVisualTree += OnTargetDetached;
+            target.PointerEntered -= OnTargetPointerEntered;
+            target.PointerEntered += OnTargetPointerEntered;
+        }
+        if (_presenter is { } presenter)
+        {
+            presenter.Anchor = _target;
+            presenter.Placement = Placement;
         }
         PrepareEntrance();
     }
@@ -265,10 +355,15 @@ public sealed class RichTooltip : Flyout
     {
         base.OnOpened();
         StartEntrance();
+        // OnOpened is the authoritative "now visible" point for the source duration.
+        StopDurationTimer();
+        if (!EffectiveIsPersistent)
+            SyncDurationTimer();
     }
 
     protected override bool HideCore(bool canCancel = true)
     {
+        StopDurationTimer();
         // Capture containment before the popup is removed from its visual tree. A light
         // dismiss must not steal focus from a different control the user has just chosen.
         var focus = Target is { } target
@@ -276,27 +371,110 @@ public sealed class RichTooltip : Flyout
             : null;
         _restoreFocus |= focus is Visual visual && Popup.Child is { } child &&
                          (visual == child || child.IsVisualAncestorOf(visual));
-        return base.HideCore(canCancel);
+
+        if (_exiting)
+            return true;
+
+        if (_skipExit || _presenter is not { } presenter || MaterialMotion.GetIsReduced(presenter) ||
+            !presenter.IsAttachedToVisualTree())
+        {
+            StopExit();
+            return base.HideCore(canCancel);
+        }
+
+        // Source TooltipBox close: scale 1 → 0.8 (FastSpatial) and alpha 1 → 0 (FastEffects).
+        // The popup stays open for the duration of the springs, so the hide is deferred until they
+        // settle; it is made non-hit-testable immediately so the closing tooltip cannot take a
+        // click that belongs to the application.
+        _exiting = true;
+        var currentScale = _scale?.ScaleX ?? 1;
+        var currentOpacity = presenter.Opacity;
+        StopEntrance(keepVisualState: true);
+        presenter.IsHitTestVisible = false;
+
+        _exitScale = new ScaleTransform(currentScale, currentScale);
+        presenter.RenderTransform = _exitScale;
+        presenter.RenderTransformOrigin = RelativePoint.Center;
+        _exitOpacityAnimation = MaterialMotion.Animate(presenter, currentOpacity, 0,
+            value => presenter.Opacity = value, MaterialSpring.EffectsFast);
+        _exitScaleAnimation = MaterialMotion.Animate(presenter, currentScale, 0.8, value =>
+        {
+            if (_exitScale is { } scale)
+            {
+                scale.ScaleX = value;
+                scale.ScaleY = value;
+            }
+        }, MaterialSpring.SpatialFast);
+
+        _exitTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) =>
+        {
+            if (_exitOpacityAnimation is { IsRunning: true } || _exitScaleAnimation is { IsRunning: true })
+                return;
+            _exitTimer?.Stop();
+            _exitTimer = null;
+            if (!_exiting) return;
+            _exiting = false;
+            StopExit();
+            base.HideCore(canCancel);
+        });
+        _exitTimer.Start();
+        return true;
     }
 
     protected override void OnClosed()
     {
+        StopDurationTimer();
         var previous = _previousFocus;
         var restore = _restoreFocus;
         if (_keyboardOwner is { } owner)
         {
             owner.RemoveHandler(InputElement.KeyDownEvent, OnPresenterKeyDown);
             owner.DetachedFromVisualTree -= OnTargetDetached;
+            owner.PointerEntered -= OnTargetPointerEntered;
         }
         _keyboardOwner = null;
         _target = null;
         _previousFocus = null;
         _restoreFocus = false;
+        _exiting = false;
+        if (_presenter is { } presenter) presenter.Anchor = null;
+        StopExit();
         StopEntrance();
         base.OnClosed();
         if (restore && previous is Control { IsEffectivelyEnabled: true, IsVisible: true } control &&
             control.IsAttachedToVisualTree())
             control.Focus(NavigationMethod.Unspecified);
+    }
+
+    /// <summary>
+    /// Re-entering the owner during the exit retargets the running springs to the visible state.
+    /// The springs preserve their velocity, so the tooltip reverses without snapping.
+    /// </summary>
+    private void OnTargetPointerEntered(object? sender, PointerEventArgs args)
+    {
+        if (!_exiting)
+            return;
+
+        _exitTimer?.Stop();
+        _exitTimer = null;
+        _exiting = false;
+        if (_presenter is { } presenter)
+            presenter.IsHitTestVisible = true;
+
+        // Ownership of the running springs transfers back to the entrance pair: retargeting keeps
+        // their current position and velocity, so the tooltip reverses without a snap.
+        _exitOpacityAnimation?.Retarget(1);
+        _exitScaleAnimation?.Retarget(1);
+        _opacityAnimation = _exitOpacityAnimation;
+        _scaleAnimation = _exitScaleAnimation;
+        _scale = _exitScale;
+        _exitOpacityAnimation = null;
+        _exitScaleAnimation = null;
+        _exitScale = null;
+
+        // The tooltip is visible again: a non-persistent one gets a fresh source duration instead
+        // of staying on screen without a dismissal path.
+        SyncDurationTimer();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -344,9 +522,9 @@ public sealed class RichTooltip : Flyout
             Content = text,
             Command = command,
             CommandParameter = parameter,
-            // Source actions are 40 px high with 16/10 padding inside a full-radius container.
-            MinHeight = 40,
-            Padding = new Thickness(16, 10),
+            // Tooltip.kt ActionLabelMinHeight = 36; the text button supplies a 20 px label.
+            MinHeight = 36,
+            Padding = new Thickness(16, 8),
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
         };
         // The Text variant supplies the primary label color and transparent container; the
@@ -377,10 +555,27 @@ public sealed class RichTooltip : Flyout
             _actionsPresenter.Content = BuildDefaultActions();
             _actionsPresenter.ContentTemplate = null;
         }
-        _actionsPresenter.IsVisible = ShowActions && _actionsPresenter.Content is not null;
+        _actionsPresenter.IsVisible = HasActions();
         UpdateContentLayout();
+        // Action content decides the default persistence, so an open tooltip re-evaluates the
+        // source duration instead of closing a tooltip that just became actionable.
+        SyncDurationTimer();
         if (_actionsPresenter.IsAttachedToVisualTree())
             Dispatcher.UIThread.Post(ApplyActionStyling, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>
+    /// Whether the tooltip offers actionable content, using the same rule
+    /// <see cref="UpdateActions"/> applies to the action presenter.
+    /// </summary>
+    private bool HasActions()
+    {
+        if (!ShowActions)
+            return false;
+        if (Actions is not null)
+            return true;
+        return !string.IsNullOrEmpty(PrimaryActionText) ||
+               (ShowSecondaryAction && !string.IsNullOrEmpty(SecondaryActionText));
     }
 
     /// <summary>
@@ -425,11 +620,16 @@ public sealed class RichTooltip : Flyout
             return;
 
         var hasActions = _actionsPresenter.IsVisible;
-        _presenter.Padding = new Thickness(0, 0, 0, hasActions ? 8 : 0);
-        _contentPanel.Padding = hasActions ? new Thickness(16, 12, 16, 4) : new Thickness(16, 12, 16, 12);
-        _actionsPresenter.Padding = new Thickness(4, 0, 4, 0);
-
         var hasTitle = !string.IsNullOrWhiteSpace(Title);
+        // Tooltip.kt RichTooltipContent: 16 px horizontal; with a subhead or actions the body ends
+        // 16 px above the container bottom (and the subhead starts 28 px to its first baseline,
+        // ≈12 px box inset), otherwise the text has 4 px vertical padding.
+        _presenter.Padding = new Thickness(0, 0, 0, hasActions ? 8 : 0);
+        _contentPanel.Padding = hasTitle || hasActions
+            ? new Thickness(16, 12, 16, 16)
+            : new Thickness(16, 4, 16, 4);
+        _actionsPresenter.Padding = default;
+
         var body = Content as string;
         AutomationProperties.SetName(_presenter, hasTitle ? Title : body);
         // With no subhead the body already is the name; only add help text when it is distinct.
@@ -450,42 +650,136 @@ public sealed class RichTooltip : Flyout
             _scale = null;
             return;
         }
-        // The popup is not attached yet, so start from the hidden state and animate in OnOpened.
+        // The popup is not attached yet, so start from the closed state and animate in OnOpened.
         _presenter.Opacity = 0;
-        _scale = new ScaleTransform(0.96, 0.96);
-        _presenter.RenderTransform = _scale;
         _presenter.RenderTransformOrigin = RelativePoint.Center;
+        _scale = new ScaleTransform(0.8, 0.8);
+        _presenter.RenderTransform = _scale;
     }
 
-    private void StartEntrance()
+    private void StartEntrance(bool restart = true)
     {
-        if (_presenter is not { } presenter || _scale is not { } scale) return;
-        _opacityAnimation = MaterialMotion.Animate(presenter, 0, 1, value => presenter.Opacity = value,
-            MaterialSpring.EffectsFast);
-        _scaleAnimation = MaterialMotion.Animate(presenter, 0.96, 1, value =>
+        if (_presenter is not { } presenter) return;
+        if (restart && _scale is null)
+            _scale = new ScaleTransform(0.8, 0.8);
+        if (_scale is not { } scale) return;
+        if (restart)
+            presenter.RenderTransform = scale;
+        presenter.RenderTransformOrigin = RelativePoint.Center;
+
+        _opacityAnimation?.Dispose();
+        _scaleAnimation?.Dispose();
+        _opacityAnimation = MaterialMotion.Animate(presenter, presenter.Opacity, 1,
+            value => presenter.Opacity = value, MaterialSpring.EffectsFast);
+        _scaleAnimation = MaterialMotion.Animate(presenter, scale.ScaleX, 1, value =>
         {
             scale.ScaleX = value;
             scale.ScaleY = value;
         }, MaterialSpring.SpatialFast);
     }
 
-    private void StopEntrance()
+    private void StopEntrance(bool keepVisualState = false)
     {
         _opacityAnimation?.Dispose();
         _opacityAnimation = null;
         _scaleAnimation?.Dispose();
         _scaleAnimation = null;
+        if (_presenter is not null && !keepVisualState)
+        {
+            _presenter.Opacity = 1;
+            _presenter.RenderTransform = null;
+            _presenter.IsHitTestVisible = true;
+        }
+        if (!keepVisualState)
+            _scale = null;
+    }
+
+    /// <summary>
+    /// The source duration currently scheduled for a non-persistent tooltip, or
+    /// <see langword="null"/> when the tooltip is persistent or closed.
+    /// </summary>
+    internal TimeSpan? ScheduledDismissalInterval => _durationTimer?.Interval;
+
+    /// <summary>
+    /// Starts, restarts or stops the source duration according to the current persistence.
+    /// </summary>
+    private void SyncDurationTimer()
+    {
+        StopDurationTimer();
+        if (!IsOpen || EffectiveIsPersistent)
+            return;
+
+        // Tooltip.kt TooltipStateImpl.show: a non-persistent tooltip shown without UserInput
+        // priority wraps the show in withTimeout(TooltipDuration). The Flyout lifecycle has no
+        // pointer-enter show, so a non-persistent popup always uses that timed branch.
+        _durationTimer = new DispatcherTimer(
+            TimeSpan.FromMilliseconds(TooltipDurationMilliseconds),
+            DispatcherPriority.Input,
+            (_, _) => DismissAfterDuration());
+        _durationTimer.Start();
+    }
+
+    private void DismissAfterDuration()
+    {
+        StopDurationTimer();
+        if (IsOpen)
+            Hide();
+    }
+
+    private void StopDurationTimer()
+    {
+        if (_durationTimer is null) return;
+        _durationTimer.Stop();
+        _durationTimer = null;
+    }
+
+    /// <summary>Cancels a deferred close when the tooltip is opened again before it settles.</summary>
+    private void CancelExit()
+    {
+        if (!_exiting && _exitTimer is null)
+            return;
+        _exitTimer?.Stop();
+        _exitTimer = null;
+        _exitOpacityAnimation?.Dispose();
+        _exitOpacityAnimation = null;
+        _exitScaleAnimation?.Dispose();
+        _exitScaleAnimation = null;
+        _exiting = false;
+        StopExit();
+    }
+
+    private void StopExit()
+    {
+        _exitTimer?.Stop();
+        _exitTimer = null;
+        _exitOpacityAnimation?.Dispose();
+        _exitOpacityAnimation = null;
+        _exitScaleAnimation?.Dispose();
+        _exitScaleAnimation = null;
+        _exitScale = null;
         if (_presenter is not null)
         {
             _presenter.Opacity = 1;
             _presenter.RenderTransform = null;
+            _presenter.IsHitTestVisible = true;
         }
-        _scale = null;
     }
 
     // Popup light dismissal already closes the flyout when the owning window deactivates
     // (Popup.WindowDeactivated with IsLightDismissEnabled), so no extra window handler is needed.
-    private void OnTargetDetached(object? sender, VisualTreeAttachmentEventArgs args) => Hide();
+    private void OnTargetDetached(object? sender, VisualTreeAttachmentEventArgs args)
+    {
+        // The owner is gone: close immediately instead of leaving a 150 ms exit timer behind.
+        _skipExit = true;
+        try
+        {
+            Hide();
+        }
+        finally
+        {
+            _skipExit = false;
+        }
+    }
 
     private void OnPresenterKeyDown(object? sender, KeyEventArgs e)
     {
@@ -496,4 +790,111 @@ public sealed class RichTooltip : Flyout
             e.Handled = true;
         }
     }
+}
+
+/// <summary>
+/// Presenter used by <see cref="RichTooltip"/>. It draws the optional 16 x 8 caret in the margin
+/// reserved around the rich surface, using the real popup and anchor screen bounds so a flipped or
+/// window-clamped placement still points at the owner.
+/// </summary>
+public sealed class MaterialRichTooltipPresenter : FlyoutPresenter
+{
+    /// <summary>Enables the caret; false is the source <c>caretShape = null</c> default.</summary>
+    public static readonly StyledProperty<bool> ShowCaretProperty =
+        AvaloniaProperty.Register<MaterialRichTooltipPresenter, bool>(nameof(ShowCaret));
+
+    /// <summary>The control the caret points at.</summary>
+    public static readonly StyledProperty<Control?> AnchorProperty =
+        AvaloniaProperty.Register<MaterialRichTooltipPresenter, Control?>(nameof(Anchor));
+
+    /// <summary>The space around the surface reserved for the caret on one edge.</summary>
+    public static readonly StyledProperty<Thickness> SurfaceMarginProperty =
+        AvaloniaProperty.Register<MaterialRichTooltipPresenter, Thickness>(nameof(SurfaceMargin));
+
+    /// <summary>The requested placement, used before the popup has resolved its actual bounds.</summary>
+    public static readonly StyledProperty<PlacementMode> PlacementProperty =
+        AvaloniaProperty.Register<MaterialRichTooltipPresenter, PlacementMode>(nameof(Placement), PlacementMode.Bottom);
+
+    private Control? _surface;
+    private TooltipCaretRenderer? _renderer;
+
+    public bool ShowCaret
+    {
+        get => GetValue(ShowCaretProperty);
+        set => SetValue(ShowCaretProperty, value);
+    }
+
+    public Control? Anchor
+    {
+        get => GetValue(AnchorProperty);
+        set => SetValue(AnchorProperty, value);
+    }
+
+    public Thickness SurfaceMargin
+    {
+        get => GetValue(SurfaceMarginProperty);
+        set => SetValue(SurfaceMarginProperty, value);
+    }
+
+    public PlacementMode Placement
+    {
+        get => GetValue(PlacementProperty);
+        set => SetValue(PlacementProperty, value);
+    }
+
+    /// <inheritdoc />
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        base.OnApplyTemplate(e);
+        _surface = e.NameScope.Find<Control>("PART_Surface");
+        _renderer = e.NameScope.Find<TooltipCaretRenderer>("PART_Caret");
+        if (_renderer is not null) _renderer.Surface = _surface;
+        UpdateCaret();
+    }
+
+    /// <inheritdoc />
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        LayoutUpdated += OnLayoutUpdated;
+    }
+
+    /// <inheritdoc />
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        LayoutUpdated -= OnLayoutUpdated;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == ShowCaretProperty || change.Property == AnchorProperty ||
+            change.Property == PlacementProperty)
+            UpdateCaret();
+    }
+
+    private void OnLayoutUpdated(object? sender, EventArgs e) => UpdateCaret();
+
+    private void UpdateCaret()
+    {
+        if (_renderer is null) return;
+        _renderer.Anchor = Anchor;
+        _renderer.ShowCaret = ShowCaret;
+        _renderer.Placement = Placement;
+        _renderer.Fill = Background;
+        var side = _renderer.ResolveSide() ?? GuessSide(Placement);
+        var margin = ShowCaret ? TooltipCaretRenderer.MarginFor(side) : default;
+        if (SurfaceMargin != margin) SurfaceMargin = margin;
+        _renderer.InvalidateVisual();
+    }
+
+    private static TooltipCaretSide GuessSide(PlacementMode placement) => placement switch
+    {
+        PlacementMode.Top => TooltipCaretSide.Bottom,
+        PlacementMode.Left => TooltipCaretSide.Right,
+        PlacementMode.Right => TooltipCaretSide.Left,
+        _ => TooltipCaretSide.Top,
+    };
 }

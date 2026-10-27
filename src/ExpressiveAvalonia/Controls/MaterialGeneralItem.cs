@@ -22,6 +22,11 @@ namespace ExpressiveAvalonia.Controls;
 /// interactive target: pointer press, Enter/Space activation, focus ring, hover/press state layer
 /// and a selection outline. Assign <see cref="ContentControl.Content"/> to any artwork control
 /// (Image, drawing, another composition).
+/// <para>
+/// This is a library extension from the general-item/carousel design package, not an upstream
+/// Compose Material3 component. It is a composition surface: <see cref="IsSelected"/> is a visual
+/// state only and does not implement or replace any list selection model.
+/// </para>
 /// </remarks>
 public sealed class MaterialGeneralItem : ContentControl
 {
@@ -50,7 +55,7 @@ public sealed class MaterialGeneralItem : ContentControl
         AvaloniaProperty.Register<MaterialGeneralItem, CornerRadius>(nameof(TileCornerRadius), new CornerRadius(16));
 
     private Border? _tile;
-    private Border? _stateLayer;
+    private MaterialRipple? _stateLayer;
     private Border? _focusRing;
     private Border? _selectionRing;
     private Control? _caption;
@@ -99,13 +104,11 @@ public sealed class MaterialGeneralItem : ContentControl
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (_stateLayer is not null) _stateLayer.Opacity = 0.12;
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (_stateLayer is not null) _stateLayer.Opacity = _pointerOver ? 0.08 : 0;
         if (e.InitialPressMouseButton == MouseButton.Left) Invoke();
     }
 
@@ -146,13 +149,15 @@ public sealed class MaterialGeneralItem : ContentControl
         };
         _caption = scrim;
 
-        _stateLayer = new Border
+        _stateLayer = new MaterialRipple
         {
-            Opacity = 0,
-            IsHitTestVisible = false,
-            CornerRadius = TileCornerRadius
+            IsBounded = true,
+            CornerRadius = TileCornerRadius,
+            InteractionTarget = this,
+            IsHitTestVisible = false
         };
-        _stateLayer.Bind(Border.BackgroundProperty, _stateLayer.GetResourceObservable("MaterialOnSurfaceBrush"));
+        _stateLayer.Bind(MaterialRipple.FillProperty,
+            _stateLayer.GetResourceObservable("MaterialOnSurfaceBrush"));
 
         _focusRing = new Border
         {
@@ -227,7 +232,6 @@ public sealed class MaterialGeneralItem : ContentControl
     private void UpdateVisualState(bool? pointerOver = null)
     {
         if (pointerOver is { } value) _pointerOver = value;
-        if (_stateLayer is not null) _stateLayer.Opacity = _pointerOver ? 0.08 : 0;
         if (_focusRing is not null) _focusRing.IsVisible = IsFocused;
         if (_selectionRing is not null) _selectionRing.IsVisible = IsSelected;
     }

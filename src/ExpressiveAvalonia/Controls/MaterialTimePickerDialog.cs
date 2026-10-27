@@ -14,7 +14,7 @@ public sealed class MaterialTimePickerResult
         IsConfirmed = isConfirmed;
     }
 
-    /// <summary>The time when the session ended; unchanged by Cancel.</summary>
+    /// <summary>The confirmed time, or the value captured when a non-confirmed session opened.</summary>
     public TimeSpan Time { get; }
 
     /// <summary>True when the OK action confirmed the session.</summary>
@@ -31,19 +31,32 @@ public sealed class MaterialTimePickerResult
 /// <remarks>
 /// The picker instance is released from the window when the dialog closes so the same control can
 /// be shown again or reused elsewhere. Escape, the platform close gesture and the picker's Cancel
-/// action all produce a non-confirmed result; OK confirms the current time.
+/// action all discard the draft, restore the time and input mode captured at open, and produce a
+/// non-confirmed result; OK confirms the current time.
 /// </remarks>
 public sealed class MaterialTimePickerDialog : Window
 {
     private readonly MaterialTimePicker _picker;
+    private readonly TimeSpan _committedTime;
+    private readonly MaterialTimeInputMode _committedMode;
     private MaterialTimePickerResult? _result;
+    private bool _closed;
 
     public MaterialTimePickerDialog(MaterialTimePicker picker)
     {
         ArgumentNullException.ThrowIfNull(picker);
         _picker = picker;
 
-        Title = picker.EffectiveHeadline ?? string.Empty;
+        // The picker mutates Time while the user turns the dial, as the source state does. The
+        // dialog supplies the commit boundary: a non-confirmed close restores this snapshot.
+        _committedTime = picker.Time;
+        _committedMode = picker.InputMode;
+
+        Title = picker.Variant == MaterialTimePickerVariant.Standard
+            ? picker.EffectiveHeadline ?? string.Empty
+            : string.Empty;
+        MinWidth = 328;
+        MaxWidth = 600;
         WindowDecorations = WindowDecorations.BorderOnly;
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -56,6 +69,15 @@ public sealed class MaterialTimePickerDialog : Window
 
         picker.Confirmed += OnPickerConfirmed;
         picker.Cancelled += OnPickerCancelled;
+        picker.PropertyChanged += OnPickerPropertyChanged;
+    }
+
+    private void OnPickerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == MaterialTimePicker.EffectiveHeadlineProperty)
+            Title = _picker.Variant == MaterialTimePickerVariant.Standard
+                ? _picker.EffectiveHeadline ?? string.Empty
+                : string.Empty;
     }
 
     /// <summary>The hosted picker.</summary>
@@ -93,32 +115,44 @@ public sealed class MaterialTimePickerDialog : Window
             return;
         if (e.Key == Key.Escape)
         {
-            Close(new MaterialTimePickerResult(_picker.Time, false));
+            CancelDialog();
             e.Handled = true;
         }
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        _closed = true;
         _picker.Confirmed -= OnPickerConfirmed;
         _picker.Cancelled -= OnPickerCancelled;
+        _picker.PropertyChanged -= OnPickerPropertyChanged;
+        if (_result is not { IsConfirmed: true })
+        {
+            _picker.Time = _committedTime;
+            _picker.InputMode = _committedMode;
+            // Time may already equal the snapshot while an invalid draft is pending; rebuild the
+            // cells explicitly so a cancelled session never leaves "27" (or empty text) behind.
+            _picker.ResetDrafts();
+        }
         Content = null;
         base.OnClosed(e);
     }
 
+    private void CancelDialog()
+    {
+        if (_closed || _result is not null)
+            return;
+        _result = new MaterialTimePickerResult(_committedTime, isConfirmed: false);
+        Close(_result);
+    }
+
     private void OnPickerConfirmed(object? sender, MaterialTimeConfirmedEventArgs e)
     {
-        if (_result is not null)
+        if (_closed || _result is not null)
             return;
         _result = new MaterialTimePickerResult(e.Time, isConfirmed: true);
         Close(_result);
     }
 
-    private void OnPickerCancelled(object? sender, EventArgs e)
-    {
-        if (_result is not null)
-            return;
-        _result = new MaterialTimePickerResult(_picker.Time, isConfirmed: false);
-        Close(_result);
-    }
+    private void OnPickerCancelled(object? sender, EventArgs e) => CancelDialog();
 }

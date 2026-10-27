@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ExpressiveAvalonia.Theming;
+using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -15,22 +16,13 @@ namespace ExpressiveAvalonia.Controls;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The source scrim is a solid <c>M3/sys/light/scrim</c> fill at 32% opacity. The theme sets
-/// <see cref="Fill"/> to the scrim role and <see cref="ScrimOpacity"/> to 0.32; the control's
-/// own <see cref="Visual.Opacity"/> stays free for the open/close fade, which is driven by the
-/// <c>MaterialDurationMedium2</c> resource. Reduced motion zeroes that duration, so the scrim
-/// appears and disappears without a fade.
-/// </para>
-/// <para>
-/// Interaction follows standard overlay semantics: while <see cref="IsOpen"/> is true the scrim
-/// blocks pointer input, a primary-button release inside it or Escape raises
-/// <see cref="DismissRequested"/>, and the scrim closes itself unless a handler marks the event
-/// handled. Opening moves focus to the scrim when it is focusable so keyboard users can dismiss
-/// it; set <see cref="InputElement.Focusable"/> to false if a host surface owns focus instead.
-/// </para>
-/// <para>
-/// The close fade delays hiding by one duration token. Detaching the control cancels a pending
-/// hide, so a recycled scrim never stays visible after being removed from the tree.
+/// The scrim appears and disappears with the shared default-effects spring (the source's scrim
+/// alpha animation spec in ModalBottomSheet.kt), not a fixed duration. Reduced motion settles the
+/// spring immediately. While <see cref="IsOpen"/> is true the scrim blocks pointer input, a
+/// primary-button release inside it or Escape raises <see cref="DismissRequested"/>, and the
+/// scrim closes itself unless a handler marks the event handled. Opening moves focus to the scrim
+/// when it is focusable so keyboard users can dismiss it; set
+/// <see cref="InputElement.Focusable"/> to false if a host surface owns focus instead.
 /// </para>
 /// </remarks>
 public sealed class MaterialScrim : Control
@@ -58,6 +50,7 @@ public sealed class MaterialScrim : Control
 
     private bool _pressed;
     private int _hideVersion;
+    private MaterialSpringValue? _fade;
 
     /// <summary>Creates a closed scrim. <see cref="IsOpen"/> drives visibility from here on.</summary>
     public MaterialScrim()
@@ -200,12 +193,16 @@ public sealed class MaterialScrim : Control
         // scrim must not flash over its host.
         if (IsOpen)
         {
+            EnsureFade();
+            _fade!.JumpTo(1);
             if (Focusable)
                 Focus();
             return;
         }
 
         _hideVersion++;
+        _fade?.Dispose();
+        _fade = null;
         IsVisible = false;
         Opacity = 0;
     }
@@ -217,32 +214,19 @@ public sealed class MaterialScrim : Control
         // Invalidate any pending hide so a recycled scrim does not get hidden later.
         _hideVersion++;
         _pressed = false;
+        _fade?.Dispose();
+        _fade = null;
     }
 
     private void UpdateOpenState(bool open)
     {
         _hideVersion++;
+        EnsureFade();
+
         if (open)
         {
             IsVisible = true;
-            if (MaterialMotion.GetIsReduced(this))
-            {
-                Opacity = 1;
-            }
-            else
-            {
-                // Establish the start value in this frame, then fade in on the next render pass
-                // so the opacity transition has a real 0 -> 1 change to animate.
-                Opacity = 0;
-                Dispatcher.UIThread.Post(
-                    () =>
-                    {
-                        if (IsOpen)
-                            Opacity = 1;
-                    },
-                    DispatcherPriority.Render);
-            }
-
+            _fade!.AnimateTo(1, MaterialSpring.EffectsDefault, null, 0.01);
             if (Focusable && this.IsAttachedToVisualTree())
                 Focus();
             return;
@@ -251,30 +235,16 @@ public sealed class MaterialScrim : Control
         if (!IsVisible)
             return;
 
-        Opacity = 0;
-        if (MaterialMotion.GetIsReduced(this))
-        {
-            IsVisible = false;
-            return;
-        }
-
-        var delay = this.TryFindResource("MaterialDurationMedium2", out var value) && value is TimeSpan span
-            ? span
-            : TimeSpan.FromMilliseconds(300);
-        if (delay <= TimeSpan.Zero)
-        {
-            IsVisible = false;
-            return;
-        }
-
         var version = _hideVersion;
-        DispatcherTimer.RunOnce(
-            () =>
-            {
-                if (version == _hideVersion && !IsOpen)
-                    IsVisible = false;
-            },
-            delay,
-            DispatcherPriority.Background);
+        _fade!.AnimateTo(0, MaterialSpring.EffectsDefault, () =>
+        {
+            if (version == _hideVersion && !IsOpen)
+                IsVisible = false;
+        }, 0.01);
+    }
+
+    private void EnsureFade()
+    {
+        _fade ??= new MaterialSpringValue(this, Opacity, value => Opacity = Math.Clamp(value, 0, 1));
     }
 }

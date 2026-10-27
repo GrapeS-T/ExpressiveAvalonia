@@ -1,32 +1,68 @@
+using System;
 using System.Collections;
+using System.Collections.Specialized;
 using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Avalonia.Data;
+using ExpressiveAvalonia.Controls;
+using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Theming;
 
 /// <summary>Material list anatomy on native Avalonia list item containers.</summary>
 /// <remarks>
-/// <para>The three source densities are exposed by <see cref="DensityProperty"/> as the source
-/// values 0, -2 and -4. The 0 baseline uses 56/72/88 minimum heights with 8 DIP vertical
-/// padding, -2 uses 48/64/80 with 4 DIP and -4 uses 40/56/72 with no vertical padding; the
-/// extra fourth line adds one 16 DIP line in every density.</para>
-/// <para>Content and ContentTemplate remain the headline when <see cref="HeadlineProperty"/> is
-/// not set. Use two lines for a headline and supporting text, or three for two supporting lines.
+/// <para>
+/// Geometry, typography, colors and interaction shape for the interactive
+/// <c>ListItem</c> family: 16 DIP start/end padding, 12 DIP between the leading and trailing
+/// slots and the text block, 12 DIP top/bottom padding for precision pointers, 56/72/88 DIP
+/// one/two/three-line minimum heights, corner-extra-small at rest, corner-medium on hover and
+/// corner-large when selected/focused/pressed/dragged, surface container with on-surface content,
+/// secondary-container/on-secondary-container when selected and
+/// tertiary-container/on-tertiary-container while dragged.
+/// </para>
+/// <para>
+/// <see cref="LineCountProperty"/> is an explicit 1/2/3 override. Zero (the default) derives
+/// the line count from the presence of the overline and supporting slots plus the measured
+/// supporting text, exactly like <c>ListItemType.invoke</c>: both slots or a multiline
+/// supporting body is three-line, either one is two-line, neither is one-line. Upstream decides
+/// "multiline" from the measured text bounding box
+/// (<c>supportingPlaceable[FirstBaseline] != supportingPlaceable[LastBaseline]</c>), so the
+/// derivation reads the supporting <c>TextBlock</c>'s native Avalonia
+/// <c>TextLayout.TextLines.Count</c> after each layout and re-derives the classes when it
+/// changes; an explicit <see cref="LineCountProperty"/> stays authoritative and suppresses the
+/// measurement. The derivation is mirrored onto the
+/// <c>md-list-1line</c>, <c>md-list-2line</c> and <c>md-list-3line</c> style classes used by the
+/// item theme.
+/// </para>
+/// <para>
+/// Content and ContentTemplate remain the headline when <see cref="HeadlineProperty"/> is not
+/// set, so a custom ContentTemplate is never replaced by a generated array of controls.
 /// <see cref="LeadingContentProperty"/> and <see cref="TrailingContentProperty"/> accept icons,
 /// avatars, images, video thumbnails, icon buttons and selection controls; the built-in
 /// <see cref="LeadingImageProperty"/>, <see cref="LeadingMonogramTextProperty"/> and
 /// <see cref="LeadingIndentProperty"/> cover the source Image, Monogram and Indent building
-/// blocks without a nested control.</para>
+/// blocks. Badge, monogram, image/video slots, indent, dividers, expansion and pointer reordering
+/// are library extensions, not upstream Compose ListItem API.
+/// </para>
 /// <para><see cref="ExpandedContentProperty"/> turns the item into the source Expandable /
-/// List item - Accordion anatomy: a trailing accordion button toggles a body that is revealed
+/// List item - Accordion extension: a trailing accordion button toggles a body that is revealed
 /// with the Material medium-2 duration token, which is zero under reduced motion.</para>
+/// <para>
+/// <see cref="SegmentedProperty"/> mirrors <c>ListItemDefaults.segmentedShapes</c> for the
+/// segmented list extension: the first row takes the container top corners, the last row the
+/// bottom corners, and a single row all four, while middle rows keep the extra-small rest shape.
+/// MaterialList re-derives <c>md-list-first</c>/<c>md-list-last</c>/<c>md-list-single</c> from the
+/// live item index and count, and the interaction corner morph runs on the Material
+/// <see cref="MaterialSpring.SpatialFast"/> spring (MaterialCornerRadiusTransition), retargeting
+/// with the current velocity when the interaction state changes mid-morph.
+/// </para>
 /// <para><see cref="AllowItemDragProperty"/> opts a ListBox into pointer reordering and raises
 /// <see cref="ItemMovedEvent"/> after the source list has been updated.</para>
 /// </remarks>
@@ -86,15 +122,10 @@ public sealed class MaterialList : AvaloniaObject
         AvaloniaProperty.RegisterAttached<MaterialList, Control, double>("LeadingIndent",
             validate: static value => double.IsFinite(value) && value >= 0);
 
-    /// <summary>The one-, two- or three-line layout, with 0-density minimum heights of 56, 72 and 88.</summary>
+    /// <summary>Explicit line count override. Zero (the default) derives it from the slots.</summary>
     public static readonly AttachedProperty<int> LineCountProperty =
-        AvaloniaProperty.RegisterAttached<MaterialList, Control, int>("LineCount", 1,
-            validate: static value => value is >= 1 and <= 3);
-
-    /// <summary>Source density: 0 baseline, -2 or -4.</summary>
-    public static readonly AttachedProperty<int> DensityProperty =
-        AvaloniaProperty.RegisterAttached<MaterialList, Control, int>("Density", 0,
-            validate: static value => value is 0 or -2 or -4);
+        AvaloniaProperty.RegisterAttached<MaterialList, Control, int>("LineCount", 0,
+            validate: static value => value is >= 0 and <= 3);
 
     /// <summary>Draws the inset 1 DIP divider below this item.</summary>
     public static readonly AttachedProperty<bool> ShowDividerProperty =
@@ -141,6 +172,69 @@ public sealed class MaterialList : AvaloniaObject
         });
         AllowItemDragProperty.Changed.AddClassHandler<Control>((control, change) =>
             OnAllowItemDragChanged(control, change.GetNewValue<bool>()));
+        OverlineProperty.Changed.AddClassHandler<Control>(static (control, _) => UpdateLineClasses(control));
+        SupportingTextProperty.Changed.AddClassHandler<Control>(static (control, _) => UpdateLineClasses(control));
+        LineCountProperty.Changed.AddClassHandler<Control>(static (control, _) =>
+        {
+            UpdateLineClasses(control);
+            // Clearing an explicit count hands the derivation back to the measured text, which
+            // the probe may have skipped while the override was in force.
+            if (SupportingLineProbes.TryGetValue(control, out var probe))
+                probe.Refresh();
+        });
+        SegmentedProperty.Changed.AddClassHandler<Control>(static (control, change) =>
+            OnSegmentedChanged(control, change.GetNewValue<bool>()));
+        // ListItemDefaults.segmentedShapes depends on the item's index and the list count, which
+        // both change at runtime (insert/remove/reorder), so the item classes are derived from the
+        // live containers rather than from a one-shot template state.
+        TemplatedControl.CornerRadiusProperty.Changed.AddClassHandler<ListBoxItem>(static (item, change) =>
+            OnItemCornerRadiusChanged(item, change.GetNewValue<CornerRadius>()));
+        TemplatedControl.TemplateAppliedEvent.AddClassHandler<ListBoxItem>(static (item, e) =>
+            AttachItemShapeMotion(item, e));
+        TemplatedControl.TemplateAppliedEvent.AddClassHandler<ListBoxItem>(static (item, e) =>
+            AttachSupportingLineProbe(item, e));
+        // A recycled row that leaves and re-enters the tree loses its motion with the visual tree;
+        // rebuild it from the current target so no style change is missed after reattachment.
+        Control.LoadedEvent.AddClassHandler<ListBoxItem>(static (item, _) => EnsureItemShapeMotion(item));
+        Control.LoadedEvent.AddClassHandler<ListBoxItem>(static (item, _) => EnsureSupportingLineProbe(item));
+        Control.LoadedEvent.AddClassHandler<ListBox>(static (list, _) => OnListLoaded(list));
+    }
+
+    /// <summary>
+    /// Mirrors <c>ListItemType.invoke</c> onto style classes. Three-line layouts are top-aligned
+    /// and use the 12 DIP three-line padding; the theme rows read these classes so no screenshot
+    /// constant is baked into the control.
+    /// </summary>
+    private static void UpdateLineClasses(Control control)
+    {
+        var explicitLines = GetLineCount(control);
+        var lines = explicitLines switch
+        {
+            1 or 2 or 3 => explicitLines,
+            _ => DeriveLineCount(control),
+        };
+
+        control.Classes.Set("md-list-1line", lines == 1);
+        control.Classes.Set("md-list-2line", lines == 2);
+        control.Classes.Set("md-list-3line", lines == 3);
+        control.Classes.Set("md-list-overline", !string.IsNullOrEmpty(GetOverline(control)));
+        control.Classes.Set("md-list-supporting", !string.IsNullOrEmpty(GetSupportingText(control)));
+    }
+
+    private static int DeriveLineCount(Control control)
+    {
+        var hasOverline = !string.IsNullOrEmpty(GetOverline(control));
+        var supporting = GetSupportingText(control);
+        var hasSupporting = !string.IsNullOrEmpty(supporting);
+        // ListItem.kt treats a supporting slot as multiline when its measured text occupies more
+        // than one line (FirstBaseline != LastBaseline); an explicit newline is the same case
+        // before the first layout pass has measured the text.
+        var multiline = hasSupporting &&
+            ((SupportingLineProbes.TryGetValue(control, out var probe) && probe.IsMultiline) ||
+             supporting!.Contains('\n', StringComparison.Ordinal));
+        if ((hasOverline && hasSupporting) || multiline)
+            return 3;
+        return hasOverline || hasSupporting ? 2 : 1;
     }
     public static string? GetHeadline(Control item) => item.GetValue(HeadlineProperty);
     public static void SetHeadline(Control item, string? value) => item.SetValue(HeadlineProperty, value);
@@ -172,8 +266,6 @@ public sealed class MaterialList : AvaloniaObject
     public static void SetLeadingIndent(Control item, double value) => item.SetValue(LeadingIndentProperty, value);
     public static int GetLineCount(Control item) => item.GetValue(LineCountProperty);
     public static void SetLineCount(Control item, int value) => item.SetValue(LineCountProperty, value);
-    public static int GetDensity(Control item) => item.GetValue(DensityProperty);
-    public static void SetDensity(Control item, int value) => item.SetValue(DensityProperty, value);
     public static bool GetShowDivider(Control item) => item.GetValue(ShowDividerProperty);
     public static void SetShowDivider(Control item, bool value) => item.SetValue(ShowDividerProperty, value);
     public static bool GetShowDividers(Control item) => item.GetValue(ShowDividersProperty);
@@ -192,6 +284,308 @@ public sealed class MaterialList : AvaloniaObject
         control.AddHandler(ItemMovedEvent, handler);
     public static void RemoveItemMovedHandler(Control control, EventHandler<MaterialListItemMovedEventArgs> handler) =>
         control.RemoveHandler(ItemMovedEvent, handler);
+
+    private static readonly ConditionalWeakTable<ListBoxItem, ItemShapeMotion> ItemShapeMotions = new();
+    private static readonly ConditionalWeakTable<Control, SupportingLineProbe> SupportingLineProbes = new();
+    private static readonly ConditionalWeakTable<ListBox, SegmentedRows> SegmentedRowTrackers = new();
+
+    /// <summary>
+    /// Replaces the timed CornerRadius transition with the source FastSpatial shape spring
+    /// (<c>ListItem.kt</c>: <c>shapeAnimationSpec = MotionSchemeKeyTokens.FastSpatial</c>). The
+    /// state styles keep publishing <see cref="TemplatedControl.CornerRadiusProperty"/>; this
+    /// motion renders that target on the clipped surface and the ripple layer, so a rapid
+    /// press/release/select sequence retargets the running corners with their current velocity.
+    /// </summary>
+    private static void AttachItemShapeMotion(ListBoxItem item, TemplateAppliedEventArgs e)
+    {
+        if (ItemShapeMotions.TryGetValue(item, out var previous))
+        {
+            previous.Dispose();
+            // Dispose removes the entry, but be explicit so a retemplate can never hit a
+            // duplicate-key CWT Add after a partially disposed instance.
+            ItemShapeMotions.Remove(item);
+        }
+        var surface = e.NameScope.Find<Border>("PART_SwipeContent");
+        if (surface is null)
+            return;
+        var layer = e.NameScope.Find<MaterialRipple>("StateLayer");
+        ItemShapeMotions.Remove(item);
+        ItemShapeMotions.Add(item, new ItemShapeMotion(item, surface, layer));
+    }
+
+    private static void EnsureItemShapeMotion(ListBoxItem item)
+    {
+        if (ItemShapeMotions.TryGetValue(item, out _))
+            return;
+        var surface = item.GetVisualDescendants().OfType<Border>()
+            .FirstOrDefault(visual => visual.Name == "PART_SwipeContent");
+        if (surface is null)
+            return;
+        var layer = item.GetVisualDescendants().OfType<MaterialRipple>()
+            .FirstOrDefault(visual => visual.Name == "StateLayer");
+        ItemShapeMotions.Add(item, new ItemShapeMotion(item, surface, layer));
+    }
+
+    private static void OnItemCornerRadiusChanged(ListBoxItem item, CornerRadius target)
+    {
+        if (ItemShapeMotions.TryGetValue(item, out var motion))
+            motion.Set(target);
+    }
+
+    private static void AttachSupportingLineProbe(ListBoxItem item, TemplateAppliedEventArgs e)
+    {
+        if (SupportingLineProbes.TryGetValue(item, out var previous))
+        {
+            previous.Dispose();
+            SupportingLineProbes.Remove(item);
+        }
+        if (e.NameScope.Find<TextBlock>("SupportingText") is not { } text)
+            return;
+        // The measured lines of a recycled row must seed the anatomy of the new data, so the
+        // classes are re-derived as soon as the probe has a value.
+        SupportingLineProbes.Add(item, new SupportingLineProbe(item, text));
+    }
+
+    private static void EnsureSupportingLineProbe(ListBoxItem item)
+    {
+        if (SupportingLineProbes.TryGetValue(item, out _))
+            return;
+        var text = item.GetVisualDescendants().OfType<TextBlock>()
+            .FirstOrDefault(visual => visual.Name == "SupportingText");
+        if (text is null)
+            return;
+        SupportingLineProbes.Add(item, new SupportingLineProbe(item, text));
+    }
+
+    /// <summary>
+    /// Source <c>ListItem.kt</c> classifies the supporting slot from the measured text
+    /// (<c>supportingPlaceable[FirstBaseline] != supportingPlaceable[LastBaseline]</c>), which only
+    /// exists after the text has been laid out. The probe reads the native
+    /// <c>TextLayout.TextLines</c> of the supporting <c>TextBlock</c> and re-derives the item's
+    /// line classes whenever the wrapped line count changes. An explicit
+    /// <see cref="LineCountProperty"/> stays authoritative.
+    /// </summary>
+    private sealed class SupportingLineProbe : IDisposable
+    {
+        private readonly Control _item;
+        private readonly TextBlock _text;
+        private bool _disposed;
+
+        public SupportingLineProbe(Control item, TextBlock text)
+        {
+            _item = item;
+            _text = text;
+            // SizeChanged is the layout result of both a text change and a width change: a
+            // different wrap count always changes the arranged height of the text block.
+            text.SizeChanged += OnTextSizeChanged;
+            item.DetachedFromVisualTree += OnDetached;
+            Refresh();
+        }
+
+        /// <summary>Gets whether the supporting text currently occupies more than one line.</summary>
+        public bool IsMultiline { get; private set; }
+
+        private void OnTextSizeChanged(object? sender, SizeChangedEventArgs e) => Refresh();
+
+        internal void Refresh()
+        {
+            if (_disposed)
+                return;
+            // An explicit line count is authoritative, so the measurement is never read then.
+            if (GetLineCount(_item) is 1 or 2 or 3)
+                return;
+            var multiline = _text.IsVisible &&
+                _text.TextLayout.TextLines.Count > 1;
+            if (multiline == IsMultiline)
+                return;
+            IsMultiline = multiline;
+            UpdateLineClasses(_item);
+        }
+
+        private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e) => Dispose();
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            _text.SizeChanged -= OnTextSizeChanged;
+            _item.DetachedFromVisualTree -= OnDetached;
+            SupportingLineProbes.Remove(_item);
+        }
+    }
+
+    private sealed class ItemShapeMotion : IDisposable
+    {
+        private readonly ListBoxItem _item;
+        private readonly Border _surface;
+        private readonly MaterialRipple? _layer;
+        private readonly MaterialCornerRadiusTransition _corners;
+        private bool _disposed;
+        private bool _initialized;
+
+        public ItemShapeMotion(ListBoxItem item, Border surface, MaterialRipple? layer)
+        {
+            _item = item;
+            _surface = surface;
+            _layer = layer;
+            _corners = new MaterialCornerRadiusTransition(item, item.CornerRadius, Apply,
+                MaterialSpring.SpatialFast);
+            item.DetachedFromVisualTree += OnDetached;
+            // Segment classes and the initial pseudo-classes resolve during the first layout;
+            // those structural shapes must appear at their target. Interactions after the loaded
+            // pass morph with FastSpatial like the source animatable.
+            Dispatcher.UIThread.Post(() => _initialized = !_disposed, DispatcherPriority.Loaded);
+        }
+
+        public void Set(CornerRadius target) =>
+            _corners.Set(target, _initialized, MaterialSpring.SpatialFast);
+
+        private void Apply(CornerRadius value)
+        {
+            _surface.SetCurrentValue(Border.CornerRadiusProperty, value);
+            _layer?.SetCurrentValue(MaterialRipple.CornerRadiusProperty, value);
+        }
+
+        private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e) => Dispose();
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            _item.DetachedFromVisualTree -= OnDetached;
+            _corners.Dispose();
+            ItemShapeMotions.Remove(_item);
+        }
+    }
+
+    private static void OnSegmentedChanged(Control control, bool enabled)
+    {
+        if (control is not ListBox list)
+            return;
+        if (enabled)
+        {
+            EnsureSegmentedRows(list);
+            return;
+        }
+        if (SegmentedRowTrackers.TryGetValue(list, out var tracker))
+            tracker.Dispose();
+        foreach (var container in list.GetRealizedContainers())
+            ClearSegmentClasses(container);
+    }
+
+    private static void OnListLoaded(ListBox list)
+    {
+        // Realization and recycling can happen before or after the Segmented flag; re-derive the
+        // first/last/single classes from the live containers on every load.
+        if (GetSegmented(list))
+            EnsureSegmentedRows(list);
+    }
+
+    private static void EnsureSegmentedRows(ListBox list)
+    {
+        if (!SegmentedRowTrackers.TryGetValue(list, out _))
+            SegmentedRowTrackers.Add(list, new SegmentedRows(list));
+        UpdateSegmentClasses(list);
+    }
+
+    /// <summary>
+    /// Mirrors <c>ListItemDefaults.segmentedShapes</c> (outer rest corners from
+    /// <c>ListTokens.ContainerShape</c> = corner-large on the first/last/single row). The middle
+    /// rows keep the source extra-small rest shape; interaction shapes are still applied by the
+    /// theme, so pressed/selected keep corner-large on every corner.
+    /// </summary>
+    private static void UpdateSegmentClasses(ListBox list)
+    {
+        foreach (var container in list.GetRealizedContainers())
+        {
+            if (container is not Control item)
+                continue;
+            UpdateSegmentClass(list, item, list.IndexFromContainer(item));
+        }
+    }
+
+    private static void UpdateSegmentClass(ListBox list, Control item, int index)
+    {
+        var count = list.ItemCount;
+        if (!GetSegmented(list) || count == 0 || index < 0)
+        {
+            ClearSegmentClasses(item);
+            return;
+        }
+
+        var single = count == 1;
+        item.Classes.Set("md-list-single", single);
+        item.Classes.Set("md-list-first", !single && index == 0);
+        item.Classes.Set("md-list-last", !single && index == count - 1);
+        item.Classes.Set("md-list-middle", !single && index > 0 && index < count - 1);
+    }
+
+    private static void ClearSegmentClasses(Control item)
+    {
+        item.Classes.Set("md-list-first", false);
+        item.Classes.Set("md-list-last", false);
+        item.Classes.Set("md-list-single", false);
+        item.Classes.Set("md-list-middle", false);
+    }
+
+    /// <summary>Tracks one segmented ListBox: container realization plus live count changes.</summary>
+    private sealed class SegmentedRows : IDisposable
+    {
+        private readonly ListBox _list;
+        private ItemsSourceView? _items;
+        private bool _disposed;
+
+        public SegmentedRows(ListBox list)
+        {
+            _list = list;
+            list.ContainerPrepared += OnContainerPrepared;
+            list.DetachedFromVisualTree += OnDetached;
+            AttachItems();
+        }
+
+        private void AttachItems()
+        {
+            var items = _list.ItemsView;
+            if (ReferenceEquals(items, _items))
+                return;
+            if (_items is not null)
+                _items.CollectionChanged -= OnItemsChanged;
+            _items = items;
+            if (_items is not null)
+                _items.CollectionChanged += OnItemsChanged;
+        }
+
+        private void OnContainerPrepared(object? sender, ContainerPreparedEventArgs e)
+        {
+            if (e.Container is Control container)
+                UpdateSegmentClass(_list, container, e.Index);
+        }
+
+        private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            AttachItems();
+            UpdateSegmentClasses(_list);
+        }
+
+        private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e) => Dispose();
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            _list.ContainerPrepared -= OnContainerPrepared;
+            _list.DetachedFromVisualTree -= OnDetached;
+            if (_items is not null)
+            {
+                _items.CollectionChanged -= OnItemsChanged;
+                _items = null;
+            }
+            SegmentedRowTrackers.Remove(_list);
+        }
+    }
 
     private static void OnExpansionChanged(Control control, bool expanded)
     {

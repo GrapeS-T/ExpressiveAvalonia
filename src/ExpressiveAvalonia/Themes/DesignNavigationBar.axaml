@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls">
+                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls"
+                    xmlns:theming="clr-namespace:ExpressiveAvalonia.Theming">
   <!-- Material 3 navigation bar and badges.
        Geometry follows the assigned source packages:
        Navigation Bar: Horizontal items (local-004370), Navigation Bar: Vertical items (local-004375),
@@ -9,7 +10,16 @@
        Bar: 64 high, surface-container background, destinations share the width equally.
        Horizontal item: 40 high full-radius pill, 16/8 padding, 4 gap, 24 icon, 12/16 label.
        Vertical item: 56x32 icon pill (16 radius), 4 gap, 12/16 centered label, 6/6 vertical padding.
-       Badge: 6x6 dot, or 16 high pill with 4/0 padding and an 11/16 label. -->
+       Badge: 6x6 dot, or 16 high pill with 4/0 padding and an 11/16 label.
+
+       Item geometry and motion live in MaterialNavigationItemLayout: the item control drives the
+       indicator size/alpha, the alwaysShowLabel icon shift and the icon crossfade from
+       frame-based Material springs, so this theme only supplies brushes, typography and states.
+       Content tint and the indicator ripple are owned by the item control: NavigationBar.kt
+       185-208 animates icon/label with animateColorAsState(DefaultEffects) independently of the
+       indicator, and the indicator Box clip/indication pair (NavigationBar.kt 247-292) is the
+       shared MaterialRipple child at indicator bounds. Theme styles therefore no longer set part
+       fills/foregrounds or finite brush transitions. -->
   <x:String x:Key="MaterialNavigationBarName">Navigation bar</x:String>
   <x:String x:Key="MaterialNavigationBarBadgeHelpText">{0} new items</x:String>
   <x:String x:Key="MaterialNavigationBarBadgeDotText">New items</x:String>
@@ -50,103 +60,60 @@
     </Style>
   </ControlTheme>
 
-  <!-- Horizontal destination: the icon and label share a 40 high pill; the badge overlays the icon. -->
-  <ControlTemplate x:Key="MaterialNavigationBarItemHorizontalTemplate" TargetType="controls:MaterialNavigationBarItem">
-    <Panel Name="PART_ItemRoot" Background="Transparent">
-      <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-        <Border Name="PART_Pill" MinHeight="40" CornerRadius="20" Background="Transparent">
-          <Panel>
-            <Border Name="PART_Indicator" CornerRadius="20"
-                    Background="{DynamicResource MaterialSecondaryContainerBrush}" />
-            <Border Name="PART_StateLayer" CornerRadius="20"
-                    Background="{DynamicResource MaterialOnSurfaceBrush}" Opacity="0" />
-            <StackPanel Orientation="Horizontal" Spacing="4" Margin="16,8" VerticalAlignment="Center">
-              <Grid Name="PART_IconHost" Width="24" Height="24" VerticalAlignment="Center">
-                <Path Name="PART_Icon" Data="{TemplateBinding Icon}" Width="20" Height="20" Stretch="Uniform"
-                      Fill="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                      HorizontalAlignment="Center" VerticalAlignment="Center" />
-                <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Width="20" Height="20"
-                      Stretch="Uniform" Fill="{DynamicResource MaterialOnSecondaryContainerBrush}"
-                      HorizontalAlignment="Center" VerticalAlignment="Center" />
-                <controls:MaterialBadge Name="PART_BadgeSmall" Size="Small" IsVisible="False"
-                                        HorizontalAlignment="Right" VerticalAlignment="Top" />
-                <controls:MaterialBadge Name="PART_BadgeLarge" Size="Large" Text="{TemplateBinding BadgeText}"
-                                        IsVisible="False"
-                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-4,0" />
-              </Grid>
-              <!-- The destination name already carries the label; the text itself is not a
-                   separate content element for a screen reader. -->
-              <TextBlock Name="PART_Label" Text="{TemplateBinding LabelText}"
-                         AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
-                         Foreground="{TemplateBinding Foreground}"
-                         FontSize="{DynamicResource MaterialLabelMediumFontSize}"
-                         FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
-                         LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}"
-                         LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
-                         MaxLines="1" TextTrimming="CharacterEllipsis"
-                         VerticalAlignment="Center"
-                         IsVisible="{TemplateBinding IsLabelVisible}" />
-              <!-- Rich or bound content keeps its template; text content uses the label above. -->
-              <ContentPresenter Name="PART_Content" Content="{TemplateBinding Content}"
-                                AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
-                                ContentTemplate="{TemplateBinding ContentTemplate}"
-                                VerticalAlignment="Center"
-                                TextElement.FontSize="{DynamicResource MaterialLabelMediumFontSize}"
-                                TextElement.FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
-                                IsVisible="{TemplateBinding IsContentVisible}" />
-            </StackPanel>
-          </Panel>
-        </Border>
-        <Border Name="PART_FocusRing" Margin="-2" CornerRadius="999" BorderThickness="3"
-                BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsVisible="False" />
-      </Grid>
-    </Panel>
-  </ControlTemplate>
-
-  <!-- Vertical destination: 56x32 icon pill with the label centered underneath. -->
-  <ControlTemplate x:Key="MaterialNavigationBarItemVerticalTemplate" TargetType="controls:MaterialNavigationBarItem">
-    <Panel Name="PART_ItemRoot" Background="Transparent">
-      <Grid Name="PART_ItemLayout" RowDefinitions="Auto,Auto" RowSpacing="4" Margin="0,6"
-            HorizontalAlignment="Center" VerticalAlignment="Center">
-        <Grid Name="PART_IconHost" Grid.Row="0" Width="56" Height="32" HorizontalAlignment="Center">
-          <Border Name="PART_Indicator" CornerRadius="16"
-                  Background="{DynamicResource MaterialSecondaryContainerBrush}" />
-          <Border Name="PART_StateLayer" CornerRadius="16"
-                  Background="{DynamicResource MaterialOnSurfaceBrush}" Opacity="0" />
+  <!-- Bar destination. Child order is the source layout contract used by the panel:
+       0 indicator, 1 state layer/ripple, 2 icon slot (with badge), 3 label slot, 4 focus ring.
+       The item control resolves Top versus Start from the bar and from alwaysShowLabel. -->
+  <ControlTemplate x:Key="MaterialNavigationBarItemTemplate" TargetType="controls:MaterialNavigationBarItem">
+    <Panel Name="PART_ItemRoot" Background="Transparent" ClipToBounds="True">
+      <controls:MaterialNavigationItemLayout Name="PART_Layout"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+        <Border Name="PART_Indicator" CornerRadius="16"
+                Background="{DynamicResource MaterialSecondaryContainerBrush}" />
+        <!-- Source ripple: the indicator-sized Box clips the bounded press and paints hover/focus
+             state layers in the Surface content colour. Child 1 of the layout panel is arranged to
+             the full indicator pill, so press coordinates stay indicator-relative. -->
+        <theming:MaterialRipple Name="PART_StateLayer" CornerRadius="16"
+                                Fill="{DynamicResource MaterialOnSurfaceBrush}"
+                                PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                EnableDrag="False" IsHitTestVisible="False" />
+        <Grid Name="PART_IconHost" Width="24" Height="24"
+              HorizontalAlignment="Center" VerticalAlignment="Center">
           <Path Name="PART_Icon" Data="{TemplateBinding Icon}" Width="20" Height="20" Stretch="Uniform"
-                Fill="{DynamicResource MaterialOnSurfaceVariantBrush}"
                 HorizontalAlignment="Center" VerticalAlignment="Center" />
           <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Width="20" Height="20"
-                Stretch="Uniform" Fill="{DynamicResource MaterialOnSecondaryContainerBrush}"
+                Stretch="Uniform"
                 HorizontalAlignment="Center" VerticalAlignment="Center" />
           <controls:MaterialBadge Name="PART_BadgeSmall" Size="Small" IsVisible="False"
-                                  HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,16,0" />
+                                  HorizontalAlignment="Right" VerticalAlignment="Top" />
           <controls:MaterialBadge Name="PART_BadgeLarge" Size="Large" Text="{TemplateBinding BadgeText}"
                                   IsVisible="False"
-                                  HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,12,0" />
+                                  HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-4,0" />
         </Grid>
-        <Panel Grid.Row="1" HorizontalAlignment="Center">
+        <!-- The destination name already carries the label; the text itself is not a
+             separate content element for a screen reader. The panel fades this slot. -->
+        <Panel Name="PART_LabelHost" HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock Name="PART_Label" Text="{TemplateBinding LabelText}"
                      AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
-                     Foreground="{TemplateBinding Foreground}"
                      FontSize="{DynamicResource MaterialLabelMediumFontSize}"
                      FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
                      LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}"
                      LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
-                     TextAlignment="Center" HorizontalAlignment="Center"
                      MaxLines="1" TextTrimming="CharacterEllipsis"
-                     IsVisible="{TemplateBinding IsLabelVisible}" />
+                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <!-- Rich or bound content keeps its template; text content uses the label above. -->
           <ContentPresenter Name="PART_Content" Content="{TemplateBinding Content}"
                             AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
-                            HorizontalAlignment="Center" VerticalContentAlignment="Center"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
                             TextElement.FontSize="{DynamicResource MaterialLabelMediumFontSize}"
                             TextElement.FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
                             IsVisible="{TemplateBinding IsContentVisible}" />
         </Panel>
-      </Grid>
-      <Border Name="PART_FocusRing" Margin="3" CornerRadius="12" BorderThickness="3"
-              BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsVisible="False" />
+        <Border Name="PART_FocusRing" Margin="-2" CornerRadius="16" BorderThickness="3"
+                BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsVisible="False" />
+      </controls:MaterialNavigationItemLayout>
     </Panel>
   </ControlTemplate>
 
@@ -165,97 +132,36 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="VerticalAlignment" Value="Stretch" />
-    <Setter Property="Template" Value="{StaticResource MaterialNavigationBarItemHorizontalTemplate}" />
+    <Setter Property="Template" Value="{StaticResource MaterialNavigationBarItemTemplate}" />
 
-    <Style Selector="^:horizontal">
-      <Setter Property="Template" Value="{StaticResource MaterialNavigationBarItemHorizontalTemplate}" />
+    <!-- Source icon positions: Vertical item uses a 16 radius icon pill, Horizontal item a
+         20 radius row pill. The panel arranges the shapes; these styles only shape them.
+         The indicator-relative ripple shares each indicator silhouette (NavigationBar.kt
+         ripple(focusRingShape = ItemActiveIndicatorShape)). -->
+    <Style Selector="^:top /template/ Border#PART_Indicator">
+      <Setter Property="CornerRadius" Value="16" />
     </Style>
-    <Style Selector="^:vertical">
-      <Setter Property="Template" Value="{StaticResource MaterialNavigationBarItemVerticalTemplate}" />
+    <Style Selector="^:top /template/ theming|MaterialRipple#PART_StateLayer">
+      <Setter Property="CornerRadius" Value="16" />
     </Style>
-
-    <Style Selector="^ /template/ Border#PART_Indicator">
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="RenderTransform" Value="scale(0.5, 1)" />
-      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort3}" Easing="0.2,0,0,1" />
-          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.05,0.7,0.1,1" />
-        </Transitions>
-      </Setter>
+    <Style Selector="^:top /template/ Border#PART_FocusRing">
+      <Setter Property="CornerRadius" Value="16" />
     </Style>
-    <Style Selector="^ /template/ Border#PART_StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <BrushTransition Property="Background" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
+    <Style Selector="^:start /template/ Border#PART_Indicator">
+      <Setter Property="CornerRadius" Value="20" />
     </Style>
-    <Style Selector="^ /template/ TextBlock#PART_Label">
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="Foreground" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
+    <Style Selector="^:start /template/ theming|MaterialRipple#PART_StateLayer">
+      <Setter Property="CornerRadius" Value="20" />
     </Style>
-    <Style Selector="^ /template/ Path#PART_Icon">
-      <Setter Property="Opacity" Value="1" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="Fill" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^ /template/ Path#PART_SelectedIcon">
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="Fill" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort2}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
+    <Style Selector="^:start /template/ Border#PART_FocusRing">
+      <Setter Property="CornerRadius" Value="20" />
     </Style>
 
-    <Style Selector="^:selected /template/ Border#PART_Indicator">
-      <Setter Property="Opacity" Value="1" />
-      <Setter Property="RenderTransform" Value="scale(1, 1)" />
-    </Style>
-    <Style Selector="^:selected /template/ Path#PART_Icon">
-      <Setter Property="Opacity" Value="0" />
-    </Style>
-    <Style Selector="^:selected /template/ Path#PART_SelectedIcon">
-      <Setter Property="Opacity" Value="1" />
-    </Style>
-    <Style Selector="^:vertical:selected /template/ TextBlock#PART_Label">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialSecondaryBrush}" />
-    </Style>
-    <Style Selector="^:horizontal:selected /template/ TextBlock#PART_Label">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
-    </Style>
-
-    <Style Selector="^:pointerover /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pointerover:selected /template/ Border#PART_StateLayer">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible:selected /template/ Border#PART_StateLayer">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
-    </Style>
+    <!-- Focus ring: the source ripple(focusRingShape) ring, kept as a border so the item
+         template can draw it without a second interaction target. The state layer itself is
+         painted by the shared MaterialRipple. -->
     <Style Selector="^:focus-visible /template/ Border#PART_FocusRing">
       <Setter Property="IsVisible" Value="True" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed:selected /template/ Border#PART_StateLayer">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
     </Style>
 
     <Style Selector="^:badge-small /template/ controls|MaterialBadge#PART_BadgeSmall">
@@ -264,25 +170,17 @@
     <Style Selector="^:badge-large /template/ controls|MaterialBadge#PART_BadgeLarge">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-
-    <!-- Without a label the destination keeps only its icon pill; the 64 unit slot stays. -->
-    <Style Selector="^:vertical:no-label /template/ Grid#PART_ItemLayout">
-      <Setter Property="Margin" Value="0" />
-      <Setter Property="RowSpacing" Value="0" />
+    <!-- Without a label the vertical destination keeps only its 56x56 icon pill. -->
+    <Style Selector="^:top:no-label /template/ controls|MaterialBadge#PART_BadgeSmall">
+      <Setter Property="Margin" Value="-2,-2,0,0" />
+    </Style>
+    <Style Selector="^:top:no-label /template/ controls|MaterialBadge#PART_BadgeLarge">
+      <Setter Property="Margin" Value="0,-4,-4,0" />
     </Style>
 
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
       <Setter Property="Cursor" Value="Arrow" />
-    </Style>
-    <Style Selector="^:disabled /template/ Path#PART_Icon">
-      <Setter Property="Fill" Value="{DynamicResource MaterialDisabledContentBrush}" />
-    </Style>
-    <Style Selector="^:disabled /template/ Path#PART_SelectedIcon">
-      <Setter Property="Fill" Value="{DynamicResource MaterialDisabledContentBrush}" />
-    </Style>
-    <Style Selector="^:disabled /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="0" />
     </Style>
   </ControlTheme>
 
@@ -317,6 +215,12 @@
     <!-- The panel is created in code so switching Orientation rebuilds it. -->
     <Style Selector="^:vertical">
       <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="^:classic:horizontal">
+      <Setter Property="MinHeight" Value="80" />
+    </Style>
+    <Style Selector="^:short:horizontal">
+      <Setter Property="MinHeight" Value="64" />
     </Style>
   </ControlTheme>
 

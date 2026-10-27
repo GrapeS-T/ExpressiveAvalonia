@@ -210,7 +210,7 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
             if (type == 2 && expanded.Contains(i))
                 MaterialList.SetIsExpanded(item, true);
             if (type == 3 && item is MaterialSwipeListItem swipe && revealed.Contains(i))
-                swipe.IsRevealed = true;
+                swipe.SnapTo(MaterialSwipeState.EndToStart);
         }
 
         if (!_initialized && selected.Length == 0)
@@ -292,7 +292,6 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
         var hasText = _supporting.IsChecked == true || _overline.IsChecked == true;
         MaterialList.SetHeadline(item, headline);
         MaterialList.SetLineCount(item, hasText ? lines : 1);
-        MaterialList.SetDensity(item, density);
         if (_overline.IsChecked == true)
             MaterialList.SetOverline(item, "Категория " + (index + 1));
         if (_supporting.IsChecked == true)
@@ -326,7 +325,6 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
                 Body = Body("Тело раздела раскрывается кнопкой заголовка; Space и Enter работают нативно."),
                 IsExpanded = expanded.Contains(index) || (!_accordionVisited && index == 0),
             };
-            MaterialList.SetDensity(item, density);
             if (_badge.IsChecked == true)
                 MaterialList.SetBadgeText(item, "New");
             item.PropertyChanged += (_, e) =>
@@ -360,7 +358,7 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
     {
         var indices = new List<int>();
         for (var i = 0; i < _list.ItemCount; i++)
-            if (_list.Items[i] is MaterialSwipeListItem { IsRevealed: true })
+            if (_list.Items[i] is MaterialSwipeListItem swipe && swipe.SwipeState != MaterialSwipeState.Settled)
                 indices.Add(i);
         return indices.ToArray();
     }

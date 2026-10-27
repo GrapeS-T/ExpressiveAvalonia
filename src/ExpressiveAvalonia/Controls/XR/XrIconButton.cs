@@ -11,11 +11,16 @@ namespace ExpressiveAvalonia.Controls;
 /// and the expressive pressed shape.
 /// </summary>
 /// <remarks>
+/// Desktop extension of the XR design source, not a port of <c>IconButton.kt</c> or of
+/// <c>SpaceToggleButton.kt</c>. The 48 hit target / 40 container / 20 icon and the 8 unit pressed
+/// shape come from the source component, and the interaction is native.
+/// <para>
 /// The control is a native <see cref="Button"/>: pointer, Space/Enter, access keys, commands,
 /// focus, disabled handling, and the button automation peer are Avalonia's own.
 /// The icon is a <see cref="Geometry"/> so its fill follows the surface's foreground role.
 /// Set <see cref="Label"/> (or <c>AutomationProperties.Name</c>) because an icon-only button
 /// has no text an assistive technology can read.
+/// </para>
 /// </remarks>
 public class XrIconButton : Button
 {

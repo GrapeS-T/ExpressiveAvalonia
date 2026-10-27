@@ -31,9 +31,13 @@ public class XrNavigationRailItem : ListBoxItem
     public static readonly StyledProperty<string?> LabelProperty =
         AvaloniaProperty.Register<XrNavigationRailItem, string?>(nameof(Label));
 
-    /// <summary>Whether the label participates in the layout. The source rail defaults to false.</summary>
+    /// <summary>
+    /// Whether the label participates in the layout. The source rail item keeps its label visible
+    /// by default (<c>alwaysShowLabel = true</c>); the design rail shows labels in both its
+    /// embedded-FAB and no-FAB variants.
+    /// </summary>
     public static readonly StyledProperty<bool> ShowLabelProperty =
-        AvaloniaProperty.Register<XrNavigationRailItem, bool>(nameof(ShowLabel));
+        AvaloniaProperty.Register<XrNavigationRailItem, bool>(nameof(ShowLabel), true);
 
     public static readonly StyledProperty<XrBadgeKind> BadgeProperty =
         AvaloniaProperty.Register<XrNavigationRailItem, XrBadgeKind>(nameof(Badge));
@@ -100,6 +104,16 @@ public class XrNavigationRailItem : ListBoxItem
     }
 
     private string? _appliedName;
+
+    /// <summary>
+    /// Applies the owning rail's variant state. The rail sets these pseudo classes so the wide
+    /// expanded geometry can be expressed in this item's theme without changing the standard one.
+    /// </summary>
+    internal void SetRailState(bool wide, bool expanded)
+    {
+        PseudoClasses.Set(":rail-wide", wide);
+        PseudoClasses.Set(":rail-expanded", expanded);
+    }
 
     private void UpdateSelectedIcon()
     {
