@@ -160,10 +160,14 @@ public class MaterialNavigationRail : ListBox
     private TextBlock? _fabLabel;
     private MaterialMotion.SpringAnimation? _progressSpring;
     private MaterialMotion.SpringAnimation? _widthSpring;
+    private MaterialMotion.SpringAnimation? _spacingSpring;
     private double _progress;
     private double _width = double.NaN;
     private double _expandedTargetWidth = 220;
     private double _itemSpacing = 4;
+    private double _publishedWidth = double.NaN;
+    private double _publishedProgress;
+    private double _publishedSpacing = 4;
     private bool _widthUpdateQueued;
     private bool _updating;
 
@@ -178,8 +182,8 @@ public class MaterialNavigationRail : ListBox
         FabIconProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateFabContent());
         ShowMenuButtonProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
         ShowFabProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
-        HeaderProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
-        HeaderTemplateProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
+        HeaderProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => { rail.UpdateLayoutGeometry(); rail.ScheduleExpandedWidthUpdate(); });
+        HeaderTemplateProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => { rail.UpdateLayoutGeometry(); rail.ScheduleExpandedWidthUpdate(); });
         ExpansionSpringProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.RestartExpansionAnimation());
     }
 
@@ -335,7 +339,7 @@ public class MaterialNavigationRail : ListBox
             _itemsPresenter.SizeChanged += (_, _) => UpdateLayoutGeometry();
         }
         if (_headerHost is not null)
-            _headerHost.SizeChanged += (_, _) => UpdateLayoutGeometry();
+            _headerHost.SizeChanged += (_, _) => { UpdateLayoutGeometry(); ScheduleExpandedWidthUpdate(); };
 
         UpdateVisualClasses();
         UpdateItemStates();
@@ -433,16 +437,15 @@ public class MaterialNavigationRail : ListBox
             return;
 
         var compact = Mode == MaterialNavigationRailMode.Compact;
-        var expanded = !compact && IsExpanded;
-        var inset = !compact && expanded ? 20d : 0d;
+        var inset = compact ? 0d : 20d;
         var top = compact ? 4d : 44d;
 
-        _headerHost.HorizontalAlignment = !compact && expanded ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+        _headerHost.HorizontalAlignment = compact ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         _headerHost.Margin = new Thickness(inset, top, inset, 0);
         _headerPresenter?.SetValue(HorizontalAlignmentProperty,
-            !compact && expanded ? HorizontalAlignment.Left : HorizontalAlignment.Center);
+            compact ? HorizontalAlignment.Center : HorizontalAlignment.Left);
         if (_menuFab is not null)
-            _menuFab.HorizontalAlignment = !compact && expanded ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+            _menuFab.HorizontalAlignment = compact ? HorizontalAlignment.Center : HorizontalAlignment.Left;
 
         var headerHeight = HeaderHeight();
         var gap = headerHeight > 0 ? (compact ? 8d : 40d) : 0d;
@@ -490,6 +493,7 @@ public class MaterialNavigationRail : ListBox
             : 80d;
         _progress = target;
         _width = width;
+        _itemSpacing = Mode == MaterialNavigationRailMode.Wide && IsExpanded ? 0d : 4d;
         ApplyExpansionFrame();
     }
 
@@ -507,14 +511,17 @@ public class MaterialNavigationRail : ListBox
         {
             DisposeExpansionAnimations();
             _progressSpring = MaterialMotion.Animate(this, _progress, target,
-                value => { _progress = value; ApplyExpansionFrame(); }, ExpansionSpring, 0.01);
+                value => { _progress = value; ApplyExpansionFrame(); }, MaterialSpring.SpatialDefault, 0.01);
             _widthSpring = MaterialMotion.Animate(this, _width, widthTarget,
                 value => { _width = value; ApplyExpansionFrame(); }, ExpansionSpring, 0.5);
+            _spacingSpring = MaterialMotion.Animate(this, _itemSpacing, IsExpanded ? 0d : 4d,
+                value => { _itemSpacing = value; ApplyExpansionFrame(); }, MaterialSpring.SpatialDefault, 0.5);
         }
         else
         {
             _progressSpring?.Retarget(target);
             _widthSpring?.Retarget(widthTarget);
+            _spacingSpring?.Retarget(IsExpanded ? 0d : 4d);
         }
     }
 
@@ -525,16 +532,12 @@ public class MaterialNavigationRail : ListBox
         _updating = true;
         try
         {
-            _itemSpacing = Mode == MaterialNavigationRailMode.Wide ? 4d * (1 - Math.Clamp(_progress, 0, 1)) : 4d;
             if (_itemsPanel is not null)
                 _itemsPanel.Spacing = _itemSpacing;
             SetCurrentValue(WidthProperty, Math.Max(0, _width));
-            var previousWidth = _width;
-            SetAndRaise(ExpansionWidthProperty, ref previousWidth, _width);
-            var previousProgress = _progress;
-            SetAndRaise(ExpansionProgressProperty, ref previousProgress, _progress);
-            var previousSpacing = _itemSpacing;
-            SetAndRaise(ItemSpacingProperty, ref previousSpacing, _itemSpacing);
+            SetAndRaise(ExpansionWidthProperty, ref _publishedWidth, _width);
+            SetAndRaise(ExpansionProgressProperty, ref _publishedProgress, _progress);
+            SetAndRaise(ItemSpacingProperty, ref _publishedSpacing, _itemSpacing);
         }
         finally
         {
@@ -549,6 +552,8 @@ public class MaterialNavigationRail : ListBox
         _progressSpring = null;
         _widthSpring?.Dispose();
         _widthSpring = null;
+        _spacingSpring?.Dispose();
+        _spacingSpring = null;
     }
 
     /// <summary>Queues a width re-measure after labels, items or the header change.</summary>

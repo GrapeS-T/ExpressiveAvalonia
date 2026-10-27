@@ -114,6 +114,7 @@ public class MaterialNavigationRailItem : ListBoxItem
 
     private Geometry? _effectiveSelectedIcon;
     private string? _effectiveLabel;
+    private string? _appliedAutomationName;
     private bool _pressed;
     private MaterialNavigationRail? _rail;
     private MaterialNavigationItemLayout? _layout;
@@ -153,6 +154,9 @@ public class MaterialNavigationRailItem : ListBoxItem
         IconPositionProperty.Changed.AddClassHandler<MaterialNavigationRailItem>((item, _) =>
         {
             item.UpdateVisualClasses();
+            item.UpdateIndicatorTargets(animate: true);
+            item.UpdateNavigationLayout();
+            item._rail?.ScheduleExpandedWidthUpdate();
             item.UpdateColorTargets(animate: false);
         });
     }
@@ -253,8 +257,13 @@ public class MaterialNavigationRailItem : ListBoxItem
         base.OnPropertyChanged(change);
         if (change.Property == ContentProperty)
             UpdateLabel();
-        else if (change.Property == ShowLabelProperty ||
-                 change.Property == ShowIconProperty || change.Property == ShowFocusIndicatorProperty ||
+        else if (change.Property == ShowLabelProperty)
+        {
+            UpdateVisualClasses();
+            UpdateNavigationLayout();
+            _rail?.ScheduleExpandedWidthUpdate();
+        }
+        else if (change.Property == ShowIconProperty || change.Property == ShowFocusIndicatorProperty ||
                  change.Property == BadgeProperty || change.Property == BadgeTextProperty)
             UpdateVisualClasses();
         else if (change.Property == ListBoxItem.IsSelectedProperty)
@@ -308,7 +317,14 @@ public class MaterialNavigationRailItem : ListBoxItem
     private void UpdateLabel()
     {
         SetAndRaise(EffectiveLabelProperty, ref _effectiveLabel, Label ?? Content as string);
+        var currentName = AutomationProperties.GetName(this);
+        if (string.IsNullOrEmpty(currentName) || currentName == _appliedAutomationName)
+        {
+            _appliedAutomationName = _effectiveLabel ?? string.Empty;
+            AutomationProperties.SetName(this, _appliedAutomationName);
+        }
         UpdateVisualClasses();
+        UpdateNavigationLayout();
         _rail?.ScheduleExpandedWidthUpdate();
     }
 
@@ -340,9 +356,7 @@ public class MaterialNavigationRailItem : ListBoxItem
         var wide = _rail?.Mode == MaterialNavigationRailMode.Wide;
         var position = ResolveIconPosition();
         var positionTarget = position == MaterialNavigationItemIconPosition.Start ? 1d : 0d;
-        var minHeightTarget = wide
-            ? (_rail?.IsExpanded == true ? 48d : 64d)
-            : (_rail?.Mode == MaterialNavigationRailMode.Compact ? 56d : 56d);
+        var minHeightTarget = wide ? (_rail?.IsExpanded == true ? 48d : 64d) : 56d;
 
         if (!animate || !this.IsAttachedToVisualTree())
         {
@@ -430,6 +444,14 @@ public class MaterialNavigationRailItem : ListBoxItem
             _rail ??= ItemsControl.ItemsControlFromItemContainer(this) as MaterialNavigationRail;
             var wide = _rail?.Mode == MaterialNavigationRailMode.Wide;
             var position = ResolveIconPosition();
+            // Compose switches back to the vertical label style only after the collapsing
+            // position spring crosses its midpoint, while the label is faded out.
+            if (wide)
+            {
+                var topStyle = position == MaterialNavigationItemIconPosition.Top && _positionProgress < 0.5;
+                PseudoClasses.Set(":top", topStyle);
+                PseudoClasses.Set(":start", !topStyle);
+            }
 
             var hasLabel = ShowLabel &&
                 (!string.IsNullOrEmpty(_effectiveLabel) || Content is not null and not string);

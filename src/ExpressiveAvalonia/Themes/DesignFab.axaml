@@ -22,6 +22,7 @@
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
 
     <Style Selector="^[ColorRole=PrimaryContainer]">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
@@ -285,7 +286,7 @@
     <Setter Property="FontWeight" Value="Medium" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="Transparent" ClipToBounds="True">
+        <Panel Background="Transparent">
           <Border Name="Surface" Background="{TemplateBinding Background}"
                   BoxShadow="{TemplateBinding theming:MaterialAssist.AnimatedShadow}"
                   CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />

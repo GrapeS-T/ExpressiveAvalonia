@@ -33,6 +33,35 @@ public class ScrollAndCarouselStateTests
         return window;
     }
 
+    [AvaloniaFact]
+    public void ScrollViewerRespondsToWheelAndScrollbarDrag()
+    {
+        var scroller = new ScrollViewer
+        {
+            Content = new Border { Height = 2000 },
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            AllowAutoHide = false,
+        };
+        var window = Show(scroller);
+        try
+        {
+            window.MouseWheel(new Point(200, 100), new Vector(0, -1));
+            window.UpdateLayout();
+            Assert.True(scroller.Offset.Y > 0);
+
+            var thumb = scroller.GetVisualDescendants().OfType<Thumb>().Single();
+            var point = thumb.TranslatePoint(new Point(thumb.Bounds.Width / 2, thumb.Bounds.Height / 2), window)!.Value;
+            var before = scroller.Offset.Y;
+            window.MouseDown(point, MouseButton.Left);
+            window.MouseMove(point + new Vector(0, 100));
+            window.MouseUp(point + new Vector(0, 100), MouseButton.Left);
+            window.UpdateLayout();
+            Assert.True(scroller.Offset.Y > before);
+        }
+        finally { window.Close(); }
+    }
+
     private static void RaiseKey(Control control, Key key) =>
         control.RaiseEvent(new KeyEventArgs
         {
