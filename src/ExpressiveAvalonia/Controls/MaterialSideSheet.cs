@@ -200,7 +200,7 @@ public sealed class MaterialSideSheet : MaterialSheet
 
         if (change.Property == ShowBackButtonProperty)
             UpdateHeaderLayout();
-        else if (change.Property == SideProperty || change.Property == FlowDirectionProperty)
+        else if (change.Property == SideProperty || change.Property == FlowDirectionProperty || change.Property == IsModalProperty)
             UpdateSideLayout();
         else if (change.Property == HeadlineProperty)
             UpdateAccessibleName();
@@ -227,7 +227,9 @@ public sealed class MaterialSideSheet : MaterialSheet
             : Avalonia.Layout.HorizontalAlignment.Left;
         SheetSurface.BorderThickness = right ? new Thickness(1, 0, 0, 0) : new Thickness(0, 0, 1, 0);
 
-        // The design docks both presentations full height; only the modal container is rounded (16).
+        // Modal sheets are detached from the host edge; standard sheets remain docked.
+        SheetSurface.Margin = IsModal ? new Thickness(16) : default;
+        SheetSurface.BorderThickness = IsModal ? default : SheetSurface.BorderThickness;
         SheetSurface.CornerRadius = new CornerRadius(IsModal ? 16 : 0);
 
         // The translation direction and closed distance depend on the edge and on the width the

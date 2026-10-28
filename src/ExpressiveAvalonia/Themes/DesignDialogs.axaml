@@ -16,6 +16,7 @@
   <sys:Double x:Key="MaterialDialogScrimOpacity">0.32</sys:Double>
   <!-- Accessible name used when a dialog has no title; override to localize. -->
   <x:String x:Key="MaterialDialogAccessibleName">Dialog</x:String>
+  <x:String x:Key="MaterialDialogCloseText">Close</x:String>
 
   <ControlTheme x:Key="{x:Type controls:MaterialDialog}" TargetType="controls:MaterialDialog">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
@@ -31,11 +32,32 @@
     <Setter Property="Focusable" Value="True" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Name="PART_Surface" Background="{TemplateBinding Background}"
-                CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True"
+        <Border Name="PART_Surface" CornerRadius="{TemplateBinding CornerRadius}"
                 BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}">
-          <Grid RowDefinitions="Auto,*,Auto">
-            <StackPanel Name="PART_Header" Grid.Row="0" Margin="24,24,24,0" Spacing="16">
+          <Border Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
+          <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="Auto,*,Auto">
+            <Grid Name="PART_FullScreenHeader" Grid.Row="0" Grid.ColumnSpan="2" Height="56" ColumnDefinitions="Auto,*">
+              <Button Name="PART_CloseButton" Width="48" Height="48"
+                      theming:MaterialAssist.IsIconButton="True"
+                      theming:MaterialAssist.ControlSize="Small"
+                      theming:MaterialAssist.ButtonVariant="Standard"
+                      theming:MaterialAssist.ButtonShape="Round"
+                      AutomationProperties.Name="{DynamicResource MaterialDialogCloseText}">
+                <Grid Width="24" Height="24">
+                  <Path Width="14" Height="14" Stretch="None"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Data="M1.4 14L0 12.6L5.6 7L0 1.4L1.4 0L7 5.6L12.6 0L14 1.4L8.4 7L14 12.6L12.6 14L7 8.4L1.4 14Z"
+                        Fill="{Binding $parent[Button].Foreground}" />
+                </Grid>
+              </Button>
+              <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{TemplateBinding Title}" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis"
+                         FontSize="{DynamicResource MaterialTitleLargeFontSize}"
+                         Foreground="{DynamicResource MaterialOnSurfaceBrush}" />
+            </Grid>
+            <Panel Name="PART_BasicHeader" Grid.Row="0" Grid.ColumnSpan="3">
+            <StackPanel Name="PART_Header" Margin="24,24,24,0" Spacing="16">
               <StackPanel.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                   <Binding Path="Icon" RelativeSource="{RelativeSource TemplatedParent}"
@@ -66,12 +88,16 @@
                          Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                          IsVisible="{Binding SupportingText, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
+            </Panel>
             <!-- The body is the only star row: a dialog taller than the window scrolls here and
                  the footer stays visible instead of being clipped by the surface. -->
-            <ScrollViewer Name="PART_BodyScroller" Grid.Row="1"
+            <ScrollViewer Name="PART_BodyScroller" Grid.Row="1" Grid.ColumnSpan="3"
                           HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                           IsScrollChainingEnabled="True" AllowAutoHide="True">
               <StackPanel>
+                <TextBlock Name="PART_FullScreenSupportingText" Text="{TemplateBinding SupportingText}"
+                           Margin="24,24,24,0" TextWrapping="Wrap"
+                           Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
                 <ContentPresenter Name="PART_ContentHost" Margin="24,24,24,0"
                                   Content="{TemplateBinding Content}"
                                   ContentTemplate="{TemplateBinding ContentTemplate}"
@@ -83,12 +109,13 @@
                                   IsVisible="{Binding List, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
               </StackPanel>
             </ScrollViewer>
-            <Border Name="PART_Divider" Grid.Row="2" Height="1" VerticalAlignment="Top" Margin="0,16,0,0"
+            <Border Name="PART_Divider" Grid.Row="2" Grid.ColumnSpan="3" Height="1" VerticalAlignment="Top" Margin="0,16,0,0"
                     Background="{DynamicResource MaterialOutlineVariantBrush}"
                     IsVisible="{TemplateBinding ShowDivider}" IsHitTestVisible="False" />
-            <controls:MaterialDialogActionsPanel Name="PART_Actions" Grid.Row="2"
-                                               HorizontalAlignment="Right" Margin="24,20,24,24" />
+            <controls:MaterialDialogActionsPanel Name="PART_Actions" Grid.Column="2"
+                                               HorizontalAlignment="Right" />
           </Grid>
+          </Border>
         </Border>
       </ControlTemplate>
     </Setter>
@@ -99,6 +126,38 @@
     </Style>
     <Style Selector="^:icon /template/ TextBlock#PART_Title">
       <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+    <Style Selector="^ /template/ controls|MaterialDialogActionsPanel#PART_Actions">
+      <Setter Property="Grid.Row" Value="2" />
+      <Setter Property="Margin" Value="24,20,24,24" />
+    </Style>
+    <Style Selector="^:full-screen /template/ controls|MaterialDialogActionsPanel#PART_Actions">
+      <Setter Property="Grid.Row" Value="0" />
+      <Setter Property="Margin" Value="8,0,16,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="^ /template/ Grid#PART_FullScreenHeader">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^ /template/ TextBlock#PART_FullScreenSupportingText">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:full-screen /template/ TextBlock#PART_FullScreenSupportingText">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:full-screen">
+      <Setter Property="MaxWidth" Value="Infinity" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="^:full-screen /template/ Border#PART_Surface">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
+    </Style>
+    <Style Selector="^:full-screen /template/ Grid#PART_FullScreenHeader">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:full-screen /template/ Panel#PART_BasicHeader">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
   </ControlTheme>
 

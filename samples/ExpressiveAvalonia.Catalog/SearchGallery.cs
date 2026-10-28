@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -40,13 +42,15 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
     {
         PlaceholderText = "Search components",
         AutoFocus = false,
+        MinWidth = 0,
+        MaxWidth = double.PositiveInfinity,
         HorizontalAlignment = HorizontalAlignment.Stretch,
         VerticalAlignment = VerticalAlignment.Center,
     };
     private readonly MaterialSearchAppBar _appBar = new();
     private ScrollViewer _appBarScroll = null!;
     private Grid _appBarStage = null!;
-    private Button _appBarSecondaryAction = null!;
+    private MaterialBarAction _appBarSecondaryAction = null!;
     private MaterialSearchBarScrollBehavior? _appBarBehavior;
     private readonly ObservableCollection<string> _suggestions = new();
     private readonly Panel _stageChildren = new();
@@ -458,7 +462,10 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
 
             _appBar.ScrollSource = _appBarScroll;
             _appBar.ExpandsToFullScreen = _mode.SelectedIndex == 1;
-            _appBarSecondaryAction.IsVisible = _secondary.IsChecked == true;
+            if (_secondary.IsChecked == true && !_appBar.Actions.Contains(_appBarSecondaryAction))
+                _appBar.Actions.Insert(1, _appBarSecondaryAction);
+            else if (_secondary.IsChecked != true)
+                _appBar.Actions.Remove(_appBarSecondaryAction);
 
             MaterialMotion.SetIsReduced(_host, _reducedMotion.IsChecked == true);
 
@@ -496,22 +503,13 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         navigationButton.Click += (_, _) => _status.Text = "Меню";
         _appBar.NavigationContent = navigationButton;
 
-        var searchAction = IconButton(
-            Icon(MaterialSearchAppBar.ActionsForegroundProperty, SearchGeometry), "Поиск");
-        searchAction.Click += (_, _) => _status.Text = $"Поиск: {_appBarBar.Text}";
-        _appBarSecondaryAction = IconButton(
-            Icon(MaterialSearchAppBar.ActionsForegroundProperty, MicGeometry), "Голосовой ввод");
-        _appBarSecondaryAction.Click += (_, _) =>
-            _status.Text = "Запрошен голосовой ввод (распознавание не подключено)";
-
-        var actions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        actions.Children.Add(searchAction);
-        actions.Children.Add(_appBarSecondaryAction);
-        _appBar.ActionsContent = actions;
+        _appBar.Actions.Add(new MaterialBarAction("Поиск", SearchGeometry,
+            new ActionCommand(() => _status.Text = $"Поиск: {_appBarBar.Text}")));
+        _appBarSecondaryAction = new MaterialBarAction("Голосовой ввод", MicGeometry,
+            new ActionCommand(() => _status.Text = "Запрошен голосовой ввод (распознавание не подключено)"));
+        _appBar.Actions.Add(_appBarSecondaryAction);
+        _appBar.Actions.Add(new MaterialBarAction("Меню", MenuGeometry,
+            new ActionCommand(() => _status.Text = "Дополнительное меню")));
 
         _appBarStage = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
         _appBarStage.Children.Add(_appBar);
@@ -573,4 +571,10 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         "13.5625 8.4625 14.5375C9.4375 15.5125 10.6167 16 12 16C13.3833 16 14.5625 15.5125 " +
         "15.5375 14.5375C16.5125 13.5625 17 12.3833 17 11H19C19 12.75 18.4333 14.2833 17.3 " +
         "15.6C16.1667 16.9167 14.7333 17.6917 13 17.925V21H11Z");
+    private sealed class ActionCommand(Action execute) : ICommand
+    {
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+        public bool CanExecute(object? parameter) => true;
+        public void Execute(object? parameter) => execute();
+    }
 }

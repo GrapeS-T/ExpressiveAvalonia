@@ -65,7 +65,7 @@
     <Setter Property="ClipToBounds" Value="True" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Name="PART_Container" Background="{TemplateBinding Background}" ClipToBounds="True"
+        <Border Name="PART_Container" Background="{TemplateBinding RenderedBackground}" ClipToBounds="True"
                 Padding="{TemplateBinding SafeAreaPadding}">
           <controls:MaterialTopAppBarStack Name="PART_Stack"
                                            IsTwoRow="{TemplateBinding IsTwoRowLayout}"
@@ -97,7 +97,7 @@
               <Border Name="PART_Title" Padding="4,0" Opacity="{TemplateBinding TopTitleOpacity}">
                 <Panel>
                   <StackPanel VerticalAlignment="Center" IsVisible="{TemplateBinding HasSmallTitle}">
-                    <ContentPresenter Name="PART_TitleText" Content="{TemplateBinding Title}"
+                    <ContentPresenter Name="PART_TitleText" Content="{TemplateBinding CollapsedTitleContent}"
                                       TextAlignment="{TemplateBinding TitleAlignment}"
                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                                       HorizontalAlignment="Stretch"
@@ -179,7 +179,13 @@
               <Border />
               <Border Name="PART_ExpandedTitle" Padding="4,0" Opacity="{TemplateBinding BottomTitleOpacity}">
                 <StackPanel VerticalAlignment="Bottom">
-                  <ContentPresenter Name="PART_ExpandedTitleText" Content="{TemplateBinding Title}"
+                  <ContentPresenter Name="PART_ExpandedImage" Content="{TemplateBinding ImageContent}"
+                                    IsVisible="{TemplateBinding IsFlexibleLayout}"
+                                    TextAlignment="{TemplateBinding TitleAlignment}" />
+                  <TextBlock Name="PART_FlexibleTitleText" Text="{Binding Title, RelativeSource={RelativeSource TemplatedParent}}"
+                             TextAlignment="{TemplateBinding TitleAlignment}" TextWrapping="Wrap" MaxLines="2"
+                             IsVisible="{TemplateBinding HasFlexibleTextTitle}" />
+                  <ContentPresenter Name="PART_ExpandedTitleText" Content="{TemplateBinding ExpandedTitleContent}"
                                     TextAlignment="{TemplateBinding TitleAlignment}"
                                     TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                                     FontSize="{DynamicResource MaterialHeadlineSmallFontSize}"
@@ -248,6 +254,24 @@
       <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineMediumLetterSpacing}" />
     </Style>
     <Style Selector="^[Configuration=LargeFlexible] /template/ ContentPresenter#PART_ExpandedTitleText">
+      <Setter Property="FontSize" Value="{DynamicResource MaterialDisplaySmallFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialDisplaySmallFontWeight}" />
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialDisplaySmallLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialDisplaySmallLetterSpacing}" />
+    </Style>
+    <Style Selector="^[TitleAlignment=Center] /template/ ContentPresenter#PART_ExpandedImage">
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="^[HasFlexibleTextTitle=True] /template/ ContentPresenter#PART_ExpandedTitleText">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^[Configuration=MediumFlexible] /template/ TextBlock#PART_FlexibleTitleText">
+      <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineMediumFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineMediumFontWeight}" />
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineMediumLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineMediumLetterSpacing}" />
+    </Style>
+    <Style Selector="^[Configuration=LargeFlexible] /template/ TextBlock#PART_FlexibleTitleText">
       <Setter Property="FontSize" Value="{DynamicResource MaterialDisplaySmallFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialDisplaySmallFontWeight}" />
       <Setter Property="LineHeight" Value="{DynamicResource MaterialDisplaySmallLineHeight}" />

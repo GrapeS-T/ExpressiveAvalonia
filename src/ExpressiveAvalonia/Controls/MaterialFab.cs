@@ -6,6 +6,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.Data;
+using Avalonia.Styling;
 using ExpressiveAvalonia.Theming;
 using ExpressiveAvalonia.Tokens;
 
@@ -36,7 +38,7 @@ public enum MaterialExtendedFabSize
     /// <summary>80 unit high, 20 unit radius, 28 unit icon, 22/28 label.</summary>
     Medium,
 
-    /// <summary>96 unit high, 28 unit radius, 32 unit icon, 24/32 label.</summary>
+    /// <summary>96 unit high, 28 unit radius, 36 unit icon, 24/32 label.</summary>
     Large
 }
 
@@ -80,6 +82,50 @@ public class MaterialFab : MaterialFabBase
     /// <summary>Defines the <see cref="Size"/> property.</summary>
     public static readonly StyledProperty<MaterialFabSize> SizeProperty =
         AvaloniaProperty.Register<MaterialFab, MaterialFabSize>(nameof(Size));
+
+    private IDisposable? _iconTheme;
+    private IDisposable? _iconWidth;
+    private IDisposable? _iconHeight;
+
+    static MaterialFab()
+    {
+        ContentProperty.Changed.AddClassHandler<MaterialFab>((fab, _) => fab.UpdateContentIcon());
+        SizeProperty.Changed.AddClassHandler<MaterialFab>((fab, _) => fab.UpdateContentIcon());
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        UpdateContentIcon();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        ClearContentIcon();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void ClearContentIcon()
+    {
+        _iconTheme?.Dispose();
+        _iconWidth?.Dispose();
+        _iconHeight?.Dispose();
+        _iconTheme = _iconWidth = _iconHeight = null;
+    }
+
+    private void UpdateContentIcon()
+    {
+        ClearContentIcon();
+        if (Content is not PathIcon icon || !this.IsAttachedToVisualTree())
+            return;
+
+        if (this.TryFindResource("MaterialFabPathIconTheme", out var resource) && resource is ControlTheme theme)
+            _iconTheme = icon.SetValue(ThemeProperty, theme, BindingPriority.Style);
+
+        var size = Size switch { MaterialFabSize.Medium => 28d, MaterialFabSize.Large => 36d, _ => 24d };
+        _iconWidth = icon.SetValue(WidthProperty, size, BindingPriority.Style);
+        _iconHeight = icon.SetValue(HeightProperty, size, BindingPriority.Style);
+    }
 
     /// <summary>Gets or sets the source FAB size.</summary>
     public MaterialFabSize Size
@@ -535,7 +581,7 @@ public class MaterialExtendedFab : MaterialFabBase
         {
             MaterialExtendedFabSize.Small => (16d, 8d, 16d),
             MaterialExtendedFabSize.Medium => (26d, 12d, 26d),
-            _ => (28d, 16d, 32d)
+            _ => (28d, 16d, 30d)
         };
         return new ExpansionGeometry(label + gap, gap, padding, padding, collapsed, collapsed,
             padding, collapsed, 0, 0);

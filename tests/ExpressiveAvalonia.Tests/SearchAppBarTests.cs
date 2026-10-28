@@ -12,6 +12,67 @@ namespace ExpressiveAvalonia.Tests;
 
 public class SearchAppBarTests
 {
+    [AvaloniaFact]
+    public void SearchFieldUsesResponsiveWidth()
+    {
+        foreach (var (available, expected) in new[] { (300d, 300d), (500d, 312d), (800d, 400d) })
+        {
+            var appBar = new MaterialSearchAppBar();
+            var window = new Window { Width = available + 16, Height = 400, Content = appBar };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                Assert.InRange(appBar.SearchBar!.Bounds.Width, expected - 1, expected + 1);
+            }
+            finally { window.Close(); }
+        }
+    }
+
+    [AvaloniaFact]
+    public void SearchActionsOverflowOnNarrowBar()
+    {
+        var bar = new MaterialSearchAppBar { Width = 400 };
+        for (var i = 0; i < 3; i++)
+            bar.Actions.Add(new MaterialBarAction { Text = $"Action {i}" });
+        var window = Show(bar);
+        try
+        {
+            Assert.True(bar.HasOverflow);
+            bar.Width = 800;
+            window.UpdateLayout();
+            Assert.False(bar.HasOverflow);
+            Assert.Equal(3, bar.VisibleActionCount);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void SuppliedSearchFieldUsesAvailableWidthWithoutChangingStandaloneDefaults()
+    {
+        var field = new MaterialSearchBar();
+        var appBar = new MaterialSearchAppBar { SearchBar = field };
+        var window = new Window { Width = 316, Height = 400, Content = appBar };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            Assert.InRange(field.Bounds.Width, 299, 301);
+            appBar.SearchBar = new MaterialSearchBar();
+            window.UpdateLayout();
+            var standalone = new Window { Width = 800, Height = 400, Content = field };
+            try
+            {
+                standalone.Show();
+                standalone.UpdateLayout();
+                Assert.Equal(360, field.MinWidth);
+                Assert.Equal(720, field.MaxWidth);
+            }
+            finally { standalone.Close(); }
+        }
+        finally { window.Close(); }
+    }
+
     private static Window Show(Control content)
     {
         var window = new Window { Width = 800, Height = 600, Content = content };

@@ -28,9 +28,9 @@
        Interaction feedback is the shared theming:MaterialRipple (source RippleNode): a bounded
        press ripple from the pointer origin plus the hover/focus/drag state layer at 0.08/0.10/0.16
        on-surface alpha, clipped to the animated silhouette. Only a card with onClick emits
-       interactions upstream, so the noninteractive surface never ripples. Focus indication upstream
-       is the 10% opacity layer, not a ring; the library keeps its ShowFocusIndicator preview
-       extension, which paints the 3 DIP secondary ring only when explicitly requested.
+       interactions upstream, so the noninteractive surface never ripples. Keyboard-focused
+       interactive cards also show a ring, as required by current Material accessibility guidance;
+       ShowFocusIndicator can force the same ring for previews.
 
        The stacked and horizontal anatomies, the typed slots, pointer drag support and the
        ShowFocusIndicator switch are library extensions from the card design packages
@@ -351,9 +351,12 @@
       <Setter Property="EnableDrag" Value="True" />
     </Style>
 
-    <!-- Extension: preview ring, not the upstream opacity-based focus indication. -->
+    <!-- Keyboard focus needs a visible indicator; ShowFocusIndicator also permits previews. -->
     <Style Selector="^ /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^[IsInteractive=True]:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^[ShowFocusIndicator=True] /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />

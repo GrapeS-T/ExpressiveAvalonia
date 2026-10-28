@@ -51,7 +51,7 @@
     </Style>
     <Style Selector="^:full-screen">
       <Setter Property="Padding" Value="0" />
-      <Setter Property="ItemSpacing" Value="0" />
+      <Setter Property="ItemSpacing" Value="16" />
     </Style>
     <Style Selector="^:no-snap">
       <Setter Property="ScrollViewer.HorizontalSnapPointsType" Value="None" />

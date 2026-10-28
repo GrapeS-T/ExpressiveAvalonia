@@ -39,7 +39,7 @@
     <Setter Property="md:MaterialMenu.PopupBackground" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
     <Setter Property="md:MaterialMenu.PopupCornerRadius" Value="4" />
     <Setter Property="md:MaterialMenu.PopupPadding" Value="0,8" />
-    <Setter Property="md:MaterialMenu.PopupScrollBarVisibility" Value="Hidden" />
+    <Setter Property="md:MaterialMenu.PopupScrollBarVisibility" Value="Auto" />
     <Setter Property="Template">
       <ControlTemplate>
         <!-- Source item anatomy (Menu.kt DropdownMenuItemContent): the row is laid out in a
@@ -144,7 +144,7 @@
                     CornerRadius="{TemplateBinding (md:MaterialMenu.PopupCornerRadius)}"
                     Padding="{TemplateBinding (md:MaterialMenu.PopupPadding)}"
                     BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
-              <ScrollViewer Name="PopupScroller" HorizontalScrollBarVisibility="Disabled"
+              <ScrollViewer Name="PopupScroller" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False"
                             VerticalScrollBarVisibility="{TemplateBinding (md:MaterialMenu.PopupScrollBarVisibility)}">
                 <ItemsPresenter Name="PART_ItemsPresenter" Grid.IsSharedSizeScope="True"
                                 ItemsPanel="{TemplateBinding ItemsPanel}" />
@@ -442,7 +442,7 @@
     <Setter Property="md:MaterialMenu.PopupBackground" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
     <Setter Property="md:MaterialMenu.PopupCornerRadius" Value="4" />
     <Setter Property="md:MaterialMenu.PopupPadding" Value="0,8" />
-    <Setter Property="md:MaterialMenu.PopupScrollBarVisibility" Value="Hidden" />
+    <Setter Property="md:MaterialMenu.PopupScrollBarVisibility" Value="Auto" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
@@ -489,7 +489,7 @@
                     CornerRadius="{TemplateBinding (md:MaterialMenu.PopupCornerRadius)}"
                     Padding="{TemplateBinding (md:MaterialMenu.PopupPadding)}"
                     BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
-              <ScrollViewer Name="PopupScroller" HorizontalScrollBarVisibility="Disabled"
+              <ScrollViewer Name="PopupScroller" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False"
                             VerticalScrollBarVisibility="{TemplateBinding (md:MaterialMenu.PopupScrollBarVisibility)}">
                 <ItemsPresenter Name="PART_ItemsPresenter" Grid.IsSharedSizeScope="True"
                                 ItemsPanel="{TemplateBinding ItemsPanel}" />
@@ -598,7 +598,7 @@
                 BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                 CornerRadius="{TemplateBinding CornerRadius}" BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
           <ScrollViewer Name="PART_ScrollViewer" HorizontalScrollBarVisibility="Disabled"
-                        VerticalScrollBarVisibility="Hidden">
+                        VerticalScrollBarVisibility="Auto" AllowAutoHide="False">
             <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}"
                             Grid.IsSharedSizeScope="True" KeyboardNavigation.TabNavigation="Continue" />
           </ScrollViewer>
@@ -629,13 +629,13 @@
     <Setter Property="MinWidth" Value="112" />
     <Setter Property="MaxWidth" Value="280" />
     <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
-    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
     <Setter Property="Template">
       <ControlTemplate>
         <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}"
                 BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                 CornerRadius="{TemplateBinding CornerRadius}" BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
-          <ScrollViewer Name="PART_ScrollViewer"
+          <ScrollViewer Name="PART_ScrollViewer" AllowAutoHide="False"
                         HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
                         VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}">
             <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}"

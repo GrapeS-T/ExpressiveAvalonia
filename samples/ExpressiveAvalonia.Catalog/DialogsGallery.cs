@@ -26,7 +26,7 @@ public static class DialogsGallery
 /// </summary>
 internal sealed class DialogPlayground : Grid, IComponentPlayground
 {
-    private enum DialogFamily { Basic, Icon, List, ScrollableList, Input, NonDismissible }
+    private enum DialogFamily { Basic, Icon, List, ScrollableList, Input, NonDismissible, FullScreen }
 
     private readonly MaterialDialog _preview;
     private readonly MaterialDialogList _list = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -123,7 +123,7 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
         {
             ItemsSource = new[]
             {
-                "Базовый", "С иконкой", "Список", "Прокручиваемый список", "Поле ввода", "Без закрытия",
+                "Базовый", "С иконкой", "Список", "Прокручиваемый список", "Поле ввода", "Без закрытия", "Полный экран",
             },
             SelectedIndex = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -197,7 +197,7 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
     }
 
     private DialogFamily CurrentFamily =>
-        (DialogFamily)Math.Clamp(_family.SelectedIndex, 0, 5);
+        (DialogFamily)Math.Clamp(_family.SelectedIndex, 0, 6);
 
     private void Apply()
     {
@@ -287,7 +287,8 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
             SupportingText = _supporting.Text,
             Icon = _icon.IsChecked == true ? MaterialDialog.CreateIcon() : null,
             ShowDivider = _divider.IsChecked == true,
-            Width = _width.Value,
+            Width = family == DialogFamily.FullScreen ? double.NaN : _width.Value,
+            IsFullScreen = family == DialogFamily.FullScreen,
             IsDismissible = family != DialogFamily.NonDismissible && _dismissible.IsChecked == true,
             CloseOnScrimClick = _scrim.IsChecked == true,
         };

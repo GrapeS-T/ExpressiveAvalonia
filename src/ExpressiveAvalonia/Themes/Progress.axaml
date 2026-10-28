@@ -50,10 +50,10 @@
       </ControlTemplate>
     </Setter>
     <Style Selector="^:horizontal">
-      <Setter Property="MinWidth" Value="240" /><Setter Property="MinHeight" Value="4" />
+      <Setter Property="MinWidth" Value="40" /><Setter Property="MinHeight" Value="4" />
     </Style>
     <Style Selector="^:vertical">
-      <Setter Property="MinWidth" Value="4" /><Setter Property="MinHeight" Value="240" />
+      <Setter Property="MinWidth" Value="4" /><Setter Property="MinHeight" Value="40" />
     </Style>
     <Style Selector="^:vertical /template/ Border#PART_Indicator">
       <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="VerticalAlignment" Value="Bottom" />
@@ -70,7 +70,7 @@
     <Setter Property="TrackThickness" Value="4" />
     <Setter Property="GapSize" Value="4" />
     <Setter Property="Wavelength" Value="15" />
-    <Setter Property="MinWidth" Value="40" /><Setter Property="MinHeight" Value="40" />
+    <Setter Property="MinWidth" Value="24" /><Setter Property="MinHeight" Value="24" />
     <Setter Property="Template"><ControlTemplate><Panel /></ControlTemplate></Setter>
     <!-- ShowTrack is a project extension matching the source's transparent-track option; the
          wavy form measures 48 (CircularProgressIndicatorTokens.WaveSize) instead of 40. -->
@@ -81,7 +81,7 @@
   <ControlTheme x:Key="{x:Type controls:LoadingIndicator}" TargetType="controls:LoadingIndicator">
     <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     <Setter Property="ContainerBrush" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
-    <Setter Property="MinWidth" Value="48" /><Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinWidth" Value="24" /><Setter Property="MinHeight" Value="24" />
     <!-- A loading indicator must not swallow pointer input from the surface it overlays. -->
     <Setter Property="IsHitTestVisible" Value="False" />
     <Setter Property="Template"><ControlTemplate><Panel /></ControlTemplate></Setter>

@@ -33,13 +33,9 @@ namespace ExpressiveAvalonia.Controls;
 /// dismiss close them and return focus to the owner; no hover timer steals focus, and merely
 /// moving the pointer away does not dismiss actionable content.
 /// <para>
-/// <see cref="IsPersistent"/> reproduces <c>TooltipState.isPersistent</c>. A persistent tooltip
-/// stays until it is closed explicitly or by a light dismiss; a non-persistent one shows for the
-/// source <c>BasicTooltipDefaults.TooltipDuration</c> (1.5 s) and then dismisses itself. When the
-/// property is not set, the source recommendation decides the default: a tooltip with actionable
-/// content is persistent, an actionless one is non-persistent. The source's pointer-enter/exit
-/// branch has no Avalonia Flyout equivalent (the popup owns light dismiss), so an explicit
-/// non-persistent tooltip always uses the timed duration.
+/// <see cref="IsPersistent"/> keeps actionable content open until dismissal. A transient tooltip
+/// remains visible while its target is hovered or focused and closes 1.5 seconds after departure.
+/// When unset, persistence is selected from the presence of actionable content.
 /// </para>
 /// <para>
 /// Anatomy follows RichTooltipTokens and Tooltip.kt: 40 x 24 minimum, 320 px maximum width,
@@ -200,8 +196,8 @@ public sealed class RichTooltip : Flyout
     /// An unset value is resolved by <see cref="EffectiveIsPersistent"/>: the source recommends
     /// <c>isPersistent = true</c> "when there is actionable content being displayed within a
     /// tooltip", and every RichTooltip sample passes it, so an actionable tooltip is persistent and
-    /// an actionless one is non-persistent. A non-persistent tooltip dismisses itself after
-    /// <c>BasicTooltipDefaults.TooltipDuration</c> (1.5 s).
+    /// an actionless one is non-persistent. A non-persistent tooltip dismisses 1.5 seconds after
+    /// the pointer and keyboard focus leave its target.
     /// </remarks>
     public bool IsPersistent
     {
@@ -342,6 +338,9 @@ public sealed class RichTooltip : Flyout
             target.DetachedFromVisualTree += OnTargetDetached;
             target.PointerEntered -= OnTargetPointerEntered;
             target.PointerEntered += OnTargetPointerEntered;
+            target.PointerExited += OnTargetPointerExited;
+            target.GotFocus += OnTargetFocusChanged;
+            target.LostFocus += OnTargetFocusChanged;
         }
         if (_presenter is { } presenter)
         {
@@ -431,6 +430,9 @@ public sealed class RichTooltip : Flyout
             owner.RemoveHandler(InputElement.KeyDownEvent, OnPresenterKeyDown);
             owner.DetachedFromVisualTree -= OnTargetDetached;
             owner.PointerEntered -= OnTargetPointerEntered;
+            owner.PointerExited -= OnTargetPointerExited;
+            owner.GotFocus -= OnTargetFocusChanged;
+            owner.LostFocus -= OnTargetFocusChanged;
         }
         _keyboardOwner = null;
         _target = null;
@@ -452,6 +454,7 @@ public sealed class RichTooltip : Flyout
     /// </summary>
     private void OnTargetPointerEntered(object? sender, PointerEventArgs args)
     {
+        StopDurationTimer();
         if (!_exiting)
             return;
 
@@ -476,6 +479,12 @@ public sealed class RichTooltip : Flyout
         // of staying on screen without a dismissal path.
         SyncDurationTimer();
     }
+
+    private void OnTargetPointerExited(object? sender, PointerEventArgs args) =>
+        Dispatcher.UIThread.Post(SyncDurationTimer, DispatcherPriority.Input);
+
+    private void OnTargetFocusChanged(object? sender, FocusChangedEventArgs args) =>
+        Dispatcher.UIThread.Post(SyncDurationTimer, DispatcherPriority.Input);
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -706,12 +715,9 @@ public sealed class RichTooltip : Flyout
     private void SyncDurationTimer()
     {
         StopDurationTimer();
-        if (!IsOpen || EffectiveIsPersistent)
+        if (!IsOpen || EffectiveIsPersistent ||
+            _target is { } target && (target.IsPointerOver || target.IsKeyboardFocusWithin))
             return;
-
-        // Tooltip.kt TooltipStateImpl.show: a non-persistent tooltip shown without UserInput
-        // priority wraps the show in withTimeout(TooltipDuration). The Flyout lifecycle has no
-        // pointer-enter show, so a non-persistent popup always uses that timed branch.
         _durationTimer = new DispatcherTimer(
             TimeSpan.FromMilliseconds(TooltipDurationMilliseconds),
             DispatcherPriority.Input,

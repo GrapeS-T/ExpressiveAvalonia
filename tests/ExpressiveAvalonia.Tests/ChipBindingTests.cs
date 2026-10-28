@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Linq;
 using Avalonia;
 using Avalonia.Automation.Peers;
 using Avalonia.Automation.Provider;
@@ -8,6 +9,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 using ExpressiveAvalonia.Controls;
 using Xunit;
 
@@ -77,6 +79,29 @@ public class ChipBindingTests
             Assert.False(KeyboardNavigation.GetIsTabStop(second));
             first.IsEnabled = true;
             Assert.True(KeyboardNavigation.GetIsTabStop(first));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void RemovableSelectableChipOffersKeyboardAccessibleRemoveAction()
+    {
+        var chip = new MaterialChip { Kind = MaterialChipKind.Input, Content = "Recipient", IsRemovable = true };
+        var removed = false;
+        chip.RemoveRequested += (_, _) => removed = true;
+        var window = new Window { Width = 480, Height = 240, Content = chip };
+        window.Show();
+        window.UpdateLayout();
+        try
+        {
+            var remove = Assert.Single(chip.GetVisualDescendants().OfType<Button>(), b => b.Name == "PART_RemoveButton");
+            Assert.True(remove.Focusable);
+            Assert.True(KeyboardNavigation.GetIsTabStop(remove));
+            Assert.True(remove.Focus());
+            window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.None, null);
+            window.KeyRelease(Key.Enter, RawInputModifiers.None, PhysicalKey.None, null);
+            Assert.True(removed);
+            Assert.False(chip.IsSelected);
         }
         finally { window.Close(); }
     }

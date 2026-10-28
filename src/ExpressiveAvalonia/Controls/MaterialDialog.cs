@@ -131,7 +131,7 @@ public sealed class MaterialDialogClosedEventArgs(object? result) : EventArgs
 /// Avalonia modal semantics rather than a transcription of source scripts.
 /// </para>
 /// </remarks>
-[PseudoClasses(":open", ":icon")]
+[PseudoClasses(":open", ":icon", ":full-screen")]
 public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
 {
     /// <summary>Design source identity of the icon used by the source dialog family.</summary>
@@ -152,6 +152,10 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
 
     public static readonly StyledProperty<bool> ShowDividerProperty =
         AvaloniaProperty.Register<MaterialDialog, bool>(nameof(ShowDivider));
+
+    /// <summary>Requests the full-screen dialog presentation on compact windows.</summary>
+    public static readonly StyledProperty<bool> IsFullScreenProperty =
+        AvaloniaProperty.Register<MaterialDialog, bool>(nameof(IsFullScreen));
 
     public static readonly StyledProperty<IList<MaterialDialogAction>?> ActionsProperty =
         AvaloniaProperty.Register<MaterialDialog, IList<MaterialDialogAction>?>(nameof(Actions));
@@ -228,6 +232,9 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
 
     /// <summary>Allows a scrim click to dismiss the dialog. Requires <see cref="IsDismissible"/>.</summary>
     public bool CloseOnScrimClick { get => GetValue(CloseOnScrimClickProperty); set => SetValue(CloseOnScrimClickProperty, value); }
+
+    /// <summary>Uses the full-screen presentation on compact windows and a basic dialog on larger windows.</summary>
+    public bool IsFullScreen { get => GetValue(IsFullScreenProperty); set => SetValue(IsFullScreenProperty, value); }
 
     /// <summary>Whether the dialog is currently presented modally.</summary>
     public bool IsOpen => _isOpen;
@@ -483,6 +490,8 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
     {
         base.OnApplyTemplate(e);
         _actionsPanel = e.NameScope.Find<MaterialDialogActionsPanel>("PART_Actions");
+        if (e.NameScope.Find<Button>("PART_CloseButton") is { } close)
+            close.Click += (_, _) => InvokeCancel();
         UpdateActions();
     }
 
@@ -505,6 +514,10 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
         else if (change.Property == IconProperty)
         {
             UpdateIconState();
+        }
+        else if (change.Property == IsFullScreenProperty && _owner is not null)
+        {
+            UpdateConstraints(_owner);
         }
     }
 
@@ -534,13 +547,18 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
         var height = owner.ClientSize.Height;
         if (height <= 0)
             return;
+        var fullScreen = IsFullScreen && owner.ClientSize.Width < 600;
+        PseudoClasses.Set(":full-screen", fullScreen);
+        HorizontalAlignment = fullScreen ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
+        VerticalAlignment = fullScreen ? VerticalAlignment.Stretch : VerticalAlignment.Center;
+        Margin = fullScreen ? default : new Thickness(24);
         if (!_appliedMaxHeight && double.IsPositiveInfinity(MaxHeight))
         {
             _previousMaxHeight = MaxHeight;
             _appliedMaxHeight = true;
         }
         if (_appliedMaxHeight)
-            MaxHeight = Math.Max(0, height - 48);
+            MaxHeight = fullScreen ? height : Math.Max(0, height - 48);
     }
 
     private void UpdateHostSize()

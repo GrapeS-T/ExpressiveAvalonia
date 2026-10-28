@@ -18,29 +18,39 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="Width" Value="18" />
-    <Setter Property="Height" Value="18" />
-    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="48" />
+    <Setter Property="Focusable" Value="True" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
-          <!-- Shared MaterialRipple: hover/focus/press feedback for this native button. The
-               18 DIP target is circular, matching the source close affordance. -->
+          <!-- Keep the 18 DIP feedback circle centered on the icon while the transparent
+               hit area extends through the trailing padding and the full chip target height. -->
           <theming:MaterialRipple Name="Ripple"
+                                  Width="18" Height="18" Margin="0,0,8,0"
                                   Fill="{TemplateBinding Foreground}"
                                   CornerRadius="9"
                                   PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
                                   HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
                                   FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                   IsHitTestVisible="False" />
-          <Path Width="10.5" Height="10.5" Stretch="Fill"
+          <Path Name="Glyph" Width="10.5" Height="10.5" Margin="0,0,8,0" Stretch="Fill"
                 Data="M 0,0 L 10.5,10.5 M 10.5,0 L 0,10.5"
                 Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeLineCap="Round"
                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Border Name="FocusRing" Width="24" Height="24" Margin="0,0,8,0" CornerRadius="12"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:rtl /template/ theming|MaterialRipple#Ripple, ^:rtl /template/ Path#Glyph, ^:rtl /template/ Border#FocusRing">
+      <Setter Property="Margin" Value="8,0,0,0" />
+    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type controls:MaterialChip}" TargetType="controls:MaterialChip">
@@ -115,9 +125,6 @@
                       Data="M 0,0 L 7.5,0 L 3.75,3.75 Z"
                       Fill="{TemplateBinding Foreground}" IsVisible="False"
                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                <Button Name="PART_RemoveButton" Theme="{StaticResource MaterialChipCloseButton}"
-                        Foreground="{TemplateBinding Foreground}" Width="18" Height="18"
-                        IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
               </Panel>
             </Border>
             </StackPanel>
@@ -135,6 +142,12 @@
             <Border Name="FocusRing" Margin="-3" CornerRadius="{TemplateBinding CornerRadius}"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                     IsVisible="False" IsHitTestVisible="False" />
+          <!-- This overlay occupies the trailing icon and padding only; it never covers the
+               label's selection target and does not change the visible chip anatomy. -->
+          <Button Name="PART_RemoveButton" Theme="{StaticResource MaterialChipCloseButton}"
+                  Foreground="{TemplateBinding Foreground}" IsVisible="False"
+                  Opacity="{TemplateBinding TrailingSlotOpacity}"
+                  Margin="0,-8" VerticalAlignment="Center" />
           </Panel>
         </Panel>
       </ControlTemplate>
@@ -251,6 +264,12 @@
     </Style>
     <Style Selector="^:trailing-remove /template/ Button#PART_RemoveButton">
       <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^ /template/ Button#PART_RemoveButton">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+    <Style Selector="^:rtl /template/ Button#PART_RemoveButton">
+      <Setter Property="HorizontalAlignment" Value="Left" />
     </Style>
 
     <!-- Disabled tokens: OnSurface container at 12 percent, OnSurface label/icons at 38 percent;

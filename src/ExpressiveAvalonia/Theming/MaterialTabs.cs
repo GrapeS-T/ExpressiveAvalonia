@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
@@ -99,10 +100,8 @@ public sealed class MaterialTabs : AvaloniaObject
         AvaloniaProperty.RegisterAttached<MaterialTabs, TabItem, bool>("ShowBadge");
 
     /// <summary>
-    /// The badge label. The source tab badge is its small variant (a 6px dot over the icon, or
-    /// after the label when the header has no icon). Setting text additionally renders a pill in
-    /// the trailing position for label headers; icon-only and primary icon-and-label headers keep
-    /// the dot, matching the source's small badge.
+    /// The badge label. When present, the badge is a pill over an icon or after the label;
+    /// otherwise it is a small dot.
     /// </summary>
     public static readonly AttachedProperty<string?> BadgeTextProperty =
         AvaloniaProperty.RegisterAttached<MaterialTabs, TabItem, string?>("BadgeText");
@@ -123,8 +122,13 @@ public sealed class MaterialTabs : AvaloniaObject
         InputElement.PointerWheelChangedEvent.AddClassHandler<TabControl>(OnPointerWheelChanged, RoutingStrategies.Tunnel);
         SelectingItemsControl.SelectionChangedEvent.AddClassHandler<TabControl>(OnSelectionChanged);
 
-        IsScrollableProperty.Changed.AddClassHandler<TabControl>(
-            static (tabs, _) => UpdateContainers(tabs));
+        IsScrollableProperty.Changed.AddClassHandler<TabControl>(static (tabs, _) =>
+        {
+            UpdateContainers(tabs);
+            QueueSelectedHeaderReveal(tabs);
+        });
+        Visual.FlowDirectionProperty.Changed.AddClassHandler<TabControl>(
+            static (tabs, _) => QueueSelectedHeaderReveal(tabs));
         TabItem.IconProperty.Changed.AddClassHandler<TabItem>(static (item, _) => UpdateHeaderLayout(item));
         TabItem.HeaderProperty.Changed.AddClassHandler<TabItem>(static (item, _) => UpdateHeaderLayout(item));
         LayoutProperty.Changed.AddClassHandler<TabItem>(static (item, _) => UpdateHeaderLayout(item));
@@ -208,6 +212,11 @@ public sealed class MaterialTabs : AvaloniaObject
         item.Classes.Set("md-icon-and-label", effective == MaterialTabLayout.IconAndLabel);
         item.Classes.Set("md-has-badge", GetShowBadge(item));
         item.Classes.Set("md-badge-text", !string.IsNullOrEmpty(GetBadgeText(item)));
+        AutomationProperties.SetItemStatus(item, GetShowBadge(item)
+            ? !string.IsNullOrWhiteSpace(GetBadgeText(item)) ? GetBadgeText(item)
+                : item.TryFindResource("MaterialNavigationBarBadgeDotText", out var resource) && resource is string text
+                    ? text : "New notification"
+            : null);
 
         var secondary = GetVariant(item) == MaterialTabVariant.Secondary;
         item.Classes.Set("md-primary", !secondary);
@@ -401,12 +410,18 @@ public sealed class MaterialTabs : AvaloniaObject
             container.BringIntoView();
             return;
         }
+        if (tabs.FlowDirection == FlowDirection.RightToLeft)
+        {
+            if (ScrollStates.TryGetValue(tabs, out var state))
+                StopHeaderScroll(state);
+            container.BringIntoView();
+            return;
+        }
 
-        // center.X is measured against the viewport, so target = offset + center - viewport / 2 is
-        // independent of the offset the spring currently renders. Recomputing during a running
-        // morph therefore retargets without drift, and remains mirrored for RTL, where Avalonia
-        // offsets and TranslatePoint are physical. TabRow publishes the same clamped offset
-        // (TabPosition.calculateTabOffset).
+
+        // In left-to-right flow, center.X is relative to the viewport, so this offset
+        // remains stable while the spring is running. RTL uses BringIntoView above because
+        // its mirrored viewport coordinates do not have this physical-offset relationship.
         if (container.TranslatePoint(new Point(container.Bounds.Width / 2, 0), scroller) is not { } center)
             return;
         var viewport = scroller.Viewport.Width;
@@ -421,9 +436,44 @@ public sealed class MaterialTabs : AvaloniaObject
         public EventHandler<PointerPressedEventArgs>? PointerPressed;
         public MaterialMotion.SpringAnimation? Animation;
         public bool Hooked;
+        public Size Viewport;
+        public Size Extent;
+        public bool RevealPending;
     }
 
     private static readonly ConditionalWeakTable<TabControl, TabScrollState> ScrollStates = new();
+
+    private static void QueueSelectedHeaderReveal(TabControl tabs)
+    {
+        if (!GetIsScrollable(tabs))
+            return;
+        var state = ScrollStates.GetOrCreateValue(tabs);
+        if (state.RevealPending)
+            return;
+        state.RevealPending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            state.RevealPending = false;
+            if (!GetIsScrollable(tabs) || tabs.SelectedIndex < 0 ||
+                tabs.ContainerFromIndex(tabs.SelectedIndex) is not TabItem item ||
+                !item.IsAttachedToVisualTree())
+                return;
+            StopHeaderScroll(state);
+            item.BringIntoView();
+        }, DispatcherPriority.Loaded);
+    }
+
+    private static void ObserveHeaderViewport(TabControl tabs)
+    {
+        if (!GetIsScrollable(tabs) || FindHeaderScroller(tabs) is not { } scroller)
+            return;
+        var state = ScrollStates.GetOrCreateValue(tabs);
+        if (state.Viewport == scroller.Viewport && state.Extent == scroller.Extent)
+            return;
+        state.Viewport = scroller.Viewport;
+        state.Extent = scroller.Extent;
+        QueueSelectedHeaderReveal(tabs);
+    }
 
     /// <summary>
     /// Scrolls the header viewport with the source <c>DefaultSpatial</c> spring
@@ -539,7 +589,7 @@ public sealed class MaterialTabs : AvaloniaObject
             return;
 
         var horizontal = tabs.TabStripPlacement is Dock.Top or Dock.Bottom;
-        state.Indicator.IsVisible = horizontal;
+        state.Indicator.IsVisible = horizontal && tabs.SelectedIndex >= 0;
         if (!horizontal || tabs.SelectedIndex < 0)
             return;
 
@@ -557,7 +607,7 @@ public sealed class MaterialTabs : AvaloniaObject
             ? tabWidth
             : Math.Clamp(HeaderContentWidth(tab), 24, tabWidth);
         var left = origin.X + (secondary ? 0 : (tabWidth - indicatorWidth) / 2);
-        var height = 3d;
+        var height = secondary ? 2d : 3d;
 
         state.Indicator.Height = height;
         state.Indicator.CornerRadius = secondary ? default : new CornerRadius(3);
@@ -612,7 +662,11 @@ public sealed class MaterialTabs : AvaloniaObject
         state.Hooked = true;
         // Header widths, scroll offsets and the selected container change without a selection
         // event (resize, dynamic add/remove, font change). Re-aim the shared indicator.
-        tabs.LayoutUpdated += (_, _) => UpdateIndicator(tabs, animate: true);
+        tabs.LayoutUpdated += (_, _) =>
+        {
+            UpdateIndicator(tabs, animate: true);
+            ObserveHeaderViewport(tabs);
+        };
         tabs.SizeChanged += (_, _) => UpdateIndicator(tabs, animate: false);
     }
 

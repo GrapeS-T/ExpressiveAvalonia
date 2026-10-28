@@ -77,6 +77,9 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
             VerticalAlignment = VerticalAlignment.Center,
         };
         stage.Children.Add(_carousel);
+        var showAll = new Button { Content = "Показать все", HorizontalAlignment = HorizontalAlignment.Right };
+        showAll.Click += (_, _) => ShowAllItems();
+        stage.Children.Add(showAll);
         stage.Children.Add(CreateTransitionsDemo());
         Children.Add(stage);
         Grid.SetRow(_status, 1);
@@ -177,6 +180,28 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
             ? $"Выбрана карточка {_carousel.SelectedIndex + 1} из {_carousel.ItemCount}, CurrentItem: {_carousel.CurrentItem}"
             : $"Карточек: {_carousel.ItemCount}";
         _current.Text = $"CurrentItem: {_carousel.CurrentItem}, SelectedIndex: {_carousel.SelectedIndex}";
+    }
+
+    private async void ShowAllItems()
+    {
+        if (TopLevel.GetTopLevel(this) is not { } owner) return;
+        var list = new StackPanel { Spacing = 8 };
+        for (var i = 0; i < _carousel.ItemCount; i++)
+        {
+            if (_carousel.Items[i] is not MaterialCarouselItem item) continue;
+            var index = i;
+            var button = new Button { Content = item.Label, IsEnabled = item.IsEnabled,
+                HorizontalAlignment = HorizontalAlignment.Stretch };
+            button.Click += (_, _) =>
+            {
+                _carousel.SelectedIndex = index;
+                item.Invoke();
+            };
+            list.Children.Add(button);
+        }
+        var dialog = new MaterialDialog { Title = "Все карточки", Content = list };
+        dialog.AddAction(new MaterialDialogAction("Закрыть", null) { IsCancel = true });
+        await dialog.ShowAsync(owner);
     }
 
     // Index 0 keeps the layout's own pinned default (single advance, no snap for uncontained); the

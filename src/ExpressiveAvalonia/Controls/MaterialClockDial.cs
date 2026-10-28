@@ -180,6 +180,7 @@ public sealed class MaterialClockDial : Control
 
     private bool _isDragging;
     private int _gestureVersion;
+    private MaterialClockDialAutomationPeer? _automationPeer;
 
     internal async Task<bool> WaitForSelectionAsync()
     {
@@ -301,6 +302,8 @@ public sealed class MaterialClockDial : Control
         if (change.Property == ValueProperty || change.Property == SelectionProperty ||
             change.Property == Is24HourProperty || change.Property == MinuteIncrementProperty)
         {
+            if (change.Property == SelectionProperty || change.Property == Is24HourProperty)
+                _automationPeer?.FaceChanged();
             if (change.Property == SelectionProperty)
                 CoerceValue(ValueProperty);
             if (change.Property == SelectionProperty || change.Property == Is24HourProperty)
@@ -839,7 +842,8 @@ public sealed class MaterialClockDial : Control
         _isDragging = false;
     }
 
-    protected override AutomationPeer OnCreateAutomationPeer() => new MaterialClockDialAutomationPeer(this);
+    protected override AutomationPeer OnCreateAutomationPeer() =>
+        _automationPeer = new MaterialClockDialAutomationPeer(this);
 
     private readonly record struct NumberCell(int Value, string Label, Point Center, bool IsInner);
 
@@ -852,7 +856,30 @@ public sealed class MaterialClockDial : Control
     private sealed class MaterialClockDialAutomationPeer(MaterialClockDial owner)
         : ControlAutomationPeer(owner), IRangeValueProvider
     {
+        private IReadOnlyList<AutomationPeer>? _hours12;
+        private IReadOnlyList<AutomationPeer>? _hours24;
+        private IReadOnlyList<AutomationPeer>? _minutes12;
+        private IReadOnlyList<AutomationPeer>? _minutes24;
         protected override string GetClassNameCore() => nameof(MaterialClockDial);
+        protected override IReadOnlyList<AutomationPeer>? GetChildrenCore()
+        {
+            ref var cached = ref (owner.Selection == MaterialClockDialSelection.Hour
+                ? ref (owner.Is24Hour ? ref _hours24 : ref _hours12)
+                : ref (owner.Is24Hour ? ref _minutes24 : ref _minutes12));
+            if (cached is not null) return cached;
+            var count = owner.Selection == MaterialClockDialSelection.Hour && owner.Is24Hour ? 24 : 12;
+            var peers = new List<AutomationPeer>(count);
+            for (var index = 0; index < count; index++)
+            {
+                var value = owner.Selection == MaterialClockDialSelection.Minute ? index * 5
+                    : owner.Is24Hour ? index : index == 0 ? 12 : index;
+                peers.Add(new DialCellPeer(owner, value, owner.Selection, owner.Is24Hour));
+            }
+            return cached = peers;
+        }
+
+        internal void FaceChanged() => InvalidateChildren();
+
 
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Slider;
 
@@ -878,6 +905,47 @@ public sealed class MaterialClockDial : Control
         {
             if (!owner.IsEffectivelyEnabled || double.IsNaN(value)) return;
             owner.SetCurrentValue(ValueProperty, (int)Math.Round(value));
+        }
+    }
+    private sealed class DialCellPeer(MaterialClockDial owner, int value,
+        MaterialClockDialSelection selection, bool is24Hour) : ControlAutomationPeer(owner), IInvokeProvider
+    {
+        protected override IReadOnlyList<AutomationPeer>? GetChildrenCore() => null;
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Button;
+        protected override string GetClassNameCore() => "ClockDialNumber";
+        protected override string? GetNameCore()
+        {
+            var key = selection == MaterialClockDialSelection.Hour
+                ? "MaterialTimePickerDialHourAccessibilityText"
+                : "MaterialTimePickerDialMinuteAccessibilityText";
+            var fallback = selection == MaterialClockDialSelection.Hour ? "{0} hours of {1}" : "{0} minutes of {1}";
+            var pattern = owner.TryFindResource(key, out var resource) && resource is string text ? text : fallback;
+            return string.Format(owner.EffectiveCulture, pattern,
+                MaterialTimeNumerals.Format(value, 1, owner.EffectiveCulture),
+                MaterialTimeNumerals.Format(selection == MaterialClockDialSelection.Minute ? 60 : is24Hour ? 24 : 12, 1, owner.EffectiveCulture));
+        }
+
+        protected override Rect GetBoundingRectangleCore()
+        {
+            if (owner.Selection != selection || owner.Is24Hour != is24Hour || TopLevel.GetTopLevel(owner) is not Visual root)
+                return default;
+            var transform = owner.TransformToVisual(root);
+            if (transform is null) return default;
+            var center = new Point(owner.Bounds.Width / 2, owner.Bounds.Height / 2);
+            foreach (var cell in owner.BuildCells(center, Math.Min(owner.Bounds.Width, owner.Bounds.Height) / 2))
+                if (cell.Value == value)
+                    return new Rect(cell.Center.X - CellRadius, cell.Center.Y - CellRadius, CellRadius * 2, CellRadius * 2).TransformToAABB(transform.Value);
+            return default;
+        }
+
+        protected override bool IsKeyboardFocusableCore() => false;
+
+        public void Invoke()
+        {
+            EnsureEnabled();
+            if (owner.Selection != selection || owner.Is24Hour != is24Hour) return;
+            owner.SetCurrentValue(ValueProperty, value);
+            owner.PointerSelectionCompleted?.Invoke(owner, new MaterialClockDialSelectionEventArgs(isTap: false));
         }
     }
 }

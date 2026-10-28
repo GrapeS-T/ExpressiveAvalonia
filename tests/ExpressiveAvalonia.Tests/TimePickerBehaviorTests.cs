@@ -2,6 +2,8 @@ using System;
 using System.Globalization;
 using System.Linq;
 using Avalonia;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -78,6 +80,37 @@ public class TimePickerBehaviorTests
             Key = Key.Enter,
         });
         Flush();
+    }
+
+    [AvaloniaFact]
+    public void DialAutomationExposesInvokableNumbersForEachFace()
+    {
+        var dial = new MaterialClockDial { Width = 256, Height = 256, Culture = CultureInfo.InvariantCulture };
+        var window = Show(dial);
+        try
+        {
+            var peer = ControlAutomationPeer.CreatePeerForElement(dial);
+            var hours = peer.GetChildren();
+            Assert.Equal(12, hours.Count);
+            var seven = hours.Single(child => child.GetName() == "7 hours of 12");
+            Assert.Equal(AutomationControlType.Button, seven.GetAutomationControlType());
+            Assert.NotNull(seven.GetProvider<IInvokeProvider>());
+            seven.GetProvider<IInvokeProvider>()!.Invoke();
+            Assert.Equal(7, dial.Value);
+
+            dial.Is24Hour = true;
+            var hours24 = peer.GetChildren();
+            Assert.Equal(24, hours24.Count);
+            hours24.Single(child => child.GetName() == "20 hours of 24").GetProvider<IInvokeProvider>()!.Invoke();
+            Assert.Equal(20, dial.Value);
+
+            dial.Selection = MaterialClockDialSelection.Minute;
+            var minutes = peer.GetChildren();
+            Assert.Equal(12, minutes.Count);
+            minutes.Single(child => child.GetName() == "25 minutes of 60").GetProvider<IInvokeProvider>()!.Invoke();
+            Assert.Equal(25, dial.Value);
+        }
+        finally { window.Close(); }
     }
 
     [AvaloniaFact]

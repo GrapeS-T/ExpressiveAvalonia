@@ -98,18 +98,16 @@ public class DateStateTests
             var start = picker.GetVisualDescendants().OfType<TextBox>()
                 .Single(box => box.Name == "PART_StartInput");
             Assert.True(start.Focus());
-            // DateInput reports the rejected start as null, and range setSelection then clears
-            // the existing end as well.
-            start.Text = "06252026";
-            // Avalonia raises TextBox.TextChanged asynchronously (posted at Normal priority), so the
-            // mask and the draft commit only run once the dispatcher pumps.
+            start.Text = "6-25-2026";
             Dispatcher.UIThread.RunJobs();
-            window.UpdateLayout();
+            Assert.Equal("6-25-2026", start.Text);
+            Press(window, Key.Enter);
+            Dispatcher.UIThread.RunJobs();
 
             Assert.Null(picker.SelectedDate);
             Assert.Null(picker.SelectedEndDate);
             Assert.False(string.IsNullOrEmpty(picker.ValidationMessage));
-            Assert.Equal("06/25/2026", start.Text);
+            Assert.Equal("6-25-2026", start.Text);
         }
         finally
         {
@@ -197,10 +195,15 @@ public class DateStateTests
             Assert.True(input.Focus());
             input.Text = "٠٦٢٥٢٠٢٦";
             Dispatcher.UIThread.RunJobs();
+            Assert.Equal("٠٦٢٥٢٠٢٦", input.Text);
+            Press(window, Key.Enter);
+            Dispatcher.UIThread.RunJobs();
             Assert.Equal("06/25/2026", input.Text);
             Assert.Equal(new DateTime(2026, 6, 25), picker.SelectedDate?.Date);
             Assert.True(picker.TryParseDate("०६२५२०२६", out var parsed));
             Assert.Equal(new DateTime(2026, 6, 25), parsed);
+            Assert.True(picker.TryParseDate("2026-06-25", out var iso));
+            Assert.Equal(new DateTime(2026, 6, 25), iso);
         }
         finally { window.Close(); }
     }

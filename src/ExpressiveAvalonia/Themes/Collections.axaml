@@ -12,7 +12,7 @@
          min heights 56 / 72 / 88 (one/two/three lines)      ListTokens.ItemOneLine/T...
          start+end padding 16                                ItemLeadingSpace / ItemTrailingSpace
          slot gap 12                                         ItemBetweenSpace
-         top+bottom padding 12 for precision pointers        ListItemDefaults.ContentPadding
+         top+bottom padding 10                                M3 expressive list measurements
          extra-small -> medium (hover) -> large (selected, focus, press, drag) corner shapes
          surface / on-surface at rest; secondary-container / on-secondary-container selected;
          tertiary-container / on-tertiary-container dragged; on-surface @38% disabled
@@ -93,8 +93,8 @@
        native ListBoxItem ones. -->
   <ControlTheme x:Key="MaterialListItemBase" TargetType="ListBoxItem">
     <Setter Property="MinHeight" Value="56" />
-    <!-- 16 start/end, 12 top/bottom (precision-pointer ListItemDefaults.ContentPadding). -->
-    <Setter Property="Padding" Value="16,12" />
+    <!-- 16 start/end, 10 top/bottom per expressive list measurements. -->
+    <Setter Property="Padding" Value="16,10" />
     <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraSmallCornerRadius}" />
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
@@ -128,7 +128,6 @@
                       Margin="{TemplateBinding Padding}">
                   <!-- Leading building blocks: indent, monogram, image, video, avatar, content. -->
                   <StackPanel Name="LeadingColumn" Grid.Column="0" Orientation="Horizontal"
-                              Margin="0,0,12,0"
                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
                     <Border Name="LeadingIndent" Width="{TemplateBinding (md:MaterialList.LeadingIndent)}"
                             Background="Transparent" />
@@ -172,7 +171,7 @@
                     </Border>
                     <ContentPresenter Name="LeadingContent"
                                       Content="{TemplateBinding (md:MaterialList.LeadingContent)}"
-                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0" VerticalAlignment="Center"
                                       TextElement.FontSize="{DynamicResource MaterialLabelMediumFontSize}"
                                       TextElement.FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
                                       TextElement.Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
@@ -216,11 +215,10 @@
                   </StackPanel>
                   <!-- Trailing metadata, badge, element and accordion toggle. -->
                   <StackPanel Name="TrailingColumn" Grid.Column="2" Orientation="Horizontal"
-                              Margin="12,0,0,0"
                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
                     <TextBlock Name="TrailingSupportingText"
                                Text="{TemplateBinding (md:MaterialList.TrailingSupportingText)}"
-                               VerticalAlignment="Center"
+                               Margin="12,0,0,0" VerticalAlignment="Center"
                                FontSize="{DynamicResource MaterialLabelSmallFontSize}"
                                FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
                                LineHeight="{DynamicResource MaterialLabelSmallLineHeight}"
@@ -229,7 +227,7 @@
                                MaxLines="1" TextTrimming="CharacterEllipsis"
                                IsVisible="{Binding (md:MaterialList.TrailingSupportingText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
                     <controls:MaterialBadge Text="{TemplateBinding (md:MaterialList.BadgeText)}"
-                                            Margin="8,0,0,0" VerticalAlignment="Center"
+                                            Margin="12,0,0,0" VerticalAlignment="Center"
                                             IsVisible="{Binding (md:MaterialList.BadgeText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
                     <ContentPresenter Name="TrailingContent"
                                       Content="{TemplateBinding (md:MaterialList.TrailingContent)}"
@@ -239,7 +237,7 @@
                                       TextElement.Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                                       IsVisible="{Binding (md:MaterialList.TrailingContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
                     <ToggleButton Name="AccordionToggle" Theme="{DynamicResource MaterialAccordionButton}"
-                                  Margin="8,0,0,0" VerticalAlignment="Center"
+                                  Margin="12,0,0,0" VerticalAlignment="Center"
                                   IsChecked="{Binding (md:MaterialList.IsExpanded), RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
                                   IsVisible="{Binding (md:MaterialList.ExpandedContent), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
                   </StackPanel>
@@ -291,7 +289,7 @@
     </Style>
     <Style Selector="^.md-list-3line">
       <Setter Property="MinHeight" Value="88" />
-      <Setter Property="Padding" Value="16,12" />
+      <Setter Property="Padding" Value="16,10" />
       <Setter Property="VerticalContentAlignment" Value="Top" />
     </Style>
 

@@ -660,8 +660,6 @@ public class MaterialChip : Button
         if (_removeButton is not null)
         {
             _removeButton.Click += OnRemoveButtonClick;
-            _removeButton.Focusable = false;
-            KeyboardNavigation.SetIsTabStop(_removeButton, false);
             UpdateRemoveButtonName();
         }
 
