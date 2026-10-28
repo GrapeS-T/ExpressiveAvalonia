@@ -203,7 +203,7 @@ public class MaterialSelectableDates
 /// </para>
 /// <para>
 /// Keyboard: arrow keys move focus, PageUp/PageDown change month (with Shift, year), Home/End
-/// move to the start/end of the week, Enter or Space selects the focused day and Escape cancels.
+/// move to the start/end of the month, Enter or Space selects the focused day and Escape cancels.
 /// In the month and year views arrows move by one choice, PageUp/PageDown by a year, and
 /// Escape returns to the day view. Cells are reachable by Tab through the picker's single tab
 /// stop (roving focus), and each cell exposes its full localized date to automation.
@@ -371,6 +371,7 @@ public sealed class MaterialDatePicker : TemplatedControl
     private bool _settingSelection;
     private bool _normalizing;
     private bool _syncingInput;
+    private TextBox? _inputBeingNormalized;
     private string? _startSyncedText;
     private string? _endSyncedText;
     private MaterialDateInputFormat? _inputFormat;
@@ -774,7 +775,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         var format = InputFormat;
         var digits = DigitsOf(trimmed);
         var culture = EffectiveCulture;
-        if (digits.Length == format.DigitCount &&
+        if (trimmed.All(char.IsDigit) && digits.Length == format.DigitCount &&
             DateTime.TryParseExact(digits, format.PatternWithoutDelimiters, culture,
                 DateTimeStyles.None, out var patternDate))
         {
@@ -853,15 +854,10 @@ public sealed class MaterialDatePicker : TemplatedControl
     {
         if (IsInputMode)
         {
+            NormalizeInputOnBlur(_startInput, isEnd: false);
+            if (IsRange && string.IsNullOrEmpty(_validationMessage))
+                NormalizeInputOnBlur(_endInput, isEnd: true);
             if (!string.IsNullOrEmpty(_validationMessage))
-                return;
-            // Incomplete text is not a valid draft; the source dialog keeps its confirm action
-            // external, so refuse to confirm an unparsed value.
-            if (_startInput is { Text.Length: > 0 } start &&
-                DigitsOf(start.Text).Length < InputFormat.DigitCount)
-                return;
-            if (IsRange && _endInput is { Text.Length: > 0 } end &&
-                DigitsOf(end.Text).Length < InputFormat.DigitCount)
                 return;
         }
 
@@ -1132,6 +1128,14 @@ public sealed class MaterialDatePicker : TemplatedControl
 
         if (IsInputMode || e.Source is TextBox)
             return;
+
+        if (e.KeyModifiers == KeyModifiers.Shift && e.Key is Key.M or Key.Y)
+        {
+            SetCurrentValue(ViewProperty, e.Key == Key.M ? MaterialDatePickerView.Month : MaterialDatePickerView.Year);
+            Dispatcher.UIThread.Post(FocusActiveCell, DispatcherPriority.Background);
+            e.Handled = true;
+            return;
+        }
 
         var handled = View switch
         {
@@ -3552,7 +3556,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         _syncingInput = true;
         try
         {
-            if (_startInput is not null && (force || !_startInput.IsFocused))
+            if (_startInput is not null && !ReferenceEquals(_startInput, _inputBeingNormalized) && (force || !_startInput.IsFocused))
             {
                 var text = SelectedDate is { } start
                     ? InputFormat.Format(SelectedDateDigits(start.Date))
@@ -3561,7 +3565,7 @@ public sealed class MaterialDatePicker : TemplatedControl
                 // The echoed TextChanged must not be mistaken for a user edit of this value.
                 RecordSyncedInputText(isEnd: false, text);
             }
-            if (_endInput is not null && (force || !_endInput.IsFocused))
+            if (_endInput is not null && !ReferenceEquals(_endInput, _inputBeingNormalized) && (force || !_endInput.IsFocused))
             {
                 var text = SelectedEndDate is { } end
                     ? InputFormat.Format(SelectedDateDigits(end.Date))
@@ -3579,11 +3583,6 @@ public sealed class MaterialDatePicker : TemplatedControl
     private string SelectedDateDigits(DateTime date) =>
         date.ToString(InputFormat.PatternWithoutDelimiters, EffectiveCulture);
 
-    private string CurrentInputDigits(bool isEnd)
-    {
-        var value = isEnd ? SelectedEndDate : SelectedDate;
-        return value is { } date ? SelectedDateDigits(date.Date) : string.Empty;
-    }
 
     private void FocusTextInput()
     {
@@ -3745,28 +3744,22 @@ public sealed class MaterialDatePicker : TemplatedControl
             return;
         e.Handled = true;
         var box = isEnd ? _endInput : _startInput;
+        NormalizeInputOnBlur(box, isEnd);
         if (box is null || !string.IsNullOrEmpty(_validationMessage))
             return;
-        var digits = DigitsOf(box.Text);
-        if (digits.Length != InputFormat.DigitCount)
-        {
-            // Incomplete text stays editable and is never confirmed.
-            return;
-        }
         if (!IsRange || isEnd)
             Commit();
     }
 
     private void OnStartInputTextChanged(object? sender, TextChangedEventArgs e) =>
-        ApplyMaskedInput(_startInput, isEnd: false);
+        RecordInputEdit(_startInput, isEnd: false);
 
     private void OnEndInputTextChanged(object? sender, TextChangedEventArgs e) =>
-        ApplyMaskedInput(_endInput, isEnd: true);
+        RecordInputEdit(_endInput, isEnd: true);
 
     private void OnStartInputLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        // The source date input updates its draft while typing; losing focus is not a commit
-        // point. Restore the last valid value when the buffer is not a complete date.
+        // Do not change text while it is being typed.
         NormalizeInputOnBlur(_startInput, isEnd: false);
     }
 
@@ -3779,16 +3772,35 @@ public sealed class MaterialDatePicker : TemplatedControl
     {
         if (box is null)
             return;
-        var digits = DigitsOf(box.Text);
-        if (digits.Length == 0)
-            return;
-        if (digits.Length != InputFormat.DigitCount)
+        var raw = box.Text?.Trim() ?? string.Empty;
+        if (raw.Length == 0)
         {
             SetValidationMessage(null);
+            if (isEnd)
+                ApplySelection(SelectedDate?.Date, null);
+            else
+                ApplySelection(null, null);
             return;
         }
-        // A complete but invalid value keeps its error; a valid one is left as typed.
-        ApplyMaskedInput(box, isEnd, force: true);
+        if (!TryParseDate(raw, out var date))
+        {
+            SetValidationMessage(GetText("MaterialDatePickerInvalidDateText", "Enter a valid date"));
+            return;
+        }
+        _inputBeingNormalized = box;
+        try
+        {
+            ApplyTypedDraft(SelectedDateDigits(date), isEnd);
+        }
+        finally
+        {
+            _inputBeingNormalized = null;
+        }
+        if (string.IsNullOrEmpty(_validationMessage))
+        {
+            var formatted = InputFormat.Format(SelectedDateDigits(date));
+            SetInputText(box, isEnd, formatted, formatted.Length);
+        }
     }
 
     private string DigitsOf(string? text)
@@ -3804,59 +3816,12 @@ public sealed class MaterialDatePicker : TemplatedControl
         return builder.ToString();
     }
 
-    /// <summary>
-    /// Enforces the source's digit-only input transformation and output mask: only digits are
-    /// accepted, the locale delimiter is inserted automatically, and the draft selection changes
-    /// as soon as the text forms a complete date. The <see cref="TextBox"/> remains the native
-    /// editing surface (selection, caret, clipboard, undo and IME).
-    /// </summary>
-    private void ApplyMaskedInput(TextBox? box, bool isEnd, bool force = false)
+    private void RecordInputEdit(TextBox? box, bool isEnd)
     {
-        if (box is null || _syncingInput)
+        if (box is null || _syncingInput || !box.IsFocused ||
+            string.Equals(box.Text, SyncedInputText(isEnd), StringComparison.Ordinal))
             return;
-        if (!force && !box.IsFocused)
-            return;
-
-        var format = InputFormat;
-        var raw = box.Text ?? string.Empty;
-        // TextBox raises TextChanged asynchronously, so both the mask's rewrite and the selection
-        // sync come back as notifications that carry no new user edit. Re-processing them would
-        // apply the same draft twice and would resurrect a draft that the first pass rejected.
-        if (!force && string.Equals(raw, SyncedInputText(isEnd), StringComparison.Ordinal))
-            return;
-        var caret = box.CaretIndex;
-        var digitOffset = format.ToDigitOffset(raw, caret);
-        var digits = DigitsOf(raw);
-
-        // Reject non-digit input and overflow exactly as DateInputTransformation reverts a
-        // change: restore the previous formatted value instead of silently deleting characters.
-        var invalidCharacter = false;
-        foreach (var c in raw)
-        {
-            // DateInputTransformation accepts digits only; the visible delimiters are supplied by
-            // the output mask, so any other character (including a pasted foreign delimiter) is
-            // rejected and the previous value restored.
-            if (!char.IsDigit(c) && c != format.Delimiter)
-            {
-                invalidCharacter = true;
-                break;
-            }
-        }
-
-        if (invalidCharacter || digits.Length > format.DigitCount)
-        {
-            var current = CurrentInputDigits(isEnd);
-            var maskedCurrent = format.Format(current);
-            SetInputText(box, isEnd, maskedCurrent, maskedCurrent.Length);
-            return;
-        }
-
-        var masked = format.Format(digits);
-        var newCaret = format.ToCaretIndex(masked, Math.Min(digitOffset, digits.Length));
-        if (!string.Equals(raw, masked, StringComparison.Ordinal) || box.CaretIndex != newCaret)
-            SetInputText(box, isEnd, masked, newCaret);
-
-        ApplyTypedDraft(digits, isEnd);
+        SetValidationMessage(null);
     }
 
     private string? SyncedInputText(bool isEnd) => isEnd ? _endSyncedText : _startSyncedText;
@@ -4251,10 +4216,10 @@ public sealed class MaterialDatePicker : TemplatedControl
                 MoveFocus(ClampToBounds(AddMonthsClamped(date, shift ? 12 : 1)) ?? date);
                 return true;
             case Key.Home:
-                MoveFocus(StartOfWeek(date));
+                MoveFocus(ClampToBounds(new DateTime(date.Year, date.Month, 1)) ?? date);
                 return true;
             case Key.End:
-                MoveFocus(AddDaysClamped(date, 6 - (((int)date.DayOfWeek - (int)FirstDayOfWeek + 7) % 7)));
+                MoveFocus(ClampToBounds(new DateTime(date.Year, date.Month, DateTime.DaysInMonth(date.Year, date.Month))) ?? date);
                 return true;
             case Key.Enter:
             case Key.Space:
@@ -4368,8 +4333,6 @@ public sealed class MaterialDatePicker : TemplatedControl
         return new DateTime(day * TimeSpan.TicksPerDay);
     }
 
-    private DateTime StartOfWeek(DateTime date) =>
-        AddDaysClamped(date, -(((int)date.DayOfWeek - (int)FirstDayOfWeek + 7) % 7));
 
     private string GetText(string key, string fallback) =>
         this.TryFindResource(key, out var value) && value is string text ? text : fallback;

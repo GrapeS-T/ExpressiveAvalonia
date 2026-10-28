@@ -634,10 +634,7 @@ public sealed class MaterialTopAppBarStack : Panel
         if (IsTwoRow && Children.Count > 1)
         {
             var second = Children[1];
-            var remaining = double.IsFinite(availableSize.Height)
-                ? Math.Max(0, availableSize.Height - firstHeight)
-                : availableSize.Height;
-            second.Measure(new Size(width, remaining));
+            second.Measure(new Size(width, double.PositiveInfinity));
             height += second.DesiredSize.Height;
         }
         return new Size(double.IsInfinity(width) ? Math.Max(first.DesiredSize.Width,
@@ -1061,6 +1058,9 @@ public partial class MaterialAppBar : MaterialBarBase
     public static readonly StyledProperty<object?> ThumbnailProperty =
         AvaloniaProperty.Register<MaterialAppBar, object?>(nameof(Thumbnail));
 
+    public static readonly StyledProperty<object?> ImageContentProperty =
+        AvaloniaProperty.Register<MaterialAppBar, object?>(nameof(ImageContent));
+
     public static readonly StyledProperty<object?> AvatarContentProperty =
         AvaloniaProperty.Register<MaterialAppBar, object?>(nameof(AvatarContent));
 
@@ -1100,6 +1100,9 @@ public partial class MaterialAppBar : MaterialBarBase
     public static readonly DirectProperty<MaterialAppBar, bool> IsFlexibleLayoutProperty =
         AvaloniaProperty.RegisterDirect<MaterialAppBar, bool>(
             nameof(IsFlexibleLayout), bar => bar.IsFlexibleLayout, (bar, value) => bar.IsFlexibleLayout = value);
+
+    public static readonly DirectProperty<MaterialAppBar, bool> HasFlexibleTextTitleProperty =
+        AvaloniaProperty.RegisterDirect<MaterialAppBar, bool>(nameof(HasFlexibleTextTitle), bar => bar.HasFlexibleTextTitle);
 
     public static readonly DirectProperty<MaterialAppBar, bool> HasSmallTitleProperty =
         AvaloniaProperty.RegisterDirect<MaterialAppBar, bool>(
@@ -1171,10 +1174,21 @@ public partial class MaterialAppBar : MaterialBarBase
         AvaloniaProperty.RegisterDirect<MaterialAppBar, double>(
             nameof(BottomTitleOpacity), bar => bar.BottomTitleOpacity);
 
+    public static readonly DirectProperty<MaterialAppBar, IBrush?> RenderedBackgroundProperty =
+        AvaloniaProperty.RegisterDirect<MaterialAppBar, IBrush?>(nameof(RenderedBackground), bar => bar.RenderedBackground);
+
+    public static readonly DirectProperty<MaterialAppBar, object?> CollapsedTitleContentProperty =
+        AvaloniaProperty.RegisterDirect<MaterialAppBar, object?>(nameof(CollapsedTitleContent), bar => bar.CollapsedTitleContent);
+    public static readonly DirectProperty<MaterialAppBar, object?> ExpandedTitleContentProperty =
+        AvaloniaProperty.RegisterDirect<MaterialAppBar, object?>(nameof(ExpandedTitleContent), bar => bar.ExpandedTitleContent);
+
     private bool _isScrolled;
     private bool _isSingleRowLayout = true;
     private bool _isTwoRowLayout;
     private bool _isFlexibleLayout;
+    private bool _hasFlexibleTextTitle;
+    private object? _collapsedTitleContent;
+    private object? _expandedTitleContent;
     private bool _hasSmallTitle = true;
     private bool _isSearchLayout;
     private bool _hasSubtitle;
@@ -1202,6 +1216,14 @@ public partial class MaterialAppBar : MaterialBarBase
     private MaterialAppBarState? _state;
     private MaterialColorAnimation? _containerAnimation;
     private SolidColorBrush? _containerBrush;
+    private IBrush? _renderedBackground;
+    private IDisposable? _scrollColorSubscription;
+    private sealed class ScrollColorObserver(MaterialAppBar owner) : IObserver<object?>
+    {
+        public void OnNext(object? value) => owner.UpdateScrollAppearance();
+        public void OnError(Exception error) { }
+        public void OnCompleted() { }
+    }
     private Control? _topTitlePresenter;
     private Control? _bottomTitlePresenter;
     private bool _dragging;
@@ -1321,6 +1343,12 @@ public partial class MaterialAppBar : MaterialBarBase
         set => SetValue(ThumbnailProperty, value);
     }
 
+    public object? ImageContent
+    {
+        get => GetValue(ImageContentProperty);
+        set => SetValue(ImageContentProperty, value);
+    }
+
     public object? AvatarContent
     {
         get => GetValue(AvatarContentProperty);
@@ -1390,6 +1418,12 @@ public partial class MaterialAppBar : MaterialBarBase
     {
         get => _isFlexibleLayout;
         private set => SetAndRaise(IsFlexibleLayoutProperty, ref _isFlexibleLayout, value);
+    }
+
+    public bool HasFlexibleTextTitle
+    {
+        get => _hasFlexibleTextTitle;
+        private set => SetAndRaise(HasFlexibleTextTitleProperty, ref _hasFlexibleTextTitle, value);
     }
 
     public bool HasSmallTitle
@@ -1486,6 +1520,10 @@ public partial class MaterialAppBar : MaterialBarBase
         private set => SetAndRaise(BottomTitleOpacityProperty, ref _bottomTitleOpacity, value);
     }
 
+    public IBrush? RenderedBackground => _renderedBackground;
+    public object? CollapsedTitleContent => _collapsedTitleContent;
+    public object? ExpandedTitleContent => _expandedTitleContent;
+
     /// <summary>
     /// Vertical drag on the bar itself, ported from the source's <c>appBarDragModifier</c>. The
     /// bar expands when dragged down and collapses when dragged up; a release settles through
@@ -1581,6 +1619,8 @@ public partial class MaterialAppBar : MaterialBarBase
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        _scrollColorSubscription = this.GetResourceObservable("MaterialSurfaceContainerColor")
+            .Subscribe(new ScrollColorObserver(this));
         UpdateAdapter();
         SubscribeState();
         UpdateScrollDerived();
@@ -1590,11 +1630,15 @@ public partial class MaterialAppBar : MaterialBarBase
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        _scrollColorSubscription?.Dispose();
+        _scrollColorSubscription = null;
         _adapter?.Dispose();
         _adapter = null;
         UnsubscribeState();
         _containerAnimation?.Dispose();
         _containerAnimation = null;
+        _containerBrush = null;
+        SyncRenderedBackground();
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -1622,7 +1666,7 @@ public partial class MaterialAppBar : MaterialBarBase
             _measuredCollapsedPart = Math.Max(_effectiveCollapsedHeight, firstContent);
             _measuredExpandedPart = Math.Max(
                 Math.Max(0, _effectiveExpandedHeight - _effectiveCollapsedHeight),
-                secondContent);
+                secondContent + ExpandedTitleBottomPadding);
         }
         else
         {
@@ -1706,9 +1750,11 @@ public partial class MaterialAppBar : MaterialBarBase
             or MaterialAppBarConfiguration.LargeFlexible;
         IsFlexibleLayout = configuration is MaterialAppBarConfiguration.MediumFlexible
             or MaterialAppBarConfiguration.LargeFlexible;
+        HasFlexibleTextTitle = IsFlexibleLayout && Title is string;
+        UpdateTitleContents();
         IsSearchLayout = configuration == MaterialAppBarConfiguration.Search;
         HasThumbnail = configuration == MaterialAppBarConfiguration.SmallImage && Thumbnail is not null;
-        HasSmallTitle = IsSingleRowLayout && !HasThumbnail && !IsSearchLayout;
+        HasSmallTitle = (IsSingleRowLayout && !HasThumbnail && !IsSearchLayout) || IsTwoRowLayout;
         HasSubtitle = Subtitle is not null;
         ShowCollapsedSubtitle = IsFlexibleLayout && HasSubtitle;
         ShowExpandedSubtitle = IsFlexibleLayout && HasSubtitle;
@@ -1827,14 +1873,30 @@ public partial class MaterialAppBar : MaterialBarBase
             TopTitleOpacity = 1;
             BottomTitleOpacity = 0;
         }
+        UpdateTitleContents();
         UpdateTitleAccessibility();
+    }
+
+    private void UpdateTitleContents()
+    {
+        var title = Title;
+        var top = title is not Control || !IsTwoRowLayout || CollapsedFraction >= 0.5;
+        var expanded = title is not Control || IsTwoRowLayout && CollapsedFraction < 0.5;
+        if (!top)
+            SetAndRaise(CollapsedTitleContentProperty, ref _collapsedTitleContent, null);
+        if (!expanded)
+            SetAndRaise(ExpandedTitleContentProperty, ref _expandedTitleContent, null);
+        if (top)
+            SetAndRaise(CollapsedTitleContentProperty, ref _collapsedTitleContent, title);
+        if (expanded)
+            SetAndRaise(ExpandedTitleContentProperty, ref _expandedTitleContent, title);
     }
 
     private void UpdateTitleAccessibility()
     {
         var fraction = CollapsedFraction;
-        var topActive = !IsTwoRowLayout || fraction < 0.5;
-        var bottomActive = IsTwoRowLayout && fraction >= 0.5;
+        var topActive = !IsTwoRowLayout || fraction >= 0.5;
+        var bottomActive = IsTwoRowLayout && fraction < 0.5;
         if (_topTitlePresenter is not null)
             AutomationProperties.SetAccessibilityView(_topTitlePresenter,
                 topActive ? AccessibilityView.Content : AccessibilityView.Raw);
@@ -1849,17 +1911,18 @@ public partial class MaterialAppBar : MaterialBarBase
         {
             _containerAnimation?.Dispose();
             _containerAnimation = null;
-            ClearValue(BackgroundProperty);
+            _containerBrush = null;
+            SyncRenderedBackground();
             return;
         }
 
-        var surface = ResolveColor("MaterialSurfaceColor", Colors.Transparent);
+        var surface = (Background as ISolidColorBrush)?.Color ?? ResolveColor("MaterialSurfaceColor", Colors.Transparent);
         var scrolled = ResolveColor("MaterialSurfaceContainerColor", surface);
         if (IsTwoRowLayout)
         {
             _containerAnimation?.Dispose();
             _containerAnimation = null;
-            var fraction = Easing.FastOutLinearIn(CollapsedFraction);
+            var fraction = Math.Max(Easing.FastOutLinearIn(CollapsedFraction), behavior.State.OverlappedFraction > 0.01 ? 1 : 0);
             ApplyContainerColor(Lerp(surface, scrolled, fraction));
             return;
         }
@@ -1869,7 +1932,7 @@ public partial class MaterialAppBar : MaterialBarBase
         {
             var initial = surface;
             _containerBrush = new SolidColorBrush(initial);
-            Background = _containerBrush;
+            SyncRenderedBackground();
             _containerAnimation = new MaterialColorAnimation(this, initial, ApplyContainerColor,
                 MaterialSpring.EffectsDefault);
         }
@@ -1881,11 +1944,25 @@ public partial class MaterialAppBar : MaterialBarBase
         if (_containerBrush is null)
         {
             _containerBrush = new SolidColorBrush(color);
-            Background = _containerBrush;
+            SyncRenderedBackground();
         }
         else
         {
             _containerBrush.Color = color;
+        }
+    }
+
+    private void SyncRenderedBackground() => SetAndRaise(RenderedBackgroundProperty, ref _renderedBackground, _containerBrush ?? Background);
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == BackgroundProperty)
+        {
+            _containerAnimation?.Dispose();
+            _containerAnimation = null;
+            _containerBrush = null;
+            UpdateScrollAppearance();
         }
     }
 

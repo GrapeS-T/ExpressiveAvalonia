@@ -22,7 +22,7 @@
        fills/foregrounds or finite brush transitions. -->
   <x:String x:Key="MaterialNavigationBarName">Navigation bar</x:String>
   <x:String x:Key="MaterialNavigationBarBadgeHelpText">{0} new items</x:String>
-  <x:String x:Key="MaterialNavigationBarBadgeDotText">New items</x:String>
+  <x:String x:Key="MaterialNavigationBarBadgeDotText">New notification</x:String>
 
   <ControlTheme x:Key="{x:Type controls:MaterialBadge}" TargetType="controls:MaterialBadge">
     <Setter Property="Background" Value="{DynamicResource MaterialErrorBrush}" />
@@ -100,7 +100,7 @@
                      FontWeight="{DynamicResource MaterialLabelMediumFontWeight}"
                      LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}"
                      LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
-                     MaxLines="1" TextTrimming="CharacterEllipsis"
+                     TextWrapping="Wrap"
                      HorizontalAlignment="Center" VerticalAlignment="Center" />
           <!-- Rich or bound content keeps its template; text content uses the label above. -->
           <ContentPresenter Name="PART_Content" Content="{TemplateBinding Content}"

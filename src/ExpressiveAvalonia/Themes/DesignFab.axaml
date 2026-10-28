@@ -8,13 +8,26 @@
        blocks (local-000227..local-000256, 24 variants).
        Elevation: resting FAB = level 3, hovered = level 4, pressed/focused = level 3
        (the source uses exactly the two-layer md.sys.elevation 3 and 4 shadows).
-       State layers: hover 8%, focus 10%, pressed 8% of the role's content color, all drawn by the
+       State layers: hover 8%, focus 10%, pressed 10% per current M3 FAB specs, all drawn by the
        shared MaterialRipple; there is no separate state-layer border and no second pressed alpha.
        The 40 DIP Small container keeps the source InteractiveComponentSize 48 DIP target through
        ContainerInset, while the larger sizes already exceed the minimum.
        Focus ring: surface radius + 2 on every corner, 3 unit stroke in the secondary role. -->
   <x:String x:Key="MaterialFabMenuOpenText">Open actions menu</x:String>
   <x:String x:Key="MaterialFabMenuCloseText">Close actions menu</x:String>
+
+  <!-- Material glyph paths use a 24 by 24 viewport rather than their tight ink bounds. -->
+  <ControlTheme x:Key="MaterialFabPathIconTheme" TargetType="PathIcon">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Viewbox Stretch="Uniform">
+          <Canvas Width="24" Height="24">
+            <Path Data="{TemplateBinding Data}" Fill="{TemplateBinding Foreground}" Stretch="None" />
+          </Canvas>
+        </Viewbox>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
 
   <ControlTheme x:Key="MaterialFabBaseTheme" TargetType="controls:MaterialFabBase">
     <Setter Property="Background" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
@@ -88,6 +101,15 @@
             <Border Name="Surface" Background="{TemplateBinding Background}"
                     BoxShadow="{TemplateBinding theming:MaterialAssist.AnimatedShadow}"
                     CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
+            <!-- Current M3 FAB specs: pressed state layer opacity 10%. -->
+            <theming:MaterialRipple Name="Ripple"
+                                    Fill="{TemplateBinding Foreground}"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    PressOpacity="0.10"
+                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                    EnableDrag="False"
+                                    IsHitTestVisible="False" />
             <Border Name="ContentHost" Background="Transparent" Padding="{TemplateBinding Padding}">
               <ContentPresenter Name="PART_ContentPresenter"
                                 Content="{TemplateBinding Content}"
@@ -95,15 +117,6 @@
                                 HorizontalContentAlignment="Center"
                                 VerticalContentAlignment="Center" />
             </Border>
-            <!-- Source RippleNode; the 8% pressed snapshot alpha is the FAB token value. -->
-            <theming:MaterialRipple Name="Ripple"
-                                    Fill="{TemplateBinding Foreground}"
-                                    CornerRadius="{TemplateBinding CornerRadius}"
-                                    PressOpacity="0.08"
-                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
-                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
-                                    EnableDrag="False"
-                                    IsHitTestVisible="False" />
             <Border Name="FocusRing" Margin="-2"
                     CornerRadius="{TemplateBinding FocusRingCornerRadius}"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}"
@@ -139,23 +152,6 @@
       <Setter Property="Padding" Value="30" />
     </Style>
 
-    <!-- Source Fab*Tokens.IconSize: 24 (Small and Default), 28 (Medium), 36 (Large). -->
-    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-      <Setter Property="Width" Value="24" />
-      <Setter Property="Height" Value="24" />
-    </Style>
-    <Style Selector="^[Size=Small] /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-      <Setter Property="Width" Value="24" />
-      <Setter Property="Height" Value="24" />
-    </Style>
-    <Style Selector="^[Size=Medium] /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-      <Setter Property="Width" Value="28" />
-      <Setter Property="Height" Value="28" />
-    </Style>
-    <Style Selector="^[Size=Large] /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-      <Setter Property="Width" Value="36" />
-      <Setter Property="Height" Value="36" />
-    </Style>
 
     <!-- Elevation is published by MaterialFabBase through MaterialAssist.AnimatedShadow. -->
   </ControlTheme>
@@ -169,10 +165,19 @@
             <Border Name="Surface" Background="{TemplateBinding Background}"
                     BoxShadow="{TemplateBinding theming:MaterialAssist.AnimatedShadow}"
                     CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
+            <theming:MaterialRipple Name="Ripple"
+                                    Fill="{TemplateBinding Foreground}"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    PressOpacity="0.10"
+                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                    EnableDrag="False"
+                                    IsHitTestVisible="False" />
             <Border Name="ContentHost" Background="Transparent" Padding="{TemplateBinding Padding}">
               <StackPanel Name="PART_ContentRow" Orientation="Horizontal"
                           HorizontalAlignment="Center" VerticalAlignment="Center">
-                <PathIcon Name="PART_Icon" Data="{TemplateBinding Icon}" VerticalAlignment="Center" />
+                <PathIcon Name="PART_Icon" Data="{TemplateBinding Icon}" VerticalAlignment="Center"
+                          Theme="{StaticResource MaterialFabPathIconTheme}" />
                 <Border Name="PART_LabelHost" Width="0" ClipToBounds="True" VerticalAlignment="Center"
                       Opacity="{TemplateBinding LabelOpacity}">
                   <Panel>
@@ -188,14 +193,6 @@
                 </Border>
               </StackPanel>
             </Border>
-            <theming:MaterialRipple Name="Ripple"
-                                    Fill="{TemplateBinding Foreground}"
-                                    CornerRadius="{TemplateBinding CornerRadius}"
-                                    PressOpacity="0.08"
-                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
-                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
-                                    EnableDrag="False"
-                                    IsHitTestVisible="False" />
             <Border Name="FocusRing" Margin="-2"
                     CornerRadius="{TemplateBinding FocusRingCornerRadius}"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}"
@@ -244,8 +241,8 @@
       <Setter Property="CornerRadius" Value="28" />
     </Style>
     <Style Selector="^[Mode=Expressive][Size=Large] /template/ PathIcon#PART_Icon">
-      <Setter Property="Width" Value="32" />
-      <Setter Property="Height" Value="32" />
+      <Setter Property="Width" Value="36" />
+      <Setter Property="Height" Value="36" />
     </Style>
     <Style Selector="^[Mode=Expressive][Size=Large] /template/ TextBlock#PART_Label">
       <Setter Property="FontSize" Value="24" />
@@ -288,12 +285,19 @@
       <ControlTemplate>
         <Panel Background="Transparent">
           <Border Name="Surface" Background="{TemplateBinding Background}"
-                  BoxShadow="{TemplateBinding theming:MaterialAssist.AnimatedShadow}"
                   CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
-          <Border Name="ContentHost" Background="Transparent" Padding="{TemplateBinding Padding}">
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{TemplateBinding Foreground}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  PressOpacity="0.10"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False"
+                                  IsHitTestVisible="False" />
+          <Border Name="ContentHost" Background="Transparent" Padding="{TemplateBinding Padding}" ClipToBounds="True">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center">
               <PathIcon Name="PART_Icon" Data="{TemplateBinding Icon}" Width="24" Height="24"
-                        VerticalAlignment="Center" />
+                        Theme="{StaticResource MaterialFabPathIconTheme}" VerticalAlignment="Center" />
               <TextBlock Text="{TemplateBinding Label}"
                          Foreground="{TemplateBinding Foreground}"
                          Margin="8,0,0,0"
@@ -301,14 +305,6 @@
                          VerticalAlignment="Center" TextWrapping="NoWrap" />
             </StackPanel>
           </Border>
-          <theming:MaterialRipple Name="Ripple"
-                                  Fill="{TemplateBinding Foreground}"
-                                  CornerRadius="{TemplateBinding CornerRadius}"
-                                  PressOpacity="0.08"
-                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
-                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
-                                  EnableDrag="False"
-                                  IsHitTestVisible="False" />
           <Border Name="FocusRing" Margin="-2"
                   CornerRadius="{TemplateBinding FocusRingCornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}"
@@ -323,6 +319,7 @@
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type controls:MaterialFabMenu}" TargetType="controls:MaterialFabMenu">
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="ItemsPanel">
       <ItemsPanelTemplate>
         <StackPanel Orientation="Vertical" Spacing="4" HorizontalAlignment="Right" />
@@ -330,21 +327,25 @@
     </Setter>
     <Setter Property="Template">
       <ControlTemplate>
-        <StackPanel Orientation="Vertical" Spacing="8">
+        <Grid RowDefinitions="*,Auto" RowSpacing="8">
           <Border Name="PART_MenuHost" HorizontalAlignment="Right" IsVisible="False">
-            <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+              <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+            </ScrollViewer>
           </Border>
-          <controls:MaterialFab Name="PART_Trigger" HorizontalAlignment="Right"
+          <controls:MaterialFab Name="PART_Trigger" Grid.Row="1" HorizontalAlignment="Right"
                                 CornerRadius="16" Size="Default">
             <Panel>
               <PathIcon Name="PART_TriggerIcon" Data="{TemplateBinding TriggerIcon}"
+                        Theme="{StaticResource MaterialFabPathIconTheme}"
                         Width="24" Height="24" VerticalAlignment="Center" HorizontalAlignment="Center" />
               <PathIcon Name="PART_TriggerCloseIcon" Width="24" Height="24" Opacity="0"
+                        Theme="{StaticResource MaterialFabPathIconTheme}"
                         VerticalAlignment="Center" HorizontalAlignment="Center"
                         Data="M5,6.4 L6.4,5 L12,10.6 L17.6,5 L19,6.4 L13.4,12 L19,17.6 L17.6,19 L12,13.4 L6.4,19 L5,17.6 L10.6,12 Z" />
             </Panel>
           </controls:MaterialFab>
-        </StackPanel>
+        </Grid>
       </ControlTemplate>
     </Setter>
   </ControlTheme>

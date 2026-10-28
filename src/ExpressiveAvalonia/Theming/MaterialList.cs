@@ -201,9 +201,8 @@ public sealed class MaterialList : AvaloniaObject
     }
 
     /// <summary>
-    /// Mirrors <c>ListItemType.invoke</c> onto style classes. Three-line layouts are top-aligned
-    /// and use the 12 DIP three-line padding; the theme rows read these classes so no screenshot
-    /// constant is baked into the control.
+    /// Mirrors <c>ListItemType.invoke</c> onto style classes. Three-line layouts are top-aligned;
+    /// the theme supplies the current expressive list padding.
     /// </summary>
     private static void UpdateLineClasses(Control control)
     {

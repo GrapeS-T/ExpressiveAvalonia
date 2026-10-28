@@ -1,21 +1,22 @@
 using System;
 using System.ComponentModel;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
 using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Theming;
 
 /// <summary>Material options for the native selection controls styled by <c>Selection.axaml</c>.</summary>
 /// <remarks>
-/// The native controls keep their own input, automation and grouping behavior: <see cref="CheckBox"/>
-/// cycles through its three states, <see cref="RadioButton"/> enforces its group and
-/// <see cref="ToggleSwitch"/> drags its knob. This class only adds the source anatomy that the
-/// stock control has no property for.
+/// Native controls retain their grouping, automation and pointer behavior. The radio theme also
+/// supplies grouped keyboard navigation, while switch options provide the source anatomy.
 /// </remarks>
 public sealed class MaterialSelection : AvaloniaObject
 {
@@ -38,8 +39,38 @@ public sealed class MaterialSelection : AvaloniaObject
     public static readonly AttachedProperty<bool> ShowSwitchIconsProperty =
         AvaloniaProperty.RegisterAttached<MaterialSelection, ToggleSwitch, bool>("ShowSwitchIcons");
 
+    /// <summary>Enables Material keyboard navigation for themed radio buttons.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<bool> RadioKeyboardNavigationProperty =
+        AvaloniaProperty.RegisterAttached<MaterialSelection, RadioButton, bool>("RadioKeyboardNavigation");
+
+    public static bool GetRadioKeyboardNavigation(RadioButton control) => control.GetValue(RadioKeyboardNavigationProperty);
+    public static void SetRadioKeyboardNavigation(RadioButton control, bool value) => control.SetValue(RadioKeyboardNavigationProperty, value);
+
     static MaterialSelection()
     {
+        RadioKeyboardNavigationProperty.Changed.AddClassHandler<RadioButton>((control, args) =>
+        {
+            if (args.GetNewValue<bool>())
+            {
+                control.KeyDown += RadioKeyDown;
+                control.GotFocus += RadioGotFocus;
+                control.AttachedToVisualTree += RadioAttached;
+                control.DetachedFromVisualTree += RadioDetached;
+                control.PropertyChanged += RadioPropertyChanged;
+                UpdateRadioGroup(control);
+            }
+            else
+            {
+                control.KeyDown -= RadioKeyDown;
+                control.GotFocus -= RadioGotFocus;
+                control.AttachedToVisualTree -= RadioAttached;
+                control.DetachedFromVisualTree -= RadioDetached;
+                control.PropertyChanged -= RadioPropertyChanged;
+                control.ClearValue(KeyboardNavigation.IsTabStopProperty);
+                UpdateRadioGroup(control);
+            }
+        });
         ShowSwitchIconsProperty.Changed.AddClassHandler<ToggleSwitch>((control, _) => UpdateClass(control));
         ToggleSwitch.OnContentProperty.Changed.AddClassHandler<ToggleSwitch>((control, _) => UpdateClass(control));
         ToggleSwitch.OffContentProperty.Changed.AddClassHandler<ToggleSwitch>((control, _) => UpdateClass(control));
@@ -51,6 +82,100 @@ public sealed class MaterialSelection : AvaloniaObject
 
     public static void SetShowSwitchIcons(ToggleSwitch control, bool value) =>
         control.SetValue(ShowSwitchIconsProperty, value);
+
+    private static RadioButton[] RadioGroup(RadioButton radio)
+    {
+        if (string.IsNullOrEmpty(radio.GroupName))
+            return (radio.Parent as ILogical)?.LogicalChildren.OfType<RadioButton>()
+                .Where(item => string.IsNullOrEmpty(item.GroupName) && GetRadioKeyboardNavigation(item)).ToArray() ?? Array.Empty<RadioButton>();
+        return TopLevel.GetTopLevel(radio)?.GetVisualDescendants().OfType<RadioButton>()
+            .Where(item => GetRadioKeyboardNavigation(item) && item.GroupName == radio.GroupName)
+            .ToArray() ?? Array.Empty<RadioButton>();
+    }
+
+    private static void UpdateRadioGroup(RadioButton radio)
+    {
+        var group = RadioGroup(radio);
+        RadioButton? entry = null;
+        foreach (var item in group)
+        {
+            if (!item.IsEffectivelyEnabled || !item.IsEffectivelyVisible) continue;
+            entry ??= item;
+            if (item.IsChecked == true) { entry = item; break; }
+        }
+        foreach (var item in group)
+            item.SetCurrentValue(KeyboardNavigation.IsTabStopProperty, item == entry);
+    }
+
+    private static void RadioAttached(object? sender, VisualTreeAttachmentEventArgs e) => UpdateRadioGroup((RadioButton)sender!);
+    private static void RadioDetached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        var radio = (RadioButton)sender!;
+        if (e.RootVisual is Visual root)
+            foreach (var item in root.GetVisualDescendants().OfType<RadioButton>().Where(GetRadioKeyboardNavigation))
+                UpdateRadioGroup(item);
+        radio.ClearValue(KeyboardNavigation.IsTabStopProperty);
+    }
+
+    private static void RadioPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        var radio = (RadioButton)sender!;
+        if (e.Property == RadioButton.GroupNameProperty && TopLevel.GetTopLevel(radio) is Visual root)
+        {
+            foreach (var item in root.GetVisualDescendants().OfType<RadioButton>().Where(GetRadioKeyboardNavigation))
+                UpdateRadioGroup(item);
+        }
+        else if (e.Property == RadioButton.IsCheckedProperty ||
+                 e.Property == InputElement.IsEffectivelyEnabledProperty || e.Property == Visual.IsVisibleProperty)
+            UpdateRadioGroup(radio);
+    }
+
+    private static void RadioGotFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (sender is not RadioButton radio || e.Source != radio || e.NavigationMethod != NavigationMethod.Tab)
+            return;
+        var group = RadioGroup(radio);
+        RadioButton? target = null;
+        var backwards = (e.KeyModifiers & KeyModifiers.Shift) != 0;
+        foreach (var item in group)
+        {
+            if (!item.IsEffectivelyEnabled || !item.IsEffectivelyVisible) continue;
+            if (item.IsChecked == true) return;
+            if (target is null || backwards) target = item;
+        }
+        if (target is null) return;
+        if (target == radio) return;
+        foreach (var item in group)
+            item.SetCurrentValue(KeyboardNavigation.IsTabStopProperty, item == target);
+        target.Focus(NavigationMethod.Tab, e.KeyModifiers);
+    }
+
+    private static void RadioKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.KeyModifiers != KeyModifiers.None || sender is not RadioButton radio || !radio.IsFocused)
+            return;
+        var direction = e.Key switch
+        {
+            Key.Down => 1, Key.Up => -1,
+            Key.Right => radio.FlowDirection == FlowDirection.RightToLeft ? -1 : 1,
+            Key.Left => radio.FlowDirection == FlowDirection.RightToLeft ? 1 : -1,
+            _ => 0
+        };
+        if (direction == 0) return;
+        var group = RadioGroup(radio);
+        var index = Array.IndexOf(group, radio);
+        if (index < 0) return;
+        RadioButton? next = null;
+        for (var step = 1; step <= group.Length; step++)
+        {
+            var candidate = group[(index + direction * step + group.Length) % group.Length];
+            if (candidate.IsEffectivelyEnabled && candidate.IsEffectivelyVisible) { next = candidate; break; }
+        }
+        if (next is null) return;
+        next.SetCurrentValue(RadioButton.IsCheckedProperty, true);
+        next.Focus(NavigationMethod.Directional);
+        e.Handled = true;
+    }
 
     private static void UpdateClass(ToggleSwitch control)
     {

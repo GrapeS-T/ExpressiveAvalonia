@@ -337,7 +337,7 @@ public sealed class MaterialSearchBarScrollBehavior
 [TemplatePart("PART_SearchHost", typeof(Border))]
 [TemplatePart("PART_SearchBarHost", typeof(ContentPresenter))]
 [PseudoClasses(":scrolled", ":search-expanded")]
-public class MaterialSearchAppBar : TemplatedControl
+public class MaterialSearchAppBar : MaterialBarBase
 {
     /// <summary>Defines the <see cref="SearchBar"/> property.</summary>
     public static readonly StyledProperty<MaterialSearchBar?> SearchBarProperty =
@@ -426,6 +426,8 @@ public class MaterialSearchAppBar : TemplatedControl
     private Border? _surface;
     private Border? _searchHost;
     private MaterialSearchBar? _hookedBar;
+    private IDisposable? _fieldMinWidthOverride;
+    private IDisposable? _fieldMaxWidthOverride;
     private Control? _viewAnchor;
     private MaterialSearchView? _hookedView;
     private MaterialSearchBarScrollState? _state;
@@ -896,6 +898,7 @@ public class MaterialSearchAppBar : TemplatedControl
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
         };
+        bar.Bind(MaterialSearchBar.PlaceholderTextProperty, bar.GetResourceObservable("MaterialSearchSubmitText"));
         SetCurrentValue(SearchBarProperty, bar);
     }
 
@@ -908,6 +911,8 @@ public class MaterialSearchAppBar : TemplatedControl
         _hookedBar = bar;
         if (_hookedBar is not null)
         {
+            _fieldMinWidthOverride = _hookedBar.SetValue(MinWidthProperty, 0d, Avalonia.Data.BindingPriority.StyleTrigger);
+            _fieldMaxWidthOverride = _hookedBar.SetValue(MaxWidthProperty, double.PositiveInfinity, Avalonia.Data.BindingPriority.StyleTrigger);
             _hookedBar.ExpansionRequested += OnSearchBarExpansionRequested;
             // A ControlTheme applied when the bar enters the tree can reassert its own colors
             // after the first current-value override; put the app bar's field channel back.
@@ -921,6 +926,10 @@ public class MaterialSearchAppBar : TemplatedControl
             return;
         bar.ExpansionRequested -= OnSearchBarExpansionRequested;
         bar.PropertyChanged -= OnSearchBarPropertyChanged;
+        _fieldMinWidthOverride?.Dispose();
+        _fieldMinWidthOverride = null;
+        _fieldMaxWidthOverride?.Dispose();
+        _fieldMaxWidthOverride = null;
         RestoreSearchBarChannels(bar);
         _hookedBar = null;
     }

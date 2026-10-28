@@ -377,6 +377,8 @@ public sealed class MaterialSnackbar : TemplatedControl
             change.Property == ActionPlacementProperty)
         {
             UpdateVisualState();
+            if (change.Property == ActionContentProperty && _isOpen)
+                RestartAutoDismissTimer();
         }
         else if (change.Property == DurationProperty && _isOpen)
         {

@@ -108,7 +108,7 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
         _rtl = Toggle(Settings, "Справа налево (RTL)", false);
         Settings.Children.Add(new TextBlock
         {
-            Text = "MD3 Expressive использует шаблон Selection: контейнер флажка 20 dp, " +
+            Text = "MD3 Expressive использует шаблон Selection: контейнер флажка 18 dp, " +
                    "глиф радиокнопки 20 dp, дорожка переключателя 52 × 32 dp. Клик, Space, Enter и стрелки — настоящие состояния; " +
                    "трёхпозиционный флажок циклически проходит Off → On → Indeterminate. Подпись меняется справа, " +
                    "а состояние примера всегда отражается в инспекторе. Иконки контента — это нативные OnContent/OffContent; " +

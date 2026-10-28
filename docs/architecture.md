@@ -114,7 +114,7 @@ tests/ExpressiveAvalonia.Tests/
 | Navigation rail | Compact/wide, collapsed/expanded, modal | MaterialNavigationRail / MaterialNavigationRailHost | Expansion, selection, modal focus, адаптация ширины |
 | Progress | Linear, circular; determinate/indeterminate; expressive track/stop | ProgressBar linear; CircularProgressIndicator | Clamp/range semantics, accessible value, animation lifecycle |
 | Radio buttons | Selected/unselected, groups | RadioButton | GroupName, keyboard group navigation, disabled, automation |
-| Search | Search bar, docked/full-screen view, search app bar | MaterialSearchBar / MaterialSearchView / MaterialSearchAppBar | Query, submit, suggestions, dismiss, focus, async data у приложения |
+| Search | Search bar, docked/full-screen view, search app bar | MaterialSearchBar / MaterialSearchView / MaterialSearchAppBar | Query, submit, suggestions, dismiss, focus, responsive field and managed overflow actions; async data у приложения |
 | Bottom sheets | Persistent, modal | MaterialBottomSheet / MaterialBottomSheetScaffold | Anchors, drag, bounds, scrim, nested scrolling, keyboard/focus |
 | Side sheets | Standard, modal; project extension | MaterialSideSheet | Placement/RTL, resize, dismiss, focus; немодальный не блокирует фон |
 | Sliders | Continuous, discrete; single/range; expressive handle | Slider + тема; MaterialRangeSlider | Keyboard steps, snapping, min/max, crossing policy, labels, automation |
@@ -123,7 +123,7 @@ tests/ExpressiveAvalonia.Tests/
 | Tabs | Primary, secondary; fixed/scrollable | TabControl/TabItem | Selection, arrow/Home/End, indicator, scroll selected into view |
 | Text fields | Filled, outlined; prefix/suffix, leading/trailing, supporting text | TextBox + MaterialTextField / MaterialAssist | Floating label, IME, selection, validation, password reveal policy |
 | Time pickers | Dial/keyboard/scroll; Standard/Vibrant/Uncontained; 12/24h; modal | MaterialTimePicker / MaterialTimePickerDialog | Culture, parse, AM/PM, keyboard dial, cancel/commit |
-| Top app bars | Small, medium, large; centered/flexible arrangements | MaterialAppBar | Scroll coupling, collapse, insets, title semantics, actions |
+| Top app bars | Small, medium, large; centered/flexible arrangements | MaterialAppBar | Scroll coupling, collapse, insets, title semantics, flexible two-line titles and image content, actions |
 | Toolbars | Docked, floating; horizontal/vertical | MaterialToolbar | Overflow, keyboard navigation, placement, action groups |
 | Tooltips | Plain, rich | ToolTip theme; RichTooltip | Hover/focus/touch, delay, Escape, placement; rich actions keyboard-accessible |
 

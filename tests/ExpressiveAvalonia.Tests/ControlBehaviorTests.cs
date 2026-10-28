@@ -578,17 +578,25 @@ public class ControlBehaviorTests
     }
 
     [AvaloniaFact]
-    public void RichTooltipSchedulesDurationOnlyForNonPersistentContent()
+    public void RichTooltipWaitsForTargetFocusToLeaveBeforeSchedulingDismissal()
     {
         var transientOwner = new Button { Content = "Help" };
-        var window = Show(transientOwner);
+        var next = new Button { Content = "Next" };
+        var window = Show(new StackPanel { Children = { transientOwner, next } });
         var transient = new RichTooltip { Title = "Help", Content = "Details" };
         try
         {
+            transientOwner.Focus();
             transient.ShowAt(transientOwner);
             Dispatcher.UIThread.RunJobs();
             Assert.True(transient.IsOpen);
+            Assert.Null(transient.ScheduledDismissalInterval);
+            next.Focus();
+            Dispatcher.UIThread.RunJobs();
             Assert.Equal(TimeSpan.FromMilliseconds(1500), transient.ScheduledDismissalInterval);
+            transientOwner.Focus();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Null(transient.ScheduledDismissalInterval);
 
             transient.Hide();
             Dispatcher.UIThread.RunJobs();

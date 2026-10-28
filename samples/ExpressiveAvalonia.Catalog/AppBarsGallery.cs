@@ -123,6 +123,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
     private readonly Control _toolbarLeading;
     private readonly Control _toolbarTrailing;
     private readonly Control _thumbnail;
+    private readonly Control _expandedImage = Thumbnail("Витрина");
     private readonly Control _personAvatar;
     private readonly PathIcon _sectionIcon = new() { Data = ActionIcons[5], Width = 20, Height = 20 };
     private readonly TextBlock _sectionCounter = new() { Text = "12", FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
@@ -145,6 +146,8 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
     private readonly ComboBox _appBarElevation;
     private readonly ComboBox _appBarAvatar;
     private readonly ToggleSwitch _appBarLeading;
+    private readonly ToggleSwitch _appBarImage;
+    private readonly ComboBox _appBarTitleAlignment;
     private readonly Slider _appBarActions;
     private readonly Slider _appBarVisible;
 
@@ -309,8 +312,13 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         };
         AutomationProperties.SetName(_appBarScrollMode, "Поведение прокрутки app bar");
         _appBarGroup.Children.Add(_appBarScrollMode);
-        _appBarTitle = Field(_appBarGroup, "Заголовок", "Входящие");
+        _appBarTitle = Field(_appBarGroup, "Заголовок", "Входящие и важные сообщения для вас");
         _appBarSubtitle = Field(_appBarGroup, "Подпись", "Поддерживающий текст");
+        _appBarImage = Toggle(_appBarGroup, "Изображение", false);
+        _appBarGroup.Children.Add(new TextBlock { Text = "Выравнивание заголовка" });
+        _appBarTitleAlignment = new ComboBox { ItemsSource = new[] { "По началу", "По центру" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+        AutomationProperties.SetName(_appBarTitleAlignment, "Выравнивание заголовка");
+        _appBarGroup.Children.Add(_appBarTitleAlignment);
         _appBarGroup.Children.Add(new TextBlock { Text = "Тень" });
         _appBarElevation = new ComboBox
         {
@@ -437,6 +445,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _appBarScrollMode.SelectionChanged += (_, _) => Apply();
         _appBarTitle.TextChanged += (_, _) => Apply();
         _appBarSubtitle.TextChanged += (_, _) => Apply();
+        _appBarTitleAlignment.SelectionChanged += (_, _) => Apply();
         _appBarElevation.SelectionChanged += (_, _) => Apply();
         _appBarAvatar.SelectionChanged += (_, _) => Apply();
         _bottomConfiguration.SelectionChanged += (_, _) => Apply();
@@ -452,7 +461,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
             slider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
         foreach (var toggle in new[]
                  {
-                     _appBarLeading, _bottomFabToggle, _bottomScrollToggle, _toolbarFabToggle,
+                     _appBarLeading, _appBarImage, _bottomFabToggle, _bottomScrollToggle, _toolbarFabToggle,
                      _toolbarExpandedToggle, _toolbarScrollToggle, _sectionLeading, _sectionTrailing,
                      _pageDivider, _scaffoldInsetsToggle, _scaffoldConsumedToggle,
                  })
@@ -525,6 +534,8 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
             ? "Меню"
             : "Назад";
         _appBar.Thumbnail = _thumbnail;
+        _appBar.ImageContent = _appBarImage.IsChecked == true ? _expandedImage : null;
+        _appBar.TitleAlignment = _appBarTitleAlignment.SelectedIndex == 1 ? TextAlignment.Center : TextAlignment.Start;
         _appBar.AvatarText = _appBarAvatar.SelectedIndex == 1 ? "A" : null;
         _appBar.AvatarContent = _appBarAvatar.SelectedIndex == 2 ? _personAvatar : null;
         _appBar.MaxItemCount = (int)Math.Round(_appBarVisible.Value);

@@ -444,8 +444,9 @@ public sealed class MaterialBottomSheet : MaterialSheet
             return;
 
         var insets = SafeAreaPadding;
+        var topMargin = Bounds.Width > 640 ? 56 : 72;
         var cap = Math.Max(0,
-            Bounds.Height - Math.Max(0, insets.Top) - Math.Max(0, insets.Bottom));
+            Bounds.Height - Math.Max(0, insets.Top) - Math.Max(0, insets.Bottom) - topMargin);
         if (cap > 0 && Math.Abs(SheetSurface.MaxHeight - cap) > 0.5)
             SheetSurface.MaxHeight = cap;
     }
@@ -457,8 +458,10 @@ public sealed class MaterialBottomSheet : MaterialSheet
         if (SheetSurface is not null)
         {
             var insets = SafeAreaPadding;
+            var sideMargin = Bounds.Width > 640 ? 56 : 0;
             var margin = new Thickness(
-                Math.Max(0, insets.Left), 0, Math.Max(0, insets.Right), Math.Max(0, insets.Bottom));
+                Math.Max(0, insets.Left) + sideMargin, 0,
+                Math.Max(0, insets.Right) + sideMargin, Math.Max(0, insets.Bottom));
             if (SheetSurface.Margin != margin)
                 SheetSurface.Margin = margin;
         }
@@ -574,7 +577,8 @@ public sealed class MaterialBottomSheet : MaterialSheet
         if (_contentScroll is null || _hostHeight <= 0)
             return;
 
-        var available = _hostHeight
+        var topMargin = Bounds.Width > 640 ? 56 : 72;
+        var available = _hostHeight - topMargin - Math.Max(0, SafeAreaPadding.Top) - Math.Max(0, SafeAreaPadding.Bottom)
                         - (_dragHandle?.IsVisible == true ? _dragHandle.Bounds.Height : 0)
                         - (ActionsRegion?.IsVisible == true ? ActionsRegion.Bounds.Height : 0);
         available = Math.Max(0, available);

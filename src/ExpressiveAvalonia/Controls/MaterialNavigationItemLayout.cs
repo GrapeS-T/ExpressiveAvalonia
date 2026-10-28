@@ -220,6 +220,9 @@ public sealed class MaterialNavigationItemLayout : Panel
                     : Math.Max(136d, availableSize.Width - iconSize - 60d);
             else if (Kind is MaterialNavigationItemLayoutKind.Rail && double.IsFinite(availableSize.Width))
                 labelConstraint = Math.Max(0, availableSize.Width);
+            else if (Kind is MaterialNavigationItemLayoutKind.Bar or MaterialNavigationItemLayoutKind.ShortBar &&
+                     IconPosition != MaterialNavigationItemIconPosition.Start && double.IsFinite(availableSize.Width))
+                labelConstraint = Math.Max(0, availableSize.Width);
             label.Measure(new Size(labelConstraint, double.PositiveInfinity));
             labelWidth = label.DesiredSize.Width;
             labelHeight = label.DesiredSize.Height;

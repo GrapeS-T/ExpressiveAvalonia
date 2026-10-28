@@ -541,7 +541,7 @@ public class MaterialButtonGroup : ItemsControl
     {
         MaterialControlSize.ExtraSmall => 4,
         MaterialControlSize.Small => 8,
-        MaterialControlSize.Medium => 12,
+        MaterialControlSize.Medium => 8,
         MaterialControlSize.Large => 16,
         _ => 20
     };

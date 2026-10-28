@@ -346,8 +346,13 @@ public class MaterialNavigationRailItem : ListBoxItem
         PseudoClasses.Set(":no-icon", !ShowIcon);
         PseudoClasses.Set(":force-focus", ShowFocusIndicator);
 
-        AutomationProperties.SetItemStatus(this,
-            Badge != MaterialNavigationRailBadge.None && !string.IsNullOrEmpty(BadgeText) ? BadgeText : null);
+        AutomationProperties.SetItemStatus(this, Badge switch
+        {
+            MaterialNavigationRailBadge.None => null,
+            MaterialNavigationRailBadge.Large when !string.IsNullOrWhiteSpace(BadgeText) => BadgeText,
+            _ => this.TryFindResource("MaterialNavigationBarBadgeDotText", out var text) && text is string label
+                ? label : "New notification"
+        });
     }
 
     private void UpdateIndicatorTargets(bool animate)

@@ -39,10 +39,10 @@ public sealed class MaterialNavigationSelectionChangedEventArgs : RoutedEventArg
 /// <summary>The visual contract of a drawer sheet.</summary>
 public enum MaterialNavigationDrawerVariant
 {
-    /// <summary>Standard/permanent/dismissible sheet: surface color and square corners.</summary>
+    /// <summary>Standard/permanent/dismissible sheet.</summary>
     Standard,
 
-    /// <summary>Modal sheet: surface-container-low and large end corners (source CornerLargeEnd).</summary>
+    /// <summary>Modal sheet.</summary>
     Modal
 }
 
@@ -407,7 +407,7 @@ public sealed class MaterialNavigationDrawer : ItemsControl
         var key = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft
             ? "MaterialShapeLargeStartCornerRadius"
             : "MaterialShapeLargeEndCornerRadius";
-        var radius = modal && this.TryFindResource(key, out var value) && value is CornerRadius corners
+        var radius = this.TryFindResource(key, out var value) && value is CornerRadius corners
             ? corners
             : default;
         SetCurrentValue(CornerRadiusProperty, radius);

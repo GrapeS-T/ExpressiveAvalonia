@@ -381,8 +381,8 @@ public sealed class MaterialPlainToolTip : ToolTip
 /// <remarks>
 /// Hover timing, pointer placement and light dismissal stay with Avalonia's
 /// <c>ToolTipService</c>; this class never duplicates that timer. When enabled, a tooltip opens
-/// when the owner receives focus through the keyboard or a screen reader, closes on Escape,
-/// focus loss, owner disablement/hiding, window deactivation and visual-tree detachment.
+/// when the owner receives focus through the keyboard or a screen reader, and dismisses 1.5 seconds
+/// after focus or a long press ends. Escape and owner teardown close it immediately.
 /// <para>
 /// Plain tooltip visuals (single line and multi line) are the <c>ToolTip</c> theme in
 /// <c>Themes/Menus.axaml</c>: inverse surface, 4 px radius, 8/4 padding, 24 px minimum height,
@@ -427,9 +427,7 @@ public sealed class MaterialToolTip : AvaloniaObject
         AvaloniaProperty.RegisterAttached<MaterialToolTip, Control, bool>("ShowCaret");
 
     private const int LongPressMilliseconds = 500;
-    // Tooltip.kt TooltipDuration: a non-persistent tooltip dismisses itself after 1.5 s. Hover
-    // timing stays with Avalonia's ToolTipService (desktop policy); the source duration applies to
-    // the keyboard and long-press activations this behavior owns.
+    // Non-persistent tooltips remain briefly after leaving the target region.
     private const int TooltipDurationMilliseconds = 1500;
     private const double LongPressSlop = 8;
     private static readonly ConditionalWeakTable<Control, Behavior> Behaviors = new();
@@ -599,12 +597,12 @@ public sealed class MaterialToolTip : AvaloniaObject
             // show the tooltip immediately. A focus move inside the owner must not re-open it.
             if (args.Source != _control || args.NavigationMethod == NavigationMethod.Pointer) return;
             ShowTip();
-            StartAutoHide();
+            CancelAutoHide();
         }
 
         private void LostFocus(object? sender, FocusChangedEventArgs args)
         {
-            if (!_control.IsKeyboardFocusWithin) HideTip();
+            if (!_control.IsKeyboardFocusWithin && ToolTip.GetIsOpen(_control)) StartAutoHide();
         }
 
         private void KeyDown(object? sender, KeyEventArgs args)
@@ -633,19 +631,17 @@ public sealed class MaterialToolTip : AvaloniaObject
             if (ToolTip.GetTip(_control) is null) return;
             _openedByLongPress = true;
             ShowTip();
-            StartAutoHide();
         }
 
         private void PointerReleased(object? sender, PointerReleasedEventArgs args)
         {
             _pressed = false;
             CancelLongPress();
-            // Material long-press tooltips are dismissed when the finger lifts; keyboard-opened
-            // tooltips stay until Escape, focus loss or another pointer action.
+            // The target region ends when the finger lifts; retain the tip briefly afterwards.
             if (_openedByLongPress)
             {
                 _openedByLongPress = false;
-                HideTip();
+                StartAutoHide();
             }
         }
 
@@ -667,7 +663,7 @@ public sealed class MaterialToolTip : AvaloniaObject
             if (_openedByLongPress)
             {
                 _openedByLongPress = false;
-                HideTip();
+                StartAutoHide();
             }
         }
 

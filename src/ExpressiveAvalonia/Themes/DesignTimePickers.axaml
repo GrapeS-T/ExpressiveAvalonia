@@ -41,6 +41,8 @@
   <x:String x:Key="MaterialTimePickerHourSuffixText">{0} o'clock</x:String>
   <x:String x:Key="MaterialTimePickerHour24SuffixText">{0} hours</x:String>
   <x:String x:Key="MaterialTimePickerMinuteSuffixText">{0} minutes</x:String>
+  <x:String x:Key="MaterialTimePickerDialHourAccessibilityText">{0} hours of {1}</x:String>
+  <x:String x:Key="MaterialTimePickerDialMinuteAccessibilityText">{0} minutes of {1}</x:String>
   <x:String x:Key="MaterialTimePickerHourErrorText">Hour must be 1-12</x:String>
   <x:String x:Key="MaterialTimePickerHourError24Text">Hour must be 0-23</x:String>
   <x:String x:Key="MaterialTimePickerMinuteErrorText">Minute must be 0-59</x:String>

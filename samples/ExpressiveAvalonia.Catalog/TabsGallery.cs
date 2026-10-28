@@ -50,7 +50,7 @@ internal sealed class TabsPlayground : Grid, IComponentPlayground
         _rtl = Toggle("Справа налево (RTL)", false);
         Settings.Children.Add(new TextBlock
         {
-            Text = "Primary: заголовок 48 dp, с иконкой и текстом — 72 dp (зазор 8 dp), индикатор 3 dp по ширине контента (минимум 24 dp) с пружиной DefaultSpatial. Secondary: индикатор 3 dp на всю ширину вкладки, цвет on-surface. Иконки 24 dp, разделитель 1 dp. Стрелки и Home/End переключают вкладки; ввод в содержимом не меняет выбор.",
+            Text = "Primary: заголовок 48 dp, с иконкой и текстом — 64 dp, индикатор 3 dp по ширине контента (минимум 24 dp) с пружиной DefaultSpatial. Secondary: индикатор 2 dp на всю ширину вкладки, цвет on-surface. Иконки 24 dp, разделитель 1 dp. Стрелки и Home/End переключают вкладки; ввод в содержимом не меняет выбор.",
             TextWrapping = TextWrapping.Wrap, FontSize = 13
         });
         _variant.SelectionChanged += (_, _) => Apply();

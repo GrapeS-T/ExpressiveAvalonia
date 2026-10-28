@@ -422,9 +422,11 @@ public class MaterialFabMenu : ItemsControl
 
             AttachDismiss();
 
-            var index = _pendingFocusIndex ?? 0;
-            _pendingFocusIndex = null;
-            FocusSegment(index);
+            if (_pendingFocusIndex is { } index)
+            {
+                _pendingFocusIndex = null;
+                FocusSegment(index);
+            }
 
             // Reveal after the newly visible containers have been measured, so their opacity
             // transition starts from the hidden value instead of popping in.
@@ -457,8 +459,8 @@ public class MaterialFabMenu : ItemsControl
 
     // Source menu animation: the number of revealed actions is a single EffectsSlow spring. An item
     // is interactive once the count reaches its index from the bottom (nearest the trigger first),
-    // its width expands with FastSpatial and its alpha with FastEffects. Width clipping is anchored
-    // at the end via the right-aligned container and ClipToBounds.
+    // its width expands with FastSpatial and its alpha with FastEffects. The content is clipped
+    // inside the segment template; the control itself must not clip its focus ring or shadow.
     private void PrepareReveal(Control container, int index)
     {
         var fresh = !_reveals.TryGetValue(container, out var reveal);
@@ -472,7 +474,6 @@ public class MaterialFabMenu : ItemsControl
         }
 
         reveal.Index = index;
-        container.ClipToBounds = true;
         SetContainerHidden(container, false);
         // A container that was already revealing keeps its current width/opacity, so an interrupted
         // collapse re-expands from the on-screen position instead of snapping back to zero.
@@ -480,8 +481,8 @@ public class MaterialFabMenu : ItemsControl
         {
             container.Width = 0;
             container.Opacity = 0;
+            container.IsHitTestVisible = false;
         }
-        container.IsHitTestVisible = false;
     }
 
     private void StartRevealCount(double target)
@@ -640,10 +641,8 @@ public class MaterialFabMenu : ItemsControl
             ApplyTriggerColors(progress);
         }
 
-        // ToggleFloatingActionButtonDefaults.iconSize lerps FabBaselineTokens.IconSize to
-        // FabMenuBaselineTokens.CloseButtonIconSize (20). A 2-DIP inset per side keeps the icon's
-        // outer initial slot stable while the glyph shrinks. The sample swaps the add/close glyph
-        // at >50% progress, matching the source's derivedStateOf threshold.
+        // The icon size interpolates to the 20 DIP close icon. The centered template slot keeps
+        // both glyphs aligned as their dimensions change; the glyph switches at 50% progress.
         var initialIconSize = _trigger?.Size switch
         {
             MaterialFabSize.Medium => 28d,
@@ -651,13 +650,11 @@ public class MaterialFabMenu : ItemsControl
             _ => 24d,
         };
         var iconSize = initialIconSize + (20d - initialIconSize) * progress;
-        var inset = new Thickness((24d - iconSize) / 2d);
         var showsClose = progress > 0.5;
         if (_triggerIcon is not null)
         {
             _triggerIcon.Width = iconSize;
             _triggerIcon.Height = iconSize;
-            _triggerIcon.Margin = inset;
             _triggerIcon.Opacity = 1;
             _triggerIcon.IsVisible = TriggerIcon is not null && !showsClose;
         }
@@ -666,7 +663,6 @@ public class MaterialFabMenu : ItemsControl
         {
             _triggerCloseIcon.Width = iconSize;
             _triggerCloseIcon.Height = iconSize;
-            _triggerCloseIcon.Margin = inset;
             _triggerCloseIcon.Opacity = 1;
             _triggerCloseIcon.IsVisible = showsClose;
         }

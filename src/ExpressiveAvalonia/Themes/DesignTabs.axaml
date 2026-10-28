@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:md="using:ExpressiveAvalonia.Theming">
+                    xmlns:md="using:ExpressiveAvalonia.Theming"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls">
   <!-- Material 3 tab family. Geometry and color roles follow the assigned source packages:
        Tabs (local-005103, 10 variants), Primary tabs/Icon and label (local-004416, 8),
        Primary tabs/Icon only (local-004425, 8), Primary tabs/Label only (local-004434, 8),
@@ -8,12 +9,11 @@
        (local-004556, 8).
 
        Source anatomy: 48px header for label-only and icon-only, 64px for primary
-       icon-and-label, 16px horizontal padding, 24px icon, 2px icon/label gap, 8px
-       icon/label gap in the horizontal secondary header, title-small 14/20 medium label,
-       primary indicator at least 24x3 centered at the bottom, secondary indicator full width x 2,
-       one-pixel outline-variant divider under the strip, 6px error dot badge, and a
-       3px secondary focus ring with a 12px radius. Scrollable headers use 90px tabs and
-       clip/scroll instead of sharing the width.
+       icon-and-label, 16px horizontal padding, 24px icon, 2px stacked icon/label gap,
+       8px inline icon/label gap, title-small 14/20 medium label, primary indicator at least
+       24x3 centered at the bottom, secondary indicator full width x 2, one-pixel outline-variant
+       divider under the strip, small or labeled error badge, and a 3px secondary focus ring
+       with a 12px radius. Scrollable headers clip/scroll instead of sharing the width.
 
        Feedback and content tint follow Tab.kt: the selectable indication is a bounded ripple
        whose color is always the tab's *selected* content role, even while the tab is unselected
@@ -50,12 +50,10 @@
                                       ContentTemplate="{TemplateBinding IconTemplate}"
                                       Width="24" Height="24"
                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    <!-- The source places the badge over the icon's top-right corner when the
-                         header carries an icon; that badge is the small (dot) variant. -->
-                    <Border Name="IconBadge" Width="6" Height="6" CornerRadius="3"
-                            Background="{DynamicResource MaterialErrorBrush}"
-                            HorizontalAlignment="Right" VerticalAlignment="Top"
-                            IsVisible="False" IsHitTestVisible="False" />
+                    <controls:MaterialBadge Name="IconBadge" Size="Small"
+                                            Text="{TemplateBinding (md:MaterialTabs.BadgeText)}"
+                                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            IsVisible="False" IsHitTestVisible="False" />
                   </Grid>
                   <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
                                     ContentTemplate="{TemplateBinding HeaderTemplate}"
@@ -118,27 +116,31 @@
       <Setter Property="MinWidth" Value="90" />
     </Style>
 
-    <!-- Primary icon-and-label uses the source Tab's 72 DIP large header with an 8 DIP gap. -->
-    <Style Selector="^.md-primary.md-icon-and-label, ^.md-secondary.md-icon-and-label">
-      <Setter Property="MinHeight" Value="72" />
+    <!-- Stacked primary icon-and-label tabs use the 64 DIP header in the current specs. -->
+    <Style Selector="^.md-primary.md-icon-and-label">
+      <Setter Property="MinHeight" Value="64" />
     </Style>
-    <Style Selector="^.md-icon-and-label /template/ StackPanel#LabelGroup">
+    <Style Selector="^.md-primary.md-icon-and-label /template/ StackPanel#LabelGroup">
       <Setter Property="Orientation" Value="Vertical" />
-      <Setter Property="Spacing" Value="8" />
+      <Setter Property="Spacing" Value="2" />
     </Style>
 
     <!-- Badges: a dot by default, a pill when BadgeText is present. -->
-    <Style Selector="^.md-has-badge.md-icon-only /template/ Border#IconBadge">
+    <Style Selector="^.md-has-badge.md-icon-only /template/ controls|MaterialBadge#IconBadge">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^.md-has-badge.md-icon-and-label /template/ Border#IconBadge">
+    <Style Selector="^.md-has-badge.md-icon-and-label /template/ controls|MaterialBadge#IconBadge">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^.md-secondary.md-has-badge.md-icon-and-label /template/ Border#IconBadge">
+    <Style Selector="^.md-secondary.md-has-badge.md-icon-and-label /template/ controls|MaterialBadge#IconBadge">
       <Setter Property="IsVisible" Value="False" />
     </Style>
     <Style Selector="^.md-secondary.md-has-badge.md-icon-and-label /template/ Border#TrailingBadge">
       <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^.md-badge-text /template/ controls|MaterialBadge#IconBadge">
+      <Setter Property="Size" Value="Large" />
+      <Setter Property="Margin" Value="0,-2,-4,0" />
     </Style>
     <Style Selector="^.md-has-badge.md-label-only /template/ Border#TrailingBadge">
       <Setter Property="IsVisible" Value="True" />

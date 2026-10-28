@@ -5,8 +5,8 @@
        Checkbox.kt (CheckboxImpl, drawCheck, CheckboxDefaults), RadioButton.kt (RadioButtonImpl),
        Switch.kt (SwitchImpl, ThumbNode, SwitchDefaults) and their token objects.
        Source geometry and state:
-       1) Checkbox. ComposeMaterial3Flags.isCheckboxStylingFixEnabled defaults to false, so the
-          rendered container is CheckboxSize = 20 (not the unused 18 token), outlined by a 2-unit
+       1) Checkbox. Current Material specs use an 18-unit container and icon (the pinned
+          Compose flag-off implementation uses 20); the outline is a 2-unit
           stroke inside a 2-unit radius. The check is a stroked path with Square caps and join
           Miter through (4,10)-(8,14)-(16,6); the indeterminate mark gravitates every point onto
           the centre line, i.e. (4,10)-(16,10). Theming.MaterialCheckMark paints that path with
@@ -74,7 +74,7 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Grid ColumnDefinitions="48,*" Background="{TemplateBinding Background}">
-          <!-- 40-unit state layer inside the 48-unit target; the 20-unit box is centred in both.
+          <!-- 40-unit state layer inside the 48-unit target; the 18-unit box is centred in both.
                Layout rounding is off for the anatomy group: the glyph centred in the 40-unit halo
                otherwise lands on a half physical pixel at fractional scales and reads as an
                offset halo. Rounding off keeps the source DIP geometry exact. -->
@@ -85,16 +85,15 @@
             <theming:MaterialRipple Name="Ripple" Width="40" Height="40"
                                     CornerRadius="20" Radius="20" IsBounded="False"
                                     PressOpacity="0.1" IsHitTestVisible="False" />
-            <!-- CheckboxSize 20 from the pinned default flag path. The box keeps the source outer
-                 origin; the marks are stroked paths in the same 20-unit coordinate space. -->
-            <Panel Name="Glyph" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <!-- Current Material specs use an 18-unit box and icon. -->
+            <Panel Name="Glyph" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
               <!-- Source drawBox: fill and 2-unit outline use separate animated colours, so the
                    inset fill/border geometry is drawn by MaterialSelectionBox instead of a Border
                    thickness transition. -->
-              <theming:MaterialSelectionBox Name="Box" Width="20" Height="20" CornerRadius="2" />
+              <theming:MaterialSelectionBox Name="Box" Width="18" Height="18" CornerRadius="2" />
               <!-- Source drawCheck: one path, partially stroked by Progress and morphed into the
                    dash by Gravitation. -->
-              <theming:MaterialCheckMark Name="Check" Width="20" Height="20" StrokeThickness="2"
+              <theming:MaterialCheckMark Name="Check" Width="18" Height="18" StrokeThickness="2"
                                          HorizontalAlignment="Left" VerticalAlignment="Top"
                                          IsHitTestVisible="False" />
             </Panel>
@@ -146,7 +145,7 @@
       <Setter Property="Fill" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     </Style>
 
-    <!-- Selected and indeterminate share the filled 20-unit container with a 2-unit radius;
+    <!-- Selected and indeterminate share the filled 18-unit container with a 2-unit radius;
          their target state is not Off, so their colour spring is DefaultEffects. -->
     <Style Selector="^:checked /template/ theming|MaterialSelectionBox#Box, ^:indeterminate /template/ theming|MaterialSelectionBox#Box">
       <Setter Property="BoxColor" Value="{DynamicResource MaterialPrimaryColor}" />
@@ -208,6 +207,7 @@
        plus animated dot) from one colour animation, so the dot no longer swaps an ellipse pair
        with an extra opacity fade. -->
   <ControlTheme x:Key="{x:Type RadioButton}" TargetType="RadioButton">
+    <Setter Property="theming:MaterialSelection.RadioKeyboardNavigation" Value="True" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />

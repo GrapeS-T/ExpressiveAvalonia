@@ -156,14 +156,12 @@
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
     </Style>
 
-    <!-- ModalBottomSheet.kt passes tonalElevation 0 and shadowElevation 0 to the modal surface;
-         the scrim carries the separation instead of a resting shadow. Standard sheets use the
-         square ExpandedShape from SheetDefaults.kt; only the modal expanded shape rounds the top. -->
+    <!-- The current Material guidance shows rounded top corners for both standard and modal
+         bottom sheets. ModalBottomSheet.kt supplies no resting shadow; the scrim separates it. -->
     <Style Selector="^[IsModal=True] /template/ Border#PART_Surface">
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
     </Style>
     <Style Selector="^[IsModal=False] /template/ Border#PART_Surface">
-      <Setter Property="CornerRadius" Value="0" />
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
     </Style>
   </ControlTheme>

@@ -643,7 +643,7 @@ internal sealed class LinearProgressPresenter : Control
     protected override Size MeasureOverride(Size availableSize)
     {
         var band = IndicatorType == ProgressIndicatorType.Wave ? WaveHeight : IndicatorThickness;
-        return Orientation == Orientation.Vertical ? new Size(band, 0) : new Size(0, band);
+        return Orientation == Orientation.Vertical ? new Size(band, 240) : new Size(240, band);
     }
 
     // The source parameters live on the templated ProgressBar as attached properties. Reading them
