@@ -125,6 +125,8 @@ Desktop smoke проверяет смену темы/seed/контраста, з
 
 ### Кнопки и текстовые поля
 
+**Статус кнопок: полностью реализованы.** Завершены обычные `Button`, текстовые `ToggleButton` и icon-only кнопки Material 3 / Material 3 Expressive: стандартные для каждого семейства варианты, пять размеров, Round/Square, ширины icon-контейнера, состояния, анимации и нативные контракты Avalonia. Статус относится к реализации этих семейств; объём выполненной проверки и непроверенные платформенные сценарии перечислены ниже. Button groups, split buttons и FAB — отдельные семейства со своими условиями приёмки.
+
 В файле с контролами объявите `xmlns:md="clr-namespace:ExpressiveAvalonia.Theming;assembly=ExpressiveAvalonia"`:
 
 ```xml
@@ -139,9 +141,16 @@ Desktop smoke проверяет смену темы/seed/контраста, з
            md:MaterialTypography.Emphasized="True" />
 ```
 
-Icon-only button: `MaterialAssist.IsIconButton="True"`, Content — geometry/icon пользователя, `AutomationProperties.Name` обязателен. ToggleButton использует тот же API. Без `ButtonVariant` действует `Standard`: у icon-only кнопки нет контейнера (иконка OnSurfaceVariant), у labeled-кнопки — filled-контейнер. У icon-only кнопок `Filled`, `Tonal` и `Outlined` дают соответствующие *IconButtonTokens; `ButtonShape` меняет силуэт только у icon-only toggle при `IsChecked`, как в AndroidX.
+Icon-only button: `MaterialAssist.IsIconButton="True"`, Content — иконка пользователя, `AutomationProperties.Name` обязателен. ToggleButton использует тот же API. Без `ButtonVariant` действует `Standard`: у icon-only кнопки нет контейнера (иконка OnSurfaceVariant), у labeled-кнопки — filled-контейнер. При выборе и текстовые, и icon-only ToggleButton меняют Round → Square или Square → Round; pressed-форма имеет приоритет.
 
-Страница `Buttons` показывает одну живую кнопку с настройками справа: Button/ToggleButton, текст/иконка, Filled/Tonal/Outlined/Elevated/Text, пять размеров, Round/Square, ширина icon-контейнера, подпись, ведущая иконка, выбранность, доступность и RTL. Счётчик отражает нажатия; выбранность ToggleButton синхронизируется с инспектором.
+Страница `Buttons` показывает одну живую кнопку с настройками справа: Button/ToggleButton, текст/иконка, пять размеров, Round/Square, ширина icon-контейнера, подпись, ведущая иконка, выбранность, доступность и RTL. Виды зависят от семейства: обычные кнопки — Filled/Tonal/Outlined/Elevated/Text, текстовые toggle — без Text, icon-only — Filled/Tonal/Outlined/Standard. Счётчик отражает нажатия; выбранность ToggleButton синхронизируется с инспектором. Общий enum библиотеки сохраняет дополнительные сочетания, но каталог не выдаёт их за стандарт Material.
+
+Кнопки сверены с иллюстрациями и актуальными токенами [Buttons specs](https://m3.material.io/components/buttons/specs) и [Icon buttons specs](https://m3.material.io/components/icon-buttons/specs). Высоты XS/S/M/L/XL — 32/40/56/96/136 DIP при минимальной цели 48 DIP; leading icon — 20/20/24/32/40 DIP, icon-only — 20/24/24/32/40 DIP. `MaterialAssist.Icon`, `SelectedIcon` и прямой icon `Content` автоматически оформляют `PathIcon`/`MaterialIcon`, сохраняя viewport 24×24 и явные Width/Height/Theme приложения. Произвольный составной Content/ContentTemplate остаётся ответственностью приложения; при замене и detach оформление иконки снимается.
+
+Keyboard focus: контур Secondary 3 DIP с зазором 2 DIP, без обрезки границами кнопки. Disabled: текст/иконка OnSurface 38%, заполненный контейнер OnSurface 10%; text остаётся прозрачным. Outlined сохраняет OutlineVariant без дополнительного ослабления; выбранный disabled outlined-toggle получает контейнер OnSurface 10% без рамки. Эти роли следуют текущему сайту Material, а не устаревшим disabled-значениям закреплённого AndroidX snapshot.
+
+Проверка кнопок: 251 нативная проверка размеров, состояний, light/dark, LTR/RTL, клавиатуры, переключателей каталога и прерываемой shape-анимации; снимки — `artifacts/button-spec-audit/`. Регрессии `ButtonVisualRegressionTests` покрывают размеры иконок, viewport, caller overrides и detach, смену формы, focus gap и disabled outlined selection. Физические touch/pen, скринридер и независимое попиксельное сравнение с Android не проверялись.
+Проверено после исправлений: `dotnet build ExpressiveAvalonia.slnx --no-restore -c Release` — 0 ошибок и предупреждений; полная suite — 253/253; каталог Release `--smoke` — 64 отрисовки и успешные theme/seed/contrast/Escape сценарии.
 
 Страница `Selection` переключается между CheckBox, группой из трёх RadioButton и ToggleSwitch. Справа — подпись, состояние, трёхпозиционный режим и ошибка флажка, выбранная радиокнопка, встроенные иконки switch, доступность и RTL. Нативные изменения отражаются в настройках; изменение подписи и оформления не сбрасывает выбор.
 
