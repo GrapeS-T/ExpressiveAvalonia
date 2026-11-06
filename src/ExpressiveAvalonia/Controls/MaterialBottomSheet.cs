@@ -417,9 +417,6 @@ public sealed class MaterialBottomSheet : MaterialSheet
             _dragHandle.Cursor = new Cursor(StandardCursorType.SizeNorthSouth);
             _dragHandle.Focusable = true;
             KeyboardNavigation.SetIsTabStop(_dragHandle, true);
-            AutomationProperties.SetName(_dragHandle, "Drag handle");
-            AutomationProperties.SetHelpText(_dragHandle,
-                "Drag to expand or collapse; press Enter to change state.");
             _dragHandle.KeyDown += OnDragHandleKeyDown;
         }
 

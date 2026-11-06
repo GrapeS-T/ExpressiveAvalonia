@@ -80,9 +80,9 @@
                                 EnableDrag="False" IsHitTestVisible="False" />
         <Grid Name="PART_IconHost" Width="24" Height="24"
               HorizontalAlignment="Center" VerticalAlignment="Center">
-          <Path Name="PART_Icon" Data="{TemplateBinding Icon}" Width="20" Height="20" Stretch="Uniform"
+          <Path Name="PART_Icon" Data="{TemplateBinding Icon}" Width="24" Height="24" Stretch="Uniform"
                 HorizontalAlignment="Center" VerticalAlignment="Center" />
-          <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Width="20" Height="20"
+          <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Width="24" Height="24"
                 Stretch="Uniform"
                 HorizontalAlignment="Center" VerticalAlignment="Center" />
           <controls:MaterialBadge Name="PART_BadgeSmall" Size="Small" IsVisible="False"

@@ -512,6 +512,9 @@
     <Style Selector="^:horizontal">
       <Setter Property="MinWidth" Value="572" />
     </Style>
+    <Style Selector="^:standard:vertical:dial:hour24 /template/ controls|MaterialTimeInputSegment#PART_Hour, ^:standard:vertical:dial:hour24 /template/ controls|MaterialTimeInputSegment#PART_Minute">
+      <Setter Property="Width" Value="114" />
+    </Style>
     <Style Selector="^:horizontal /template/ StackPanel#InputSelection">
       <Setter Property="Orientation" Value="Horizontal" />
       <Setter Property="Spacing" Value="52" />

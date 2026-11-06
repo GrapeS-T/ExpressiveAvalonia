@@ -1,6 +1,6 @@
 # ExpressiveAvalonia: архитектура и матрица покрытия
 
-Статус: перенос закреплённого AndroidX snapshot и интеграция компонентных семейств, 2026-10-27. Актуальные API, выполненные сценарии и ограничения перечислены в README.md и docs/compose-port/. Полнота определяется поведением и вариантами, а не количеством классов.
+Статус: перенос закреплённого AndroidX snapshot и компонентный аудит Material 3 Expressive, 2026-11-06. Актуальные API, выполненные сценарии и ограничения перечислены в README.md и docs/compose-port/. Полнота определяется поведением и вариантами, а не количеством классов.
 
 ## Цель и границы
 
@@ -18,6 +18,10 @@ Final audit: 199/199 behavioral regressions; повторный native ката�
 Measured list/snackbar layout, toolbar scroll-origin access restore, rich-tooltip lifetime,
 classic extended FAB, wide XR desktop rail, secure native timed reveal и page-owned overlays
 прошли отдельный native executable. Пределы физической/platform приёмки выше не изменены.
+
+Аудит 2026-11-06: 32 страницы × light/dark × LTR/RTL, 1770 нативных снимков и 1642 переключения инспекторов. Отдельные native-сценарии покрывают исправленные keyboard/automation пути, snackbar lifecycle, rich-tooltip focus, reduced-motion и вертикальный carousel. Это Windows-проверка; screen reader и физический touch остаются отдельной приёмкой.
+
+Итоговая интеграция: 248/248 behavioral tests; сборка решения без предупреждений; native catalog `--smoke` — theme/seed/contrast, 64 light/dark страницы и rich-tooltip Escape. Pointer-регрессия GeneralItem использует прямоугольный clip из-за неточной curved-path hit geometry headless renderer; скруглённая поверхность проверена отдельно нативным вводом.
 
 
 Нативные Android/iOS оболочки и маршрутизатор приложения не входят в библиотеку компонентов. XR-композиции локального экспорта переносятся как desktop-компоненты Avalonia; это не означает поддержки пространственного XR runtime. Это не исключает поддержку ввода touch, адаптивных размеров, RTL и экранных дикторов на поддерживаемых Avalonia платформах. Поддержка каждой платформы заявляется только после проверки на ней.
@@ -87,7 +91,7 @@ tests/ExpressiveAvalonia.Tests/
 
 Статус — **реализация и поэтапная приёмка**, не сертификат визуального соответствия. Стандартные темы и специализированные семейства уже имеют код и catalog consumers; строки ниже задают объём и условия готовности, а не список отсутствующих классов. Progress включает flat/wavy linear и circular варианты; Loading использует настоящий RoundedPolygon/Morph. Lists сохраняют нативный ListBoxItem и виртуализацию с anatomy MaterialList. Точный pinned source и незакрытые сценарии фиксируются в [задачниках переноса](compose-port/README.md). Успешная сборка и отрисовка страницы сами по себе не подтверждают соответствие MD3. Проверки платформ ограничены Windows; физический touch и скринридер не проверены.
 
-Проверка основы: HCT-векторы Google закреплены в ColorReferenceTests (официальный commit bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3); typography tracking/emphasis — AndroidX TypeScaleTokens v0_103; тени — Material Web key/ambient geometry. Motion поддерживает retarget с сохранением скорости, остановку/завершение при detach/reduced motion. Автоматический reduced motion доступен Windows; на других платформах задаётся явно.
+Проверка основы: HCT-векторы Google закреплены в ColorReferenceTests (официальный commit bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3); typography tracking/emphasis сверены с актуальными [M3 type-scale tokens](https://m3.material.io/styles/typography/type-scale-tokens); тени — Material Web key/ambient geometry. Motion поддерживает retarget с сохранением скорости, остановку/завершение при detach/reduced motion. Автоматический reduced motion доступен Windows; на других платформах задаётся явно.
 
 Доступные служебные шаблоны: Window с VisualLayerManager, ScrollViewer/ScrollBar, Thumb/RepeatButton, ContentControl/presenters, Separator, ComboBox и Calendar primitives, PopupRoot/OverlayPopupHost. FluentTheme и SimpleTheme не подключаются.
 
@@ -126,6 +130,21 @@ tests/ExpressiveAvalonia.Tests/
 | Top app bars | Small, medium, large; centered/flexible arrangements | MaterialAppBar | Scroll coupling, collapse, insets, title semantics, flexible two-line titles and image content, actions |
 | Toolbars | Docked, floating; horizontal/vertical | MaterialToolbar | Overflow, keyboard navigation, placement, action groups |
 | Tooltips | Plain, rich | ToolTip theme; RichTooltip | Hover/focus/touch, delay, Escape, placement; rich actions keyboard-accessible |
+
+### Результат сверки с актуальными страницами Material
+
+| Семейства | Исправления и сохранённые контракты | Спецификация |
+| --- | --- | --- |
+| Buttons, icon buttons, button groups, segmented/split, FAB/extended/menu | Стрелки и начальный tab stop групп; accessible name без перезаписи caller values; hover seam и ExpandCollapse trailing split. Сохранены пять размеров кнопок и classic/Expressive FAB. | [Buttons](https://m3.material.io/components/buttons/specs), [groups](https://m3.material.io/components/button-groups/specs), [split](https://m3.material.io/components/split-button/specs), [FAB](https://m3.material.io/components/floating-action-button/specs) |
+| Checkbox, radio, switch, sliders, text fields, chips | Сверены состояния и input-контракты; исправлены цель удаления chip 48×48 DIP и динамическое локализованное имя. Native editing и selection сохранены. | [Selection](https://m3.material.io/components/checkbox/specs), [sliders](https://m3.material.io/components/sliders/specs), [fields](https://m3.material.io/components/text-fields/accessibility), [chips](https://m3.material.io/components/chips/accessibility) |
+| Navigation bar/rail/drawer, tabs, app bars, toolbars | Navigation icons 24 DIP; конечная desired height вертикального bar; expanded rail badge рядом с подписью; XR badge status без перезаписи имени приложения. Native selection, RTL и modal hosts сохранены. | [Bar](https://m3.material.io/components/navigation-bar/specs), [rail](https://m3.material.io/components/navigation-rail/specs), [tabs](https://m3.material.io/components/tabs/specs), [toolbars](https://m3.material.io/components/toolbars/specs) |
+| Cards, dialogs, sheets, lists, divider | Инертная card не берёт фокус; Enter дочернего editor не активирует card; dialog сохраняет имя и не оставляет пустой supporting spacer; локализация sheet handle и footer padding; отмена input-жестов GeneralItem; прозрачный scrim не блокирует ввод. | [Cards](https://m3.material.io/components/cards/specs), [dialogs](https://m3.material.io/components/dialogs/specs), [bottom sheets](https://m3.material.io/components/bottom-sheets/specs), [side sheets](https://m3.material.io/components/side-sheets/specs), [lists](https://m3.material.io/components/lists/specs) |
+| Date/time pickers, search, carousel | Date header gap 36 DIP и единая поверхность календаря; standard 24-hour dial fields 114 DIP; polite result announcements; full-screen vertical pages; reduced motion без parallax/resizing, с сохранением статических aspect ratios. | [Date](https://m3.material.io/components/date-pickers/specs), [time](https://m3.material.io/components/time-pickers/specs), [search](https://m3.material.io/components/search/accessibility), [carousel](https://m3.material.io/components/carousel/accessibility) |
+| Menus, tooltips, snackbar, progress/loading | Plain tooltip placement и focus/hover lifetime rich tooltip; очередь snackbar ждёт полного закрытия. Сверены baseline/expressive menus, flat/wave progress, contained/uncontained loading и animation lifecycle. | [Menus](https://m3.material.io/components/menus/accessibility), [tooltips](https://m3.material.io/components/tooltips/accessibility), [snackbar](https://m3.material.io/components/snackbar/guidelines), [progress](https://m3.material.io/components/progress-indicators/specs), [loading](https://m3.material.io/components/loading-indicator/specs) |
+| Foundations, badges и дизайн-расширения | Проверены цветовые роли, 15 typography roles и emphasis, shape/elevation/motion; исправлены tracking и font weight emphasis, декоративная badge semantics. Avatars, shapes, assets, examples, XR desktop, pull-to-refresh и scroll infrastructure проверены как расширения, не выданы за отдельные нормативные M3-компоненты. | [Typography](https://m3.material.io/styles/typography/type-scale-tokens), [badges](https://m3.material.io/components/badges/accessibility), [color](https://m3.material.io/styles/color/system/overview) |
+
+Desktop-различия: disabled menu items пропускаются native keyboard focus; navigation использует roving tab stop; range slider горизонтальный, нативные стрелки обычного Slider сохраняют Avalonia-политику RTL. FAB menu имеет собственный default-size trigger. Routing, смысловые имена icon-only действий, альтернативы swipe/drag, внешний adaptive layout и асинхронные данные принадлежат приложению. Spatial XR и Android predictive-back не эмулируются.
+
 
 ### Классические MD3-компоненты, заменённые в Expressive
 
@@ -186,4 +205,4 @@ tests/ExpressiveAvalonia.Tests/
 - Motion: https://m3.material.io/styles/motion/overview/how-it-works
 - Версии Avalonia: https://api.nuget.org/v3-flatcontainer/avalonia/index.json
 
-Официальный сайт частично отдаёт контент через клиентское приложение. Каталог и Expressive-замены подтверждены поисковыми выдержками официального сайта; точные численные спецификации и полный вариантный состав необходимо сверять на этапе реализации. Эта матрица задаёт план покрытия, не является сертификатом соответствия.
+Официальный сайт частично отдаёт контент через клиентское приложение. Семейства сверены со страницами specs/guidelines/accessibility и закреплённым source; ссылки и результаты приведены выше. Матрица не является сертификатом платформенного или попиксельного соответствия.

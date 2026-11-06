@@ -377,7 +377,8 @@ public class MaterialSplitButton : ContentControl
 
     private void OnSegmentPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == Button.IsPressedProperty)
+        if (e.Property == Button.IsPressedProperty || e.Property == InputElement.IsPointerOverProperty ||
+            e.Property == IsEnabledProperty)
             UpdateMenuShape(animate: true);
     }
 
@@ -415,6 +416,8 @@ public class MaterialSplitButton : ContentControl
         SetCurrentValue(IsMenuOpenProperty, open);
         _syncingMenu = false;
         _trailingButton?.Classes.Set("menuopen", open);
+        if (_trailingButton is MaterialSplitButtonTrailingButton trailing)
+            trailing.NotifyMenuStateChanged(open);
         _peer?.NotifyMenuStateChanged(open);
         UpdateMenuShape(animate: true);
     }
@@ -692,15 +695,15 @@ public class MaterialSplitButton : ContentControl
         UpdateLayout();
     }
 
-    // Source shapeByInteraction precedence: pressed, then checked (the independent trailing state
-    // or the open menu), then resting. Hover does not change the split button geometry; it only
-    // draws the shared state layer.
+    // Current M3 diagrams retain the resting silhouette for focus; hovering or pressing rounds
+    // the inner seam. Checked/open trailing state stays circular unless pressed.
     private void UpdateMenuShape(bool animate)
     {
         var reduced = MaterialMotion.GetIsReduced(this);
         if (_primaryButton is not null && _primaryCorners is not null)
         {
-            var target = _primaryButton.IsPressed ? _primaryPressed : _primaryResting;
+            var target = _primaryButton.IsPressed || _primaryButton.IsEffectivelyEnabled && _primaryButton.IsPointerOver
+                ? _primaryPressed : _primaryResting;
             _primaryCorners.Set(target, animate && !reduced, MaterialSpring.EffectsDefault);
         }
 
@@ -711,7 +714,8 @@ public class MaterialSplitButton : ContentControl
                 ? _trailingPressed
                 : IsTrailingChecked || IsMenuOpen && Flyout is not null
                     ? circle
-                    : _trailingResting;
+                    : _trailingButton.IsEffectivelyEnabled && _trailingButton.IsPointerOver
+                        ? _trailingPressed : _trailingResting;
             _trailingCorners.Set(target, animate && !reduced, MaterialSpring.EffectsDefault);
         }
     }
@@ -836,12 +840,18 @@ public class MaterialSplitButtonTrailingButton : ToggleButton
     }
 
     internal void PerformActivation() => OnClick();
+    internal void NotifyMenuStateChanged(bool open)
+    {
+        if (ControlAutomationPeer.FromElement(this) is MaterialSplitButtonTrailingAutomationPeer peer)
+            peer.NotifyMenuStateChanged(open);
+    }
+
 
     protected override AutomationPeer OnCreateAutomationPeer() =>
         new MaterialSplitButtonTrailingAutomationPeer(this);
 
     private sealed class MaterialSplitButtonTrailingAutomationPeer
-        : ButtonAutomationPeer, IToggleProvider
+        : ButtonAutomationPeer, IToggleProvider, IExpandCollapseProvider
     {
         private readonly MaterialSplitButtonTrailingButton _owner;
 
@@ -854,6 +864,31 @@ public class MaterialSplitButtonTrailingButton : ToggleButton
 
         public ToggleState ToggleState =>
             _owner.IsChecked == true ? ToggleState.On : ToggleState.Off;
+
+        public ExpandCollapseState ExpandCollapseState =>
+            _owner.SplitButton?.IsMenuOpen == true ? ExpandCollapseState.Expanded : ExpandCollapseState.Collapsed;
+
+        public bool ShowsMenu => _owner.SplitButton?.Flyout is not null;
+
+        public void Expand()
+        {
+            EnsureEnabled();
+            if (_owner.SplitButton is { Flyout: not null } split)
+                split.SetCurrentValue(MaterialSplitButton.IsMenuOpenProperty, true);
+        }
+
+        public void Collapse()
+        {
+            EnsureEnabled();
+            if (_owner.SplitButton is { Flyout: not null } split)
+                split.SetCurrentValue(MaterialSplitButton.IsMenuOpenProperty, false);
+        }
+
+        public void NotifyMenuStateChanged(bool open) =>
+            RaisePropertyChangedEvent(
+                ExpandCollapsePatternIdentifiers.ExpandCollapseStateProperty,
+                open ? ExpandCollapseState.Collapsed : ExpandCollapseState.Expanded,
+                open ? ExpandCollapseState.Expanded : ExpandCollapseState.Collapsed);
 
         public void Toggle()
         {

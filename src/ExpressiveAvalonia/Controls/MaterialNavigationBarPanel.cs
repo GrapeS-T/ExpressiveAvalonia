@@ -95,12 +95,14 @@ public sealed class MaterialNavigationBarPanel : Panel
             var gap = Kind == MaterialNavigationBarKind.Classic ? Spacing : 0;
             var height = boundedHeight ? Math.Max(0, (availableSize.Height - (gap * (count - 1))) / count) : double.PositiveInfinity;
             var maxWidth = 0d;
+            var maxHeight = 0d;
             foreach (var child in Children)
             {
                 child.Measure(new Size(availableSize.Width, height));
                 maxWidth = Math.Max(maxWidth, child.DesiredSize.Width);
+                maxHeight = Math.Max(maxHeight, child.DesiredSize.Height);
             }
-            var desiredHeight = boundedHeight ? availableSize.Height : (height * count) + (gap * (count - 1));
+            var desiredHeight = boundedHeight ? availableSize.Height : (maxHeight * count) + (gap * (count - 1));
             return new Size(double.IsFinite(availableSize.Width) ? availableSize.Width : maxWidth, desiredHeight);
         }
 

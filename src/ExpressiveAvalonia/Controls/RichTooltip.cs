@@ -305,6 +305,10 @@ public sealed class RichTooltip : Flyout
         _presenter = presenter;
         AutomationProperties.SetControlTypeOverride(presenter, AutomationControlType.Pane);
         presenter.AddHandler(InputElement.KeyDownEvent, OnPresenterKeyDown, RoutingStrategies.Tunnel);
+        presenter.PointerEntered += OnPresenterPointerChanged;
+        presenter.PointerExited += OnPresenterPointerChanged;
+        presenter.GotFocus += OnPresenterFocusChanged;
+        presenter.LostFocus += OnPresenterFocusChanged;
         UpdateBodyContent();
         UpdateActions();
         UpdateContentLayout();
@@ -484,6 +488,12 @@ public sealed class RichTooltip : Flyout
         Dispatcher.UIThread.Post(SyncDurationTimer, DispatcherPriority.Input);
 
     private void OnTargetFocusChanged(object? sender, FocusChangedEventArgs args) =>
+        Dispatcher.UIThread.Post(SyncDurationTimer, DispatcherPriority.Input);
+
+    private void OnPresenterPointerChanged(object? sender, PointerEventArgs args) =>
+        Dispatcher.UIThread.Post(SyncDurationTimer, DispatcherPriority.Input);
+
+    private void OnPresenterFocusChanged(object? sender, FocusChangedEventArgs args) =>
         Dispatcher.UIThread.Post(SyncDurationTimer, DispatcherPriority.Input);
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -716,7 +726,8 @@ public sealed class RichTooltip : Flyout
     {
         StopDurationTimer();
         if (!IsOpen || EffectiveIsPersistent ||
-            _target is { } target && (target.IsPointerOver || target.IsKeyboardFocusWithin))
+            _target is { } target && (target.IsPointerOver || target.IsKeyboardFocusWithin) ||
+            _presenter is { } presenter && (presenter.IsPointerOver || presenter.IsKeyboardFocusWithin))
             return;
         _durationTimer = new DispatcherTimer(
             TimeSpan.FromMilliseconds(TooltipDurationMilliseconds),

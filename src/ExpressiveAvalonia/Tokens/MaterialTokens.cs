@@ -97,6 +97,7 @@ public static class MaterialTokens
             ["MaterialTextInputSelectAllText"] = "Select all",
             ["MaterialPasswordShowText"] = "Show password",
             ["MaterialPasswordHideText"] = "Hide password",
+            ["MaterialChipRemoveText"] = "Remove",
             ["MaterialRangeLowerValueText"] = "Lower value",
             ["MaterialRangeUpperValueText"] = "Upper value",
             ["MaterialScrollLeftText"] = "Scroll left",
@@ -134,17 +135,17 @@ public static class MaterialTokens
         AddTypography(resources, "LabelMedium", 12, 16, FontWeight.Medium);
         AddTypography(resources, "LabelSmall", 11, 16, FontWeight.Medium);
 
-        // Tracking and emphasized weights follow AndroidX Material3 TypeScaleTokens v0_103.
+        // Current M3 type-scale tokens: baseline and emphasized use the same tracking.
+        // https://m3.material.io/styles/typography/type-scale-tokens
         string[] roles = ["DisplayLarge", "DisplayMedium", "DisplaySmall", "HeadlineLarge", "HeadlineMedium", "HeadlineSmall", "TitleLarge", "TitleMedium", "TitleSmall", "BodyLarge", "BodyMedium", "BodySmall", "LabelLarge", "LabelMedium", "LabelSmall"];
-        double[] tracking = [-0.2, 0, 0, 0, 0, 0, 0, 0.2, 0.1, 0.5, 0.2, 0.4, 0.1, 0.5, 0.5];
-        double[] emphasizedTracking = [0, 0, 0, 0, 0, 0, 0, 0.15, 0.1, 0.15, 0.25, 0.4, 0.1, 0.5, 0.5];
+        double[] tracking = [-0.25, 0, 0, 0, 0, 0, 0, 0.15, 0.1, 0.5, 0.25, 0.4, 0.1, 0.5, 0.5];
         for (var i = 0; i < roles.Length; i++)
         {
             var prefix = $"Material{roles[i]}";
             resources[$"{prefix}LetterSpacing"] = tracking[i];
             resources[$"{prefix}EmphasizedFontSize"] = resources[$"{prefix}FontSize"];
             resources[$"{prefix}EmphasizedLineHeight"] = resources[$"{prefix}LineHeight"];
-            resources[$"{prefix}EmphasizedLetterSpacing"] = emphasizedTracking[i];
+            resources[$"{prefix}EmphasizedLetterSpacing"] = tracking[i];
             resources[$"{prefix}EmphasizedFontWeight"] = roles[i].StartsWith("Label", StringComparison.Ordinal) || roles[i] is "TitleMedium" or "TitleSmall" ? FontWeight.Bold : FontWeight.Medium;
         }
         // Two-layer ambient/key shadows. Geometry follows Material Web elevation tokens.

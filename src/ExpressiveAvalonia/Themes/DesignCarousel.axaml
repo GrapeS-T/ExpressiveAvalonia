@@ -39,6 +39,8 @@
                         VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
                         HorizontalSnapPointsType="{TemplateBinding (ScrollViewer.HorizontalSnapPointsType)}"
                         HorizontalSnapPointsAlignment="{TemplateBinding (ScrollViewer.HorizontalSnapPointsAlignment)}"
+                        VerticalSnapPointsType="{TemplateBinding (ScrollViewer.VerticalSnapPointsType)}"
+                        VerticalSnapPointsAlignment="{TemplateBinding (ScrollViewer.VerticalSnapPointsAlignment)}"
                         BringIntoViewOnFocusChange="False">
             <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
           </ScrollViewer>
@@ -46,12 +48,18 @@
       </ControlTemplate>
     </Setter>
     <!-- Uncontained has no trailing inset in the source: the last card bleeds off the end. -->
-    <Style Selector="^:uncontained">
+    <Style Selector="^:uncontained, ^:multi-aspect-ratio">
       <Setter Property="Padding" Value="16,8,0,8" />
+    </Style>
+    <Style Selector="^:uncontained[FlowDirection=RightToLeft], ^:multi-aspect-ratio[FlowDirection=RightToLeft]">
+      <Setter Property="Padding" Value="0,8,16,8" />
     </Style>
     <Style Selector="^:full-screen">
       <Setter Property="Padding" Value="0" />
       <Setter Property="ItemSpacing" Value="16" />
+      <Setter Property="ItemHeight" Value="NaN" />
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+      <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden" />
     </Style>
     <Style Selector="^:no-snap">
       <Setter Property="ScrollViewer.HorizontalSnapPointsType" Value="None" />

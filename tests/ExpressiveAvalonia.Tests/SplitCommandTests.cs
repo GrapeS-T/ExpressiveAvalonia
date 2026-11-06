@@ -324,7 +324,6 @@ public class SplitCommandTests
             window.MouseUp(point, MouseButton.Left);
             window.UpdateLayout();
             Assert.False(split.IsTrailingChecked);
-            Assert.Equal(new CornerRadius(4, 20, 20, 4), trailing.CornerRadius);
         }
         finally { window.Close(); }
     }
@@ -480,30 +479,29 @@ public class SplitCommandTests
     }
 
     [AvaloniaFact]
-    public void HoverKeepsRestingShapeWhilePressMorphsTheSeam()
+    public void TrailingAutomationExpandsAndCollapsesFlyout()
     {
-        var split = new MaterialSplitButton { Content = "Split" };
+        var flyout = new Flyout { Content = new TextBlock { Text = "Menu" } };
+        var split = new MaterialSplitButton { Content = "Send", Flyout = flyout };
         var window = Show(split);
         try
         {
-            var primary = Part(split, "PART_PrimaryButton");
-            var resting = primary.CornerRadius;
-            var point = Center(primary, window);
-
-            window.MouseMove(point);
-            window.UpdateLayout();
-            Assert.Equal(resting, primary.CornerRadius);
-
-            window.MouseDown(point, MouseButton.Left);
-            window.UpdateLayout();
-            Assert.Equal(new CornerRadius(20, 12, 12, 20), primary.CornerRadius);
-
-            window.MouseUp(point, MouseButton.Left);
-            window.UpdateLayout();
-            Assert.Equal(resting, primary.CornerRadius);
+            var trailing = Part(split, "PART_TrailingButton");
+            var provider = Assert.IsAssignableFrom<IExpandCollapseProvider>(
+                ControlAutomationPeer.CreatePeerForElement(trailing));
+            Assert.Equal(ExpandCollapseState.Collapsed, provider.ExpandCollapseState);
+            provider.Expand();
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(flyout.IsOpen);
+            Assert.Equal(ExpandCollapseState.Expanded, provider.ExpandCollapseState);
+            provider.Collapse();
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(flyout.IsOpen);
+            Assert.Equal(ExpandCollapseState.Collapsed, provider.ExpandCollapseState);
         }
-        finally { window.Close(); }
+        finally { flyout.Hide(); window.Close(); }
     }
+
 
     private sealed class CheckFlag : INotifyPropertyChanged
     {

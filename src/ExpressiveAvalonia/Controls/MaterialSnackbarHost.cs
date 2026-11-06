@@ -21,9 +21,8 @@ namespace ExpressiveAvalonia.Controls;
 /// <para>
 /// Material shows one snackbar at a time: a second request waits in a FIFO queue. The task
 /// returned by <see cref="Show"/> completes with the <see cref="MaterialSnackbarCloseReason"/> as
-/// soon as the snackbar starts closing, matching the source continuation which resumes on
-/// performAction/dismiss rather than after the fade. The dismissed surface stays in the overlay
-/// until its exit springs settle, so the next item can animate in while the previous fades out.
+/// soon as the snackbar starts closing. The next item waits until its exit animation completes,
+/// so consecutive snackbars are never displayed together.
 /// </para>
 /// <para>
 /// The host can be placed in a window (usually in a grid overlay) or created automatically in the
@@ -116,15 +115,8 @@ public sealed class MaterialSnackbarHost : TemplatedControl
             TaskCreationOptions.RunContinuationsAsynchronously);
         _pending.Add(snackbar, completion);
 
-        if (_current is null)
-        {
-            _current = snackbar;
-            AttachCurrent();
-        }
-        else
-        {
-            _queue.Enqueue(snackbar);
-        }
+        _queue.Enqueue(snackbar);
+        Advance();
 
         return completion.Task;
     }
@@ -333,8 +325,8 @@ public sealed class MaterialSnackbarHost : TemplatedControl
             control.Focus(NavigationMethod.Unspecified);
         _previousFocus = null;
 
-        // SnackbarHostState resumes on performAction/dismiss, not after the fade. Complete the
-        // waiter and let the next queued item appear while this one runs its exit springs.
+        // Complete the waiter as soon as dismissal starts, but keep the next snackbar queued
+        // until this one has finished its exit animation.
         if (_pending.Remove(snackbar, out var completion))
             completion.TrySetResult(e.Reason);
 
@@ -342,7 +334,6 @@ public sealed class MaterialSnackbarHost : TemplatedControl
             _retiring.Add(snackbar);
         _current = null;
         _currentShown = false;
-        Advance();
     }
 
     private void OnCurrentClosed(object? sender, MaterialSnackbarCloseEventArgs e)
@@ -363,13 +354,13 @@ public sealed class MaterialSnackbarHost : TemplatedControl
             _current = null;
             _currentShown = false;
             _previousFocus = null;
-            Advance();
         }
+        Advance();
     }
 
     private void Advance()
     {
-        while (_current is null && _queue.Count > 0)
+        while (_current is null && _retiring.Count == 0 && _queue.Count > 0)
         {
             var next = _queue.Dequeue();
             if (!_pending.ContainsKey(next))

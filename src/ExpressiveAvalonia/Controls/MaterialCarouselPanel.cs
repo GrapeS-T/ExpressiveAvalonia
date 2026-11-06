@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using ExpressiveAvalonia.Theming;
 using Avalonia.VisualTree;
 
 namespace ExpressiveAvalonia.Controls;
@@ -106,9 +107,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
     public event EventHandler<RoutedEventArgs>? HorizontalSnapPointsChanged;
 
     /// <inheritdoc />
-#pragma warning disable CS0067 // IScrollSnapPointsInfo requires the vertical event; the carousel is horizontal-only.
     public event EventHandler<RoutedEventArgs>? VerticalSnapPointsChanged;
-#pragma warning restore CS0067
 
     /// <summary>Raised when arrange determines a different item is closest to its snap position.</summary>
     internal event EventHandler? CurrentItemChanged;
@@ -135,9 +134,10 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
 
     private MaterialCarousel? Owner => _owner;
 
-    private bool IsRightToLeft => FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
-
-    private bool IsAspectLayout => Owner?.Layout == MaterialCarouselLayout.MultiAspectRatio;
+    private bool IsVertical => Owner?.Layout == MaterialCarouselLayout.FullScreen;
+    private bool IsRightToLeft => !IsVertical && FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
+    private bool IsReduced => Owner is { } owner && MaterialMotion.GetIsReduced(owner);
+    private bool IsAspectLayout => Owner?.Layout == MaterialCarouselLayout.MultiAspectRatio || IsReduced || IsVertical;
 
     private double PhysicalStartPadding => Owner?.Padding.Left ?? 0;
 
@@ -199,7 +199,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
     /// <inheritdoc />
     public IReadOnlyList<double> GetIrregularSnapPoints(Orientation orientation, SnapPointsAlignment snapPointsAlignment)
     {
-        if (orientation != Orientation.Horizontal)
+        if (orientation != (IsVertical ? Orientation.Vertical : Orientation.Horizontal))
             return _emptyPoints;
 
         // The pinned KeylineSnapPosition has no alignment notion; the control theme aligns Near.
@@ -350,6 +350,8 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
             NavigationDirection.Previous => index < 0 ? count - 1 : index - 1,
             NavigationDirection.Left => index < 0 ? (IsRightToLeft ? count - 1 : 0) : index + (IsRightToLeft ? 1 : -1),
             NavigationDirection.Right => index < 0 ? (IsRightToLeft ? 0 : count - 1) : index + (IsRightToLeft ? -1 : 1),
+            NavigationDirection.Up when IsVertical => index < 0 ? 0 : index - 1,
+            NavigationDirection.Down when IsVertical => index < 0 ? 0 : index + 1,
             NavigationDirection.PageUp => index < 0 ? 0 : index - page,
             NavigationDirection.PageDown => index < 0 ? count - 1 : index + page,
             _ => null,
@@ -432,7 +434,8 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         {
             RecycleAll();
             UpdateSnapPointsCache(force: true);
-            return new Size(Math.Max(0, MainAxisExtent), CrossPaddingStart + _crossSize + CrossPaddingEnd);
+            return IsVertical ? new Size(_crossSize, Math.Max(0, MainAxisExtent)) :
+                new Size(Math.Max(0, MainAxisExtent), CrossPaddingStart + _crossSize + CrossPaddingEnd);
         }
 
         var logicalOffset = ResolveLogicalOffset(count);
@@ -444,13 +447,13 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         foreach (var item in _realized)
         {
             var mainSize = IsAspectLayout ? GetAspectItemWidth(item.Index) : _strategy.ItemMainAxisSize;
-            item.Container.Measure(new Size(Math.Max(0, mainSize), Math.Max(0, _crossSize)));
+            item.Container.Measure(IsVertical ? new Size(_crossSize, Math.Max(0, mainSize)) :
+                new Size(Math.Max(0, mainSize), Math.Max(0, _crossSize)));
         }
 
         UpdateSnapPointsCache(force: false);
-        return new Size(
-            Math.Max(0, MainAxisExtent),
-            CrossPaddingStart + _crossSize + CrossPaddingEnd);
+        return IsVertical ? new Size(_crossSize, Math.Max(0, MainAxisExtent)) :
+            new Size(Math.Max(0, MainAxisExtent), CrossPaddingStart + _crossSize + CrossPaddingEnd);
     }
 
     /// <inheritdoc />
@@ -468,23 +471,27 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         {
             var current = GetAspectCurrentItem(count, logicalOffset);
             SetCurrentItem(current);
+            _currentFraction = GetAspectOffsetFraction(current);
             foreach (var item in _realized)
             {
                 var width = GetAspectItemWidth(item.Index);
                 var start = item.Index < _aspectStarts.Length ? _aspectStarts[item.Index] : 0;
                 var left = rtl ? contentStart + MirrorWidth - start - width : contentStart + start;
-                item.Container.Arrange(new Rect(left, CrossPaddingStart, width, _crossSize));
-                var effect = CarouselParallax.Calculate(width, _crossSize,
-                    start - logicalOffset + ContentStart, 0, _viewportWidth);
+                item.Container.Arrange(IsVertical ? new Rect(0, start, _crossSize, width) :
+                    new Rect(left, CrossPaddingStart, width, _crossSize));
+                var effect = IsReduced || IsVertical ? (Start: 0d, End: width, Translation: 0d) :
+                    CarouselParallax.Calculate(width, _crossSize,
+                        start - logicalOffset + ContentStart, 0, _viewportWidth);
                 var maskStart = rtl ? width - effect.End : effect.Start;
-                var mask = new Rect(maskStart, 0, Math.Max(0, effect.End - effect.Start), _crossSize);
-                ApplyItemVisuals(item.Container, 0, mask, clip: mask.Width < width,
+                var mask = IsVertical ? new Rect(0, 0, _crossSize, width) :
+                    new Rect(maskStart, 0, Math.Max(0, effect.End - effect.Start), _crossSize);
+                ApplyItemVisuals(item.Container, 0, mask, clip: !IsVertical && mask.Width < width,
                     1 / (1 + Math.Abs(item.Index - current)),
                     item.Container is MaterialCarouselItem rounded ? rounded.CornerRadius.TopLeft : 0);
                 if (item.Container is MaterialCarouselItem aspectItem)
                 {
                     aspectItem.SetParallax(rtl ? -effect.Translation : effect.Translation);
-                    aspectItem.UpdateItemInfo(mask.Width, width, width, mask);
+                    aspectItem.UpdateItemInfo(IsVertical ? width : mask.Width, width, width, mask);
                 }
             }
 
@@ -834,7 +841,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         _aspectStarts = [];
         _aspectWidths = [];
         _contentWidth = _strategy.GetContentSize(itemCount);
-        if (owner.Layout == MaterialCarouselLayout.MultiAspectRatio)
+        if (IsAspectLayout)
             BuildAspectMetrics(owner, availableSpace);
     }
 
@@ -849,7 +856,10 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         {
             var card = GetRealizedContainer(i) as MaterialCarouselItem ?? Items[i] as MaterialCarouselItem;
             var ratio = owner.ResolveAspectRatio(card, i);
-            var width = Math.Max(1, _crossSize > 0 ? _crossSize * ratio : availableSpace);
+            var width = IsVertical || (IsReduced && owner.Layout != MaterialCarouselLayout.MultiAspectRatio)
+                ? Math.Max(1, _strategy.IsValid ? _strategy.ItemMainAxisSize :
+                    double.IsFinite(owner.PreferredItemWidth) ? Math.Min(owner.PreferredItemWidth, availableSpace) : availableSpace)
+                : Math.Max(1, _crossSize > 0 ? _crossSize * ratio : availableSpace);
             _aspectStarts[i] = total;
             _aspectWidths[i] = width;
             total += width;
@@ -864,13 +874,16 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
 
     private void CaptureAnchorBeforeMetricsChange()
     {
-        if (!_strategy.IsValid && !IsAspectLayout)
+        var wasAspectLayout = _parameters.Layout is MaterialCarouselLayout.MultiAspectRatio or MaterialCarouselLayout.FullScreen || _parameters.IsReduced;
+        if (!_strategy.IsValid && !wasAspectLayout)
             return;
         if (_currentItem < 0)
             return;
 
         _pendingAnchorItem = _currentItem;
-        _pendingAnchorFraction = IsAspectLayout ? GetAspectOffsetFraction(_currentItem) : _currentFraction;
+        _pendingAnchorFraction = wasAspectLayout && _currentItem < _aspectStarts.Length
+            ? Math.Clamp((ResolveLogicalOffset() - _aspectStarts[_currentItem]) / Math.Max(1, _aspectWidths[_currentItem]), -0.5, 0.5)
+            : _currentFraction;
     }
 
     private void ApplyPendingOffset()
@@ -900,7 +913,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         target = Math.Clamp(target, 0, MaxScrollOffset);
         var physical = ToPhysicalOffset(target);
         var offset = _scrollViewer.Offset;
-        if (Math.Abs(offset.X - physical) < 0.5)
+        if (Math.Abs((IsVertical ? offset.Y : offset.X) - physical) < 0.5)
         {
             _pendingApplyAttempts = 0;
             return;
@@ -909,7 +922,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         _applyingPendingOffset = true;
         try
         {
-            _scrollViewer.SetCurrentValue(ScrollViewer.OffsetProperty, new Vector(physical, offset.Y));
+            _scrollViewer.SetCurrentValue(ScrollViewer.OffsetProperty, IsVertical ? new Vector(offset.X, physical) : new Vector(physical, offset.Y));
         }
         finally
         {
@@ -918,7 +931,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
 
         // The extent may still describe the previous metrics, in which case the scroll viewer clamps
         // the offset; ask for another measure pass so the retry runs against the new extent.
-        if (Math.Abs(_scrollViewer.Offset.X - physical) > 0.5 && _pendingApplyAttempts++ < 3)
+        if (Math.Abs((IsVertical ? _scrollViewer.Offset.Y : _scrollViewer.Offset.X) - physical) > 0.5 && _pendingApplyAttempts++ < 3)
         {
             _pendingOffset = target;
             InvalidateMeasure();
@@ -947,6 +960,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
             BeforeContentPadding,
             AfterContentPadding,
             IsRightToLeft,
+            IsReduced,
             ItemCount,
             IsAspectLayout ? _crossSize : 0,
             CapturePreferences(owner));
@@ -961,6 +975,8 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
 
     private double ResolveCrossSize(MaterialCarousel owner, Size availableSize)
     {
+        if (IsVertical)
+            return Math.Max(0, _viewportHeight);
         var padding = CrossPaddingStart + CrossPaddingEnd;
         var viewport = _viewportHeight;
         if (viewport <= 0 && double.IsFinite(availableSize.Height) && availableSize.Height > 0)
@@ -981,7 +997,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         if (_scrollViewer is null)
             return 0;
 
-        return Math.Clamp(ToLogicalOffset(_scrollViewer.Offset.X), 0, MaxScrollOffset);
+        return Math.Clamp(ToLogicalOffset(IsVertical ? _scrollViewer.Offset.Y : _scrollViewer.Offset.X), 0, MaxScrollOffset);
     }
 
     private void ResolveViewport(Size availableSize)
@@ -1004,8 +1020,8 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         if (height <= 0 && Owner is { Bounds.Height: > 0 } boundsOwner)
             height = boundsOwner.Bounds.Height;
 
-        _viewportWidth = Math.Max(0, width);
-        _viewportHeight = Math.Max(0, height);
+        _viewportWidth = Math.Max(0, IsVertical ? height : width);
+        _viewportHeight = Math.Max(0, IsVertical ? width : height);
     }
 
     private void AttachScrollViewer()
@@ -1057,7 +1073,8 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
     private void OnScrollViewerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (e.Property == ScrollViewer.ViewportProperty && _scrollViewer is { } viewer &&
-            (viewer.Viewport.Width != _viewportWidth || viewer.Viewport.Height != _viewportHeight))
+            ((IsVertical ? viewer.Viewport.Height : viewer.Viewport.Width) != _viewportWidth ||
+             (IsVertical ? viewer.Viewport.Width : viewer.Viewport.Height) != _viewportHeight))
         {
             InvalidateMeasure();
         }
@@ -1090,7 +1107,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
             double size;
             if (IsAspectLayout)
             {
-                logical = i < _aspectStarts.Length ? _aspectStarts[i] : 0;
+                logical = i < _aspectStarts.Length ? Math.Clamp(_aspectStarts[i], 0, maxScroll) : 0;
                 size = i < _aspectWidths.Length ? _aspectWidths[i] : 0;
             }
             else if (_strategy.IsValid)
@@ -1116,7 +1133,10 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         _farPoints = nextFar;
         _snapCacheKey = key;
         if (changed)
-            HorizontalSnapPointsChanged?.Invoke(this, new RoutedEventArgs());
+        {
+            if (IsVertical) VerticalSnapPointsChanged?.Invoke(this, new RoutedEventArgs());
+            else HorizontalSnapPointsChanged?.Invoke(this, new RoutedEventArgs());
+        }
     }
 
     private static bool PointsEqual(double[] left, double[] right)
@@ -1161,6 +1181,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         double BeforePadding,
         double AfterPadding,
         bool IsRightToLeft,
+        bool IsReduced,
         int ItemCount,
         double AspectCrossSize,
         ItemPreferences Preferences);
