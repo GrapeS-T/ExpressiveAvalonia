@@ -82,6 +82,9 @@ public sealed class MaterialRangeSlider : TemplatedControl
     public double TickFrequency { get => GetValue(TickFrequencyProperty); set => SetValue(TickFrequencyProperty, value); }
     public bool IsSnapToTickEnabled { get => GetValue(IsSnapToTickEnabledProperty); set => SetValue(IsSnapToTickEnabledProperty, value); }
 
+    // Endpoint coordinates and keyboard direction are already resolved explicitly below.
+    protected override bool BypassFlowDirectionPolicies => true;
+
     /// <summary>Raised once when a user gesture or an automation action finishes changing an endpoint.</summary>
     /// <remarks>Raised after a pointer release that ends a tap or drag, after the key-up for a key
     /// that changes an endpoint, and after a range-value automation value that actually changes the
@@ -188,8 +191,7 @@ public sealed class MaterialRangeSlider : TemplatedControl
         {
             var fraction = MaterialSlider.Fraction(value, Minimum, Maximum);
             return MaterialSlider.Position(fraction, length, Avalonia.Layout.Orientation.Horizontal, rtl,
-                MaterialSlider.Corner(this, _canvas?.Bounds.Height ?? Bounds.Height),
-                IsSnapToTickEnabled && TickFrequency > 0);
+                MaterialSlider.StopInset, IsSnapToTickEnabled && TickFrequency > 0);
         }
 
         var lower = At(LowerValue);
@@ -400,7 +402,7 @@ public sealed class MaterialRangeSlider : TemplatedControl
             return;
         var offset = Math.Clamp(x - 2 - _grabOffset, 0, Travel);
         var corner = IsSnapToTickEnabled && TickFrequency > 0
-            ? Math.Min(MaterialSlider.Corner(this, _canvas?.Bounds.Height ?? Bounds.Height), Travel / 2)
+            ? Math.Min(MaterialSlider.StopInset, Travel / 2)
             : 0;
         var visual = corner > 0 && Travel > 2 * corner
             ? Math.Clamp((offset - corner) / (Travel - 2 * corner), 0, 1)

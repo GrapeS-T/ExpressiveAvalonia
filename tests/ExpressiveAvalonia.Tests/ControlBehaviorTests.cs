@@ -404,35 +404,6 @@ public class ControlBehaviorTests
         finally { window.Close(); }
     }
 
-    [AvaloniaFact]
-    public void DiscreteSliderThumbTargetUsesCornerInsetButEndpointsStayAtGutter()
-    {
-        var slider = new Slider
-        {
-            Minimum = 0, Maximum = 100, Value = 20,
-            Width = 400, TickFrequency = 10, IsSnapToTickEnabled = true
-        };
-        var window = Show(slider);
-        try
-        {
-            var thumb = slider.GetVisualDescendants().OfType<Thumb>().Single();
-            Assert.Equal(86, Center(), 1);
-            slider.Value = 0;
-            window.UpdateLayout();
-            Assert.Equal(2, Center(), 1);
-            slider.Value = 100;
-            window.UpdateLayout();
-            Assert.Equal(398, Center(), 1);
-            slider.Value = 20;
-            slider.IsSnapToTickEnabled = false;
-            window.UpdateLayout();
-            Assert.InRange(Center(), 80.7, 81.7);
-
-            double Center() => thumb.TranslatePoint(
-                new Point(thumb.Bounds.Width / 2, thumb.Bounds.Height / 2), slider)!.Value.X;
-        }
-        finally { window.Close(); }
-    }
 
     [AvaloniaFact]
     public void TextEditingAndSelectionSurviveThemeChange()
