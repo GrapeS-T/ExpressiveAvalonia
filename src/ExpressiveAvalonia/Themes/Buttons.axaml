@@ -37,6 +37,30 @@
        Outline border paints the animated channel, not the caller's target properties. All
        honour MaterialMotion.IsReduced: reduced mode snaps to the final interactive state and
        the ripple renders statically while pressed. -->
+    <!-- Material icons retain their 24-DIP viewport, including the glyph's internal whitespace. -->
+    <ControlTheme x:Key="MaterialButtonPathIconTheme" TargetType="PathIcon">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Viewbox Stretch="Uniform">
+            <Canvas Width="24" Height="24">
+              <Path Data="{TemplateBinding Data}" Fill="{TemplateBinding Foreground}" Stretch="None" />
+            </Canvas>
+          </Viewbox>
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
+    <ControlTheme x:Key="MaterialButtonIconTheme" TargetType="controls:MaterialIcon">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Viewbox Stretch="{TemplateBinding Stretch}">
+            <Canvas Width="24" Height="24">
+              <Path Name="PART_Glyph" Data="{TemplateBinding Geometry}" Stretch="None"
+                    Fill="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}, TargetNullValue=#1D1B20}" />
+            </Canvas>
+          </Viewbox>
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
   <ControlTheme x:Key="MaterialButtonBase" TargetType="Button">
     <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
@@ -51,6 +75,7 @@
     <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="theming:MaterialAssist.ContainerInset" Value="0,4" />
     <Setter Property="theming:MaterialAssist.AnimateShape" Value="True" />
     <Setter Property="Template">
@@ -106,9 +131,8 @@
                                   FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                   EnableDrag="False"
                                   IsHitTestVisible="False" />
-          <!-- 3 DIP secondary ring, two DIPs outside the animated silhouette. Its own bounds are
-               enlarged by the margin, so the binding adds the same two DIPs to the corner. -->
-          <controls:MaterialFocusIndicator Name="FocusRing" Margin="-2"
+          <!-- The indicator paints inside its bounds: 2 DIP gap + 3 DIP stroke = 5 DIP outset. -->
+          <controls:MaterialFocusIndicator Name="FocusRing" Margin="-5" UseLayoutRounding="False"
                                            IsActive="True" IsVisible="False"
                                            Stroke="{DynamicResource MaterialSecondaryBrush}"
                                            StrokeThickness="3"
@@ -118,6 +142,7 @@
         </Panel>
       </ControlTemplate>
     </Setter>
+
 
     <!-- Color treatments. The ripple (state layer + press) reuses Foreground, which is exactly
          the token's state-layer color in every variant: onPrimary, primary,
@@ -157,14 +182,6 @@
       <Style Selector="^ /template/ ContentPresenter#IconHost">
         <Setter Property="Margin" Value="0,0,4,0" />
       </Style>
-      <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
-        <Setter Property="Width" Value="20" />
-        <Setter Property="Height" Value="20" />
-      </Style>
-      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-        <Setter Property="Width" Value="20" />
-        <Setter Property="Height" Value="20" />
-      </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=Small]">
       <Setter Property="MinHeight" Value="48" />
@@ -172,14 +189,6 @@
       <Setter Property="Padding" Value="16,10" />
       <Style Selector="^ /template/ ContentPresenter#IconHost">
         <Setter Property="Margin" Value="0,0,8,0" />
-      </Style>
-      <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
-        <Setter Property="Width" Value="20" />
-        <Setter Property="Height" Value="20" />
-      </Style>
-      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-        <Setter Property="Width" Value="20" />
-        <Setter Property="Height" Value="20" />
       </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=Medium]">
@@ -195,14 +204,6 @@
       <Style Selector="^ /template/ ContentPresenter#IconHost">
         <Setter Property="Margin" Value="0,0,8,0" />
       </Style>
-      <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
-        <Setter Property="Width" Value="24" />
-        <Setter Property="Height" Value="24" />
-      </Style>
-      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-        <Setter Property="Width" Value="24" />
-        <Setter Property="Height" Value="24" />
-      </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]">
       <Setter Property="MinHeight" Value="96" />
@@ -216,14 +217,6 @@
       </Style>
       <Style Selector="^ /template/ ContentPresenter#IconHost">
         <Setter Property="Margin" Value="0,0,12,0" />
-      </Style>
-      <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
-        <Setter Property="Width" Value="32" />
-        <Setter Property="Height" Value="32" />
-      </Style>
-      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-        <Setter Property="Width" Value="32" />
-        <Setter Property="Height" Value="32" />
       </Style>
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
@@ -239,27 +232,6 @@
       <Style Selector="^ /template/ ContentPresenter#IconHost">
         <Setter Property="Margin" Value="0,0,16,0" />
       </Style>
-      <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
-        <Setter Property="Width" Value="40" />
-        <Setter Property="Height" Value="40" />
-      </Style>
-      <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-        <Setter Property="Width" Value="40" />
-        <Setter Property="Height" Value="40" />
-      </Style>
-    </Style>
-    <!-- A consumer that composes its own icon + label StackPanel as Content keeps the token gap. -->
-    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
-      <Setter Property="Spacing" Value="8" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall] /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
-      <Setter Property="Spacing" Value="4" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large] /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
-      <Setter Property="Spacing" Value="12" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter > StackPanel">
-      <Setter Property="Spacing" Value="16" />
     </Style>
 
     <!-- The icon gap is a physical right margin in LTR; in RTL the StackPanel reverses the child
@@ -332,29 +304,13 @@
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True] /template/ ContentPresenter#IconHost">
       <Setter Property="Margin" Value="0" />
     </Style>
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True] /template/ ContentPresenter#IconHost PathIcon">
-      <Setter Property="Width" Value="24" />
-      <Setter Property="Height" Value="24" />
-    </Style>
     <!-- The Content glyph of an icon button uses the icon-button size (20/24/24/32/40), not the
          labeled-button size, so the Viewbox never has to rescale it. Per-size overrides are nested
          below, because Avalonia's selector grammar cannot chain two attached-property matches. -->
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True] /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-      <Setter Property="Width" Value="24" />
-      <Setter Property="Height" Value="24" />
-    </Style>
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
       <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
         <Setter Property="FontSize" Value="20" />
         <Style Selector="^ /template/ Viewbox#ContentHost">
-          <Setter Property="Width" Value="20" />
-          <Setter Property="Height" Value="20" />
-        </Style>
-        <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
-          <Setter Property="Width" Value="20" />
-          <Setter Property="Height" Value="20" />
-        </Style>
-        <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
           <Setter Property="Width" Value="20" />
           <Setter Property="Height" Value="20" />
         </Style>
@@ -369,27 +325,11 @@
           <Setter Property="Width" Value="32" />
           <Setter Property="Height" Value="32" />
         </Style>
-        <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
-          <Setter Property="Width" Value="32" />
-          <Setter Property="Height" Value="32" />
-        </Style>
-        <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
-          <Setter Property="Width" Value="32" />
-          <Setter Property="Height" Value="32" />
-        </Style>
       </Style>
       <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]">
         <Setter Property="MinHeight" Value="136" />
         <Setter Property="FontSize" Value="40" />
         <Style Selector="^ /template/ Viewbox#ContentHost">
-          <Setter Property="Width" Value="40" />
-          <Setter Property="Height" Value="40" />
-        </Style>
-        <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
-          <Setter Property="Width" Value="40" />
-          <Setter Property="Height" Value="40" />
-        </Style>
-        <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter PathIcon">
           <Setter Property="Width" Value="40" />
           <Setter Property="Height" Value="40" />
         </Style>
@@ -478,13 +418,11 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
 
-    <!-- Disabled: FilledButtonTokens/ElevatedButtonTokens/OutlinedButtonTokens.
-         Container OnSurface at 10%, label and icon OnSurfaceVariant at 38%, outlined stroke
-         OutlineVariant at the same 10%. Text and outlined containers stay transparent so no
-         blanket grey fill appears. No state layer and no ripple react while disabled. -->
+    <!-- Current M3 color tokens: OnSurface container at 10%, content at 38%.
+         Text/outlined containers remain transparent; disabled outlines retain OutlineVariant. -->
     <Style Selector="^:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="^:disabled /template/ Border#Surface">
@@ -502,15 +440,7 @@
     <Style Selector="^:disabled /template/ controls|MaterialFocusIndicator#FocusRing">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <!-- FilledTonalButtonTokens: the disabled tonal container is OnSurface at 12%, not 10%, and
-         the label/icon role is OnSurface. -->
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled /template/ Border#Surface">
-      <Setter Property="Opacity" Value="0.12" />
-    </Style>
-    <!-- Outlined disabled: transparent container, OutlineVariant stroke at 10%. -->
+    <!-- Disabled outlined buttons retain the outline, not a nearly invisible 10% stroke. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
@@ -519,56 +449,22 @@
       <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Outline">
-      <Setter Property="Opacity" Value="0.10" />
+      <Setter Property="Opacity" Value="1" />
     </Style>
-    <!-- Text disabled: transparent container, OnSurfaceVariant at 38%. -->
+    <!-- Text buttons remain container-less while disabled. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
       <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled /template/ Border#Surface">
       <Setter Property="Opacity" Value="1" />
     </Style>
-    <!-- Icon buttons: Standard/Text keep transparent containers; their disabled glyph is
-         OnSurfaceVariant at 38% (StandardIconButtonTokens.DisabledOpacity). Filled/Tonal use an
-         OnSurface container at 10% with an OnSurface 38% glyph (FilledIconButtonTokens.
-         DisabledContainerOpacity/DisabledOpacity and their FilledTonal counterparts). Outlined
-         keeps a transparent container and OnSurface 38% glyph; IconButtonDefaults.
-         outlinedIconButtonBorder applies OutlinedIconButtonTokens.DisabledOpacity (0.38) to the
-         stroke, so the icon stroke is 38%, not the labeled OutlinedButton 10%. Elevated has no
-         upstream icon-button token set; it deliberately follows the filled container here. -->
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
-        <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-      </Style>
-    </Style>
+    <!-- Icon buttons use OnSurface at 38%; Standard/Text remain container-less. -->
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
       <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled /template/ Border#Surface, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled /template/ Border#Surface">
         <Setter Property="Opacity" Value="1" />
       </Style>
       <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
         <Setter Property="Background" Value="Transparent" />
-      </Style>
-    </Style>
-    <!-- FilledTonalIconButtonTokens.DisabledContainerOpacity is 0.1, not the labeled
-         FilledTonalButtonTokens 0.12 the shared Tonal rule above paints. -->
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled /template/ Border#Surface">
-        <Setter Property="Opacity" Value="0.10" />
-      </Style>
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Surface">
-        <Setter Property="Opacity" Value="1" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Outline">
-        <Setter Property="Opacity" Value="0.38" />
       </Style>
     </Style>
   </ControlTheme>
@@ -637,13 +533,11 @@
         <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
       </Style>
     </Style>
-    <!-- Toggle disabled uses ToggleButtonColors/TonalButtonTokens/ElevatedButtonTokens: container
-         OnSurface at 10%, content OnSurfaceVariant at 38%, selected and unselected collapse to
-         that one disabled pair. An outlined toggle paints the OutlineVariant 10% container that
-         OutlinedToggleButtonDefaults resolves. -->
+    <!-- Disabled toggles retain selection through shape; outlined toggles also retain
+         a 10% OnSurface fill only while selected. -->
     <Style Selector="^:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="^:disabled /template/ Border#Surface">
@@ -661,23 +555,15 @@
     <Style Selector="^:disabled /template/ controls|MaterialFocusIndicator#FocusRing">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <!-- ToggleButtonColors uses TonalButtonTokens (not FilledTonalButtonTokens): a disabled
-         tonal toggle is OnSurface at 10% with OnSurfaceVariant content. -->
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled /template/ Border#Surface">
-      <Setter Property="Opacity" Value="0.10" />
-    </Style>
-    <!-- FilledIconButtonTokens/FilledTonalIconButtonTokens disabled glyphs are OnSurface at 38%. -->
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Filled]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Tonal]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Elevated]:disabled">
-        <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      </Style>
-    </Style>
     <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
-      <Setter Property="Background" Value="{DynamicResource MaterialOutlineVariantBrush}" />
+      <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:checked:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
+      <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
       <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled">
@@ -685,24 +571,6 @@
       </Style>
       <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:disabled /template/ Border#Surface, ^[(theming|MaterialAssist.ButtonVariant)=Text]:disabled /template/ Border#Surface">
         <Setter Property="Opacity" Value="1" />
-      </Style>
-    </Style>
-    <!-- Outlined icon toggles are IconToggleButton, not ToggleButton: defaultOutlinedIcon-
-         ToggleButtonColors keeps disabledContainerColor transparent (the labeled outlined toggle
-         paints the OutlineVariant 10% container below) and disabledContentColor at
-         OutlinedIconButtonTokens.DisabledOpacity 0.38. IconButtonDefaults.outlinedIconToggle-
-         ButtonBorder returns outlinedIconButtonBorder(enabled) while unchecked, so the disabled
-         stroke is also 38%; the checked rule further down still drops the stroke entirely. -->
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]">
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled">
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Surface">
-        <Setter Property="Opacity" Value="1" />
-      </Style>
-      <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Outlined]:disabled /template/ Border#Outline">
-        <Setter Property="Opacity" Value="0.38" />
       </Style>
     </Style>
     <!-- OutlinedToggleButtonDefaults.border / outlinedIconToggleButtonBorder return null while
