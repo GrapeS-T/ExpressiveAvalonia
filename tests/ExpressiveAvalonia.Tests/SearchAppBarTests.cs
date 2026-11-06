@@ -1,4 +1,7 @@
 using Avalonia;
+using System.Collections.ObjectModel;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -69,6 +72,65 @@ public class SearchAppBarTests
                 Assert.Equal(720, field.MaxWidth);
             }
             finally { standalone.Close(); }
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void InitiallyOpenSearchAnnouncesPreloadedSuggestions()
+    {
+        var view = new MaterialSearchView
+        {
+            Suggestions = new ObservableCollection<string> { "First", "Second" },
+            IsOpen = true,
+            AutoFocus = false,
+        };
+        var window = Show(view);
+        try
+        {
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            var status = view.GetVisualDescendants().OfType<TextBlock>().Single(x => x.Name == "PART_ResultStatus");
+            Assert.Equal("2 results available", ControlAutomationPeer.CreatePeerForElement(status)!.GetName());
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void SearchResultAnnouncementsFollowVisibilityAndSameCountChanges()
+    {
+        var results = new ObservableCollection<string> { "First", "Second" };
+        var view = new MaterialSearchView { Suggestions = results, IsOpen = false, AutoFocus = false };
+        view.Resources["MaterialSearchResultCountText"] = "Found {0}";
+        var window = Show(view);
+        try
+        {
+            var status = view.GetVisualDescendants().OfType<TextBlock>().Single(x => x.Name == "PART_ResultStatus");
+            var peer = ControlAutomationPeer.CreatePeerForElement(status)!;
+            var announcements = 0;
+            peer.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == AutomationElementIdentifiers.NameProperty)
+                    announcements++;
+            };
+            view.IsOpen = true;
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal("Found 2", peer.GetName());
+            var before = announcements;
+            results[0] = "Replacement";
+            Assert.True(announcements > before);
+            Assert.Equal("Found 2", peer.GetName());
+            results.Add("Third");
+            Assert.Equal("Found 3", peer.GetName());
+            view.Resources["MaterialSearchResultCountText"] = "Updated {0}";
+            Assert.Equal("Updated 3", peer.GetName());
+            view.ShowSuggestions = false;
+            Assert.Equal(string.Empty, peer.GetName());
+            view.Resources["MaterialSearchResultCountText"] = "Results: {0}";
+            view.ShowSuggestions = true;
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal("Results: 3", peer.GetName());
+            view.IsOpen = false;
+            Assert.Equal(string.Empty, peer.GetName());
         }
         finally { window.Close(); }
     }

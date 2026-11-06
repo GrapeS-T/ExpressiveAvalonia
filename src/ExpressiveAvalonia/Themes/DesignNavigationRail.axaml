@@ -47,9 +47,11 @@
             <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Stretch="Uniform" />
           </Viewbox>
           <Border Name="PART_BadgeSmall" Width="6" Height="6" CornerRadius="3"
+                  AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
                   Background="{DynamicResource MaterialErrorBrush}"
                   HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-2,0" IsVisible="False" />
           <Border Name="PART_BadgeLarge" MinWidth="16" Height="16" CornerRadius="8" Padding="4,0"
+                  AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
                   Background="{DynamicResource MaterialErrorBrush}"
                   HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,-6,0" IsVisible="False">
             <TextBlock Name="PART_BadgeText" Text="{TemplateBinding BadgeText}"
@@ -61,7 +63,8 @@
                        HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
         </Grid>
-        <Panel Name="PART_LabelHost" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Grid Name="PART_LabelHost" ColumnDefinitions="*,Auto,Auto"
+              HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock Name="PART_Label" Text="{TemplateBinding EffectiveLabel}"
                      FontSize="{DynamicResource MaterialLabelMediumFontSize}"
                      FontWeight="Medium"
@@ -72,7 +75,19 @@
           <ContentPresenter Name="PART_Content"
                             Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" />
-        </Panel>
+          <Border Name="PART_LabelBadgeSmall" Grid.Column="1" Margin="8,0,0,0" Width="6" Height="6" CornerRadius="3"
+                  AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
+                  Background="{DynamicResource MaterialErrorBrush}" VerticalAlignment="Center" IsVisible="False" />
+          <Border Name="PART_LabelBadgeLarge" Grid.Column="2" Margin="8,0,0,0" MinWidth="16" Height="16" CornerRadius="8" Padding="4,0"
+                  AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
+                  Background="{DynamicResource MaterialErrorBrush}" VerticalAlignment="Center" IsVisible="False">
+            <TextBlock Text="{TemplateBinding BadgeText}" Foreground="{DynamicResource MaterialOnErrorBrush}"
+                       FontSize="{DynamicResource MaterialLabelSmallFontSize}" FontWeight="Medium"
+                       LetterSpacing="{DynamicResource MaterialLabelSmallLetterSpacing}"
+                       LineHeight="{DynamicResource MaterialLabelSmallLineHeight}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </Grid>
         <Border Name="PART_FocusRing" Margin="-2" CornerRadius="16" BorderThickness="3"
                 BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsVisible="False" />
       </controls:MaterialNavigationItemLayout>
@@ -155,6 +170,31 @@
     </Style>
     <Style Selector="^:badge-large /template/ Border#PART_BadgeLarge">
       <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- Expanded horizontal destinations place badges after the label, not over the icon. -->
+    <Style Selector="^:start:badge-small /template/ Border#PART_BadgeSmall">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:start:badge-large /template/ Border#PART_BadgeLarge">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:start:badge-small /template/ Border#PART_LabelBadgeSmall">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:start:badge-large /template/ Border#PART_LabelBadgeLarge">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:start:no-label:badge-small /template/ Border#PART_BadgeSmall">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:start:no-label:badge-large /template/ Border#PART_BadgeLarge">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:start:no-label:badge-small /template/ Border#PART_LabelBadgeSmall">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="^:start:no-label:badge-large /template/ Border#PART_LabelBadgeLarge">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
 
     <Style Selector="^:disabled">

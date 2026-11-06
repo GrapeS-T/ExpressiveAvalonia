@@ -6,16 +6,16 @@
   <!-- Sheet anatomy from the Material design source:
        Side sheet  320 wide (400 max), 76 header (12/12/16/24 padding), Title Large headline on
                    OnSurfaceVariant, 48 icon-button affordances, scrolling content slot, actions
-                   row above a 1-pixel OutlineVariant divider (12/24 padding, 8 gap). Modal sheets
+                   row above a 1-pixel OutlineVariant divider (16 top, 24 bottom and side padding). Modal sheets
                    use the SurfaceContainerLow fill with a 16 corner radius; standard sheets use
                    Surface with square corners.
-       Bottom      28/28/0/0 corners, 36 drag-handle header (16 padding, 32x4 Outline handle),
+       Bottom      28/28/0/0 corners, 48 drag-handle header (22 padding, 32x4 OnSurfaceVariant handle),
                    scrolling content slot. Modal drops the resting elevation shadow.
        Scrim       MaterialScrim at 32% opacity in both modal presentations.
        Strings are resources so an application can localize them. -->
   <x:String x:Key="MaterialSheetCloseText">Close</x:String>
   <x:String x:Key="MaterialSheetBackText">Back</x:String>
-  <x:String x:Key="MaterialSheetDragHandleText">Drag to dismiss</x:String>
+  <x:String x:Key="MaterialSheetDragHandleText">Resize bottom sheet</x:String>
   <x:String x:Key="MaterialBottomSheetText">Bottom sheet</x:String>
 
   <!-- Affordances reuse the implicit Material Button theme (icon button, Small, Standard,
@@ -90,7 +90,7 @@
               </ScrollViewer>
               <StackPanel Name="PART_Actions" Grid.Row="2">
                 <Border Height="1" Background="{DynamicResource MaterialOutlineVariantBrush}" />
-                <ContentControl Name="PART_ActionsHost" Margin="24,12,24,0"
+                <ContentControl Name="PART_ActionsHost" Margin="24,16,24,24"
                                 Content="{TemplateBinding Actions}" ContentTemplate="{TemplateBinding ActionsTemplate}"
                                 HorizontalContentAlignment="Left" VerticalContentAlignment="Center" />
               </StackPanel>

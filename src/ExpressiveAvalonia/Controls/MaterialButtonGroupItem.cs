@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Controls.Primitives;
 using AvaloniaPath = Avalonia.Controls.Shapes.Path;
 using Avalonia.Layout;
@@ -147,6 +148,7 @@ public class MaterialButtonGroupItem : ToggleButton
     private MaterialMotion.SpringAnimation? _checkOpacitySpring;
     private MaterialMotion.SpringAnimation? _iconOpacitySpring;
     private bool _suppressCheckAnimation;
+    private IDisposable? _autoAutomationName;
 
     static MaterialButtonGroupItem()
     {
@@ -302,9 +304,10 @@ public class MaterialButtonGroupItem : ToggleButton
                 UpdateSegmentedCheckAnimation();
         }
 
-        if (Content is string text && !string.IsNullOrWhiteSpace(text) &&
-            string.IsNullOrEmpty(AutomationProperties.GetName(this)))
-            AutomationProperties.SetName(this, text);
+        _autoAutomationName?.Dispose();
+        _autoAutomationName = Content is string text && !string.IsNullOrWhiteSpace(text)
+            ? SetValue(AutomationProperties.NameProperty, text, BindingPriority.Style)
+            : null;
     }
 
     private void UpdateSegmentedMetrics(bool iconVisible, bool check, bool animate)

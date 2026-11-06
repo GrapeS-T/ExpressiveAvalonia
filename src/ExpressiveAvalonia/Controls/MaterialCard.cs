@@ -660,18 +660,8 @@ public class MaterialCard : ContentControl
         {
             var interactive = change.GetNewValue<bool>();
             PseudoClasses.Set(":interactive", interactive);
-            if (interactive)
-            {
-                // The theme also sets these; setting them here keeps the card keyboard reachable
-                // under a consumer-supplied ControlTheme. SetCurrentValue preserves an explicit
-                // consumer value.
-                SetCurrentValue(FocusableProperty, true);
-                SetCurrentValue(KeyboardNavigation.IsTabStopProperty, true);
-            }
-            else
-            {
+            if (!interactive)
                 SetPressed(false);
-            }
             UpdateElevation(snap: true);
         }
         else if (change.Property == IsEnabledProperty)
@@ -709,7 +699,7 @@ public class MaterialCard : ContentControl
     {
         base.OnKeyDown(e);
 
-        if (e.Handled || !IsInteractive || !IsEffectivelyEnabled || e.KeyModifiers != KeyModifiers.None)
+        if (e.Handled || !IsInteractive || !IsEffectivelyEnabled || !IsFocused || e.KeyModifiers != KeyModifiers.None)
             return;
 
         if (e.Key == Key.Enter)

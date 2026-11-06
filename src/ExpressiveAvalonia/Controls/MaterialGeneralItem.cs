@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Data;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
@@ -59,6 +60,10 @@ public sealed class MaterialGeneralItem : ContentControl
     private Border? _focusRing;
     private Border? _selectionRing;
     private Control? _caption;
+    private bool _pressed;
+    private IPointer? _pressedPointer;
+    private Key? _activationKey;
+    private IDisposable? _autoAutomationName;
 
     static MaterialGeneralItem()
     {
@@ -91,25 +96,77 @@ public sealed class MaterialGeneralItem : ContentControl
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (e.Handled) return;
-        if (e.Key is Key.Enter or Key.Space)
-        {
-            Invoke();
-            e.Handled = true;
-            return;
-        }
         base.OnKeyDown(e);
+        if (e.Handled || !IsEffectivelyEnabled || !IsFocused || e.KeyModifiers != KeyModifiers.None ||
+            e.Key is not (Key.Enter or Key.Space)) return;
+        _activationKey ??= e.Key;
+        e.Handled = true;
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+        if (_activationKey != e.Key) return;
+        _activationKey = null;
+        if (!e.Handled && IsFocused && IsEffectivelyEnabled && e.KeyModifiers == KeyModifiers.None)
+            Invoke();
+        e.Handled = true;
+    }
+
+    protected override void OnLostFocus(FocusChangedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        _activationKey = null;
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == IsEffectivelyEnabledProperty && !IsEffectivelyEnabled)
+            CancelActivation();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        CancelActivation();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void CancelActivation()
+    {
+        _activationKey = null;
+        _pressed = false;
+        var pointer = _pressedPointer;
+        _pressedPointer = null;
+        if (pointer?.Captured == this) pointer.Capture(null);
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        if (!IsEffectivelyEnabled || e.Handled || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        e.Pointer.Capture(this);
+        _pressed = true;
+        _pressedPointer = e.Pointer;
+        e.Handled = true;
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (e.InitialPressMouseButton == MouseButton.Left) Invoke();
+        if (!_pressed) return;
+        _pressed = false;
+        _pressedPointer = null;
+        e.Pointer.Capture(null);
+        e.Handled = true;
+        if (IsEffectivelyEnabled && new Rect(Bounds.Size).Contains(e.GetPosition(this))) Invoke();
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _pressed = false;
+        _pressedPointer = null;
     }
 
     private Control Build()
@@ -224,7 +281,9 @@ public sealed class MaterialGeneralItem : ContentControl
         text.Children[1].IsVisible = ShowSupportingText && !string.IsNullOrEmpty(SupportingText);
         if (text.Children[1] is TextBlock supporting) supporting.Text = SupportingText;
         _caption.IsVisible = ShowCarouselText && (!string.IsNullOrEmpty(Label) || !string.IsNullOrEmpty(SupportingText));
-        AutomationProperties.SetName(this, Label ?? SupportingText ?? "Item");
+        _autoAutomationName?.Dispose();
+        _autoAutomationName = SetValue(AutomationProperties.NameProperty,
+            Label ?? SupportingText ?? "Item", BindingPriority.Style);
     }
 
     private bool _pointerOver;

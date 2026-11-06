@@ -2,6 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Specialized;
 using System.Linq;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
@@ -210,6 +212,7 @@ public class MaterialSearchView : TemplatedControl
     private MaterialSearchBar? _searchBar;
     private ListBox? _suggestions;
     private Border? _suggestionsHost;
+    private TextBlock? _resultStatus;
     private Border? _scrim;
     private Border? _divider;
     private Border? _root;
@@ -254,7 +257,15 @@ public class MaterialSearchView : TemplatedControl
     /// <summary>Raised when a suggestion is activated by Enter or a click.</summary>
     public event EventHandler<MaterialSearchSuggestionEventArgs>? SuggestionActivated;
 
-    public MaterialSearchView() => UpdatePseudoClasses();
+    public MaterialSearchView()
+    {
+        UpdatePseudoClasses();
+        ResourcesChanged += (_, _) =>
+        {
+            if (_resultStatus is not null && IsOpen && ShowSuggestions)
+                AnnounceResultCount();
+        };
+    }
 
     /// <summary>The query. Bound two-way by default.</summary>
     public string? Text
@@ -481,6 +492,7 @@ public class MaterialSearchView : TemplatedControl
         _searchBar = e.NameScope.Find<MaterialSearchBar>("PART_SearchBar");
         _suggestions = e.NameScope.Find<ListBox>("PART_Suggestions");
         _suggestionsHost = e.NameScope.Find<Border>("PART_SuggestionsHost");
+        _resultStatus = e.NameScope.Find<TextBlock>("PART_ResultStatus");
         _scrim = e.NameScope.Find<Border>("PART_Scrim");
         _divider = e.NameScope.Find<Border>("PART_Divider");
         _root = e.NameScope.Find<Border>("PART_Root");
@@ -507,11 +519,13 @@ public class MaterialSearchView : TemplatedControl
             _scrim.PointerPressed += OnScrimPressed;
 
         AttachItemsView();
+        Dispatcher.UIThread.Post(AnnounceResultCount, DispatcherPriority.Loaded);
         UpdateConfiguration();
         UpdateSuggestionsVisibility();
         UpdateAutoFocus();
         HookAnchorBar();
         ApplyInitialExpansionState();
+        AnnounceResultCount();
         if (IsOpen)
             SeedHeaderSelectionFromAnchor();
     }
@@ -580,6 +594,7 @@ public class MaterialSearchView : TemplatedControl
             {
                 AttachItemsView();
                 UpdateSuggestionsVisibility();
+                AnnounceResultCount();
             },
             DispatcherPriority.Loaded);
     }
@@ -671,6 +686,10 @@ public class MaterialSearchView : TemplatedControl
 
                 AnimateExpansion(change.GetNewValue<bool>());
                 UpdateAutoFocus();
+                if (IsOpen)
+                    Dispatcher.UIThread.Post(AnnounceResultCount, DispatcherPriority.Loaded);
+                else if (_resultStatus is not null)
+                    _resultStatus.Text = null;
             }
         }
         else if (change.Property == TextProperty)
@@ -690,10 +709,15 @@ public class MaterialSearchView : TemplatedControl
         {
             AttachItemsView();
             UpdateSuggestionsVisibility();
+            Dispatcher.UIThread.Post(AnnounceResultCount, DispatcherPriority.Loaded);
         }
         else if (change.Property == ShowSuggestionsProperty)
         {
             UpdateSuggestionsVisibility();
+            if (ShowSuggestions)
+                Dispatcher.UIThread.Post(AnnounceResultCount, DispatcherPriority.Loaded);
+            else if (_resultStatus is not null)
+                _resultStatus.Text = null;
         }
         else if (change.Property == ExpansionAnchorProperty)
         {
@@ -1372,7 +1396,29 @@ public class MaterialSearchView : TemplatedControl
         previous.Focus(NavigationMethod.Unspecified);
     }
 
-    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdateSuggestionsVisibility();
+    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        UpdateSuggestionsVisibility();
+        AnnounceResultCount();
+    }
+
+    private void AnnounceResultCount()
+    {
+        if (_resultStatus is null || !IsOpen || !ShowSuggestions)
+            return;
+        var format = this.TryFindResource("MaterialSearchResultCountText", out var value) && value is string text
+            ? text : "{0} results available";
+        var announcement = string.Format(System.Globalization.CultureInfo.CurrentCulture, format, _suggestions?.ItemCount ?? 0);
+        if (string.Equals(_resultStatus.Text, announcement, StringComparison.Ordinal))
+        {
+            // Avalonia emits platform live-region events on name property notifications.
+            // A same-count replacement has no Text change, so notify explicitly.
+            ControlAutomationPeer.CreatePeerForElement(_resultStatus)?.RaisePropertyChangedEvent(
+                AutomationElementIdentifiers.NameProperty, announcement, announcement);
+        }
+        else
+            _resultStatus.Text = announcement;
+    }
 
     private void OnBarSearchRequested(object? sender, EventArgs e) => SearchRequested?.Invoke(this, EventArgs.Empty);
 

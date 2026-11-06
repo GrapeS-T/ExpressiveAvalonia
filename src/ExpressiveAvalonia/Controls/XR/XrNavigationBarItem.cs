@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
 
@@ -47,13 +48,14 @@ public class XrNavigationBarItem : ListBoxItem
             item => item.EffectiveSelectedIcon);
 
     private Geometry? _effectiveSelectedIcon;
+    private IDisposable? _autoStatus;
 
     static XrNavigationBarItem()
     {
         IconProperty.Changed.AddClassHandler<XrNavigationBarItem>((item, _) => item.UpdateSelectedIcon());
         SelectedIconProperty.Changed.AddClassHandler<XrNavigationBarItem>((item, _) => item.UpdateSelectedIcon());
         LabelProperty.Changed.AddClassHandler<XrNavigationBarItem>((item, _) => item.UpdateAutomation());
-        BadgeProperty.Changed.AddClassHandler<XrNavigationBarItem>((item, _) => item.UpdateBadgeState());
+        BadgeProperty.Changed.AddClassHandler<XrNavigationBarItem>((item, _) => { item.UpdateBadgeState(); item.UpdateAutomation(); });
         BadgeTextProperty.Changed.AddClassHandler<XrNavigationBarItem>((item, _) => item.UpdateAutomation());
         ShowLabelProperty.Changed.AddClassHandler<XrNavigationBarItem>((item, _) => item.UpdateBadgeState());
     }
@@ -131,7 +133,14 @@ public class XrNavigationBarItem : ListBoxItem
             }
         }
 
-        if (!string.IsNullOrEmpty(BadgeText))
-            AutomationProperties.SetItemStatus(this, BadgeText);
+        _autoStatus?.Dispose();
+        _autoStatus = Badge switch
+        {
+            XrBadgeKind.None => null,
+            XrBadgeKind.Large when !string.IsNullOrWhiteSpace(BadgeText) =>
+                SetValue(AutomationProperties.ItemStatusProperty, BadgeText, BindingPriority.Style),
+            _ => Bind(AutomationProperties.ItemStatusProperty,
+                this.GetResourceObservable("MaterialNavigationBarBadgeDotText"), BindingPriority.Style)
+        };
     }
 }

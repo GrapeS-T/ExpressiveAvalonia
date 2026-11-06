@@ -28,6 +28,10 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
         MaterialButtonVariant.Elevated,
         MaterialButtonVariant.Text,
     };
+    private static readonly MaterialButtonVariant[] ToggleVariants =
+        [MaterialButtonVariant.Filled, MaterialButtonVariant.Tonal, MaterialButtonVariant.Outlined, MaterialButtonVariant.Elevated];
+    private static readonly MaterialButtonVariant[] IconVariants =
+        [MaterialButtonVariant.Filled, MaterialButtonVariant.Tonal, MaterialButtonVariant.Outlined, MaterialButtonVariant.Standard];
 
     private readonly Button _button = new()
     {
@@ -75,10 +79,10 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
 
     internal ButtonPlayground()
     {
-        _buttonGlyph = Glyph(_button, StarIcon);
-        _buttonContentGlyph = Glyph(_button, StarIcon);
-        _toggleGlyph = Glyph(_toggle, StarIcon);
-        _toggleSelectedGlyph = Glyph(_toggle, StarFilledIcon);
+        _buttonGlyph = Glyph();
+        _buttonContentGlyph = Glyph();
+        _toggleGlyph = Glyph();
+        _toggleSelectedGlyph = new MaterialIcon { IconName = StarFilledIcon, IsDecorative = true };
         var stage = new StackPanel
         {
             Spacing = 24,
@@ -94,7 +98,7 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
         _content = Choice(Settings, "Содержимое", new[] { "Текст", "Иконка" }, 0);
         _variant = Field(Settings, "Вид", new ComboBox
         {
-            ItemsSource = new[] { "Filled", "Tonal", "Outlined", "Elevated", "Text" },
+            ItemsSource = Variants,
             SelectedIndex = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         });
@@ -122,10 +126,10 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
         _rtl = Toggle(Settings, "Справа налево (RTL)", false);
         Settings.Children.Add(new TextBlock
         {
-            Text = "MD3 Expressive: " +
-                   "пять размеров, формы Round/Square и варианты Filled/Tonal/Outlined/Elevated/Text. " +
-                   "У иконки ширина Narrow/Default/Wide меняет контейнер, но не глиф. Клик, Space и Enter — " +
-                   "настоящие состояния, счётчик показывает нажатия, а «Выбрано» совпадает с фактическим IsChecked.",
+            Text = "MD3 Expressive: пять размеров и формы Round/Square. " +
+                   "Icon-only: Filled/Tonal/Outlined/Standard; текстовый ToggleButton не использует Text. " +
+                   "Narrow/Default/Wide меняет контейнер, но не глиф. Клик, Space и Enter — " +
+                   "настоящие состояния; выбранность синхронизирована с IsChecked.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
         });
@@ -177,7 +181,13 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
     {
         var iconMode = _content.SelectedIndex == 1;
         var toggleMode = _kind.SelectedIndex == 1;
-        var variant = Variants[Math.Clamp(_variant.SelectedIndex, 0, Variants.Length - 1)];
+        var variants = iconMode ? IconVariants : toggleMode ? ToggleVariants : Variants;
+        var variant = _variant.SelectedItem is MaterialButtonVariant selectedVariant
+            && Array.IndexOf(variants, selectedVariant) >= 0 ? selectedVariant : MaterialButtonVariant.Filled;
+        _syncing = true;
+        _variant.ItemsSource = variants;
+        _variant.SelectedItem = variant;
+        _syncing = false;
         var size = (MaterialControlSize)Math.Clamp(_size.SelectedIndex, 0, 4);
         var shape = (MaterialButtonShape)Math.Clamp(_shape.SelectedIndex, 0, 1);
         var width = (MaterialIconButtonWidth)Math.Clamp(_iconWidth.SelectedIndex, 0, 2);
@@ -221,14 +231,6 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
 
         var toggle = button as ToggleButton;
         var glyph = toggle is null ? _buttonGlyph : _toggleGlyph;
-        var iconSize = IconSize(size, iconMode);
-        foreach (var icon in toggle is null
-                     ? new[] { _buttonGlyph, _buttonContentGlyph }
-                     : new[] { _toggleGlyph, _toggleSelectedGlyph })
-        {
-            icon.Width = iconSize;
-            icon.Height = iconSize;
-        }
 
         if (iconMode)
         {
@@ -252,25 +254,7 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
             : string.IsNullOrWhiteSpace(text) ? "Button" : text);
     }
 
-    // The button theme sizes PathIcon per token, but the catalog has no PathIcon theme, so the
-    // design-system MaterialIcon (which does have one) carries the token size explicitly.
-    private static double IconSize(MaterialControlSize size, bool iconMode) => size switch
-    {
-        MaterialControlSize.ExtraSmall => 20,
-        MaterialControlSize.Small => iconMode ? 24 : 20,
-        MaterialControlSize.Medium => 24,
-        MaterialControlSize.Large => 32,
-        _ => 40,
-    };
-
-    private static MaterialIcon Glyph(Control owner, string iconName)
-    {
-        var icon = new MaterialIcon { IconName = iconName, IsDecorative = true };
-        // MaterialIcon's theme sets its own Foreground, so bind it to the owning button;
-        // the glyph then follows Filled/Tonal/Outlined/checked/disabled content colors.
-        icon.Bind(TemplatedControl.ForegroundProperty, owner.GetObservable(TemplatedControl.ForegroundProperty));
-        return icon;
-    }
+    private static MaterialIcon Glyph() => new() { IconName = StarIcon, IsDecorative = true };
 
     private void UpdateReadout()
     {

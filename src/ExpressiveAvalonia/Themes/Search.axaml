@@ -44,6 +44,7 @@
   <x:String x:Key="MaterialSearchSuggestionsText">Search suggestions</x:String>
   <x:String x:Key="MaterialSearchSearchText">Search</x:String>
   <x:String x:Key="MaterialSearchSuggestionsAvailableText">Suggestions available</x:String>
+  <x:String x:Key="MaterialSearchResultCountText">{0} results available</x:String>
 
   <!-- The field inside a search bar: native single-line TextBox with no container of its own.
        Editing, caret, selection, clipboard, undo and input methods stay native. -->
@@ -428,6 +429,10 @@
                                             SecondaryIcon="{StaticResource MaterialSearchMicIconGeometry}"
                                             SecondaryIconName="{DynamicResource MaterialSearchVoiceText}" />
               </Border>
+              <TextBlock Name="PART_ResultStatus" Grid.Row="1" Width="1" Height="1"
+                         Opacity="0" IsHitTestVisible="False"
+                         AutomationProperties.IsControlElementOverride="True"
+                         AutomationProperties.LiveSetting="Polite" />
               <Border Name="PART_Divider" Grid.Row="1" Height="1"
                       Background="{DynamicResource MaterialOutlineBrush}" IsVisible="False" />
               <Border Name="PART_SuggestionsHost" Grid.Row="2" Margin="0,2,0,0"

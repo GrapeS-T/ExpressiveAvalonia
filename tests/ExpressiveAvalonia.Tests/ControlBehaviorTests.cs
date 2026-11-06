@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
@@ -193,7 +194,7 @@ public class ControlBehaviorTests
             window.UpdateLayout();
             var layout = item.GetVisualDescendants().OfType<MaterialNavigationItemLayout>().Single();
             var label = layout.Children[3];
-            var text = label.GetVisualDescendants().OfType<TextBlock>().Single();
+            var text = label.GetVisualDescendants().OfType<TextBlock>().Single(x => x.Text == item.Label);
             Assert.True(label.Bounds.X >= 0 && label.Bounds.Right <= layout.Bounds.Width);
             Assert.True(text.Bounds.Height > text.LineHeight);
             Assert.True(item.Bounds.Height > 56);
@@ -842,6 +843,89 @@ public class ControlBehaviorTests
             Assert.False(second.IsChecked);
             Assert.Equal(0, group.SelectedIndex);
             Assert.Same(first, group.SelectedItem);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void GroupItemTracksLabelChangesWithoutReplacingExplicitAutomationName()
+    {
+        var item = new MaterialButtonGroupItem { Content = "First" };
+        Assert.Equal("First", AutomationProperties.GetName(item));
+        item.Content = "Second";
+        Assert.Equal("Second", AutomationProperties.GetName(item));
+        AutomationProperties.SetName(item, "Second");
+        item.Content = "Changed";
+        Assert.Equal("Second", AutomationProperties.GetName(item));
+        AutomationProperties.SetName(item, "Custom");
+        item.Content = "Third";
+        Assert.Equal("Custom", AutomationProperties.GetName(item));
+    }
+
+    [AvaloniaFact]
+    public void StandardGroupArrowsMoveFocusAndSkipDisabledItems()
+    {
+        var group = new MaterialButtonGroup { Kind = MaterialButtonGroupKind.Standard };
+        var first = new MaterialButtonGroupItem { Content = "First" };
+        var disabled = new MaterialButtonGroupItem { Content = "Disabled", IsEnabled = false };
+        var last = new MaterialButtonGroupItem { Content = "Last" };
+        group.Items.Add(first); group.Items.Add(disabled); group.Items.Add(last);
+        var window = Show(group);
+        try
+        {
+            first.Focus();
+            Press(window, Key.Right);
+            Assert.True(last.IsFocused);
+            Press(window, Key.Left);
+            Assert.True(first.IsFocused);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void SelectionGroupsKeepFirstEnabledItemAsInitialTabStop()
+    {
+        foreach (var kind in new[] { MaterialButtonGroupKind.Connected, MaterialButtonGroupKind.Segmented })
+        {
+            var group = new MaterialButtonGroup { Kind = kind, SelectionMode = MaterialButtonGroupSelectionMode.Single };
+            var first = new MaterialButtonGroupItem { Content = "First" };
+            var second = new MaterialButtonGroupItem { Content = "Second" };
+            group.Items.Add(first); group.Items.Add(second);
+            var window = Show(group);
+            try
+            {
+                group.Select(1, true);
+                Assert.True(first.IsTabStop);
+                Assert.False(second.IsTabStop);
+                Assert.True(second.IsChecked);
+            }
+            finally { window.Close(); }
+        }
+    }
+
+    [AvaloniaFact]
+    public void SquareGroupsRespectRestingAndSelectedShapes()
+    {
+        var item = new MaterialButtonGroupItem { Content = "First" };
+        var group = new MaterialButtonGroup
+        {
+            Kind = MaterialButtonGroupKind.Connected,
+            ButtonShape = MaterialButtonShape.Square,
+            SelectionMode = MaterialButtonGroupSelectionMode.Single
+        };
+        group.Items.Add(item);
+        group.Items.Add(new MaterialButtonGroupItem { Content = "Second" });
+        var window = Show(group);
+        try
+        {
+            Assert.Equal(8, item.CornerRadius.TopLeft, 3);
+            group.Kind = MaterialButtonGroupKind.Standard;
+            window.UpdateLayout();
+            Assert.Equal(12, item.CornerRadius.TopLeft, 3);
+            group.Select(0, true);
+            window.UpdateLayout();
+            Assert.Equal((item.Bounds.Height - item.ContainerInset.Top - item.ContainerInset.Bottom) / 2,
+                item.CornerRadius.TopLeft, 3);
         }
         finally { window.Close(); }
     }

@@ -114,16 +114,13 @@ public sealed class MaterialScrim : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        if (Fill is null)
+        if (Fill is null || ScrimOpacity <= 0)
         {
             // Keep the open scrim hit-testable: a Control that paints nothing receives no
             // pointer input, which would silently disable click-to-dismiss.
             context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
             return;
         }
-
-        if (ScrimOpacity <= 0)
-            return;
 
         using (context.PushOpacity(ScrimOpacity))
             context.FillRectangle(Fill, new Rect(Bounds.Size));

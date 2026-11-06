@@ -83,9 +83,12 @@ public class MaterialChip : Button
     public static readonly StyledProperty<bool> IsRemovableProperty =
         AvaloniaProperty.Register<MaterialChip, bool>(nameof(IsRemovable));
 
-    /// <summary>Accessible name of the closing icon. Override to localize.</summary>
+    /// <summary>Accessible name of the closing icon. When unset, a localized remove label and chip name are used.</summary>
     public static readonly StyledProperty<string> RemoveButtonAccessibleNameProperty =
-        AvaloniaProperty.Register<MaterialChip, string>(nameof(RemoveButtonAccessibleName), "Remove");
+        AvaloniaProperty.Register<MaterialChip, string>(nameof(RemoveButtonAccessibleName), string.Empty);
+
+    private static readonly StyledProperty<string?> RemoveLabelProperty =
+        AvaloniaProperty.Register<MaterialChip, string?>("RemoveLabel");
 
     /// <summary>Enables the pointer drag threshold that produces the source "Dragged" state.</summary>
     public static readonly StyledProperty<bool> IsDraggableProperty =
@@ -180,6 +183,7 @@ public class MaterialChip : Button
 
     public MaterialChip()
     {
+        this.Bind(RemoveLabelProperty, this.GetResourceObservable("MaterialChipRemoveText"));
         // Source ChipElevation/SelectableChipElevation: the latest active interaction selects the
         // level and internal/Elevation.kt owns the 120/150 ms ramps. IsDragging is the source
         // DragInteraction.Start state, polled by the shared helper when this chip refreshes.
@@ -274,7 +278,8 @@ public class MaterialChip : Button
             if (_shapeInitialized)
                 ApplyShape(_shapeProgress);
         }
-        else if (change.Property == RemoveButtonAccessibleNameProperty)
+        else if (change.Property == RemoveButtonAccessibleNameProperty || change.Property == RemoveLabelProperty ||
+                 change.Property == ContentProperty || change.Property == AutomationProperties.NameProperty)
         {
             UpdateRemoveButtonName();
         }
@@ -684,7 +689,17 @@ public class MaterialChip : Button
     private void UpdateRemoveButtonName()
     {
         if (_removeButton is not null)
-            AutomationProperties.SetName(_removeButton, RemoveButtonAccessibleName);
+        {
+            var name = RemoveButtonAccessibleName;
+            if (!IsSet(RemoveButtonAccessibleNameProperty))
+            {
+                name = GetValue(RemoveLabelProperty) ?? "Remove";
+                var label = AutomationProperties.GetName(this) ?? Content as string;
+                if (!string.IsNullOrWhiteSpace(label))
+                    name = $"{name} {label}";
+            }
+            AutomationProperties.SetName(_removeButton, name);
+        }
     }
 
     /// <summary>Raises <see cref="RemoveRequestedEvent"/> for this chip.</summary>

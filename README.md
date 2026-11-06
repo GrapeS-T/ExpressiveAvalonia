@@ -1,6 +1,6 @@
 # ExpressiveAvalonia
 
-Material Design 3 + Material 3 Expressive для Avalonia. Библиотека развивается; весь каталог MD3 пока не покрыт.
+Material Design 3 + Material 3 Expressive для Avalonia. Реализованные семейства, desktop-адаптации и границы проверки перечислены ниже и в [матрице покрытия](docs/architecture.md).
 
 ## Реализовано
 
@@ -28,6 +28,22 @@ Avalonia 12.1.4, библиотека `net8.0`, desktop-каталог и тес
 - `MaterialCarousel.UserScrollEnabled=false` отключает drag/wheel/paging/automation scroll, но не item content, focus/activation и программный `ScrollToItem`.
 - Time picker/input/scroll: Standard/Vibrant/Uncontained, native edit rejection без фильтрации/обрезки, `Culture` для localized decimal digits; `AutoAdvance` — явная caller policy. Sheet handle предоставляет native Invoke/ExpandCollapse с anchor/veto/dismiss rules.
 - `MaterialExtendedFab.Mode=Classic` добавляет baseline 56 DIP анатомию и text-only перегрузку; Expressive сохраняет Small/Medium/Large. Snackbar по умолчанию показывает весь wrapped message (`LineCount=Auto`); OneLine/TwoLines — явные capped extensions. `XrNavigationRail.Variant=Wide` даёт desktop-композицию с отдельным `Header`, шириной 96 collapsed / 220–360 expanded, без пространственного runtime.
+- `MaterialCarouselLayout.FullScreen` — вертикальные страницы на всю высоту viewport с Up/Down и постраничным snapping. Reduced motion отключает parallax и динамическое изменение размеров keyline-карточек; явно заданные `MultiAspectRatio` сохраняются.
+- `MaterialSearchView` объявляет число результатов через polite live region при открытии, фильтрации и замене результатов, включая замену с прежним количеством. Ресурс `MaterialSearchResultCountText` — формат с `{0}`; изменение ресурса применяется без пересоздания view.
+- Декоративный badge не создаёт отдельный озвучиваемый элемент: `MaterialBadgedBox` передаёт статус своему content, navigation/XR items — своему automation peer. Явные имена и статусы приложения имеют приоритет.
+- Input chip имеет самостоятельную цель удаления 48 DIP и локализуемое имя из `MaterialChipRemoveText`; `MaterialSheetDragHandleText` локализует ручку bottom sheet. Замена ресурсов применяется во время работы.
+- Очередь snackbar открывает следующий элемент только после `Closed` предыдущего; task результата завершается при `Closing`. Plain tooltip по умолчанию размещается сверху с зазором 4 DIP, в app bar — снизу; явно заданное размещение сохраняется. Rich tooltip не закрывается по таймеру, пока указатель или фокус находятся внутри.
+
+### Проверка Material 3 Expressive, 2026-11-06
+
+Все семейства сопоставлены с [официальным каталогом компонентов](https://m3.material.io/components), страницами specs/guidelines/accessibility и закреплённым AndroidX source. Исправлены геометрия navigation icons и expanded-rail badges, date/time headers и поля, единый фон календаря, полноэкранные carousel/dialog, keyboard/automation actions, локализация удаления и ручек, очередь snackbar и lifetime tooltip. Typography tracking/emphasis приведены к [текущим type-scale tokens](https://m3.material.io/styles/typography/type-scale-tokens).
+
+Нативный Windows-прогон охватил 32 страницы × light/dark × LTR/RTL: 1770 снимков и 1642 переключения инспекторов. Отдельный executable проверил очередь snackbar без перекрытия, фокус rich tooltip, keyboard button groups, имена и статусы badge/chip/sheet, card child input, layout navigation и vertical/reduced carousel. Снимки сохранены в `artifacts/material-conformance/`; все комбинации параметров и физические способы ввода этим прогоном не исчерпываются.
+
+Проверки: `dotnet build ExpressiveAvalonia.slnx --no-restore` — без ошибок и предупреждений; `dotnet test tests/ExpressiveAvalonia.Tests/ExpressiveAvalonia.Tests.csproj --no-restore` — 248/248. Нативный каталог `--smoke` подтвердил theme/seed/contrast, 64 light/dark отрисовки и закрытие rich tooltip по Escape.
+
+Границы приёмки: физические touch/pen/IME, работа экранного диктора, реальные multi-DPI переходы, другие ОС и независимое Android raster comparison не проверены. В desktop-меню disabled items сохраняют native disabled semantics и пропускаются при keyboard navigation; это отличие от web-рекомендации о фокусируемых disabled items. XR означает desktop-композицию, не пространственный runtime.
+
 
 Текущий перенос основан на AndroidX commit `77b2199d6f056c2fe829ce25523c34a905e769c1` (development snapshot, не stable release). Соответствие каждого семейства принимается отдельно; наличие типа или страницы каталога не означает полного переноса. Отрисованы 32 страницы light/dark и 68 preview images (включая вложенные tabs); выполнены численные spring/geometry/parallax smokes, реальные frame transitions, routed-input/state сценарии search, overlays, actions, selection, refresh/scroll-field. Date picker дополнительно содержит horizontal month paging в day view, boundary keyboard focus handoff, year reveal geometry и animated date-selection colors; ScrollField interpolates source typography/color transitions. Изолированный NuGet consumer запускается без project reference и Fluent/Simple, загружает встроенный Roboto и выполняет native button input. Физический touch/pen, screen reader и Android raster этой проверкой не покрыты.
 
@@ -109,6 +125,8 @@ Desktop smoke проверяет смену темы/seed/контраста, з
 
 ### Кнопки и текстовые поля
 
+**Статус кнопок: полностью реализованы.** Завершены обычные `Button`, текстовые `ToggleButton` и icon-only кнопки Material 3 / Material 3 Expressive: стандартные для каждого семейства варианты, пять размеров, Round/Square, ширины icon-контейнера, состояния, анимации и нативные контракты Avalonia. Статус относится к реализации этих семейств; объём выполненной проверки и непроверенные платформенные сценарии перечислены ниже. Button groups, split buttons и FAB — отдельные семейства со своими условиями приёмки.
+
 В файле с контролами объявите `xmlns:md="clr-namespace:ExpressiveAvalonia.Theming;assembly=ExpressiveAvalonia"`:
 
 ```xml
@@ -123,13 +141,20 @@ Desktop smoke проверяет смену темы/seed/контраста, з
            md:MaterialTypography.Emphasized="True" />
 ```
 
-Icon-only button: `MaterialAssist.IsIconButton="True"`, Content — geometry/icon пользователя, `AutomationProperties.Name` обязателен. ToggleButton использует тот же API. Без `ButtonVariant` действует `Standard`: у icon-only кнопки нет контейнера (иконка OnSurfaceVariant), у labeled-кнопки — filled-контейнер. У icon-only кнопок `Filled`, `Tonal` и `Outlined` дают соответствующие *IconButtonTokens; `ButtonShape` меняет силуэт только у icon-only toggle при `IsChecked`, как в AndroidX.
+Icon-only button: `MaterialAssist.IsIconButton="True"`, Content — иконка пользователя, `AutomationProperties.Name` обязателен. ToggleButton использует тот же API. Без `ButtonVariant` действует `Standard`: у icon-only кнопки нет контейнера (иконка OnSurfaceVariant), у labeled-кнопки — filled-контейнер. При выборе и текстовые, и icon-only ToggleButton меняют Round → Square или Square → Round; pressed-форма имеет приоритет.
 
-Страница `Buttons` показывает одну живую кнопку с настройками справа: Button/ToggleButton, текст/иконка, Filled/Tonal/Outlined/Elevated/Text, пять размеров, Round/Square, ширина icon-контейнера, подпись, ведущая иконка, выбранность, доступность и RTL. Счётчик отражает нажатия; выбранность ToggleButton синхронизируется с инспектором.
+Страница `Buttons` показывает одну живую кнопку с настройками справа: Button/ToggleButton, текст/иконка, пять размеров, Round/Square, ширина icon-контейнера, подпись, ведущая иконка, выбранность, доступность и RTL. Виды зависят от семейства: обычные кнопки — Filled/Tonal/Outlined/Elevated/Text, текстовые toggle — без Text, icon-only — Filled/Tonal/Outlined/Standard. Счётчик отражает нажатия; выбранность ToggleButton синхронизируется с инспектором. Общий enum библиотеки сохраняет дополнительные сочетания, но каталог не выдаёт их за стандарт Material.
+
+Кнопки сверены с иллюстрациями и актуальными токенами [Buttons specs](https://m3.material.io/components/buttons/specs) и [Icon buttons specs](https://m3.material.io/components/icon-buttons/specs). Высоты XS/S/M/L/XL — 32/40/56/96/136 DIP при минимальной цели 48 DIP; leading icon — 20/20/24/32/40 DIP, icon-only — 20/24/24/32/40 DIP. `MaterialAssist.Icon`, `SelectedIcon` и прямой icon `Content` автоматически оформляют `PathIcon`/`MaterialIcon`, сохраняя viewport 24×24 и явные Width/Height/Theme приложения. Произвольный составной Content/ContentTemplate остаётся ответственностью приложения; при замене и detach оформление иконки снимается.
+
+Keyboard focus: контур Secondary 3 DIP с зазором 2 DIP, без обрезки границами кнопки. Disabled: текст/иконка OnSurface 38%, заполненный контейнер OnSurface 10%; text остаётся прозрачным. Outlined сохраняет OutlineVariant без дополнительного ослабления; выбранный disabled outlined-toggle получает контейнер OnSurface 10% без рамки. Эти роли следуют текущему сайту Material, а не устаревшим disabled-значениям закреплённого AndroidX snapshot.
+
+Проверка кнопок: 251 нативная проверка размеров, состояний, light/dark, LTR/RTL, клавиатуры, переключателей каталога и прерываемой shape-анимации; снимки — `artifacts/button-spec-audit/`. Регрессии `ButtonVisualRegressionTests` покрывают размеры иконок, viewport, caller overrides и detach, смену формы, focus gap и disabled outlined selection. Физические touch/pen, скринридер и независимое попиксельное сравнение с Android не проверялись.
+Проверено после исправлений: `dotnet build ExpressiveAvalonia.slnx --no-restore -c Release` — 0 ошибок и предупреждений; полная suite — 253/253; каталог Release `--smoke` — 64 отрисовки и успешные theme/seed/contrast/Escape сценарии.
 
 Страница `Selection` переключается между CheckBox, группой из трёх RadioButton и ToggleSwitch. Справа — подпись, состояние, трёхпозиционный режим и ошибка флажка, выбранная радиокнопка, встроенные иконки switch, доступность и RTL. Нативные изменения отражаются в настройках; изменение подписи и оформления не сбрасывает выбор.
 
-Страница `Navigation rail` показывает один живой пример с настройками справа: Compact/Expanded/Modal, Docked/Floating, Top/Middle, количество пунктов и высота, подписи, badges, меню, FAB и его текст, доступность и RTL. Выбор сохраняется при смене оформления; modal rail открывается кнопкой, закрывается по Escape, scrim или выбору пункта (последние два поведения настраиваются).
+Страница `Navigation rail` показывает rail по центру без рамки, фоновой области приложения и постоянного текста статуса. Справа — Compact/Expanded/Modal, Docked/Floating, Top/Middle, количество пунктов и высота, подписи, badges, меню, FAB и его текст, доступность и RTL. Compact и Expanded используют свёрнутый и раскрытый Wide rail с одинаковой заданной высотой и верхним отступом. Меню переключает раскрытие; в Modal открывает или закрывает rail. FAB демонстрирует внешний вид и состояния нажатия без действия. Выбор сохраняется при смене оформления; modal rail закрывается по Escape, scrim или выбору пункта (последние два поведения настраиваются). Если свёрнутый rail скрыт, остаётся кнопка повторного открытия.
 Wide rail использует 96 DIP в свёрнутом состоянии и 220–360 DIP в развёрнутом, иконки 24 DIP и индикатор высотой 56 DIP в горизонтальных пунктах. Длинные подписи переносятся, а доступное имя берётся из `Label` или текстового `Content`, если оно не задано явно. Для выбранной иконки можно задать отдельный `SelectedIcon`.
 Геометрия обычной и выбранной иконки rail масштабируется пропорционально и центрируется через Viewbox в слоте 24×24 DIP; вытянутые глифы не прижимаются к верхнему или левому краю.
 Анимации Wide rail следуют закреплённому Compose: ширина использует DefaultSpatial (FastSpatial для modal), интервалы и минимальная высота пунктов — отдельные DefaultSpatial springs. Перестройка иконки Top/Start сохраняет spatial overshoot; подпись затухает по `4 × (progress − 0.5)²`, а при сворачивании возвращает вертикальную типографику после середины перехода. Прерывание сохраняет позицию и скорость; reduced motion сразу завершает переход.
@@ -194,7 +219,7 @@ Range slider горизонтальный. LowerValue не может превы
 - `MaterialDuration{Short|Medium|Long|ExtraLong}{1|2|3|4}` типа TimeSpan.
 - `MaterialEasing{Standard|StandardAccelerate|StandardDecelerate|Emphasized|EmphasizedAccelerate|EmphasizedDecelerate|Legacy|LegacyAccelerate|LegacyDecelerate|Linear}` — `IEasing` для `Transitions` и кода.
 - `MaterialMotionScheme`; `MaterialSpring{Spatial|Effects}{Default|Fast|Slow}{Stiffness|Damping}` — параметры выбранной схемы AndroidX StandardMotionTokens/ExpressiveMotionTokens.
-- Строки шаблонов: `MaterialTextInput{Cut|Copy|Paste|SelectAll}Text`, `MaterialPassword{Show|Hide}Text`, `MaterialRange{Lower|Upper}ValueText`, `MaterialScroll{Left|Right|Up|Down}Text`, `MaterialPage{Left|Right|Up|Down}Text`, `MaterialScrollPositionText`. Переопределите эти ключи в ресурсах приложения, чтобы локализовать встроенные automation names, tooltips и контекстное меню.
+- Строки шаблонов: `MaterialTextInput{Cut|Copy|Paste|SelectAll}Text`, `MaterialPassword{Show|Hide}Text`, `MaterialChipRemoveText`, `MaterialSheetDragHandleText`, `MaterialSearchResultCountText`, `MaterialRange{Lower|Upper}ValueText`, `MaterialScroll{Left|Right|Up|Down}Text`, `MaterialPage{Left|Right|Up|Down}Text`, `MaterialScrollPositionText`. Переопределите эти ключи в ресурсах приложения, чтобы локализовать встроенные automation names, tooltips и контекстное меню.
 
 Используйте DynamicResource. В прямом FindResource укажите ActualThemeVariant. Визуальная вертикальная линия: Separator Classes="vertical".
 

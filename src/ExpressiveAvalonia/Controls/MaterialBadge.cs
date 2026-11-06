@@ -4,6 +4,8 @@ using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
+using Avalonia.Data;
 using Avalonia.Media;
 
 namespace ExpressiveAvalonia.Controls;
@@ -31,9 +33,9 @@ public enum MaterialBadgeSize
 /// large badge without <see cref="Text"/> still draws the dot.
 /// </para>
 /// <para>
-/// The badge is decorative. It is not focusable, ignores hit testing, and is exposed to
-/// automation as raw content so screen readers announce the owning control (for example a
-/// navigation destination) rather than a stray "3". Colors come from
+/// The badge is not focusable and ignores hit testing. It defaults to the raw automation view;
+/// <see cref="MaterialBadgedBox"/> exposes its status on the anchor instead of creating a second
+/// focus stop. Explicit automation settings are preserved. Colors come from
 /// <see cref="TemplatedControl.Background"/> and <see cref="TemplatedControl.Foreground"/>; the
 /// default theme uses the error roles. Count formatting and overflow policy are application
 /// concerns upstream, so no formatting is invented here.
@@ -84,7 +86,7 @@ public class MaterialBadge : TemplatedControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
+        SetValue(AutomationProperties.AccessibilityViewProperty, AccessibilityView.Raw, BindingPriority.Style);
         UpdateState();
     }
 
@@ -201,6 +203,96 @@ public sealed class MaterialBadgedBox : ContentControl
         set => SetValue(BadgeTemplateProperty, value);
     }
 
+    private ContentPresenter? _anchorPresenter;
+    private ContentPresenter? _badgePresenter;
+    private MaterialBadge? _statusBadge;
+    private IDisposable? _statusValue;
+    private bool _attached;
+
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        DisconnectStatus();
+        base.OnApplyTemplate(e);
+        _anchorPresenter = e.NameScope.Find<ContentPresenter>("PART_Anchor");
+        _badgePresenter = e.NameScope.Find<ContentPresenter>("PART_Badge");
+        ConnectStatus();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _attached = true;
+        ConnectStatus();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _attached = false;
+        DisconnectStatus();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void ConnectStatus()
+    {
+        if (!_attached) return;
+        if (_anchorPresenter is not null)
+        {
+            _anchorPresenter.PropertyChanged -= PresenterChanged;
+            _anchorPresenter.PropertyChanged += PresenterChanged;
+        }
+        if (_badgePresenter is not null)
+        {
+            _badgePresenter.PropertyChanged -= PresenterChanged;
+            _badgePresenter.PropertyChanged += PresenterChanged;
+        }
+        UpdateStatusBadge();
+    }
+
+    private void DisconnectStatus()
+    {
+        if (_anchorPresenter is not null) _anchorPresenter.PropertyChanged -= PresenterChanged;
+        if (_badgePresenter is not null) _badgePresenter.PropertyChanged -= PresenterChanged;
+        if (_statusBadge is not null) _statusBadge.PropertyChanged -= BadgeChanged;
+        _statusBadge = null;
+        _statusValue?.Dispose();
+        _statusValue = null;
+    }
+
+    private void PresenterChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == ContentPresenter.ChildProperty) UpdateStatusBadge();
+    }
+
+    private void UpdateStatusBadge()
+    {
+        if (_statusBadge is not null) _statusBadge.PropertyChanged -= BadgeChanged;
+        _statusBadge = _badgePresenter?.Child as MaterialBadge;
+        if (_statusBadge is not null) _statusBadge.PropertyChanged += BadgeChanged;
+        UpdateAnchorStatus();
+    }
+
+    private void BadgeChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == MaterialBadge.TextProperty || e.Property == MaterialBadge.SizeProperty ||
+            e.Property == IsVisibleProperty || e.Property == AutomationProperties.NameProperty)
+            UpdateAnchorStatus();
+    }
+
+    private void UpdateAnchorStatus()
+    {
+        _statusValue?.Dispose();
+        _statusValue = null;
+        if (_anchorPresenter?.Child is not { } anchor || _statusBadge is not { IsVisible: true } badge)
+            return;
+        var label = AutomationProperties.GetName(badge);
+        if (string.IsNullOrEmpty(label) && badge.IsLabeled) label = badge.Text;
+        // Style priority leaves the anchor's application-supplied status/binding untouched.
+        // Dispose on replacement/detach restores its previous value rather than clearing it.
+        _statusValue = !string.IsNullOrEmpty(label)
+            ? anchor.SetValue(AutomationProperties.ItemStatusProperty, label, BindingPriority.Style)
+            : anchor.Bind(AutomationProperties.ItemStatusProperty,
+                this.GetResourceObservable("MaterialNavigationBarBadgeDotText"), BindingPriority.Style);
+    }
     /// <inheritdoc />
     /// <remarks>
     /// The upstream BadgedBox adds no semantics of its own: assistive technology sees the anchor

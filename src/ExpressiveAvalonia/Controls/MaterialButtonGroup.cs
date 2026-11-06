@@ -581,8 +581,11 @@ public class MaterialButtonGroup : ItemsControl
             }
             case MaterialButtonGroupKind.Connected:
             {
-                var resting = SegmentShape(item.Position, full, MaterialAssist.CornerShape.All(inner));
-                var pressed = SegmentShape(item.Position, full, MaterialAssist.CornerShape.All(pressedInner));
+                var outer = ButtonShape == MaterialButtonShape.Round
+                    ? full
+                    : MaterialAssist.CornerShape.All(inner);
+                var resting = SegmentShape(item.Position, outer, MaterialAssist.CornerShape.All(inner));
+                var pressed = SegmentShape(item.Position, outer, MaterialAssist.CornerShape.All(pressedInner));
                 return (resting, pressed, full);
             }
             default:
@@ -591,7 +594,7 @@ public class MaterialButtonGroup : ItemsControl
                     ? full
                     : MaterialAssist.CornerShape.All(square);
                 return (resting, MaterialAssist.CornerShape.All(PressedRadius(ControlSize)),
-                    MaterialAssist.CornerShape.All(square));
+                    ButtonShape == MaterialButtonShape.Round ? MaterialAssist.CornerShape.All(square) : full);
             }
         }
     }
@@ -987,9 +990,7 @@ public class MaterialButtonGroup : ItemsControl
             return;
         }
 
-        var tabIndex = items.FindIndex(static i => i.IsChecked == true);
-        if (tabIndex < 0)
-            tabIndex = items.FindIndex(static i => i.IsEffectivelyEnabled);
+        var tabIndex = items.FindIndex(static i => i.IsEffectivelyEnabled && i.IsVisible);
 
         for (var i = 0; i < items.Count; i++)
             items[i].IsTabStop = i == tabIndex && items[i].IsVisible;
@@ -997,7 +998,7 @@ public class MaterialButtonGroup : ItemsControl
 
     private void OnGroupKeyDown(object? sender, KeyEventArgs e)
     {
-        if (Kind == MaterialButtonGroupKind.Standard || e.Handled || e.KeyModifiers != KeyModifiers.None)
+        if (e.Handled || e.KeyModifiers != KeyModifiers.None)
             return;
 
         var items = GetGroupItems();

@@ -527,7 +527,7 @@
                     BorderBrush="{DynamicResource MaterialOutlineVariantBrush}" BorderThickness="0,0,0,1">
               <Panel>
                 <Grid Name="PART_ModalHeader" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                  <StackPanel Spacing="4" VerticalAlignment="Center">
+                  <StackPanel Spacing="36" VerticalAlignment="Center">
                     <TextBlock Name="PART_HeaderLabel" Text="{TemplateBinding EffectiveLabel}"
                                FontSize="{DynamicResource MaterialLabelLargeFontSize}"
                                FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
@@ -625,7 +625,7 @@
             <!-- Day, month, year, full-screen and text-input content. -->
             <Grid Grid.Row="2">
               <Grid Name="PART_DayView" RowDefinitions="Auto,Auto" Margin="12,0"
-                    Background="{DynamicResource MaterialSurfaceContainerLowestBrush}">
+                    Background="{TemplateBinding Background}">
                 <UniformGrid Name="PART_WeekdayRow" Grid.Row="0" Columns="7" />
                 <!-- DatePicker.kt HorizontalMonthsList: the month pages form one horizontal
                      paging surface. PART_DayGrid is the page that owns the live 6x7 cells; the
@@ -646,7 +646,7 @@
               </ScrollViewer>
 
               <Grid Name="PART_FullScreenView" RowDefinitions="Auto,*" IsVisible="False"
-                    Background="{DynamicResource MaterialSurfaceContainerLowestBrush}">
+                    Background="{TemplateBinding Background}">
                 <UniformGrid Name="PART_FullScreenWeekdayRow" Grid.Row="0" Columns="7" Margin="12,0" />
                 <!-- DateRangePicker.kt VerticalMonthsList: a LazyColumn over every month in
                      yearRange. The Canvas carries the full virtual extent; the picker

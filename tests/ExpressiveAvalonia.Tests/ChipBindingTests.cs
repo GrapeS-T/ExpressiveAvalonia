@@ -95,6 +95,17 @@ public class ChipBindingTests
         try
         {
             var remove = Assert.Single(chip.GetVisualDescendants().OfType<Button>(), b => b.Name == "PART_RemoveButton");
+            Assert.Equal("Remove Recipient", Avalonia.Automation.AutomationProperties.GetName(remove));
+            chip.Content = "Other";
+            Assert.Equal("Remove Other", Avalonia.Automation.AutomationProperties.GetName(remove));
+            window.Resources["MaterialChipRemoveText"] = "Delete";
+            Assert.Equal("Delete Other", Avalonia.Automation.AutomationProperties.GetName(remove));
+            chip.RemoveButtonAccessibleName = "Remove";
+            Assert.Equal("Remove", Avalonia.Automation.AutomationProperties.GetName(remove));
+            window.Resources["MaterialChipRemoveText"] = "Erase";
+            Assert.Equal("Remove", Avalonia.Automation.AutomationProperties.GetName(remove));
+            chip.RemoveButtonAccessibleName = "Delete recipient";
+            Assert.Equal("Delete recipient", Avalonia.Automation.AutomationProperties.GetName(remove));
             Assert.True(remove.Focusable);
             Assert.True(KeyboardNavigation.GetIsTabStop(remove));
             Assert.True(remove.Focus());
@@ -102,6 +113,28 @@ public class ChipBindingTests
             window.KeyRelease(Key.Enter, RawInputModifiers.None, PhysicalKey.None, null);
             Assert.True(removed);
             Assert.False(chip.IsSelected);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void StyledRemoveNameOverridesLocalizedDefault()
+    {
+        var chip = new MaterialChip { Kind = MaterialChipKind.Input, Content = "Recipient", IsRemovable = true };
+        chip.Classes.Add("remove-name");
+        var window = new Window { Content = chip };
+        window.Styles.Add(new Style(x => x.OfType<MaterialChip>().Class("remove-name"))
+        {
+            Setters = { new Setter(MaterialChip.RemoveButtonAccessibleNameProperty, "Remove") },
+        });
+        window.Show();
+        window.UpdateLayout();
+        try
+        {
+            var remove = Assert.Single(chip.GetVisualDescendants().OfType<Button>(), b => b.Name == "PART_RemoveButton");
+            Assert.Equal("Remove", Avalonia.Automation.AutomationProperties.GetName(remove));
+            window.Resources["MaterialChipRemoveText"] = "Delete";
+            Assert.Equal("Remove", Avalonia.Automation.AutomationProperties.GetName(remove));
         }
         finally { window.Close(); }
     }

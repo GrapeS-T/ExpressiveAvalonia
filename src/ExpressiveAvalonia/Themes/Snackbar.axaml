@@ -259,8 +259,8 @@
     </Style>
   </ControlTheme>
 
-  <!-- Host: one snackbar at a time; the outgoing item stays in the overlay while it fades, exactly
-       like SnackbarHost.kt's FadeInFadeOutWithScale. Snackbar(snackbarData) adds 12 DIP padding. -->
+  <!-- The host waits for the outgoing snackbar to finish fading before showing the next one.
+       Snackbar(snackbarData) adds 12 DIP padding. -->
   <ControlTheme x:Key="{x:Type controls:MaterialSnackbarHost}" TargetType="controls:MaterialSnackbarHost">
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="VerticalAlignment" Value="Stretch" />

@@ -40,7 +40,7 @@ public enum MaterialCarouselLayout
     MultiAspectRatio,
 
     /// <summary>
-    /// Design-source extension: one full-viewport card per page, expressed as a one-keyline strategy.
+    /// One full-viewport card per vertical page, with single-item snapping.
     /// </summary>
     FullScreen,
 }
@@ -62,7 +62,7 @@ public enum MaterialCarouselFlingBehavior
 
 /// <summary>
 /// A Material 3 carousel: a horizontally scrolling strip of cards laid out and masked with the
-/// pinned keyline strategy, with single selection and all pinned arrangements.
+/// pinned keyline strategy, or vertical full-screen pages, with single selection.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -83,7 +83,8 @@ public enum MaterialCarouselFlingBehavior
 /// </para>
 /// <para>
 /// Reduced motion (the inherited <see cref="MaterialMotion.IsReducedProperty"/> / platform
-/// preference) turns animated scrolls into immediate jumps.
+/// preference) turns animated scrolls into immediate jumps and disables parallax and keyline
+/// resizing. Explicit multi-aspect ratios remain unchanged.
 /// </para>
 /// </remarks>
 [TemplatePart("PART_ScrollViewer", typeof(ScrollViewer))]
@@ -315,7 +316,7 @@ public class MaterialCarousel : ListBox
             animate &&
             !MaterialMotion.GetIsReduced(this) &&
             this.IsAttachedToVisualTree() &&
-            Math.Abs(_panel.ToPhysicalOffset(targetLogical) - viewer.Offset.X) >= 0.5;
+            Math.Abs(_panel.ToPhysicalOffset(targetLogical) - (Layout == MaterialCarouselLayout.FullScreen ? viewer.Offset.Y : viewer.Offset.X)) >= 0.5;
 
         if (!animateThisScroll)
         {
@@ -328,7 +329,7 @@ public class MaterialCarousel : ListBox
 
         TryPreJump(index, viewer);
 
-        var from = viewer.Offset.X;
+        var from = Layout == MaterialCarouselLayout.FullScreen ? viewer.Offset.Y : viewer.Offset.X;
         var to = _panel.ToPhysicalOffset(targetLogical);
         if (Math.Abs(to - from) < 0.5)
         {
@@ -418,6 +419,7 @@ public class MaterialCarousel : ListBox
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        MaterialMotion.ReducedMotionChanged += OnSystemReducedMotionChanged;
         ResolveScrollPresenter();
         AttachPanel();
         UpdateVisualClasses();
@@ -426,11 +428,14 @@ public class MaterialCarousel : ListBox
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        MaterialMotion.ReducedMotionChanged -= OnSystemReducedMotionChanged;
         LayoutUpdated -= OnLayoutUpdatedForPanel;
         _offsetAnimation?.Dispose();
         _offsetAnimation = null;
         base.OnDetachedFromVisualTree(e);
     }
+
+    private void OnSystemReducedMotionChanged(object? sender, EventArgs e) => InvalidateStripMeasure();
 
     // The pinned Carousel only forwards userScrollEnabled to the Pager, whose scrollable input,
     // paging keys and scroll semantics are dropped while the content stays composed and clickable.
@@ -631,7 +636,8 @@ public class MaterialCarousel : ListBox
         // Remember where the wheel started so a scroll that the source would not perform can be
         // undone. A scrollable or other wheel consumer inside a card handles the event first and is
         // left untouched.
-        _scrollOffsetBeforeWheel = UserScrollEnabled || e.Handled ? null : _scrollViewer?.Offset.X;
+        _scrollOffsetBeforeWheel = UserScrollEnabled || e.Handled ? null :
+            Layout == MaterialCarouselLayout.FullScreen ? _scrollViewer?.Offset.Y : _scrollViewer?.Offset.X;
     }
 
     private void OnScrollHostPointerWheelBubble(object? sender, PointerWheelEventArgs e)
@@ -642,10 +648,10 @@ public class MaterialCarousel : ListBox
             return;
 
         var offset = _scrollViewer.Offset;
-        if (Math.Abs(offset.X - before.Value) < 0.5)
+        if (Math.Abs((Layout == MaterialCarouselLayout.FullScreen ? offset.Y : offset.X) - before.Value) < 0.5)
             return;
 
-        _scrollViewer.SetCurrentValue(ScrollViewer.OffsetProperty, new Vector(before.Value, offset.Y));
+        ApplyOffset(_scrollViewer, before.Value);
         // The native presenter consumed an event it no longer acted on; let a scrollable around the
         // carousel keep the wheel exactly as the pinned disabled pager does.
         e.Handled = false;
@@ -751,7 +757,7 @@ public class MaterialCarousel : ListBox
         base.OnPropertyChanged(change);
         if (change.Property == ItemsSourceProperty)
             InvalidateStripMeasure();
-        else if (change.Property == PaddingProperty)
+        else if (change.Property == PaddingProperty || change.Property == MaterialMotion.IsReducedProperty)
             InvalidateStripMeasure();
     }
 
@@ -799,6 +805,15 @@ public class MaterialCarousel : ListBox
                 }
 
                 break;
+            case Key.Up when Layout == MaterialCarouselLayout.FullScreen:
+            case Key.Down when Layout == MaterialCarouselLayout.FullScreen:
+            {
+                var direction = e.Key == Key.Down ? 1 : -1;
+                var start = SelectedIndex >= 0 ? SelectedIndex : CurrentItem;
+                SelectAndFocus(FindEnabled(start + direction, direction));
+                e.Handled = true;
+                return;
+            }
             case Key.Left:
             case Key.Right:
             {
@@ -831,7 +846,7 @@ public class MaterialCarousel : ListBox
 
         var first = _panel?.FirstRealizedIndex ?? 0;
         var last = _panel?.LastRealizedIndex ?? ItemCount - 1;
-        var page = Math.Max(1, last - first + 1);
+        var page = Layout == MaterialCarouselLayout.FullScreen ? 1 : Math.Max(1, last - first + 1);
 
         var start = SelectedIndex >= 0 ? SelectedIndex : CurrentItem;
         if (start < 0)
@@ -979,7 +994,8 @@ public class MaterialCarousel : ListBox
     }
 
     private void ApplyOffset(ScrollViewer viewer, double physicalOffset) =>
-        viewer.SetCurrentValue(ScrollViewer.OffsetProperty, new Vector(physicalOffset, viewer.Offset.Y));
+        viewer.SetCurrentValue(ScrollViewer.OffsetProperty, Layout == MaterialCarouselLayout.FullScreen
+            ? new Vector(viewer.Offset.X, physicalOffset) : new Vector(physicalOffset, viewer.Offset.Y));
 
     private void TryPreJump(int targetIndex, ScrollViewer viewer)
     {
@@ -1047,6 +1063,8 @@ public class MaterialCarousel : ListBox
 
         SetCurrentValue(ScrollViewer.HorizontalSnapPointsTypeProperty, type);
         SetCurrentValue(ScrollViewer.HorizontalSnapPointsAlignmentProperty, SnapPointsAlignment.Near);
+        SetCurrentValue(ScrollViewer.VerticalSnapPointsTypeProperty, Layout == MaterialCarouselLayout.FullScreen ? SnapPointsType.MandatorySingle : SnapPointsType.None);
+        SetCurrentValue(ScrollViewer.VerticalSnapPointsAlignmentProperty, SnapPointsAlignment.Near);
         PseudoClasses.Set(":snap-single", type == SnapPointsType.MandatorySingle);
         PseudoClasses.Set(":snap-velocity", type == SnapPointsType.Mandatory);
         PseudoClasses.Set(":no-snap", type == SnapPointsType.None);
@@ -1134,8 +1152,8 @@ public class MaterialCarousel : ListBox
 
 /// <summary>The single-card, full-bleed carousel (design-source "Carousel - Full screen").</summary>
 /// <remarks>
-/// There is no pinned Compose Carousel full-screen composable; this is an extension expressed as a
-/// one-keyline strategy (each card fills the content area). It shares the control theme.
+/// There is no pinned Compose Carousel full-screen composable; this extension lays out vertical
+/// full-viewport pages with single-item snapping. It shares the control theme.
 /// </remarks>
 public sealed class MaterialCarouselFullScreen : MaterialCarousel
 {

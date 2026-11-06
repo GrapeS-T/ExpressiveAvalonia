@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using ExpressiveAvalonia.Controls;
 
 namespace ExpressiveAvalonia.Theming;
 
@@ -396,9 +397,8 @@ public sealed class MaterialToolTip : AvaloniaObject
         AvaloniaProperty.RegisterAttached<MaterialToolTip, Control, bool>("KeyboardEnabled");
 
     /// <summary>
-    /// Places the tooltip below the owner at a 4 px offset when the application has not chosen
-    /// a placement itself. The pointer placement Avalonia uses by default is wrong for tooltips
-    /// opened from the keyboard, where no pointer is near the focused control.
+    /// Places the tooltip above the owner, or below an app bar owner, at a 4 DIP offset when the
+    /// application has not chosen a placement itself.
     /// </summary>
     public static readonly AttachedProperty<bool> AutoPlacementProperty =
         AvaloniaProperty.RegisterAttached<MaterialToolTip, Control, bool>("AutoPlacement", true);
@@ -691,7 +691,11 @@ public sealed class MaterialToolTip : AvaloniaObject
             }
         }
 
-        private void AttachedToTree(object? sender, VisualTreeAttachmentEventArgs args) => HookWindow();
+        private void AttachedToTree(object? sender, VisualTreeAttachmentEventArgs args)
+        {
+            ApplyPlacement();
+            HookWindow();
+        }
 
         private void DetachedFromTree(object? sender, VisualTreeAttachmentEventArgs args)
         {
@@ -850,9 +854,10 @@ public sealed class MaterialToolTip : AvaloniaObject
             if (!GetAutoPlacement(_control) || ToolTip.GetTip(_control) is null) return;
             // Only take ownership of a value the application has not authored itself, so a
             // consumer style or local value always wins.
-            if (!_placementApplied && !_control.IsSet(ToolTip.PlacementProperty))
+            if (_placementApplied || !_control.IsSet(ToolTip.PlacementProperty))
             {
-                _control.SetValue(ToolTip.PlacementProperty, PlacementMode.Bottom);
+                var inAppBar = _control.GetVisualAncestors().Any(ancestor => ancestor is MaterialBarBase);
+                _control.SetValue(ToolTip.PlacementProperty, inAppBar ? PlacementMode.Bottom : PlacementMode.Top);
                 _placementApplied = true;
             }
             if (_offsetApplied || !_control.IsSet(ToolTip.VerticalOffsetProperty))
@@ -863,7 +868,9 @@ public sealed class MaterialToolTip : AvaloniaObject
                 var caretHeight = ToolTip.GetTip(_control) is MaterialPlainToolTip { ShowCaret: true }
                     ? TooltipCaretRenderer.DefaultCaretHeight
                     : 0d;
-                _control.SetValue(ToolTip.VerticalOffsetProperty, 4d - caretHeight);
+                var offset = 4d - caretHeight;
+                _control.SetValue(ToolTip.VerticalOffsetProperty,
+                    ToolTip.GetPlacement(_control) == PlacementMode.Top ? -offset : offset);
                 _offsetApplied = true;
             }
         }

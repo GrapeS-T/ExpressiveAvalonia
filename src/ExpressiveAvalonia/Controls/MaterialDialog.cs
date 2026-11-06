@@ -179,6 +179,7 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
     private Panel? _host;
     private Border? _scrim;
     private IInputElement? _previousFocus;
+    private string? _appliedAccessibleName;
     private TaskCompletionSource<object?>? _completion;
     private MaterialSpringValue? _openProgress;
     private double _progress;
@@ -792,7 +793,12 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
         var fallback = this.TryFindResource("MaterialDialogAccessibleName", out var value) && value is string text
             ? text
             : "Dialog";
-        AutomationProperties.SetName(this, string.IsNullOrWhiteSpace(Title) ? fallback : Title);
+        var current = AutomationProperties.GetName(this);
+        if (!string.IsNullOrEmpty(current) && current != _appliedAccessibleName)
+            return;
+
+        _appliedAccessibleName = string.IsNullOrWhiteSpace(Title) ? fallback : Title;
+        AutomationProperties.SetName(this, _appliedAccessibleName);
     }
 
     private void CompleteClose(object? result)

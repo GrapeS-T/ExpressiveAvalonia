@@ -4,9 +4,11 @@ using Avalonia;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.VisualTree;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Tokens;
@@ -116,8 +118,8 @@ public sealed class MaterialAssist : AvaloniaObject
     public static readonly AttachedProperty<CornerRadius> AnimatedCornerRadiusProperty =
         AvaloniaProperty.RegisterAttached<MaterialAssist, Button, CornerRadius>("AnimatedCornerRadius");
 
-    // The focus indicator sits two DIPs outside the container and follows its animated
-    // silhouette, so the ring keeps its 3 DIP stroke visually parallel to the surface.
+    // The indicator paints inward from its bounds: 2 DIP gap + 3 DIP stroke outside
+    // the surface requires a 5 DIP outset and the same increase in outer radius.
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly AttachedProperty<CornerRadius> FocusRingCornerRadiusProperty =
         AvaloniaProperty.RegisterAttached<MaterialAssist, Button, CornerRadius>("FocusRingCornerRadius");
@@ -163,13 +165,12 @@ public sealed class MaterialAssist : AvaloniaObject
                 button.SetCurrentValue(AnimatedCornerRadiusProperty, button.CornerRadius);
         });
 
-        // The ring is drawn two DIPs outside the container, so its radius trails the
-        // animated silhouette by exactly that offset.
+        // Keep the outer edge of the 3 DIP indicator parallel to the surface, with a 2 DIP gap.
         AnimatedCornerRadiusProperty.Changed.AddClassHandler<Button>((button, args) =>
         {
             var radius = args.NewValue is CornerRadius value ? value : default;
             button.SetCurrentValue(FocusRingCornerRadiusProperty, new CornerRadius(
-                radius.TopLeft + 2, radius.TopRight + 2, radius.BottomRight + 2, radius.BottomLeft + 2));
+                radius.TopLeft + 5, radius.TopRight + 5, radius.BottomRight + 5, radius.BottomLeft + 5));
         });
 
         // Icon selection is resolved on the control instead of in the template so a checked
@@ -548,6 +549,8 @@ public sealed class MaterialAssist : AvaloniaObject
         private bool _shapeInitialized;
         private bool _enterPressed;
         private bool _disposed;
+        private IconPresentation _leadingIcon;
+        private IconPresentation _contentIcon;
 
         // ToggleButton.kt animateBorderStrokeAsState: the BorderStroke is painted from animated
         // values, never from the styled target. Width is a uniform Dp in the source; the styled
@@ -581,6 +584,7 @@ public sealed class MaterialAssist : AvaloniaObject
             button.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
             button.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Bubble, handledEventsToo: true);
             Refresh(snap: true);
+            UpdateContentIcons();
         }
 
         // Clickable.kt emits PressInteraction.Press for both Space and Enter on key down. Space
@@ -607,6 +611,7 @@ public sealed class MaterialAssist : AvaloniaObject
             // The first Refresh in the constructor can run before the theme resources are
             // reachable; the shared elevation helper retries its tokens on attach as well.
             Refresh(snap: true);
+            UpdateContentIcons();
         }
 
         private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e)
@@ -614,12 +619,21 @@ public sealed class MaterialAssist : AvaloniaObject
             _enterPressed = false;
             StopShape();
             StopOutline();
+            _leadingIcon.Clear();
+            _contentIcon.Clear();
             _shapeInitialized = false;
             _outlineInitialized = false;
         }
 
         private void OnPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
         {
+            if (args.Property == ContentControl.ContentProperty
+                || args.Property == DisplayedIconProperty
+                || args.Property == IsIconVisibleProperty
+                || args.Property == ControlSizeProperty
+                || args.Property == IsIconButtonProperty)
+                UpdateContentIcons();
+
             if (args.Property == Button.IsPressedProperty
                 || args.Property == ToggleButton.IsCheckedProperty
                 || args.Property == InputElement.IsPointerOverProperty
@@ -661,6 +675,60 @@ public sealed class MaterialAssist : AvaloniaObject
             }
         }
 
+        private void UpdateContentIcons()
+        {
+            if (!_button.IsAttachedToVisualTree())
+                return;
+
+            var size = GetControlSize(_button) switch
+            {
+                MaterialControlSize.ExtraSmall => 20d,
+                MaterialControlSize.Small => GetIsIconButton(_button) ? 24d : 20d,
+                MaterialControlSize.Medium => 24d,
+                MaterialControlSize.Large => 32d,
+                _ => 40d,
+            };
+            _leadingIcon.Update(_button, GetIsIconVisible(_button) ? GetDisplayedIcon(_button) : null, size);
+            _contentIcon.Update(_button, _button.Content, size);
+        }
+
+        // Content is not a template child: /template/ selectors cannot style caller-owned icons.
+        // Reversible style values preserve explicit sizes/themes and leave detached icons intact.
+        private struct IconPresentation
+        {
+            private Control? _icon;
+            private double _size;
+            private IDisposable? _theme;
+            private IDisposable? _width;
+            private IDisposable? _height;
+
+            public void Update(Button owner, object? content, double size)
+            {
+                var icon = content is PathIcon or MaterialIcon ? (Control)content : null;
+                if (ReferenceEquals(icon, _icon) && size == _size)
+                    return;
+                Clear();
+                if (icon is null)
+                    return;
+                _icon = icon;
+                _size = size;
+                var key = icon is PathIcon ? "MaterialButtonPathIconTheme" : "MaterialButtonIconTheme";
+                if (owner.TryFindResource(key, out var resource) && resource is ControlTheme theme)
+                    _theme = icon.SetValue(Control.ThemeProperty, theme, BindingPriority.Style);
+                _width = icon.SetValue(Control.WidthProperty, size, BindingPriority.Style);
+                _height = icon.SetValue(Control.HeightProperty, size, BindingPriority.Style);
+            }
+
+            public void Clear()
+            {
+                _theme?.Dispose();
+                _width?.Dispose();
+                _height?.Dispose();
+                _theme = _width = _height = null;
+                _icon = null;
+            }
+        }
+
         public void Refresh(bool snap)
         {
             UpdateShape(snap);
@@ -684,11 +752,8 @@ public sealed class MaterialAssist : AvaloniaObject
                     _ => 16,
                 });
 
-            // ToggleButtonDefaults.defaultToggleButtonShapes: the checked shape is
-            // SelectedContainerShapeSquare for labeled buttons, independently of the resting
-            // Round/Square axis. IconButtonDefaults.defaultIconToggleButtonShapes uses
-            // SelectedContainerShapeRound; the exposed SelectedContainerShapeSquare pairs with a
-            // square resting icon button.
+            // Material 3 shape morph: selection inverts Round/Square for both labeled
+            // and icon toggles. Pressed takes precedence over either resting silhouette.
             if (_button is ToggleButton { IsChecked: true })
             {
                 var selectedRadius = size switch
@@ -697,7 +762,7 @@ public sealed class MaterialAssist : AvaloniaObject
                     MaterialControlSize.Medium => 16,
                     _ => 28,
                 };
-                return GetIsIconButton(_button) && GetButtonShape(_button) == MaterialButtonShape.Square
+                return GetButtonShape(_button) == MaterialButtonShape.Square
                     ? CornerShape.Full
                     : CornerShape.All(selectedRadius);
             }
@@ -963,6 +1028,8 @@ public sealed class MaterialAssist : AvaloniaObject
             _disposed = true;
             StopShape();
             StopOutline();
+            _leadingIcon.Clear();
+            _contentIcon.Clear();
             _elevation.Dispose();
             _button.PropertyChanged -= OnPropertyChanged;
             _button.Classes.CollectionChanged -= OnClassesChanged;
