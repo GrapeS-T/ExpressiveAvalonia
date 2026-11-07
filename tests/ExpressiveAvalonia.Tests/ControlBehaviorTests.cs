@@ -902,6 +902,98 @@ public class ControlBehaviorTests
     }
 
     [AvaloniaFact]
+    public void ButtonGroupInitialSpacingAndResizingKeepButtonsSeparated()
+    {
+        var group = new MaterialButtonGroup
+        {
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            UseLayoutRounding = false
+        };
+        var first = new MaterialButtonGroupItem { Content = "First" };
+        var last = new MaterialButtonGroupItem { Content = "Longer label" };
+        group.Items.Add(first);
+        group.Items.Add(last);
+        var window = Show(group);
+        try
+        {
+            Assert.Equal(12, last.Bounds.Left - first.Bounds.Right, 3);
+            group.ControlSize = MaterialControlSize.ExtraSmall;
+            window.UpdateLayout();
+            Assert.Equal(18, last.Bounds.Left - first.Bounds.Right, 3);
+            group.Kind = MaterialButtonGroupKind.Connected;
+            group.Width = 500;
+            window.UpdateLayout();
+            Assert.Equal(2, last.Bounds.Left - first.Bounds.Right, 3);
+            Assert.Equal(500, last.Bounds.Right, 3);
+            Assert.True(last.Bounds.Width > first.Bounds.Width);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void ButtonGroupModeChangesNormalizeSelectionAndPreserveLocalVariant()
+    {
+        var group = new MaterialButtonGroup { SelectionMode = MaterialButtonGroupSelectionMode.Multiple };
+        var first = new MaterialButtonGroupItem { Content = "First", Variant = MaterialButtonVariant.Tonal };
+        var second = new MaterialButtonGroupItem { Content = "Second" };
+        group.Items.Add(first);
+        group.Items.Add(second);
+        var window = Show(group);
+        try
+        {
+            group.Select(0, true);
+            group.Select(1, true);
+            group.SelectionMode = MaterialButtonGroupSelectionMode.Single;
+            Assert.False(first.IsChecked);
+            Assert.True(second.IsChecked);
+            Assert.Equal(new[] { 1 }, group.SelectedIndices);
+            group.SelectionMode = MaterialButtonGroupSelectionMode.None;
+            Assert.Empty(group.SelectedIndices);
+            group.Variant = MaterialButtonVariant.Outlined;
+            Assert.Equal(MaterialButtonVariant.Tonal, first.Variant);
+            Assert.Equal(MaterialButtonVariant.Outlined, second.Variant);
+            first.ClearValue(MaterialButtonGroupItem.VariantProperty);
+            Assert.Equal(MaterialButtonVariant.Outlined, first.Variant);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void ConnectedGroupHiddenEndpointsAndDensityKeepUsableSilhouette()
+    {
+        var group = new MaterialButtonGroup
+        {
+            Kind = MaterialButtonGroupKind.Connected,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            UseLayoutRounding = false
+        };
+        var first = new MaterialButtonGroupItem { Content = "First" };
+        var middle = new MaterialButtonGroupItem { Content = "Middle" };
+        var last = new MaterialButtonGroupItem { Content = "Last" };
+        group.Items.Add(first);
+        group.Items.Add(middle);
+        group.Items.Add(last);
+        var window = Show(group);
+        try
+        {
+            first.IsVisible = false;
+            last.IsVisible = false;
+            group.Density = -3;
+            window.UpdateLayout();
+            Assert.Equal(MaterialButtonGroupItemPosition.Only, middle.Position);
+            Assert.True(middle.Bounds.Height >= 48);
+            Assert.Equal(28, middle.Bounds.Height - middle.ContainerInset.Top - middle.ContainerInset.Bottom, 3);
+            Assert.Equal(14, middle.CornerRadius.TopLeft, 3);
+            Assert.Equal(middle.CornerRadius.TopLeft, middle.CornerRadius.TopRight);
+            last.IsVisible = true;
+            window.UpdateLayout();
+            Assert.Equal(8, middle.CornerRadius.TopRight, 3);
+            Assert.Equal(14, last.CornerRadius.TopRight, 3);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void ConnectedGroupResolvesFullCornersAgainstPaintedBounds()
     {
         // F03/I03: CornerFull is CircleShape, i.e. half of the painted container. The item must

@@ -19,9 +19,9 @@ namespace ExpressiveAvalonia.Controls;
 /// neighbours, so the group's total width does not change while pressing.
 /// </para>
 /// <para>
-/// Segmented groups equalise item widths, matching the row's <c>Modifier.weight(1f)</c> children.
-/// Negative spacing reproduces the 1-DIP outline overlap of the segmented row. Right-to-left
-/// layout mirrors the physical placement while the item order stays logical.
+/// Connected groups distribute spare width; segmented groups equalise their segments.
+/// Negative spacing reproduces the 1-DIP outline overlap of the segmented row. Avalonia mirrors
+/// the RTL plane once; item placement stays in logical order.
 /// </para>
 /// <para>
 /// Vertical groups stack items with the same spacing. The source button group is horizontal only;
@@ -66,12 +66,17 @@ public sealed class MaterialButtonGroupPanel : Panel
         set => SetValue(ExpandedRatioProperty, value);
     }
 
-    /// <summary>Equalises every item to the widest intrinsic width (segmented rows).</summary>
+    /// <summary>Equalises item widths and distributes spare row space between them.</summary>
     public bool EqualizeWidths
     {
         get => GetValue(EqualizeWidthsProperty);
         set => SetValue(EqualizeWidthsProperty, value);
     }
+
+    internal bool StretchWidths { get; set; }
+
+    private readonly List<Control> _visible = [];
+    private double[] _widths = [];
 
     static MaterialButtonGroupPanel()
     {
@@ -131,7 +136,8 @@ public sealed class MaterialButtonGroupPanel : Panel
     {
         var horizontal = Orientation == Orientation.Horizontal;
         var spacing = Spacing;
-        var children = new List<Control>();
+        var children = _visible;
+        children.Clear();
         foreach (var child in Children)
         {
             if (child.IsVisible)
@@ -152,35 +158,37 @@ public sealed class MaterialButtonGroupPanel : Panel
             return finalSize;
         }
 
-        var widths = new double[children.Count];
+        if (_widths.Length < children.Count)
+            Array.Resize(ref _widths, children.Count);
+        var widths = _widths;
         for (var i = 0; i < children.Count; i++)
             widths[i] = children[i].DesiredSize.Width;
 
         if (EqualizeWidths)
         {
-            var equal = 0d;
-            foreach (var width in widths)
-                equal = Math.Max(equal, width);
-            for (var i = 0; i < widths.Length; i++)
+            var equal = Math.Max(0, (finalSize.Width - spacing * (children.Count - 1)) / children.Count);
+            for (var i = 0; i < children.Count; i++)
+                equal = Math.Max(equal, widths[i]);
+            for (var i = 0; i < children.Count; i++)
                 widths[i] = equal;
+        }
+        else if (StretchWidths)
+        {
+            var used = spacing * (children.Count - 1);
+            for (var i = 0; i < children.Count; i++)
+                used += widths[i];
+            var extra = Math.Max(0, (finalSize.Width - used) / children.Count);
+            for (var i = 0; i < children.Count; i++)
+                widths[i] += extra;
         }
 
         ApplyPressExpansion(children, widths);
 
-        var positions = new double[children.Count];
         var x = 0d;
         for (var i = 0; i < children.Count; i++)
         {
-            positions[i] = x;
+            children[i].Arrange(new Rect(x, 0, widths[i], finalSize.Height));
             x += widths[i] + spacing;
-        }
-
-        var totalWidth = Math.Max(0, x - (children.Count > 0 ? spacing : 0));
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
-        for (var i = 0; i < children.Count; i++)
-        {
-            var left = rtl ? totalWidth - positions[i] - widths[i] : positions[i];
-            children[i].Arrange(new Rect(left, 0, widths[i], finalSize.Height));
         }
 
         return finalSize;

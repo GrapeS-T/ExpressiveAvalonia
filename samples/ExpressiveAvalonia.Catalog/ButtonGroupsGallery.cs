@@ -98,7 +98,7 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         {
             Spacing = 24,
             Margin = new Thickness(24),
-            HorizontalAlignment = HorizontalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Center,
         };
         stage.Children.Add(_group);
@@ -145,7 +145,7 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         _kind = Choice(Settings, "Семейство", new[] { "Standard", "Connected", "Segmented" }, 0);
         _content = Choice(Settings, "Содержимое", new[] { "Текст", "Иконка", "Текст и иконка" }, 2);
 
-        _variant = Field(_variantSettings, "Вид (Standard)", new ComboBox
+        _variant = Field(_variantSettings, "Вид", new ComboBox
         {
             ItemsSource = VariantNames,
             SelectedIndex = 0,
@@ -160,12 +160,12 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
             HorizontalAlignment = HorizontalAlignment.Stretch,
         });
 
-        _shape = Choice(_shapeSettings, "Форма (Standard)", new[] { "Round", "Square" }, 0);
+        _shape = Choice(_shapeSettings, "Форма", new[] { "Round", "Square" }, 0);
         Settings.Children.Add(_shapeSettings);
 
         _orientation = Choice(Settings, "Ориентация", new[] { "Горизонтально", "Вертикально" }, 0);
 
-        _selection = Choice(_selectionSettings, "Выбор (Connected)", new[] { "Нет", "Один", "Несколько" }, 1);
+        _selection = Choice(_selectionSettings, "Выбор", new[] { "Нет", "Один", "Несколько" }, 1);
         Settings.Children.Add(_selectionSettings);
 
         _check = Toggle(_checkSettings, "Галочка у выбранного", true);
@@ -174,7 +174,7 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         _replace = Toggle(_replaceSettings, "Заменять иконку галочкой", true);
         Settings.Children.Add(_replaceSettings);
 
-        _density = Number(_densitySettings, "Плотность (Segmented)", -3, 0, 0, 1);
+        _density = Number(_densitySettings, "Плотность", -3, 0, 0, 1);
         Settings.Children.Add(_densitySettings);
 
         _count = Number(Settings, "Количество элементов", 2, 6, 4, 1);
@@ -192,10 +192,10 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         _splitTrailingEnabled = Toggle(Settings, "Split: действие меню доступно", true);
         Settings.Children.Add(new TextBlock
         {
-            Text = "Standard разделяет кнопки и не хранит выбор; Connected соединяет сегменты 2 dp и " +
-                   "рисует выбранный сегмент пилюлей; Segmented делит общую рамку 1 dp, а плотность 0…-3 " +
-                   "понижает высоту на 4 dp за шаг. Стрелки, Home/End и Space работают нативно: " +
-                   "переключение вида, размера или формы сохраняет выбранный сегмент. " +
+            Text = "Standard расширяет нажатую кнопку за счёт соседних; поддерживает действия и выбор. " +
+                   "Connected заполняет доступную ширину, разделяет кнопки промежутком 2 dp и " +
+                   "меняет форму только нажатой кнопки. Оба вида поддерживают Round/Square и цвета кнопок. " +
+                   "Segmented — прежний вариант с общей рамкой. Стрелки, Home/End и Space работают нативно. " +
                    "Split без меню переключает trailing-половину: checked даёт пилюлю и слой 10%, " +
                    "а команда видит уже новое состояние.",
             TextWrapping = TextWrapping.Wrap,
@@ -224,6 +224,9 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
             if (e.SelectedIndex >= 0) _savedSelection = e.SelectedIndex;
             UpdateReadout();
         };
+        _group.AttachedToVisualTree += (_, _) =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(UpdateReadout,
+                Avalonia.Threading.DispatcherPriority.Loaded);
 
         _built = true;
         Apply();
@@ -238,23 +241,20 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         var variant = Variants[Math.Clamp(_variant.SelectedIndex, 0, Variants.Length - 1)];
         var size = (MaterialControlSize)Math.Clamp(_size.SelectedIndex, 0, 4);
         var shape = _shape.SelectedIndex == 1 ? MaterialButtonShape.Square : MaterialButtonShape.Round;
-        var mode = kind == MaterialButtonGroupKind.Standard
-            ? MaterialButtonGroupSelectionMode.None
-            : kind == MaterialButtonGroupKind.Segmented
-                ? MaterialButtonGroupSelectionMode.Single
-                : (MaterialButtonGroupSelectionMode)Math.Clamp(_selection.SelectedIndex, 0, 2);
+        var mode = kind == MaterialButtonGroupKind.Segmented
+            ? MaterialButtonGroupSelectionMode.Single
+            : (MaterialButtonGroupSelectionMode)Math.Clamp(_selection.SelectedIndex, 0, 2);
         var vertical = _orientation.SelectedIndex == 1;
         var count = (int)Math.Round(_count.Value);
         var labels = ParseLabels(count);
         var showIcon = content != 0;
         var showText = content != 1;
 
-        _variantSettings.IsVisible = kind == MaterialButtonGroupKind.Standard;
-        _shapeSettings.IsVisible = kind == MaterialButtonGroupKind.Standard;
-        _selectionSettings.IsVisible = kind == MaterialButtonGroupKind.Connected;
-        _checkSettings.IsVisible = kind != MaterialButtonGroupKind.Standard;
-        _densitySettings.IsVisible = kind == MaterialButtonGroupKind.Segmented;
-        _replaceSettings.IsVisible = kind != MaterialButtonGroupKind.Standard &&
+        _variantSettings.IsVisible = kind != MaterialButtonGroupKind.Segmented;
+        _shapeSettings.IsVisible = kind != MaterialButtonGroupKind.Segmented;
+        _selectionSettings.IsVisible = kind != MaterialButtonGroupKind.Segmented;
+        _checkSettings.IsVisible = mode != MaterialButtonGroupSelectionMode.None;
+        _replaceSettings.IsVisible = mode != MaterialButtonGroupSelectionMode.None &&
                                      _check.IsChecked == true && showIcon;
 
         _group.Kind = kind;
@@ -262,10 +262,12 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         _group.ControlSize = size;
         _group.ButtonShape = shape;
         _group.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
+        _group.HorizontalAlignment = kind == MaterialButtonGroupKind.Connected && !vertical
+            ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
         _group.SelectionMode = mode;
         _group.ShowSelectedIcon = _check.IsChecked == true;
         _group.ReplaceIconWhenSelected = _replace.IsChecked == true;
-        _group.Density = kind == MaterialButtonGroupKind.Segmented ? (int)Math.Round(_density.Value) : 0;
+        _group.Density = (int)Math.Round(_density.Value);
         _group.IsEnabled = _enabled.IsChecked == true;
         _group.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
 
@@ -319,10 +321,6 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
             item.Icon = showIcon ? _icons[i] : null;
             ToolTip.SetTip(item, labels[i]);
             AutomationProperties.SetName(item, showText ? labels[i] : $"Кнопка {i + 1}");
-            // The group writes a density-derived MinHeight for segmented items only; clearing the
-            // local value lets the theme metrics return after switching to another family.
-            if (_group.Kind != MaterialButtonGroupKind.Segmented)
-                item.ClearValue(Layoutable.MinHeightProperty);
         }
     }
 
