@@ -25,7 +25,6 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
     private readonly Grid _inline = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
     private readonly Border _body;
     private readonly ContentControl _stage = new();
-    private readonly TextBlock _status = new() { Text = "Выбрано: Главная", TextWrapping = TextWrapping.Wrap };
     private readonly MaterialButtonGroup _kind, _placement, _alignment, _badge;
     private readonly ToggleSwitch _labels, _menu, _fab, _header, _disabledLast, _enabled, _rtl, _dismiss, _closeOnSelection, _hideOnCollapse;
     private readonly Slider _count, _height;
@@ -63,25 +62,35 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
         _dismiss = Toggle("Закрытие по scrim", true);
         _closeOnSelection = Toggle("Закрывать при выборе", true);
         _hideOnCollapse = Toggle("Скрывать rail при сворачивании", false);
-        _body = new Border { Padding = new Thickness(24), Child = new StackPanel { Spacing = 16, Children = { new TextBlock { Text = "Область приложения", FontSize = 22 }, _open, _status } } };
+        _body = new Border { Child = _open };
         _host = new MaterialNavigationRailHost
         {
             Rail = _rail,
             CollapsedRail = _collapsedRail,
             IsModal = true
         };
-        _surface = new Border { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(16), ClipToBounds = true, Child = _stage, Margin = new Thickness(24), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Stretch };
-        _surface.Bind(Border.BorderBrushProperty, this.GetResourceObservable("MaterialOutlineVariantBrush"));
-        _body.Bind(Border.BackgroundProperty, this.GetResourceObservable("MaterialSurfaceContainerLowBrush"));
+        _host.TemplateApplied += (_, e) =>
+        {
+            foreach (var name in new[] { "PART_RailHost", "PART_CollapsedHost" })
+            {
+                if (e.NameScope.Find<Border>(name) is not { } presenter) continue;
+                presenter.HorizontalAlignment = HorizontalAlignment.Center;
+                presenter.PropertyChanged += (_, change) =>
+                {
+                    if (change.Property == HorizontalAlignmentProperty && presenter.HorizontalAlignment != HorizontalAlignment.Center)
+                        presenter.HorizontalAlignment = HorizontalAlignment.Center;
+                };
+            }
+        };
+        _surface = new Border { Child = _stage, Margin = new Thickness(24), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
         Children.Add(_surface);
         _open.Click += (_, _) => _host.OpenRail();
-        _host.RailClosed += (_, _) => _status.Text = "Rail закрыт · выбран пункт: " + (_rail.SelectedItem is MaterialNavigationRailItem item ? item.Content : "—");
-        _rail.MenuCommand = new ActionCommand(() => { if (_kind.SelectedIndex == 2) _host.CloseRail(); else _status.Text = "Нажато меню"; });
-        _collapsedRail.MenuCommand = new ActionCommand(() => { if (_kind.SelectedIndex == 2) _host.OpenRail(); else _status.Text = "Нажато меню"; });
-        _rail.FabCommand = new ActionCommand(() => _status.Text = "Нажато: " + _fabText.Text);
-        _collapsedRail.FabCommand = _rail.FabCommand;
-        _rail.SelectionChanged += (_, _) => { if (_rail.SelectedItem is MaterialNavigationRailItem item) _status.Text = "Выбрано: " + item.Content; };
-        _rail.ItemInvoked += (_, e) => _status.Text = "Открыто: " + e.Item.Content;
+        _rail.MenuCommand = new ActionCommand(() =>
+        {
+            if (_kind.SelectedIndex == 2) _host.CloseRail();
+            else _kind.SelectedIndex = _kind.SelectedIndex == 0 ? 1 : 0;
+        });
+        _collapsedRail.MenuCommand = new ActionCommand(() => _host.OpenRail());
         foreach (var choice in new[] { _kind, _placement, _alignment, _badge }) choice.SelectionChanged += (_, _) => Apply();
         foreach (var toggle in new[] { _labels, _menu, _fab, _header, _disabledLast, _enabled, _rtl, _dismiss, _closeOnSelection, _hideOnCollapse }) toggle.IsCheckedChanged += (_, _) => Apply();
         _count.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
@@ -114,9 +123,7 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
                 _stage.Content = _inline;
             }
         }
-        _rail.Mode = _kind.SelectedIndex == 0
-            ? MaterialNavigationRailMode.Compact
-            : MaterialNavigationRailMode.Wide;
+        _rail.Mode = MaterialNavigationRailMode.Wide;
         _rail.IsExpanded = _kind.SelectedIndex != 0;
         _host.Placement = _placement.SelectedIndex == 1 ? MaterialNavigationRailHostPlacement.Floating : MaterialNavigationRailHostPlacement.Docked;
         _rail.IsFloating = _placement.SelectedIndex == 1;
@@ -126,12 +133,14 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
         _rail.Header = _header.IsChecked == true ? _headerContent : null;
         _rail.FabText = _fabText.Text;
         _fabText.IsVisible = _rail.IsExpanded && _rail.ShowFab;
-        _open.IsVisible = modal;
+        _open.IsVisible = modal && _hideOnCollapse.IsChecked == true;
+        _body.IsVisible = _open.IsVisible;
         _dismiss.IsVisible = _closeOnSelection.IsVisible = _hideOnCollapse.IsVisible = modal;
         _host.IsLightDismissEnabled = _dismiss.IsChecked == true;
         _host.CloseOnSelection = _closeOnSelection.IsChecked == true;
         _host.HideOnCollapse = _hideOnCollapse.IsChecked == true;
         _surface.Height = _height.Value;
+        _host.Width = 440;
         _rail.Height = modal ? double.NaN : _height.Value;
         _rail.IsEnabled = _enabled.IsChecked == true;
         _surface.FlowDirection = _rtl.IsChecked == true ? Avalonia.Media.FlowDirection.RightToLeft : Avalonia.Media.FlowDirection.LeftToRight;
