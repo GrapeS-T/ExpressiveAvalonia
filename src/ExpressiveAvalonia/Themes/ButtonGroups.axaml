@@ -3,19 +3,9 @@
                     xmlns:controls="using:ExpressiveAvalonia.Controls"
                     xmlns:theming="using:ExpressiveAvalonia.Theming"
                     xmlns:data="using:Avalonia.Data.Converters">
-  <!-- Button group family: standard (separated action buttons), connected (2-DIP joined segments),
-       segmented (overlapping 1-DIP outline with the animated check mark) and split buttons.
-       Geometry comes from the pinned source: standard 12 DIP gap (ButtonGroupSmallTokens), 2 DIP
-       connected gap, segmented -1 DIP overlap, 40 DIP containers inside 48 DIP targets,
-       connected inner corners 8 DIP resting / 4 DIP pressed / full when selected, and 5 split
-       button sizes with a 2-DIP seam.
-       State layers and the press ripple are the shared MaterialRipple (source RippleNode), so no
-       finite pressed overlay doubles the alpha.
-       Corner morphs are frame-driven springs in the controls (FastSpatial for buttons, DefaultEffects
-       for split buttons), so the template only renders the current CornerRadius.
-       Disabled composition uses the pinned per-component tokens: OnSurface container at 10/12
-       percent, OnSurfaceVariant content at 38 percent, OutlineVariant outline for outlined
-       variants. -->
+  <!-- M3 Expressive: standard groups share press expansion; connected groups share width,
+       not press motion. Both reuse button colors, five sizes and round/square shapes.
+       Painted containers and 48-DIP targets stay separate. Outlines never inherit fill opacity. -->
 
   <ControlTheme x:Key="MaterialButtonGroupItemTheme" TargetType="controls:MaterialButtonGroupItem">
     <Setter Property="Background" Value="Transparent" />
@@ -28,6 +18,7 @@
     <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Focusable" Value="True" />
     <Setter Property="Template">
       <ControlTemplate>
@@ -35,8 +26,11 @@
           <Panel Name="ContainerHost" Margin="{TemplateBinding ContainerInset}">
             <Border Name="Surface"
                     Background="{TemplateBinding Background}"
+                    CornerRadius="{TemplateBinding CornerRadius}" />
+            <Border Name="Outline" Background="Transparent"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
+                    IsHitTestVisible="False"
                     CornerRadius="{TemplateBinding CornerRadius}" />
           </Panel>
 
@@ -62,6 +56,8 @@
             <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                               ContentTemplate="{TemplateBinding ContentTemplate}"
                               IsVisible="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static data:ObjectConverters.IsNotNull}}"
+                              LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
+                              LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}"
                               VerticalAlignment="Center" RecognizesAccessKey="True">
               <ContentPresenter.RenderTransform>
                 <TranslateTransform X="{Binding SegmentedContentOffset, RelativeSource={RelativeSource TemplatedParent}}" />
@@ -82,10 +78,12 @@
                                   EnableDrag="False"
                                   IsHitTestVisible="False" />
 
-          <Border Name="FocusRing" Margin="-4"
-                  CornerRadius="{TemplateBinding CornerRadius}"
-                  BorderBrush="{DynamicResource MaterialSecondaryBrush}"
-                  BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
+          <Panel Margin="{TemplateBinding ContainerInset}" IsHitTestVisible="False">
+            <controls:MaterialFocusIndicator Name="FocusRing" Margin="-5" UseLayoutRounding="False"
+                                             CornerRadius="{TemplateBinding theming:MaterialAssist.FocusRingCornerRadius}"
+                                             Stroke="{DynamicResource MaterialSecondaryBrush}"
+                                             StrokeThickness="3" IsActive="True" IsVisible="False" />
+          </Panel>
         </Panel>
       </ControlTemplate>
     </Setter>
@@ -109,43 +107,66 @@
       <Setter Property="TextWrapping" Value="NoWrap" />
       <Setter Property="TextTrimming" Value="None" />
     </Style>
+    <Style Selector="^ /template/ ContentPresenter controls|MaterialIcon">
+      <Setter Property="Theme" Value="{StaticResource MaterialButtonIconTheme}" />
+      <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource FindAncestor, AncestorType=controls:MaterialButtonGroupItem}}" />
+    </Style>
+    <Style Selector="^ /template/ ContentPresenter PathIcon">
+      <Setter Property="Theme" Value="{StaticResource MaterialButtonPathIconTheme}" />
+      <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource FindAncestor, AncestorType=controls:MaterialButtonGroupItem}}" />
+    </Style>
 
-    <!-- Standard group: separated action buttons. Filled uses the surface-container container. -->
-    <Style Selector="^[Kind=Standard][Variant=Filled]">
+    <!-- A group does not define its own palette: action buttons and toggles retain their roles. -->
+    <Style Selector="^[Kind=Standard][Variant=Filled], ^[Kind=Connected][Variant=Filled]">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Filled]:selectable:not(:checked), ^[Kind=Connected][Variant=Filled]:selectable:not(:checked)">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     </Style>
-    <Style Selector="^[Kind=Standard][Variant=Tonal]">
+    <Style Selector="^[Kind=Standard][Variant=Tonal], ^[Kind=Connected][Variant=Tonal]">
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
     </Style>
-    <Style Selector="^[Kind=Standard][Variant=Outlined]">
+    <Style Selector="^[Kind=Standard][Variant=Tonal]:checked, ^[Kind=Connected][Variant=Tonal]:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Outlined], ^[Kind=Connected][Variant=Outlined]">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
-    <Style Selector="^[Kind=Standard][Variant=Elevated]">
+    <Style Selector="^[Kind=Standard][Variant=Outlined][ControlSize=Large], ^[Kind=Connected][Variant=Outlined][ControlSize=Large]">
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Outlined][ControlSize=ExtraLarge], ^[Kind=Connected][Variant=Outlined][ControlSize=ExtraLarge]">
+      <Setter Property="BorderThickness" Value="3" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Outlined]:checked, ^[Kind=Connected][Variant=Outlined]:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialInverseSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialInverseOnSurfaceBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Elevated], ^[Kind=Connected][Variant=Elevated]">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
-    <Style Selector="^[Kind=Standard][Variant=Elevated] /template/ Border#Surface">
+    <Style Selector="^[Kind=Standard][Variant=Elevated]:checked, ^[Kind=Connected][Variant=Elevated]:checked">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Elevated] /template/ Border#Surface, ^[Kind=Connected][Variant=Elevated] /template/ Border#Surface">
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
     </Style>
-    <Style Selector="^[Kind=Standard][Variant=Text], ^[Kind=Standard][Variant=Standard]">
+    <Style Selector="^[Kind=Standard][Variant=Elevated]:pointerover:not(:pressed):not(:disabled) /template/ Border#Surface, ^[Kind=Connected][Variant=Elevated]:pointerover:not(:pressed):not(:disabled) /template/ Border#Surface">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel2Shadow}" />
+    </Style>
+    <Style Selector="^[Kind=Standard][Variant=Text], ^[Kind=Connected][Variant=Text], ^[Kind=Standard][Variant=Standard], ^[Kind=Connected][Variant=Standard]">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-    </Style>
-
-    <!-- Connected group: secondary container at rest; secondary with on-secondary when checked.
-         The seam corners morph on press (8 -> 4 DIP inner radius). -->
-    <Style Selector="^[Kind=Connected]">
-      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
-    </Style>
-    <Style Selector="^[Kind=Connected]:checked">
-      <Setter Property="Background" Value="{DynamicResource MaterialSecondaryBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
 
     <!-- Segmented: outlined container of the size's minimum, secondary container when selected.
@@ -178,119 +199,80 @@
     <Style Selector="^[Kind=Segmented] /template/ Path#PART_SegmentedCheckMark">
       <Setter Property="IsVisible" Value="{Binding ShowCheckIcon, RelativeSource={RelativeSource TemplatedParent}}" />
     </Style>
-    <Style Selector="^[Kind=Segmented] /template/ Border#FocusRing">
+    <Style Selector="^[Kind=Segmented] /template/ controls|MaterialFocusIndicator#FocusRing">
       <Setter Property="IsVisible" Value="False" />
     </Style>
 
     <!-- Standard sizes: 48/48/56/96/136 DIP targets with 32/40/56/96/136 DIP containers. -->
-    <Style Selector="^[Kind=Standard]">
+    <Style Selector="^[Kind=Standard], ^[Kind=Connected]">
       <Setter Property="MinWidth" Value="48" />
     </Style>
-    <Style Selector="^[Kind=Standard][ControlSize=ExtraSmall]">
-      <Setter Property="Padding" Value="12,6" />
+    <Style Selector="^[Kind=Standard][ControlSize=ExtraSmall], ^[Kind=Connected][ControlSize=ExtraSmall]">
+      <Setter Property="Padding" Value="12,0" />
       <Setter Property="IconSize" Value="20" />
       <Setter Property="ContentSpacing" Value="4" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
     </Style>
-    <Style Selector="^[Kind=Standard][ControlSize=Small]">
-      <Setter Property="Padding" Value="16,10" />
-      <Setter Property="IconSize" Value="20" />
-      <Setter Property="ContentSpacing" Value="8" />
-      <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
-      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
-    </Style>
-    <Style Selector="^[Kind=Standard][ControlSize=Medium]">
-      <Setter Property="Padding" Value="24,16" />
-      <Setter Property="IconSize" Value="24" />
-      <Setter Property="ContentSpacing" Value="8" />
-      <Setter Property="FontSize" Value="{DynamicResource MaterialTitleMediumFontSize}" />
-      <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleMediumFontWeight}" />
-    </Style>
-    <Style Selector="^[Kind=Standard][ControlSize=Medium] /template/ ContentPresenter#PART_ContentPresenter">
-    </Style>
-    <Style Selector="^[Kind=Standard][ControlSize=Large]">
-      <Setter Property="Padding" Value="48,32" />
-      <Setter Property="IconSize" Value="32" />
-      <Setter Property="ContentSpacing" Value="12" />
-      <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineSmallFontSize}" />
-      <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineSmallFontWeight}" />
-    </Style>
-    <Style Selector="^[Kind=Standard][ControlSize=Large] /template/ ContentPresenter#PART_ContentPresenter">
-    </Style>
-    <Style Selector="^[Kind=Standard][ControlSize=ExtraLarge]">
-      <Setter Property="Padding" Value="64,48" />
-      <Setter Property="IconSize" Value="40" />
-      <Setter Property="ContentSpacing" Value="16" />
-      <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineLargeFontSize}" />
-      <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineLargeFontWeight}" />
-    </Style>
-    <Style Selector="^[Kind=Standard][ControlSize=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter">
-    </Style>
-    <!-- Icon-only standard items are icon buttons: 40/52/72/128/184 DIP square targets. -->
-    <Style Selector="^[Kind=Standard][IsIconOnly=True]">
-      <Setter Property="Padding" Value="0" />
-    </Style>
-    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=ExtraSmall]">
-      <Setter Property="MinWidth" Value="40" />
-    </Style>
-    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=Small]">
-      <Setter Property="MinWidth" Value="52" />
-    </Style>
-    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=Medium]">
-      <Setter Property="MinWidth" Value="72" />
-    </Style>
-    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=Large]">
-      <Setter Property="MinWidth" Value="128" />
-    </Style>
-    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=ExtraLarge]">
-      <Setter Property="MinWidth" Value="184" />
-    </Style>
-
-    <!-- Connected sizes: segment heights 32/40/56/96/136 with the size's label padding. -->
-    <Style Selector="^[Kind=Connected]">
-      <Setter Property="MinWidth" Value="48" />
-    </Style>
-    <Style Selector="^[Kind=Connected][ControlSize=ExtraSmall]">
-      <Setter Property="Padding" Value="12,0" />
-      <Setter Property="IconSize" Value="20" />
-      <Setter Property="ContentSpacing" Value="8" />
-      <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
-      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
-    </Style>
-    <Style Selector="^[Kind=Connected][ControlSize=Small]">
+    <Style Selector="^[Kind=Standard][ControlSize=Small], ^[Kind=Connected][ControlSize=Small]">
       <Setter Property="Padding" Value="16,0" />
       <Setter Property="IconSize" Value="20" />
       <Setter Property="ContentSpacing" Value="8" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
     </Style>
-    <Style Selector="^[Kind=Connected][ControlSize=Medium]">
-      <Setter Property="Padding" Value="20,0" />
+    <Style Selector="^[Kind=Standard][ControlSize=Medium], ^[Kind=Connected][ControlSize=Medium]">
+      <Setter Property="Padding" Value="24,0" />
       <Setter Property="IconSize" Value="24" />
       <Setter Property="ContentSpacing" Value="8" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialTitleMediumFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleMediumFontWeight}" />
     </Style>
-    <Style Selector="^[Kind=Connected][ControlSize=Medium] /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="^[Kind=Standard][ControlSize=Medium] /template/ ContentPresenter#PART_ContentPresenter, ^[Kind=Connected][ControlSize=Medium] /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialTitleMediumLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialTitleMediumLetterSpacing}" />
     </Style>
-    <Style Selector="^[Kind=Connected][ControlSize=Large]">
-      <Setter Property="Padding" Value="32,0" />
+    <Style Selector="^[Kind=Standard][ControlSize=Large], ^[Kind=Connected][ControlSize=Large]">
+      <Setter Property="Padding" Value="48,0" />
       <Setter Property="IconSize" Value="32" />
       <Setter Property="ContentSpacing" Value="12" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineSmallFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineSmallFontWeight}" />
     </Style>
-    <Style Selector="^[Kind=Connected][ControlSize=Large] /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="^[Kind=Standard][ControlSize=Large] /template/ ContentPresenter#PART_ContentPresenter, ^[Kind=Connected][ControlSize=Large] /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineSmallLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineSmallLetterSpacing}" />
     </Style>
-    <Style Selector="^[Kind=Connected][ControlSize=ExtraLarge]">
-      <Setter Property="Padding" Value="48,0" />
+    <Style Selector="^[Kind=Standard][ControlSize=ExtraLarge], ^[Kind=Connected][ControlSize=ExtraLarge]">
+      <Setter Property="Padding" Value="64,0" />
       <Setter Property="IconSize" Value="40" />
       <Setter Property="ContentSpacing" Value="16" />
       <Setter Property="FontSize" Value="{DynamicResource MaterialHeadlineLargeFontSize}" />
       <Setter Property="FontWeight" Value="{DynamicResource MaterialHeadlineLargeFontWeight}" />
     </Style>
-    <Style Selector="^[Kind=Connected][ControlSize=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="^[Kind=Standard][ControlSize=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter, ^[Kind=Connected][ControlSize=ExtraLarge] /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialHeadlineLargeLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialHeadlineLargeLetterSpacing}" />
+    </Style>
+    <!-- Group icon buttons use the wide width axis; compact connected targets remain >=48 DIP. -->
+    <Style Selector="^[Kind=Standard][IsIconOnly=True], ^[Kind=Connected][IsIconOnly=True]">
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=ExtraSmall], ^[Kind=Connected][IsIconOnly=True][ControlSize=ExtraSmall]">
+      <Setter Property="MinWidth" Value="48" />
+    </Style>
+    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=Small], ^[Kind=Connected][IsIconOnly=True][ControlSize=Small]">
+      <Setter Property="MinWidth" Value="52" />
+      <Setter Property="IconSize" Value="24" />
+    </Style>
+    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=Medium], ^[Kind=Connected][IsIconOnly=True][ControlSize=Medium]">
+      <Setter Property="MinWidth" Value="72" />
+    </Style>
+    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=Large], ^[Kind=Connected][IsIconOnly=True][ControlSize=Large]">
+      <Setter Property="MinWidth" Value="128" />
+    </Style>
+    <Style Selector="^[Kind=Standard][IsIconOnly=True][ControlSize=ExtraLarge], ^[Kind=Connected][IsIconOnly=True][ControlSize=ExtraLarge]">
+      <Setter Property="MinWidth" Value="184" />
     </Style>
 
     <!-- Segmented: ButtonDefaults.MinWidth 58, 18 DIP icon, 12 DIP horizontal content padding,
@@ -305,14 +287,14 @@
       <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
 
-    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+    <Style Selector="^:focus-visible /template/ controls|MaterialFocusIndicator#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
 
-    <!-- Disabled: OnSurface container at the component opacity, OnSurfaceVariant content at 38%,
-         outlined variants keep a full-opacity OutlineVariant stroke and no container. -->
+    <!-- Disabled fill and content fade independently; outlines remain visible. -->
     <Style Selector="^:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineVariantBrush}" />
     </Style>
     <Style Selector="^:disabled /template/ Border#Surface">
@@ -320,39 +302,26 @@
       <Setter Property="Opacity" Value="0.10" />
       <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
     </Style>
-    <Style Selector="^[Kind=Standard][Variant=Tonal]:disabled /template/ Border#Surface">
-      <Setter Property="Opacity" Value="0.12" />
-    </Style>
     <Style Selector="^:disabled /template/ StackPanel#ContentHost">
-      <Setter Property="Opacity" Value="0.38" />
-    </Style>
-    <Style Selector="^:disabled /template/ StackPanel#SegmentedContentHost">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
     <Style Selector="^:disabled /template/ theming|MaterialRipple#StateLayer">
       <Setter Property="Opacity" Value="0" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#FocusRing">
+    <Style Selector="^:disabled /template/ controls|MaterialFocusIndicator#FocusRing">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <Style Selector="^[Kind=Standard][Variant=Outlined]:disabled">
+    <Style Selector="^[Kind=Standard][Variant=Outlined]:disabled:not(:checked) /template/ Border#Surface, ^[Kind=Connected][Variant=Outlined]:disabled:not(:checked) /template/ Border#Surface,
+                     ^[Kind=Standard][Variant=Text]:disabled /template/ Border#Surface, ^[Kind=Connected][Variant=Text]:disabled /template/ Border#Surface,
+                     ^[Kind=Standard][Variant=Standard]:disabled /template/ Border#Surface, ^[Kind=Connected][Variant=Standard]:disabled /template/ Border#Surface">
       <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style Selector="^[Kind=Standard][Variant=Outlined]:disabled /template/ Border#Surface">
-      <Setter Property="Opacity" Value="0" />
-    </Style>
-    <Style Selector="^[Kind=Standard][Variant=Outlined]:disabled /template/ Border#Surface">
-      <Setter Property="BorderBrush" Value="Transparent" />
-    </Style>
-    <Style Selector="^[Kind=Segmented]:disabled">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="^[Kind=Segmented]:disabled /template/ Border#Surface">
-      <Setter Property="Opacity" Value="0" />
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="^[Kind=Segmented]:disabled /template/ Border#Outline">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Opacity" Value="0.12" />
     </Style>
   </ControlTheme>
 
@@ -399,14 +368,16 @@
 
   <ControlTheme x:Key="MaterialButtonGroupBase" TargetType="controls:MaterialButtonGroup">
     <Setter Property="Background" Value="Transparent" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="{TemplateBinding Background}">
-          <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto">
+          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto">
             <ItemsPresenter Name="PART_ItemsPresenter" Grid.Column="0"
                             ItemsPanel="{TemplateBinding ItemsPanel}"
+                            ClipToBounds="False"
                             Margin="{TemplateBinding Padding}" />
             <Button Name="PART_OverflowButton" Grid.Column="1"
                     Theme="{StaticResource MaterialButtonGroupOverflowButton}"

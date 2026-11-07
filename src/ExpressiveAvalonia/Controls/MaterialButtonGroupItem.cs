@@ -53,7 +53,7 @@ public class MaterialButtonGroupItem : ToggleButton
     public static readonly StyledProperty<MaterialButtonShape> ButtonShapeProperty =
         AvaloniaProperty.Register<MaterialButtonGroupItem, MaterialButtonShape>(nameof(ButtonShape));
 
-    /// <summary>The color treatment of a standard group item.</summary>
+    /// <summary>The color treatment, inherited from the group unless set locally.</summary>
     public static readonly StyledProperty<MaterialButtonVariant> VariantProperty =
         AvaloniaProperty.Register<MaterialButtonGroupItem, MaterialButtonVariant>(
             nameof(Variant), MaterialButtonVariant.Filled);
@@ -172,6 +172,8 @@ public class MaterialButtonGroupItem : ToggleButton
 
     /// <summary>The spring-driven pressed-expansion progress; spatial overshoot is preserved.</summary>
     internal double PressExpansion { get; set; }
+
+    internal void SetSelectable(bool selectable) => PseudoClasses.Set(":selectable", selectable);
 
     /// <summary>The maximum width the neighbours may compress, taken from the content padding.</summary>
     internal double CompressionLimit { get; set; }

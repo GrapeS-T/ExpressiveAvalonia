@@ -24,10 +24,9 @@ namespace ExpressiveAvalonia.Controls;
 
 /// <summary>The three Material Expressive button group anatomies.</summary>
 /// <remarks>
-/// <see cref="Standard"/> separates its buttons (12 DIP at the source Small size) and every button
-/// is an independent action that expands on press while its neighbours compress.
-/// <see cref="Connected"/> joins segments with a 2-DIP gap, paints the selected segment in the
-/// secondary color with a pill silhouette, and morphs the inner seam corners on press.
+/// <see cref="Standard"/> separates action or toggle buttons and expands a pressed button while
+/// its neighbours compress. <see cref="Connected"/> joins toggle buttons with a 2-DIP gap,
+/// applies the chosen button color treatment, and morphs only the activated button's shape.
 /// <see cref="Segmented"/> joins outlined segments that overlap by the 1-DIP stroke and fills the
 /// selected segment with the secondary container color.
 /// </remarks>
@@ -116,7 +115,7 @@ public class MaterialButtonGroup : ItemsControl
     public static readonly StyledProperty<MaterialButtonShape> ButtonShapeProperty =
         AvaloniaProperty.Register<MaterialButtonGroup, MaterialButtonShape>(nameof(ButtonShape));
 
-    /// <summary>The color treatment of a standard group.</summary>
+    /// <summary>The default color treatment; an item's local Variant can override it.</summary>
     public static readonly StyledProperty<MaterialButtonVariant> VariantProperty =
         AvaloniaProperty.Register<MaterialButtonGroup, MaterialButtonVariant>(
             nameof(Variant), MaterialButtonVariant.Filled);
@@ -130,8 +129,8 @@ public class MaterialButtonGroup : ItemsControl
         AvaloniaProperty.Register<MaterialButtonGroup, bool>(nameof(ReplaceIconWhenSelected));
 
     /// <summary>
-    /// The segmented button density from 0 to -3, which lowers the segment height by 4 DIP per step.
-    /// Only <see cref="MaterialButtonGroupKind.Segmented"/> uses it; it is an Avalonia extension.
+    /// Density from 0 to -3, lowering the painted container by 4 DIP per step while preserving
+    /// the minimum 48-DIP interaction target of standard and connected buttons.
     /// </summary>
     public static readonly StyledProperty<int> DensityProperty =
         AvaloniaProperty.Register<MaterialButtonGroup, int>(nameof(Density),
@@ -182,9 +181,6 @@ public class MaterialButtonGroup : ItemsControl
     // between logical CornerBasedShape targets. CornerFull stays a 50 percent corner of the painted
     // container, so no corner is ever a numeric 9999 DIP value and a resize re-resolves it.
     private const double ShapeProgressThreshold = 0.01;
-
-    // Matches the 12-DIP margin of the overflow button in ButtonGroups.axaml.
-    private const double OverflowGap = 12;
 
     private readonly Dictionary<MaterialButtonGroupItem, ItemExpansion> _expansions = [];
     private readonly Dictionary<MaterialButtonGroupItem, ItemShape> _shapes = [];
@@ -306,17 +302,28 @@ public class MaterialButtonGroup : ItemsControl
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == OrientationProperty || change.Property == KindProperty)
+        if (change.Property == OrientationProperty || change.Property == KindProperty ||
+            change.Property == ControlSizeProperty)
         {
             UpdatePanel();
+            if (change.Property == KindProperty || change.Property == OrientationProperty)
+            {
+                foreach (var (item, expansion) in _expansions)
+                {
+                    expansion.Spring?.Dispose();
+                    item.PressExpansion = 0;
+                }
+                _expansions.Clear();
+            }
             RefreshItems();
         }
-        else if (change.Property == ControlSizeProperty || change.Property == ButtonShapeProperty ||
-                 change.Property == VariantProperty || change.Property == ShowSelectedIconProperty ||
-                 change.Property == ReplaceIconWhenSelectedProperty || change.Property == DensityProperty ||
-                 change.Property == SelectionModeProperty)
+        else if (change.Property == ButtonShapeProperty || change.Property == VariantProperty ||
+                 change.Property == ShowSelectedIconProperty || change.Property == ReplaceIconWhenSelectedProperty ||
+                 change.Property == DensityProperty || change.Property == SelectionModeProperty)
         {
             RefreshItems();
+            if (change.Property == SelectionModeProperty)
+                ApplySelectedIndex();
         }
         else if (change.Property == ExpandedRatioProperty)
         {
@@ -355,6 +362,9 @@ public class MaterialButtonGroup : ItemsControl
         base.PrepareContainerForItemOverride(container, item, index);
         if (container is not MaterialButtonGroupItem groupItem)
             return;
+
+        if (!ReferenceEquals(_panel, ItemsPanelRoot))
+            UpdatePanel();
 
         groupItem.PropertyChanged -= OnItemPropertyChanged;
         groupItem.PropertyChanged += OnItemPropertyChanged;
@@ -429,14 +439,15 @@ public class MaterialButtonGroup : ItemsControl
         _panel.Orientation = Orientation;
         _panel.Spacing = SpacingFor(Kind, ControlSize);
         _panel.EqualizeWidths = Kind == MaterialButtonGroupKind.Segmented;
+        _panel.StretchWidths = Kind == MaterialButtonGroupKind.Connected;
         _panel.ExpandedRatio = ExpandedRatio;
+        if (_overflowButton is not null)
+            _overflowButton.Margin = new Thickness(_panel.Spacing, 0, 0, 0);
         _panel.InvalidateMeasure();
     }
 
-    // Source spacing: standard 12 DIP (ButtonGroupSmallTokens.BetweenSpace), connected 2 DIP
-    // (ConnectedButtonGroupSmallTokens.BetweenSpace), segmented −1 DIP so the 1 DIP outlines of
-    // adjacent segments overlap exactly (Arrangement.spacedBy(-space)). The extra standard sizes
-    // are an Avalonia extension of the single source Small size.
+    // M3 spacing: standard XS/S/M/L/XL = 18/12/8/8/8 DIP, connected = 2 DIP;
+    // segmented outlines overlap by their 1-DIP stroke.
     private static double SpacingFor(MaterialButtonGroupKind kind, MaterialControlSize size) => kind switch
     {
         MaterialButtonGroupKind.Segmented => -1,
@@ -463,8 +474,23 @@ public class MaterialButtonGroup : ItemsControl
     private void RefreshItems()
     {
         var items = GetGroupItems();
+        var visibleCount = 0;
+        foreach (var item in items)
+            if (item.IsVisible) visibleCount++;
+        var visibleIndex = 0;
         for (var i = 0; i < items.Count; i++)
+        {
             ApplyItemAppearance(items[i], i);
+            if (items[i].IsVisible)
+            {
+                items[i].Position = visibleCount == 1 ? MaterialButtonGroupItemPosition.Only
+                    : visibleIndex == 0 ? MaterialButtonGroupItemPosition.First
+                    : visibleIndex == visibleCount - 1 ? MaterialButtonGroupItemPosition.Last
+                    : MaterialButtonGroupItemPosition.Middle;
+                visibleIndex++;
+                ApplyItemCorners(items[i], animate: false);
+            }
+        }
         UpdateTabStops();
 
         if (SelectedIndex >= ItemCount)
@@ -477,7 +503,8 @@ public class MaterialButtonGroup : ItemsControl
         item.Kind = Kind;
         item.ControlSize = ControlSize;
         item.ButtonShape = ButtonShape;
-        item.Variant = Variant;
+        item.SetValue(MaterialButtonGroupItem.VariantProperty, Variant, BindingPriority.Style);
+        item.SetSelectable(SelectionMode != MaterialButtonGroupSelectionMode.None);
         item.ShowSelectedIcon = ShowSelectedIcon;
         item.ReplaceIconWhenSelected = ReplaceIconWhenSelected;
         item.GroupOrientation = Orientation;
@@ -492,22 +519,18 @@ public class MaterialButtonGroup : ItemsControl
                     ? MaterialButtonGroupItemPosition.Last
                     : MaterialButtonGroupItemPosition.Middle;
 
-        var compact = ControlSize is MaterialControlSize.ExtraSmall or MaterialControlSize.Small;
-        item.ContainerInset = Kind != MaterialButtonGroupKind.Segmented && compact
-            ? new Thickness(0, ControlSize == MaterialControlSize.ExtraSmall ? 8 : 4)
-            : default;
-
-        item.MinHeight = Kind switch
+        var containerHeight = (ControlSize switch
         {
-            MaterialButtonGroupKind.Segmented => 40 + Density * 4,
-            _ when compact => 48,
-            _ => ControlSize switch
-            {
-                MaterialControlSize.Medium => 56,
-                MaterialControlSize.Large => 96,
-                _ => 136
-            }
-        };
+            MaterialControlSize.ExtraSmall => 32,
+            MaterialControlSize.Small => 40,
+            MaterialControlSize.Medium => 56,
+            MaterialControlSize.Large => 96,
+            _ => 136
+        }) + Density * 4;
+        var height = Math.Max(48, containerHeight);
+        item.ContainerInset = Kind == MaterialButtonGroupKind.Segmented
+            ? default : new Thickness(0, (height - containerHeight) / 2);
+        item.MinHeight = Kind == MaterialButtonGroupKind.Segmented ? 40 + Density * 4 : height;
 
         UpdateItemZIndex(item);
 
@@ -531,10 +554,9 @@ public class MaterialButtonGroup : ItemsControl
     private void SetCompressionLimit(MaterialButtonGroupItem item)
     {
         var padding = item.Padding;
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
-        item.CompressionLimit = Orientation == AvaloniaOrientation.Horizontal
-            ? (rtl ? padding.Left : padding.Right)
-            : (rtl ? padding.Top : padding.Bottom);
+        item.CompressionLimit = item.IsIconOnly
+            ? Math.Max(0, (item.Bounds.Width - item.IconSize) / 2)
+            : Math.Max(0, Math.Min(padding.Left, padding.Right));
     }
 
     private double InnerRadius(MaterialControlSize size) => size switch
@@ -599,8 +621,7 @@ public class MaterialButtonGroup : ItemsControl
         }
     }
 
-    // Builds the logical start/end silhouette for a row position. Flow direction is applied once
-    // by CornerShape.Resolve, so this stays independent of the reading direction.
+    // Builds logical start/end corners; Avalonia's visual plane supplies the RTL reflection.
     private MaterialAssist.CornerShape SegmentShape(MaterialButtonGroupItemPosition position,
         MaterialAssist.CornerShape outer, MaterialAssist.CornerShape value)
     {
@@ -714,9 +735,13 @@ public class MaterialButtonGroup : ItemsControl
         if (minDimension <= 0)
             return;
 
-        var rightToLeft = FlowDirection == FlowDirection.RightToLeft;
-        item.SetCurrentValue(TemplatedControl.CornerRadiusProperty,
-            shape.From.Resolve(shape.Target, progress, minDimension, rightToLeft));
+        // Avalonia mirrors the RTL visual plane, including the border geometry. Resolve logical
+        // corners here so the renderer performs the only start/end reflection.
+        var radius = shape.From.Resolve(shape.Target, progress, minDimension, false);
+        item.SetCurrentValue(TemplatedControl.CornerRadiusProperty, radius);
+        item.SetCurrentValue(MaterialAssist.FocusRingCornerRadiusProperty,
+            new CornerRadius(radius.TopLeft + 5, radius.TopRight + 5,
+                radius.BottomRight + 5, radius.BottomLeft + 5));
     }
 
     private static Size ContainerSize(MaterialButtonGroupItem item, Size? itemSize)
@@ -736,6 +761,8 @@ public class MaterialButtonGroup : ItemsControl
             && _shapes.TryGetValue(item, out var shape)
             && shape.Initialized)
             ResolveItemCorners(item, shape, shape.Progress, e.NewSize);
+        if (sender is MaterialButtonGroupItem resized)
+            SetCompressionLimit(resized);
     }
 
     private void ResolveAllItemCorners()
@@ -816,6 +843,14 @@ public class MaterialButtonGroup : ItemsControl
                 SetPressExpansion(item, pressed);
         }
         else if (e.Property == TemplatedControl.PaddingProperty)
+        {
+            SetCompressionLimit(item);
+        }
+        else if (e.Property == IsVisibleProperty && !_applyingOverflow)
+        {
+            RefreshItems();
+        }
+        else if (e.Property == MaterialButtonGroupItem.IsIconOnlyProperty)
         {
             SetCompressionLimit(item);
         }
@@ -1065,6 +1100,10 @@ public class MaterialButtonGroup : ItemsControl
 
     private void OnLayoutUpdated(object? sender, EventArgs e)
     {
+        // ItemsPresenter creates its panel after OnApplyTemplate. Initialize at realization,
+        // not only when a caller happens to change Kind after the first layout.
+        if (!ReferenceEquals(_panel, ItemsPanelRoot))
+            UpdatePanel();
         if (_applyingOverflow)
             return;
 
@@ -1138,7 +1177,7 @@ public class MaterialButtonGroup : ItemsControl
         var available = _availableWidth;
         var needsOverflow = total > available + 0.5;
 
-        var overflowWidth = Math.Max(48, _overflowButton.DesiredSize.Width) + OverflowGap;
+        var overflowWidth = Math.Max(48, _overflowButton.DesiredSize.Width) + spacing;
         var fit = items.Count;
         if (needsOverflow)
         {
@@ -1149,7 +1188,7 @@ public class MaterialButtonGroup : ItemsControl
             {
                 var width = _itemWidths[items[i]];
                 var next = used + (fit > 0 ? spacing : 0) + width;
-                if (next > budget && fit > 0)
+                if (next > budget)
                     break;
                 used = next;
                 fit++;
