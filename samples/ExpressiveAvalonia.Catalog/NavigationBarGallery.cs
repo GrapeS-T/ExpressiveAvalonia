@@ -75,11 +75,12 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
             Text = "Содержимое выбранного пункта.",
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = 360,
+            HorizontalAlignment = HorizontalAlignment.Left,
         };
         MaterialTypography.SetStyle(body, MaterialTypeStyle.BodyMedium);
         _status.FontSize = 14;
 
-        var pageStack = new StackPanel { Spacing = 12 };
+        var pageStack = new StackPanel { Spacing = 12, HorizontalAlignment = HorizontalAlignment.Left };
         pageStack.Children.Add(_pageTitle);
         pageStack.Children.Add(body);
         pageStack.Children.Add(_status);

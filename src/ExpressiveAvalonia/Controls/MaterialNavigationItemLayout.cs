@@ -380,10 +380,10 @@ public sealed class MaterialNavigationItemLayout : Panel
         }
 
         PlaceIndicator(Child(0), (finalSize.Width - indicatorWidth) / 2, indicatorY, indicatorWidth, indicatorHeight);
-        Place(Child(1), (finalSize.Width - totalIndicatorWidth) / 2, (finalSize.Height - indicatorHeight) / 2,
+        Place(Child(1), (finalSize.Width - totalIndicatorWidth) / 2, indicatorY,
             totalIndicatorWidth, indicatorHeight);
         Place(Child(2), iconX, iconY, iconSize, iconSize);
-        Place(Child(4), (finalSize.Width - totalIndicatorWidth) / 2, (finalSize.Height - indicatorHeight) / 2,
+        Place(Child(4), (finalSize.Width - totalIndicatorWidth) / 2, indicatorY,
             totalIndicatorWidth, indicatorHeight);
         Child(0)?.SetValue(OpacityProperty, Clamp01(IndicatorAlpha));
         if (!hasLabel)
