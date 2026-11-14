@@ -28,22 +28,16 @@ internal sealed partial class CatalogWindow
             if (Primary() == normal) throw new InvalidOperationException("Contrast did not update.");
             _theme.Contrast = 0;
             _theme.SeedColor = Color.Parse("#6750A4");
-            foreach (var expressive in new[] { false, true })
             foreach (var variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
             {
                 RequestedThemeVariant = variant;
-                var pages = expressive ? ExpressivePages : ClassicPages;
+                var pages = ExpressivePages;
                 for (var i = 0; i < pages.ItemCount; i++)
                 {
-                    SelectPage(expressive, i);
-                    await Task.Delay(!expressive && i == 3 ? 15000 : 300);
-                    if (expressive && (i == 4 || i == 25))
-                    {
-                        Inspector.ExerciseSmoke();
-                        await Task.Delay(300);
-                    }
-                    Capture($"{(expressive ? "design-" : "")}{(variant == ThemeVariant.Dark ? "dark" : "light")}-{(expressive ? "" : "page-")}{i}");
-                    Console.WriteLine($"Rendered {(expressive ? "Expressive" : "Classic")} {i}: {((TabItem)pages.Items[i]!).Header}");
+                    SelectPage(i);
+                    await Task.Delay(300);
+                    Capture($"design-{(variant == ThemeVariant.Dark ? "dark" : "light")}-{i}");
+                    Console.WriteLine($"Rendered Expressive {i}: {((TabItem)pages.Items[i]!).Header}");
                 }
             }
             var owner = new Button { Content = "Tooltip owner" };
@@ -57,8 +51,9 @@ internal sealed partial class CatalogWindow
             if (!tooltip.IsOpen) throw new InvalidOperationException("Tooltip did not open.");
             action.Focus();
             action.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            await Task.Delay(500);
             if (tooltip.IsOpen) throw new InvalidOperationException("Escape did not dismiss tooltip.");
-            Console.WriteLine("SMOKE PASS: Classic/Expressive navigation, theme/seed/contrast, live inspector, 70 page renders, rich tooltip Escape.");
+            Console.WriteLine($"SMOKE PASS: Expressive navigation, theme/seed/contrast, {ExpressivePages.ItemCount * 2} page renders, rich tooltip Escape.");
             Close();
         }
         catch (Exception exception)

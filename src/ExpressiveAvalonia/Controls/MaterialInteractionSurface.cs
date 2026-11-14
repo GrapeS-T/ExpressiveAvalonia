@@ -2,8 +2,10 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -15,15 +17,25 @@ namespace ExpressiveAvalonia.Controls;
 /// <para>
 /// The design source contains no behavior, so the interaction follows native Avalonia button
 /// semantics: a primary-button press inside the surface followed by a release inside it raises
-/// <see cref="Click"/>; Space and Enter activate it while focused; a <see cref="Command"/> runs
-/// only when <see cref="Click"/> was not handled, matching <see cref="Button.OnClick"/>.
+/// <see cref="Click"/>; a Space or Enter press-release gesture activates it while focused; a
+/// <see cref="Command"/> runs only when <see cref="Click"/> was not handled, matching
+/// <see cref="Button.OnClick"/>.
+/// </para>
+/// <para>
+/// Keyboard activation is paired like the source clickable: the initial Space or Enter press
+/// starts a gesture, auto-repeat presses are ignored, and the matching release raises
+/// <see cref="Click"/> once. Moving focus away, turning interactivity or the effective enabled
+/// state off, or detaching the surface cancels the pending gesture, so a held key cannot fire
+/// after the surface stopped accepting input. The pointer gesture is likewise tied to the pointer
+/// that captured it; capture loss cancels only the pointer gesture and leaves a held key intact.
 /// </para>
 /// <para>
 /// The surface is inert unless <see cref="IsInteractive"/> is true. An inert surface takes no tab
 /// stop, shows no pointer cursor and ignores pointer and key input, so an avatar used purely as
 /// decoration does not interrupt keyboard navigation. Turning interactivity on sets
-/// <see cref="InputElement.Focusable"/> and <c>KeyboardNavigation.IsTabStop</c> through
-/// <c>SetCurrentValue</c>, which leaves an explicit consumer value in place.
+/// <see cref="InputElement.Focusable"/> and <c>KeyboardNavigation.IsTabStop</c> at
+/// <see cref="BindingPriority.StyleTrigger"/> priority, which overrides the inert default a control
+/// theme declares while leaving an explicit consumer local value in place.
 /// </para>
 /// <para>
 /// The <c>:pointerover</c>, <c>:focus-visible</c> and <c>:disabled</c> pseudo-classes come from
@@ -52,7 +64,11 @@ public abstract class MaterialInteractionSurface : TemplatedControl
 
     private static readonly Cursor s_hand = new(StandardCursorType.Hand);
 
-    private bool _pressed;
+    // Activation keys currently held, keyed by key so auto-repeat presses do not stack gestures.
+    private readonly HashSet<Key> _activationKeys = [];
+
+    private IPointer? _pointerCapture;
+    private bool _pointerPressed;
 
     static MaterialInteractionSurface()
     {
@@ -91,7 +107,7 @@ public abstract class MaterialInteractionSurface : TemplatedControl
         set => SetValue(CommandParameterProperty, value);
     }
 
-    /// <summary>Invokes the surface exactly as a pointer release or Space/Enter would.</summary>
+    /// <summary>Invokes the surface exactly as a completed pointer or Space/Enter gesture would.</summary>
     /// <remarks>An inert or disabled surface does nothing.</remarks>
     public void Invoke()
     {
@@ -108,11 +124,13 @@ public abstract class MaterialInteractionSurface : TemplatedControl
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (!IsInteractive || !IsEffectivelyEnabled || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        if (!IsInteractive || !IsEffectivelyEnabled || _pointerPressed ||
+            !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             return;
 
-        _pressed = true;
-        PseudoClasses.Set(":pressed", true);
+        _pointerPressed = true;
+        UpdatePressedClass();
+        _pointerCapture = e.Pointer;
         e.Pointer.Capture(this);
         e.Handled = true;
     }
@@ -121,16 +139,18 @@ public abstract class MaterialInteractionSurface : TemplatedControl
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (!_pressed)
+        if (!_pointerPressed || e.Pointer != _pointerCapture)
             return;
 
-        _pressed = false;
-        PseudoClasses.Set(":pressed", false);
-        e.Pointer.Capture(null);
-        if (!IsInteractive || !IsEffectivelyEnabled || e.InitialPressMouseButton != MouseButton.Left)
-            return;
         // A drag that ends outside the surface cancels the activation, like a native button.
-        if (!new Rect(Bounds.Size).Contains(e.GetPosition(this)))
+        var activate = IsInteractive && IsEffectivelyEnabled &&
+                       e.InitialPressMouseButton == MouseButton.Left &&
+                       new Rect(Bounds.Size).Contains(e.GetPosition(this));
+        _pointerPressed = false;
+        _pointerCapture = null;
+        UpdatePressedClass();
+        e.Pointer.Capture(null);
+        if (!activate)
             return;
 
         e.Handled = true;
@@ -141,30 +161,97 @@ public abstract class MaterialInteractionSurface : TemplatedControl
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
-        _pressed = false;
-        PseudoClasses.Set(":pressed", false);
+        // Losing capture ends the pointer gesture but must not cancel a held activation key.
+        _pointerCapture = null;
+        _pointerPressed = false;
+        UpdatePressedClass();
     }
 
     /// <inheritdoc />
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (!IsInteractive || !IsEffectivelyEnabled || e.Handled)
-            return;
-        if (e.Key is not (Key.Space or Key.Enter))
+        if (e.Handled || !IsInteractive || !IsEffectivelyEnabled || !IsActivationKey(e.Key))
             return;
 
+        // Auto-repeat sends more downs for the key already held; the source ignores them, so the
+        // gesture only starts once and still completes on the matching release.
+        _activationKeys.Add(e.Key);
+        UpdatePressedClass();
         e.Handled = true;
+    }
+
+    /// <inheritdoc />
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+        if (!_activationKeys.Remove(e.Key))
+            return;
+
+        UpdatePressedClass();
+        e.Handled = true;
+        if (!IsInteractive || !IsEffectivelyEnabled)
+            return;
+
         Invoke();
+    }
+
+    /// <inheritdoc />
+    protected override void OnLostFocus(FocusChangedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        // Focus left before the matching release, so the press can no longer complete.
+        CancelKeyboardPress();
+    }
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        // Disabling the surface or any ancestor cancels the pending gesture, including capture.
+        if (change.Property == InputElement.IsEffectivelyEnabledProperty && !IsEffectivelyEnabled)
+            CancelInteraction();
+    }
+
+    /// <inheritdoc />
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        base.OnApplyTemplate(e);
+        MaterialSurface.Connect(this, e.NameScope.Find<Border>("PART_Container"));
     }
 
     /// <inheritdoc />
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        // A recycled surface must not stay visually pressed or keep the pointer captured.
-        _pressed = false;
-        PseudoClasses.Set(":pressed", false);
+        // A recycled surface must not stay visually pressed, activate a stale key gesture or keep
+        // the pointer captured.
+        CancelInteraction();
+    }
+
+    private static bool IsActivationKey(Key key) => key is Key.Space or Key.Enter;
+
+    private void UpdatePressedClass() =>
+        PseudoClasses.Set(":pressed", _pointerPressed || _activationKeys.Count > 0);
+
+    private void CancelKeyboardPress()
+    {
+        if (_activationKeys.Count == 0)
+            return;
+
+        _activationKeys.Clear();
+        UpdatePressedClass();
+    }
+
+    private void CancelInteraction()
+    {
+        CancelKeyboardPress();
+        var capture = _pointerCapture;
+        _pointerCapture = null;
+        _pointerPressed = false;
+        UpdatePressedClass();
+        if (capture?.Captured == this)
+            capture.Capture(null);
     }
 
     private void UpdateInteraction()
@@ -172,12 +259,15 @@ public abstract class MaterialInteractionSurface : TemplatedControl
         var interactive = IsInteractive;
         PseudoClasses.Set(":interactive", interactive);
         Cursor = interactive ? s_hand : null;
-        SetCurrentValue(FocusableProperty, interactive);
-        SetCurrentValue(KeyboardNavigation.IsTabStopProperty, interactive);
+        // A control theme may declare the inert default (the avatar theme sets Focusable=False).
+        // IsInteractive is usually set in a consumer initializer, before that theme is applied, and
+        // SetCurrentValue keeps the priority the property had at that moment - which is Unset, so
+        // the later theme setter wins and an interactive surface never becomes focusable. Writing at
+        // StyleTrigger outranks theme and template values independent of that ordering while an
+        // explicit consumer local value still wins.
+        SetValue(FocusableProperty, interactive, BindingPriority.StyleTrigger);
+        SetValue(KeyboardNavigation.IsTabStopProperty, interactive, BindingPriority.StyleTrigger);
         if (!interactive)
-        {
-            _pressed = false;
-            PseudoClasses.Set(":pressed", false);
-        }
+            CancelInteraction();
     }
 }

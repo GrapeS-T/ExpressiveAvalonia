@@ -4,8 +4,9 @@
 .idea/
 artifacts/
 tools/FigmaExport/
+docs/compose-port/
+docs/compose-port-source-index.md
 
 # Custom local scripts
 /run.bat
 *.local.bat
-

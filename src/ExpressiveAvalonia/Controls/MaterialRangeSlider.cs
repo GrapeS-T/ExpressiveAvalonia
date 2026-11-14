@@ -16,7 +16,10 @@ namespace ExpressiveAvalonia.Controls;
 /// <summary>A horizontal slider with independently focusable lower and upper endpoints.</summary>
 /// <remarks>Endpoints clamp at one another rather than exchanging identities. Values and bounds
 /// must be finite; change sizes and tick frequency must also be nonnegative. A zero tick
-/// frequency disables snapping. Endpoint names can be localized through the template thumbs.</remarks>
+/// frequency disables snapping. Endpoint names can be localized through the template thumbs.
+/// Mouse input keeps the desktop-native press-jump-and-drag policy. Touch and pen wait for the
+/// source pointer slop, decide between horizontal drag and vertical parent scroll, and never
+/// change a value for a vertical movement.</remarks>
 [TemplatePart("PART_LowerThumb", typeof(Thumb))]
 [TemplatePart("PART_UpperThumb", typeof(Thumb))]
 [TemplatePart("PART_TrackCanvas", typeof(Canvas))]
@@ -49,13 +52,26 @@ public sealed class MaterialRangeSlider : TemplatedControl
     public static readonly StyledProperty<bool> IsSnapToTickEnabledProperty =
         AvaloniaProperty.Register<MaterialRangeSlider, bool>(nameof(IsSnapToTickEnabled));
 
+    /// <summary>Defines the <see cref="ValueChangeCompleted"/> routed event.</summary>
+    public static readonly RoutedEvent<RoutedEventArgs> ValueChangeCompletedEvent =
+        RoutedEvent.Register<MaterialRangeSlider, RoutedEventArgs>(
+            nameof(ValueChangeCompleted), RoutingStrategies.Bubble);
+
     private Canvas? _canvas;
     private MaterialSliderTrack? _trackVisual;
     private Thumb? _lowerThumb;
     private Thumb? _upperThumb;
     private Thumb? _activeThumb;
+    // Source pointerSlop for touch/pen before a press becomes a drag. Mouse input keeps the
+    // desktop-native immediate press policy and never reads this value.
+    private const double TouchSlop = 8d;
+
     private IPointer? _capturedPointer;
     private double _grabOffset;
+    private Point _pressPoint;
+    private bool _dragStarted;
+    private bool _verticalCancelled;
+    private bool _pressNearCoincidentEndpoints;
 
     public double Minimum { get => GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
     public double Maximum { get => GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
@@ -65,6 +81,21 @@ public sealed class MaterialRangeSlider : TemplatedControl
     public double LargeChange { get => GetValue(LargeChangeProperty); set => SetValue(LargeChangeProperty, value); }
     public double TickFrequency { get => GetValue(TickFrequencyProperty); set => SetValue(TickFrequencyProperty, value); }
     public bool IsSnapToTickEnabled { get => GetValue(IsSnapToTickEnabledProperty); set => SetValue(IsSnapToTickEnabledProperty, value); }
+
+    // Endpoint coordinates and keyboard direction are already resolved explicitly below.
+    protected override bool BypassFlowDirectionPolicies => true;
+
+    /// <summary>Raised once when a user gesture or an automation action finishes changing an endpoint.</summary>
+    /// <remarks>Raised after a pointer release that ends a tap or drag, after the key-up for a key
+    /// that changes an endpoint, and after a range-value automation value that actually changes the
+    /// endpoint. Bound, styled and programmatic updates do not raise it; a gesture cancelled by
+    /// disable, pointer-capture loss, detach or a non-horizontal gesture does not raise it, unlike
+    /// endpoint updates which may already have been observed.</remarks>
+    public event EventHandler<RoutedEventArgs>? ValueChangeCompleted
+    {
+        add => AddHandler(ValueChangeCompletedEvent, value);
+        remove => RemoveHandler(ValueChangeCompletedEvent, value);
+    }
 
     public MaterialRangeSlider()
     {
@@ -93,7 +124,8 @@ public sealed class MaterialRangeSlider : TemplatedControl
             return value;
         var previous = Math.Clamp(Minimum + Math.Floor(index) * TickFrequency, Minimum, Maximum);
         var next = Math.Min(Maximum, previous + TickFrequency);
-        return value - previous < next - value ? previous : next;
+        // source snapValueToTick keeps the lower tick on an exact tie.
+        return value - previous <= next - value ? previous : next;
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -132,9 +164,11 @@ public sealed class MaterialRangeSlider : TemplatedControl
         if (change.Property == MinimumProperty || change.Property == MaximumProperty ||
             change.Property == LowerValueProperty || change.Property == UpperValueProperty ||
             change.Property == FlowDirectionProperty || change.Property == TickFrequencyProperty ||
-            change.Property == MaterialAssist.ControlSizeProperty)
+            change.Property == IsSnapToTickEnabledProperty || change.Property == MaterialAssist.ControlSizeProperty)
             UpdatePositions();
-        if (change.Property == IsEnabledProperty && !IsEffectivelyEnabled)
+        // A drag must stop when the slider or any ancestor is disabled, not only when the
+        // slider's own IsEnabled changes.
+        if (change.Property == InputElement.IsEffectivelyEnabledProperty && !IsEffectivelyEnabled)
             _capturedPointer?.Capture(null);
         (_lowerThumb as MaterialRangeThumb)?.NotifyRangeChanged(change);
         (_upperThumb as MaterialRangeThumb)?.NotifyRangeChanged(change);
@@ -142,21 +176,22 @@ public sealed class MaterialRangeSlider : TemplatedControl
 
     private void CanvasSizeChanged(object? sender, SizeChangedEventArgs e) => UpdatePositions();
 
-    private double Travel => Math.Max(0, (_canvas?.Bounds.Width ?? 0) - 12);
+    private double Travel => Math.Max(0, (_canvas?.Bounds.Width ?? 0) - 4);
 
     /// <summary>
-    /// Handle centers in track coordinates. Coincident endpoints are separated by ten DIP so
-    /// both can be grabbed; no active track is drawn between coincident endpoints.
+    /// Handle centers in track coordinates, including the 2-DIP thumb gutter at each end. The
+    /// LowerValue endpoint is on the left in LTR and on the right in RTL, matching the source.
+    /// Coincident endpoints are separated by ten DIP so both can be grabbed (an extension over
+    /// the source, which stacks them); no active track is drawn between coincident endpoints.
     /// </summary>
     internal (double Lower, double Upper, bool Coincident) GetVisualPositions(double length)
     {
-        var travel = Math.Max(0, length - 12);
+        var rtl = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
         double At(double value)
         {
-            var fraction = Maximum > Minimum
-                ? (value / 2 - Minimum / 2) / (Maximum / 2 - Minimum / 2)
-                : 0;
-            return 6 + fraction * travel;
+            var fraction = MaterialSlider.Fraction(value, Minimum, Maximum);
+            return MaterialSlider.Position(fraction, length, Avalonia.Layout.Orientation.Horizontal, rtl,
+                MaterialSlider.StopInset, IsSnapToTickEnabled && TickFrequency > 0);
         }
 
         var lower = At(LowerValue);
@@ -165,7 +200,9 @@ public sealed class MaterialRangeSlider : TemplatedControl
         if (Math.Abs(upper - lower) < 10)
         {
             var middle = (lower + upper) / 2;
-            return (middle - 5, middle + 5, coincident);
+            var left = Math.Clamp(middle - 5, 2, Math.Max(2, length - 12));
+            // Keep the value order independent of the visual order.
+            return rtl ? (left + 10, left, coincident) : (left, left + 10, coincident);
         }
         return (lower, upper, coincident);
     }
@@ -180,8 +217,10 @@ public sealed class MaterialRangeSlider : TemplatedControl
         var (lower, upper, _) = GetVisualPositions(_canvas.Bounds.Width);
         // The thumb keeps at least the 48-DIP accessibility target; larger sizes use the
         // source's cross size so the painted handle is centered on a matching target.
-        var target = Math.Max(48, Bounds.Height);
-        var top = Math.Max(0, (_canvas.Bounds.Height - target) / 2);
+        var target = Math.Max(48, _canvas.Bounds.Height);
+        // Center even when the target is taller than the control: clamping the offset to zero
+        // would push the 48-DIP target below the painted handle at the 44-DIP XS and S sizes.
+        var top = (_canvas.Bounds.Height - target) / 2;
         if (_lowerThumb is not null)
         {
             _lowerThumb.Width = target;
@@ -201,49 +240,141 @@ public sealed class MaterialRangeSlider : TemplatedControl
 
     internal Thumb? LowerThumb => _lowerThumb;
     internal Thumb? UpperThumb => _upperThumb;
-    internal bool IsDragging => _capturedPointer is not null;
+    internal bool IsDragging => _dragStarted;
     internal bool IsUpperEndpointActive => _activeThumb is not null && _activeThumb == _upperThumb;
     internal void InvalidateTrack() => _trackVisual?.InvalidateVisual();
 
     private void OnRangePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_canvas is null || _capturedPointer is not null || !IsEffectivelyEnabled ||
-            !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        if (_canvas is null || _capturedPointer is not null || !IsEffectivelyEnabled)
+            return;
+        var current = e.GetCurrentPoint(this);
+        if (!current.Properties.IsLeftButtonPressed &&
+            e.Pointer.Type is not (PointerType.Touch or PointerType.Pen))
             return;
         var point = e.GetPosition(_canvas);
-        var (lower, upper, _) = GetVisualPositions(_canvas.Bounds.Width);
-        // When endpoints coincide, the focused thumb wins; otherwise the nearest endpoint wins.
-        var useUpper = Math.Abs(point.X - upper) < Math.Abs(point.X - lower) ||
-            (Math.Abs(point.X - upper) == Math.Abs(point.X - lower) && _upperThumb?.IsFocused == true);
+        var (lower, upper, coincident) = GetVisualPositions(_canvas.Bounds.Width);
+        // Source rangeSliderPressDragModifier: nearest endpoint wins; an exact tie picks the
+        // upper (end) endpoint. When the endpoints coincide, the press side chooses which one
+        // separates: the start side (left in LTR, right in RTL) picks the lower endpoint.
+        var rtl = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
+        bool useUpper;
+        if (coincident)
+        {
+            var midpoint = (lower + upper) / 2;
+            useUpper = rtl ? point.X <= midpoint : point.X >= midpoint;
+        }
+        else
+        {
+            var lowerDistance = Math.Abs(point.X - lower);
+            var upperDistance = Math.Abs(point.X - upper);
+            useUpper = upperDistance < lowerDistance || upperDistance == lowerDistance;
+        }
         _activeThumb = useUpper ? _upperThumb : _lowerThumb;
         if (_activeThumb is null)
             return;
         var center = useUpper ? upper : lower;
-        _grabOffset = Math.Abs(point.X - center) <= 24 ? point.X - center : 0;
+        // Pressing anywhere inside the thumb's accessibility target grabs the handle without
+        // jumping; the target is the source cross size, so the radius is not always 24 DIP.
+        var grabRadius = double.IsFinite(_activeThumb.Width) && _activeThumb.Width > 0
+            ? _activeThumb.Width / 2
+            : 24;
+        _grabOffset = Math.Abs(point.X - center) <= grabRadius ? point.X - center : 0;
         _activeThumb.Focus(NavigationMethod.Pointer);
         (_activeThumb as MaterialRangeThumb)?.SetDragging(true);
         _capturedPointer = e.Pointer;
         e.Pointer.Capture(this);
         InvalidateTrack();
-        e.PreventGestureRecognition();
-        SetFromPoint(point.X);
+        if (e.Pointer.Type == PointerType.Mouse)
+        {
+            // Desktop-native policy: the press jumps the endpoint immediately and every move
+            // follows the pointer.
+            _dragStarted = true;
+            _verticalCancelled = false;
+            e.PreventGestureRecognition();
+            SetFromPoint(point.X);
+        }
+        else
+        {
+            // The source pointerInput waits for pointerSlop before a touch/pen press becomes a
+            // drag. A vertical movement must remain a parent scroll with no value change.
+            _dragStarted = false;
+            _verticalCancelled = false;
+            _pressPoint = point;
+            _pressNearCoincidentEndpoints = coincident &&
+                Math.Abs(point.X - lower) < TouchSlop && Math.Abs(point.X - upper) < TouchSlop;
+        }
         e.Handled = true;
     }
 
     private void OnRangePointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_canvas is not null && e.Pointer == _capturedPointer)
+        if (_canvas is null || e.Pointer != _capturedPointer)
+            return;
+        var point = e.GetPosition(_canvas);
+        if (e.Pointer.Type == PointerType.Mouse)
         {
-            SetFromPoint(e.GetPosition(_canvas).X);
+            SetFromPoint(point.X);
             e.Handled = true;
+            return;
         }
+        if (_verticalCancelled)
+            return;
+        if (!_dragStarted)
+        {
+            var dx = point.X - _pressPoint.X;
+            var dy = point.Y - _pressPoint.Y;
+            if (dx * dx + dy * dy < TouchSlop * TouchSlop)
+                return;
+            if (Math.Abs(dy) >= Math.Abs(dx))
+            {
+                // Source rangeSliderPressDragModifier cancels the press for a vertical gesture
+                // and leaves the pointer captured until it is released; no value is dispatched.
+                _verticalCancelled = true;
+                (_activeThumb as MaterialRangeThumb)?.SetDragging(false);
+                InvalidateTrack();
+                return;
+            }
+            // Source re-picks the captured endpoint from the drag direction when both endpoints
+            // were under the press. The visual separation of coincident endpoints keeps the
+            // grab offset relative to the handle that is now active.
+            if (_pressNearCoincidentEndpoints)
+            {
+                var rtl = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
+                var useUpper = rtl ? dx < 0 : dx >= 0;
+                var next = useUpper ? _upperThumb : _lowerThumb;
+                if (next is not null && !ReferenceEquals(_activeThumb, next))
+                {
+                    (_activeThumb as MaterialRangeThumb)?.SetDragging(false);
+                    _activeThumb = next;
+                    var (lower, upper, _) = GetVisualPositions(_canvas.Bounds.Width);
+                    _grabOffset = _pressPoint.X - (useUpper ? upper : lower);
+                    (_activeThumb as MaterialRangeThumb)?.SetDragging(true);
+                }
+            }
+            _dragStarted = true;
+            e.PreventGestureRecognition();
+        }
+        SetFromPoint(point.X);
+        e.Handled = true;
     }
 
     private void OnRangePointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (e.Pointer != _capturedPointer)
             return;
+        var mouse = e.Pointer.Type == PointerType.Mouse;
+        var wasDrag = _dragStarted;
+        var cancelled = _verticalCancelled;
+        // A touch/pen press that never crossed the slop is a tap, matching the source's
+        // press-release branch; the source applies the press position, not the release point.
+        if (!mouse && !wasDrag && !cancelled)
+            SetFromPoint(_pressPoint.X);
         e.Pointer.Capture(null);
+        // Source invokes completion after a tap release and after a drag ends; capture loss
+        // caused by disable, detach or another gesture never reaches here.
+        if (!cancelled)
+            RaiseValueChangeCompleted();
         e.Handled = true;
     }
 
@@ -252,6 +383,9 @@ public sealed class MaterialRangeSlider : TemplatedControl
         (_activeThumb as MaterialRangeThumb)?.SetDragging(false);
         _activeThumb = null;
         _capturedPointer = null;
+        _dragStarted = false;
+        _verticalCancelled = false;
+        _pressNearCoincidentEndpoints = false;
         InvalidateTrack();
         base.OnPointerCaptureLost(e);
     }
@@ -264,14 +398,38 @@ public sealed class MaterialRangeSlider : TemplatedControl
 
     private void SetFromPoint(double x)
     {
-        if (Travel <= 0)
+        if (Travel <= 0 || !IsEffectivelyEnabled)
             return;
-        var fraction = Math.Clamp((x - 6 - _grabOffset) / Travel, 0, 1);
+        var offset = Math.Clamp(x - 2 - _grabOffset, 0, Travel);
+        var corner = IsSnapToTickEnabled && TickFrequency > 0
+            ? Math.Min(MaterialSlider.StopInset, Travel / 2)
+            : 0;
+        var visual = corner > 0 && Travel > 2 * corner
+            ? Math.Clamp((offset - corner) / (Travel - 2 * corner), 0, 1)
+            : offset / Travel;
+        var fraction = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft ? 1 - visual : visual;
         SetEndpoint(_activeThumb == _upperThumb, Minimum * (1 - fraction) + Maximum * fraction);
     }
 
     internal void SetEndpoint(bool upper, double value) =>
         SetCurrentValue(upper ? UpperValueProperty : LowerValueProperty, value);
+
+    internal void RaiseValueChangeCompleted() =>
+        RaiseEvent(new RoutedEventArgs(ValueChangeCompletedEvent, this));
+
+    /// <summary>
+    /// The source finishes a keyboard interaction on the key-up of the keys that change an
+    /// endpoint. This control is horizontal-only, so those are the arrow, page, Home and End keys.
+    /// </summary>
+    internal void HandleThumbKeyUp(KeyEventArgs e)
+    {
+        if (e.Handled || e.KeyModifiers != KeyModifiers.None || !IsEffectivelyEnabled)
+            return;
+        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown))
+            return;
+        RaiseValueChangeCompleted();
+        e.Handled = true;
+    }
 
     internal void HandleThumbKey(bool upper, KeyEventArgs e)
     {
@@ -339,7 +497,7 @@ internal sealed class MaterialRangeThumb : Thumb
     protected override void OnGotFocus(FocusChangedEventArgs e)
     {
         base.OnGotFocus(e);
-        IsFocusVisible = e.NavigationMethod != NavigationMethod.Pointer;
+        IsFocusVisible = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional;
         _slider?.InvalidateTrack();
     }
 
@@ -364,6 +522,12 @@ internal sealed class MaterialRangeThumb : Thumb
     {
         base.OnKeyDown(e);
         _slider?.HandleThumbKey(_upper, e);
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+        _slider?.HandleThumbKeyUp(e);
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() => _slider is { } slider
@@ -394,7 +558,12 @@ internal sealed class MaterialRangeThumb : Thumb
                 throw new InvalidOperationException("The range slider is disabled.");
             if (!double.IsFinite(value) || value < Minimum || value > Maximum)
                 throw new ArgumentOutOfRangeException(nameof(value));
+            var current = _upper ? _slider.UpperValue : _slider.LowerValue;
             _slider.SetEndpoint(_upper, value);
+            // Source range thumb semantics reports success and invokes completion only when the
+            // resolved value differs from the current one.
+            if ((_upper ? _slider.UpperValue : _slider.LowerValue) != current)
+                _slider.RaiseValueChangeCompleted();
         }
 
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Slider;

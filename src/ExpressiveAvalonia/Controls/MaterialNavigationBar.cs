@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
@@ -13,48 +14,64 @@ using Avalonia.VisualTree;
 namespace ExpressiveAvalonia.Controls;
 
 /// <summary>
-/// A Material 3 navigation bar with horizontal or vertical destinations, single-selection
-/// navigation over <see cref="MaterialNavigationBarItem"/> containers, and badges.
+/// Material navigation bar: the classic <c>NavigationBar</c> and the expressive
+/// <c>ShortNavigationBar</c> share one native single-selection ListBox contract.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Adapted from <c>NavigationBar.kt</c> and <c>ShortNavigationBar.kt</c> at commit
+/// <c>77b2199d6f056c2fe829ce25523c34a905e769c1</c>. <see cref="Kind"/> classifies the two source
+/// components explicitly: <see cref="MaterialNavigationBarKind.Classic"/> is 80 DIP tall with
+/// 8 DIP between weighted items; <see cref="MaterialNavigationBarKind.Short"/> is 64 DIP tall and
+/// uses <see cref="ShortArrangement"/>. <see cref="MaterialShortNavigationBar"/> fixes the latter.
+/// </para>
+/// <para>
 /// Selection, focus and automation use the native Avalonia list contracts: the bar is a
-/// <see cref="ListBox"/> whose items are <see cref="ListBoxItem"/> containers, so the
-/// Selection/SelectionItem patterns, disabled destinations and pointer selection keep working.
-/// The automation peer also marks the control as the navigation landmark.
-/// Left/Up selects the previous destination, Right/Down the next, Home/End the first or last;
-/// disabled destinations are skipped and <see cref="SelectingItemsControl.WrapSelection"/>
-/// (on by default here) decides whether the strip wraps. Enter and Space activate the focused
-/// destination; the list item consumes both keys to select, so activation is registered as a
-/// handled-events-too class handler. Keys keep their native meaning when focus is inside
-/// another control, for example a button placed in an item template.
-/// Items share the available width (horizontal bar) or height (vertical bar) equally, matching
-/// the three to six destination layouts of the source component. The bar is a single tab stop:
-/// destinations are not tab stops, so Tab enters and leaves the bar while arrow keys move
-/// focus and selection between destinations.
+/// <see cref="ListBox"/> whose items are <see cref="ListBoxItem"/> containers, so Selection/
+/// SelectionItem patterns, disabled destinations and pointer selection keep working. The bar is a
+/// single tab stop; arrow keys move selection and focus, with RTL-aware horizontal arrows and
+/// wrapping controlled by <see cref="SelectingItemsControl.WrapSelection"/>. Enter and Space
+/// activate the focused destination.
+/// </para>
+/// <para>
+/// The navigation surface only reports selection and invocation; it never creates a router or
+/// swaps pages.
+/// </para>
 /// </remarks>
-[PseudoClasses(":vertical", ":horizontal")]
+[PseudoClasses(":classic", ":short", ":vertical", ":horizontal")]
 public class MaterialNavigationBar : ListBox
 {
-    /// <summary>Defines the <see cref="Orientation"/> property.</summary>
-    public static readonly StyledProperty<Orientation> OrientationProperty =
-        AvaloniaProperty.Register<MaterialNavigationBar, Orientation>(nameof(Orientation), Avalonia.Layout.Orientation.Horizontal);
+    /// <summary>Classic bar or expressive short bar.</summary>
+    public static readonly StyledProperty<MaterialNavigationBarKind> KindProperty =
+        AvaloniaProperty.Register<MaterialNavigationBar, MaterialNavigationBarKind>(nameof(Kind));
 
-    /// <summary>The icon/label arrangement inherited by destinations whose own orientation is Auto.</summary>
-    public static readonly StyledProperty<MaterialNavigationBarItemOrientation> ItemOrientationProperty =
-        AvaloniaProperty.Register<MaterialNavigationBar, MaterialNavigationBarItemOrientation>(
-            nameof(ItemOrientation), MaterialNavigationBarItemOrientation.Auto);
+    /// <summary>Desktop extension: stack destinations in a column instead of a row.</summary>
+    public static readonly StyledProperty<Orientation> OrientationProperty =
+        AvaloniaProperty.Register<MaterialNavigationBar, Orientation>(nameof(Orientation), Orientation.Horizontal);
+
+    /// <summary>The icon position inherited by destinations whose own position is Auto.</summary>
+    public static readonly StyledProperty<MaterialNavigationItemIconPosition> ItemIconPositionProperty =
+        AvaloniaProperty.Register<MaterialNavigationBar, MaterialNavigationItemIconPosition>(
+            nameof(ItemIconPosition), MaterialNavigationItemIconPosition.Top);
+
+    /// <summary>Equal-weight or centered grouping for the expressive short bar.</summary>
+    public static readonly StyledProperty<MaterialShortNavigationBarArrangement> ShortArrangementProperty =
+        AvaloniaProperty.Register<MaterialNavigationBar, MaterialShortNavigationBarArrangement>(
+            nameof(ShortArrangement));
+
+    private ITemplate<Panel?> _ownedItemsPanel = null!;
 
     static MaterialNavigationBar()
     {
-        OrientationProperty.Changed.AddClassHandler<MaterialNavigationBar>((bar, _) => bar.UpdateBarState());
-        ItemOrientationProperty.Changed.AddClassHandler<MaterialNavigationBar>((bar, _) => bar.UpdateItemOrientations());
+        KindProperty.Changed.AddClassHandler<MaterialNavigationBar>((bar, _) => bar.OnLayoutModeChanged());
+        OrientationProperty.Changed.AddClassHandler<MaterialNavigationBar>((bar, _) => bar.OnLayoutModeChanged());
+        ShortArrangementProperty.Changed.AddClassHandler<MaterialNavigationBar>((bar, _) => bar.OnLayoutModeChanged());
+        ItemIconPositionProperty.Changed.AddClassHandler<MaterialNavigationBar>((bar, _) => bar.UpdateItemStates());
         // ListBoxItem consumes Enter and Space to select; the navigation destination must still
         // execute its command, so observe handled events as well.
         KeyDownEvent.AddClassHandler<MaterialNavigationBar>(
             static (bar, e) => bar.OnNavigationKey(e), RoutingStrategies.Bubble, handledEventsToo: true);
     }
-
-    private ITemplate<Panel?> _ownedItemsPanel = null!;
 
     public MaterialNavigationBar()
     {
@@ -66,28 +83,36 @@ public class MaterialNavigationBar : ListBox
     /// <summary>Raised after a destination is activated by pointer, Enter or Space.</summary>
     public event EventHandler<MaterialNavigationBarItemInvokedEventArgs>? ItemInvoked;
 
-    /// <summary>Stack destinations in a row (the default bottom bar) or in a column.</summary>
+    public MaterialNavigationBarKind Kind
+    {
+        get => GetValue(KindProperty);
+        set => SetValue(KindProperty, value);
+    }
+
     public Orientation Orientation
     {
         get => GetValue(OrientationProperty);
         set => SetValue(OrientationProperty, value);
     }
 
-    /// <summary>Destination anatomy. Auto follows the bar orientation.</summary>
-    public MaterialNavigationBarItemOrientation ItemOrientation
+    /// <summary>Destination anatomy inherited by items with <see cref="MaterialNavigationItemIconPosition.Auto"/>.</summary>
+    public MaterialNavigationItemIconPosition ItemIconPosition
     {
-        get => GetValue(ItemOrientationProperty);
-        set => SetValue(ItemOrientationProperty, value);
+        get => GetValue(ItemIconPositionProperty);
+        set => SetValue(ItemIconPositionProperty, value);
     }
 
-    /// <summary>The orientation Auto resolves to for this bar.</summary>
-    internal MaterialNavigationBarItemOrientation ResolveItemOrientation() => ItemOrientation switch
+    public MaterialShortNavigationBarArrangement ShortArrangement
     {
-        MaterialNavigationBarItemOrientation.Auto => Orientation == Avalonia.Layout.Orientation.Vertical
-            ? MaterialNavigationBarItemOrientation.Vertical
-            : MaterialNavigationBarItemOrientation.Horizontal,
-        var explicitOrientation => explicitOrientation
-    };
+        get => GetValue(ShortArrangementProperty);
+        set => SetValue(ShortArrangementProperty, value);
+    }
+
+    /// <summary>The icon position Auto resolves to for this bar.</summary>
+    internal MaterialNavigationItemIconPosition ResolveItemIconPosition() =>
+        ItemIconPosition == MaterialNavigationItemIconPosition.Auto
+            ? MaterialNavigationItemIconPosition.Top
+            : ItemIconPosition;
 
     protected override Control CreateContainerForItemOverride(object? item, int index, object? recycleKey) =>
         new MaterialNavigationBarItem();
@@ -124,8 +149,7 @@ public class MaterialNavigationBar : ListBox
         UpdateBarState();
     }
 
-    // The bar is the single tab stop; focus enters on the current (or first enabled) destination
-    // so a keyboard user can activate it immediately instead of landing on the bare container.
+    // The bar is the single tab stop; focus enters on the current (or first enabled) destination.
     protected override void OnGotFocus(FocusChangedEventArgs e)
     {
         base.OnGotFocus(e);
@@ -137,11 +161,44 @@ public class MaterialNavigationBar : ListBox
             e.Handled = true;
     }
 
-    // Destinations share the available width (or height) equally, as in the source layouts.
     private ITemplate<Panel?> CreateItemsPanel() => new FuncTemplate<Panel?>(() =>
-        Orientation == Avalonia.Layout.Orientation.Vertical
-            ? new UniformGrid { Columns = 1 }
-            : new UniformGrid { Rows = 1 });
+        new MaterialNavigationBarPanel
+        {
+            Kind = Kind,
+            Arrangement = ShortArrangement,
+            Orientation = Orientation,
+            Spacing = Kind == MaterialNavigationBarKind.Classic ? 8 : 0
+        });
+
+    private void OnLayoutModeChanged()
+    {
+        UpdateBarState();
+    }
+
+    private void UpdateBarState()
+    {
+        var shortBar = Kind == MaterialNavigationBarKind.Short;
+        var vertical = Orientation == Avalonia.Layout.Orientation.Vertical;
+        PseudoClasses.Set(":classic", !shortBar);
+        PseudoClasses.Set(":short", shortBar);
+        PseudoClasses.Set(":vertical", vertical);
+        PseudoClasses.Set(":horizontal", !vertical);
+
+        // Rebuild only the panel this control created; a consumer-supplied panel is preserved.
+        if (ReferenceEquals(ItemsPanel, _ownedItemsPanel))
+        {
+            _ownedItemsPanel = CreateItemsPanel();
+            ItemsPanel = _ownedItemsPanel;
+        }
+        UpdateItemStates();
+    }
+
+    private void UpdateItemStates()
+    {
+        foreach (var container in GetRealizedContainers())
+            if (container is MaterialNavigationBarItem item)
+                item.RefreshBarState();
+    }
 
     private void OnNavigationKey(KeyEventArgs e)
     {
@@ -162,8 +219,6 @@ public class MaterialNavigationBar : ListBox
             return;
         }
 
-        // Arrow and Home/End navigation is implemented here because the bar must wrap and skip
-        // disabled destinations even when a platform theme leaves the raw list unhandled.
         if (e.Handled)
             return;
 
@@ -172,6 +227,7 @@ public class MaterialNavigationBar : ListBox
             return;
 
         var rtl = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
+        var vertical = Orientation == Avalonia.Layout.Orientation.Vertical;
         switch (e.Key)
         {
             case Key.Down:
@@ -181,10 +237,12 @@ public class MaterialNavigationBar : ListBox
                 MoveSelection(focused, -1, e);
                 return;
             case Key.Right:
-                MoveSelection(focused, rtl ? -1 : 1, e);
+                if (!vertical)
+                    MoveSelection(focused, rtl ? -1 : 1, e);
                 return;
             case Key.Left:
-                MoveSelection(focused, rtl ? 1 : -1, e);
+                if (!vertical)
+                    MoveSelection(focused, rtl ? 1 : -1, e);
                 return;
             case Key.Home:
                 SelectAndFocus(FindEnabled(0, 1));
@@ -206,7 +264,6 @@ public class MaterialNavigationBar : ListBox
         var current = focusedItem is not null ? IndexFromContainer(focusedItem) : SelectedIndex;
         if (current < 0 || current >= count)
         {
-            // Nothing selected yet: the first press enters the strip from the matching end.
             SelectAndFocus(FindEnabled(delta > 0 ? 0 : count - 1, delta));
             e.Handled = true;
             return;
@@ -222,8 +279,7 @@ public class MaterialNavigationBar : ListBox
         e.Handled = true;
     }
 
-    // Walks from start in delta steps, skipping disabled destinations. With WrapSelection the
-    // walk circles the strip; otherwise it stops at the ends.
+    // Walks from start in delta steps, skipping disabled destinations.
     private int FindEnabled(int start, int delta)
     {
         var count = ItemCount;
@@ -248,7 +304,6 @@ public class MaterialNavigationBar : ListBox
         return -1;
     }
 
-    // An unrealized container is enabled unless its item disables it after realization.
     private bool IsDestinationEnabled(int index) =>
         ContainerFromIndex(index) is not Control container || container.IsEffectivelyEnabled;
 
@@ -258,14 +313,13 @@ public class MaterialNavigationBar : ListBox
             return;
 
         SelectedIndex = index;
-        // Directional focus marks the state as keyboard focus, which reveals the focus ring.
         (ContainerFromIndex(index) as Control)?.Focus(NavigationMethod.Directional);
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() => new NavigationBarAutomationPeer(this);
 
-    // Returns the destination that owns the event source. A nested focusable control (for
-    // example a button inside a custom item template) keeps its own Enter/Space handling.
+    // Returns the destination that owns the event source. A nested focusable control keeps its
+    // own Enter/Space handling.
     private MaterialNavigationBarItem? FindItem(object? source)
     {
         for (var visual = source as Visual; visual is not null; visual = visual.GetVisualParent())
@@ -291,29 +345,6 @@ public class MaterialNavigationBar : ListBox
         ItemInvoked?.Invoke(this, new MaterialNavigationBarItemInvokedEventArgs(item, index));
     }
 
-    private void UpdateBarState()
-    {
-        var vertical = Orientation == Avalonia.Layout.Orientation.Vertical;
-        PseudoClasses.Set(":vertical", vertical);
-        PseudoClasses.Set(":horizontal", !vertical);
-        // Only replace the panel this control created; a consumer-supplied panel is preserved.
-        if (ReferenceEquals(ItemsPanel, _ownedItemsPanel))
-        {
-            _ownedItemsPanel = CreateItemsPanel();
-            ItemsPanel = _ownedItemsPanel;
-        }
-        UpdateItemOrientations();
-    }
-
-    private void UpdateItemOrientations()
-    {
-        foreach (var container in GetRealizedContainers())
-            if (container is MaterialNavigationBarItem item)
-                item.RefreshBarState();
-    }
-
-    // The destinations are the list's automation children, so a screen reader announces the
-    // navigation landmark followed by its destinations instead of anonymous presenter nodes.
     private sealed class NavigationBarAutomationPeer(MaterialNavigationBar owner) : ListBoxAutomationPeer(owner)
     {
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.List;
@@ -337,6 +368,17 @@ public class MaterialNavigationBar : ListBox
             RaiseChildrenChangedEvent();
         }
     }
+}
+
+/// <summary>The expressive short navigation bar from <c>ShortNavigationBar.kt</c>.</summary>
+public sealed class MaterialShortNavigationBar : MaterialNavigationBar
+{
+    public MaterialShortNavigationBar()
+    {
+        Kind = MaterialNavigationBarKind.Short;
+    }
+
+    protected override Type StyleKeyOverride => typeof(MaterialNavigationBar);
 }
 
 /// <summary>Describes the navigation destination activated by pointer, Enter or Space.</summary>

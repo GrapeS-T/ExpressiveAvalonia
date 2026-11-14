@@ -1,15 +1,44 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:xr="using:ExpressiveAvalonia.Controls">
+                    xmlns:xr="using:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
   <!-- XR family (source: XR app bar, dialog, toolbar, navigation rail/bar, and the
        surface / surface-high / tertiary-container button building blocks).
 
-       Geometry follows the source design.json values in device-independent units:
+       Geometry follows the source design.json values in device-independent units except the
+       floating toolbar, which follows the pinned XR tokens:
        app bar 72 high with a 36 radius; dialog 312 wide with a 28 radius; toolbar pill
-       72 high with a 72 radius; rail 96 wide with a 48 radius and 20 vertical padding;
-       navigation bar 80 high with a 40 radius and 8 horizontal padding; icon button
-       48 hit target with a 40 circular container; labeled toggle 40 high with 16,10
-       padding; FAB 56 with a 16 radius.
+       64 high with a 32 radius and 8 padding; rail 96 wide with a 48 radius, 20 vertical
+       padding and a 20 destination gap; navigation bar 80 high with a 40 radius and 8
+       horizontal padding; icon button 48 hit target with a 40 circular container; labeled
+       toggle 40 high with 16,10 padding; FAB 56 with a 16 radius.
+
+       Pinned-source reconciliation (xr/compose/material3 @ 77b2199d):
+       - NavigationBar.kt SpatialNavigationBar: 80 min height, 8 horizontal padding,
+         50% container shape -> this nav bar matches (80 high, 8 padding, 40/80 radius).
+       - ShortNavigationBar.kt SpatialShortNavigationBar: same 80 container with 32 padding
+         around and between items (XrShortNavigationBarTokens.PaddingAroundItems); the
+         XrNavigationBar short variant applies those values. It has no local design package,
+         so only the pinned token values drive it.
+       - NavigationRail.kt SpatialNavigationRail: 96 min width, 20 vertical padding,
+         circular Surface, destinations spaced by 20 -> this rail matches (96 wide, 48 radius,
+         0,20 padding, 20 destination gap).
+       - SpatialWideNavigationRail: same 96 collapsed width, circular Surface, 20 vertical
+         padding and 20 destination gap; expanded width is 220..360 from the source wide rail,
+         with its caller-supplied header slot -> XrNavigationRail's wide variant applies those
+         values and exposes Variant/IsExpanded/Header/ExpandedWidth. The Orbiter and spatial
+         elevation stay absent.
+       - FloatingToolbar.kt Spatial*FloatingToolbar: 64 min cross-size, 50% shape, 8 padding,
+         8 toolbar-to-FAB gap -> this toolbar follows the pinned tokens and reuses the common
+         MaterialFloatingToolbarLayout: expanded leading/trailing slots and the common
+         exit-always scroll behavior are wired; only the Orbiter/spatial elevation stay absent.
+       - AppBar.kt wraps the common TopAppBar in a 50% Orbiter; 72 high / 36 radius here is
+         that 50% shape at 72, without the Orbiter.
+       - SpaceToggleButton.kt, ThreePaneScaffold.kt and ListDetailPaneScaffold.kt have no
+         desktop port here: they need spatial capabilities or belong to the common
+         navigation/scaffold families.
+       Orbiters, 24 dp spatial offsets, elevation and space/full-space mode are deliberately
+       absent; this is a desktop composition, not a spatial runtime.
 
        Color roles, verified against the source variants: a selected container uses
        secondary-container on "surface", secondary-fixed-dim on "surface high", and
@@ -20,15 +49,21 @@
        its FAB to primary/on-primary. All roles stay dynamic under MaterialTheme's
        seed/contrast changes.
 
-       Interaction: icon buttons keep a transparent container and paint only the state
-       layer (0.08 hover, 0.10 focus, 0.10 press, from md.sys.state) plus the 8 unit pressed
-       shape. Labeled toggles additionally show a surface-container pill on hover, focus,
-       and press while unselected, matching the source building block. Disabled content
-       uses the composite disabled roles rather than dimming the whole control.
+       Interaction: icon buttons keep a transparent container and paint only the shared
+       MaterialRipple state layer and press ripple (0.08 hover, 0.10 focus, 0.10 press, from
+       md.sys.state) plus the 8 unit pressed shape. Labeled toggles additionally show a
+       surface-container pill on hover, focus, and press while unselected, matching the
+       source building block. Navigation destinations draw the ripple inside their indicator
+       pill, as the source does. Disabled states use
+       the pinned per-component alphas: StandardIconButtonTokens OnSurface 0.38,
+       FilledTonalIconButtonTokens OnSurface 0.1 container / 0.38 content,
+       FilledTonalButtonTokens OnSurface 0.12 container / 0.38 label,
+       TextButtonTokens OnSurfaceVariant 0.38, and NavigationBar/Rail inactive colors at
+       0.38. There are no shared composite disabled brushes in this dictionary.
 
        Transitions bind to the md.sys.motion duration tokens, so MaterialTheme's Reduced
-       mode (which zeroes them) removes the hover/focus/press animation without any extra
-       code here. -->
+       mode (which zeroes them) removes the shape animation without any extra code here;
+       MaterialRipple reads the same reduced-motion state for its state layer and presses. -->
 
   <!-- FAB anatomy only: the containing rail or toolbar supplies the fill and icon role, so
        a parent style never has to fight this theme for Background or Foreground. -->
@@ -47,9 +82,17 @@
         <Panel Background="Transparent">
           <Border Name="Surface" Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}" />
-          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
-          <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+          <!-- Interaction is the shared MaterialRipple: source RippleNode state layer and the
+               bounded press ripple, with no second pressed alpha. -->
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{TemplateBinding Foreground}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False"
+                                  IsHitTestVisible="False" />
+          <ContentPresenter Name="PART_Content" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             Margin="{TemplateBinding Padding}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
@@ -67,27 +110,21 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <!-- FABs have no upstream disabled token set. The enclosing rail/toolbar owns the FAB
+           tone, so disabled paints the on-surface container at the 0.1 disabled-container alpha
+           and the content at 0.38, the same alphas FilledTonalIconButtonTokens uses. -->
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#Surface">
+      <Setter Property="Opacity" Value="0.1" />
+    </Style>
+    <Style Selector="^:disabled /template/ ContentPresenter#PART_Content">
+      <Setter Property="Opacity" Value="0.38" />
     </Style>
   </ControlTheme>
 
@@ -109,8 +146,14 @@
         <Panel Background="Transparent">
           <Border Name="Surface" Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}" />
-          <Border Name="StateLayer" Background="{TemplateBinding Foreground}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{TemplateBinding Foreground}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False"
+                                  IsHitTestVisible="False" />
           <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             Margin="{TemplateBinding Padding}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
@@ -123,27 +166,13 @@
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <!-- TextButtonTokens: DisabledIcon/LabelColor OnSurfaceVariant at 0.38. -->
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <Setter Property="Opacity" Value="0.38" />
     </Style>
   </ControlTheme>
 
@@ -165,10 +194,17 @@
                   Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}"
                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-          <Border Name="StateLayer" Width="40" Height="40"
-                  Background="{TemplateBinding Foreground}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False"
-                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <!-- The shared MaterialRipple lives in the 40 DIP container, not the 48 DIP hit target,
+               so hover/focus/press keep the source icon-button geometry. -->
+          <theming:MaterialRipple Name="Ripple" Width="40" Height="40"
+                                  Fill="{TemplateBinding Foreground}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  IsHitTestVisible="False" />
           <Path Name="Icon" Data="{TemplateBinding Icon}" Fill="{TemplateBinding Foreground}"
                 Width="20" Height="20" Stretch="Uniform"
                 HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
@@ -186,25 +222,15 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
+    <Style Selector="^ /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Transitions">
         <Transitions>
           <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
         </Transitions>
       </Setter>
     </Style>
     <Style Selector="^:tertiary-container">
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryFixedVariantBrush}" />
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
     </Style>
     <Style Selector="^:pressed">
       <Setter Property="CornerRadius" Value="8" />
@@ -213,7 +239,9 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <!-- StandardIconButtonTokens: DisabledColor OnSurface at DisabledOpacity 0.38. -->
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Opacity" Value="0.38" />
     </Style>
   </ControlTheme>
 
@@ -235,10 +263,17 @@
                   Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}"
                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-          <Border Name="StateLayer" Width="40" Height="40"
-                  Background="{TemplateBinding Foreground}"
-                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False"
-                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <!-- The shared MaterialRipple lives in the 40 DIP container, not the 48 DIP hit target,
+               so hover/focus/press keep the source icon-button geometry. -->
+          <theming:MaterialRipple Name="Ripple" Width="40" Height="40"
+                                  Fill="{TemplateBinding Foreground}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  IsHitTestVisible="False" />
           <Path Name="Icon" Data="{TemplateBinding Icon}" Fill="{TemplateBinding Foreground}"
                 Width="20" Height="20" Stretch="Uniform"
                 HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
@@ -259,11 +294,10 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
+    <Style Selector="^ /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Transitions">
         <Transitions>
           <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
         </Transitions>
       </Setter>
     </Style>
@@ -288,15 +322,6 @@
     <Style Selector="^:checked /template/ Path#SelectedIcon">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:pressed">
       <Setter Property="CornerRadius" Value="8" />
     </Style>
@@ -304,8 +329,15 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Background" Value="{DynamicResource MaterialDisabledContainerBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <!-- FilledTonalIconButtonTokens: DisabledContainerColor OnSurface at 0.1, content at 0.38. -->
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#Container">
+      <Setter Property="Opacity" Value="0.1" />
+    </Style>
+    <Style Selector="^:disabled /template/ Path">
+      <Setter Property="Opacity" Value="0.38" />
     </Style>
   </ControlTheme>
 
@@ -326,8 +358,16 @@
           <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
             <Border Name="Container" Height="40" Background="{TemplateBinding Background}"
                     CornerRadius="{TemplateBinding CornerRadius}" />
-            <Border Name="StateLayer" Height="40" Background="{TemplateBinding Foreground}"
-                    CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+            <!-- Shared MaterialRipple over the 40 DIP pill; it stretches to the label width like the
+                 container it covers. -->
+            <theming:MaterialRipple Name="Ripple" Height="40"
+                                    Fill="{TemplateBinding Foreground}"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                    EnableDrag="False"
+                                    IsHitTestVisible="False" />
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="16,10"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
               <Path Name="Icon" Data="{TemplateBinding Icon}" Fill="{TemplateBinding Foreground}"
@@ -357,11 +397,10 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
+    <Style Selector="^ /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Transitions">
         <Transitions>
           <CornerRadiusTransition Property="CornerRadius" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
         </Transitions>
       </Setter>
     </Style>
@@ -395,15 +434,6 @@
     <Style Selector="^:no-icon /template/ Path#Icon, ^:no-icon /template/ Path#SelectedIcon">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
     <Style Selector="^:pressed">
       <Setter Property="CornerRadius" Value="8" />
     </Style>
@@ -411,8 +441,19 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Background" Value="{DynamicResource MaterialDisabledContainerBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <!-- FilledTonalButtonTokens: DisabledContainerColor OnSurface at 0.12,
+           DisabledLabelTextColor OnSurface at 0.38. -->
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#Container">
+      <Setter Property="Opacity" Value="0.12" />
+    </Style>
+    <Style Selector="^:disabled /template/ Path">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ TextBlock#Label">
+      <Setter Property="Opacity" Value="0.38" />
     </Style>
   </ControlTheme>
 
@@ -432,9 +473,15 @@
                       HorizontalAlignment="Center" VerticalAlignment="Top">
             <Grid Width="64" Height="32">
               <Border Name="IconContainer" CornerRadius="9999" Background="{TemplateBinding Background}" />
-              <Border Name="StateLayer" CornerRadius="9999"
-                      Background="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                      Opacity="0" IsHitTestVisible="False" />
+              <!-- Shared MaterialRipple confined to the 64x32 pill, matching the source indicator. -->
+              <theming:MaterialRipple Name="Ripple"
+                                      Fill="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                                      CornerRadius="9999"
+                                      PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                      HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                      FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                      EnableDrag="False"
+                                      IsHitTestVisible="False" />
               <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Path Name="Icon" Data="{TemplateBinding Icon}"
                       Fill="{TemplateBinding Foreground}"
@@ -474,13 +521,6 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
     <Style Selector="^:selected">
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
@@ -488,8 +528,8 @@
     <Style Selector="^:selected /template/ Path#Icon, ^:selected /template/ Path#SelectedIcon">
       <Setter Property="Fill" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
     </Style>
-    <Style Selector="^:selected /template/ Border#StateLayer">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
+    <Style Selector="^:selected /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Fill" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
     </Style>
     <Style Selector="^:selected /template/ TextBlock#Label">
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -499,15 +539,6 @@
     </Style>
     <Style Selector="^:selected /template/ Path#SelectedIcon">
       <Setter Property="IsVisible" Value="True" />
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
     </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
@@ -522,7 +553,12 @@
       <Setter Property="IsVisible" Value="False" />
     </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <!-- NavigationBarTokens: inactive icon and label OnSurfaceVariant, disabled alpha 0.38.
+           The selected indicator container stays painted, as in the source. -->
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Path, ^:disabled /template/ TextBlock#Label">
+      <Setter Property="Opacity" Value="0.38" />
     </Style>
   </ControlTheme>
 
@@ -544,9 +580,15 @@
             <Border Name="IconContainer" Width="24" Height="32" CornerRadius="9999"
                     Background="{TemplateBinding Background}">
               <Grid>
-                <Border Name="StateLayer" CornerRadius="9999"
-                        Background="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                        Opacity="0" IsHitTestVisible="False" />
+                <!-- Shared MaterialRipple confined to the source icon indicator pill. -->
+                <theming:MaterialRipple Name="Ripple"
+                                        Fill="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                                        CornerRadius="9999"
+                                        PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                        HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                        FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                        EnableDrag="False"
+                                        IsHitTestVisible="False" />
                 <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
                   <Path Name="Icon" Data="{TemplateBinding Icon}"
                         Fill="{TemplateBinding Foreground}"
@@ -590,13 +632,6 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
     <Style Selector="^:selected">
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
@@ -611,11 +646,31 @@
       <Setter Property="Width" Value="56" />
       <Setter Property="Height" Value="56" />
     </Style>
+    <!-- SpatialWideNavigationRail expanded destination: the 20 unit start inset and the icon
+         indicator at the start of a horizontal row; the collapsed wide rail keeps this theme's
+         standard centered column. -->
+    <Style Selector="^:rail-expanded">
+      <Setter Property="MinWidth" Value="0" />
+    </Style>
+    <Style Selector="^:rail-expanded /template/ StackPanel#Content">
+      <Setter Property="Orientation" Value="Horizontal" />
+      <Setter Property="Spacing" Value="12" />
+      <Setter Property="Margin" Value="20,0" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="^:rail-expanded /template/ Border#IconContainer">
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="^:rail-expanded /template/ TextBlock#Label">
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="MaxWidth" Value="240" />
+    </Style>
     <Style Selector="^:selected /template/ Path#Icon, ^:selected /template/ Path#SelectedIcon">
       <Setter Property="Fill" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
     </Style>
-    <Style Selector="^:selected /template/ Border#StateLayer">
-      <Setter Property="Background" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
+    <Style Selector="^:selected /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Fill" Value="{DynamicResource MaterialOnSecondaryFixedVariantBrush}" />
     </Style>
     <Style Selector="^:selected /template/ TextBlock#Label">
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -625,15 +680,6 @@
     </Style>
     <Style Selector="^:selected /template/ Path#SelectedIcon">
       <Setter Property="IsVisible" Value="True" />
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:focus-visible /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialFocusStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
     </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
@@ -645,7 +691,11 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <!-- NavigationRailColorTokens: inactive icon and label OnSurfaceVariant at 0.38. -->
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Path, ^:disabled /template/ TextBlock#Label">
+      <Setter Property="Opacity" Value="0.38" />
     </Style>
   </ControlTheme>
 
@@ -662,9 +712,17 @@
         </Border>
       </ControlTemplate>
     </Setter>
+    <!-- SpatialShortNavigationBar: 32 horizontal padding from XrShortNavigationBarTokens; the
+         control's item panel supplies the matching 32 gap. The container height and 50% shape are
+         shared with the standard bar. -->
+    <Style Selector="^:short">
+      <Setter Property="Padding" Value="32,0" />
+    </Style>
   </ControlTheme>
 
-  <!-- Navigation rail container: 96 wide, 48 radius, 20 vertical padding, menu then FAB. -->
+  <!-- Standard navigation rail: 96 wide, 48 radius, 20 vertical padding, menu then FAB.
+       SpatialWideNavigationRail uses a separate header above a circular item surface, 20 gap,
+       96 collapsed and 220–360 expanded width; standard rail chrome is not injected into it. -->
   <ControlTheme x:Key="{x:Type xr:XrNavigationRail}" TargetType="xr:XrNavigationRail">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
@@ -672,9 +730,11 @@
     <Setter Property="HorizontalAlignment" Value="Left" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Background="{TemplateBinding Background}" CornerRadius="48" Padding="0,20" MinWidth="96">
-          <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-            <StackPanel Orientation="Vertical" Spacing="4" HorizontalAlignment="Center">
+        <Border Name="PART_Surface" Background="{TemplateBinding Background}"
+                CornerRadius="48" Padding="0,20" MinWidth="96"
+                Width="{TemplateBinding RailWidth}">
+          <StackPanel Name="PART_RootStack" Orientation="Vertical" HorizontalAlignment="Center">
+            <StackPanel Name="PART_Chrome" Orientation="Vertical" Spacing="4" HorizontalAlignment="Center">
               <xr:XrIconButton Name="PART_Menu"
                                Icon="{TemplateBinding MenuIcon}"
                                Label="{TemplateBinding MenuLabel}"
@@ -698,33 +758,78 @@
         </Border>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^:wide">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <StackPanel Spacing="20" HorizontalAlignment="Center">
+            <ContentPresenter Name="PART_Header" Content="{TemplateBinding Header}"
+                              ContentTemplate="{TemplateBinding HeaderTemplate}"
+                              HorizontalAlignment="Center" IsVisible="False" />
+            <Border Name="PART_Surface" Background="{TemplateBinding Background}"
+                    CornerRadius="9999" Padding="0,20" Width="{TemplateBinding RailWidth}">
+              <StackPanel Name="PART_RootStack" HorizontalAlignment="Center">
+                <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ControlTemplate>
+      </Setter>
+    </Style>
     <Style Selector="^:no-fab /template/ Border#GroupGap">
       <Setter Property="Height" Value="20" />
     </Style>
+    <Style Selector="^:wide:has-header /template/ ContentPresenter#PART_Header">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:wide:expanded /template/ StackPanel#PART_RootStack">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
   </ControlTheme>
 
-  <!-- Toolbar: a 72 high fully rounded pill plus the spatial FAB. -->
+  <!-- Toolbar: pinned XrFloatingToolbar geometry - 64 min cross-size, 50% shape, 8 content
+       padding, 8 toolbar-to-FAB gap. The common MaterialFloatingToolbarLayout supplies the
+       expanded leading/trailing slots and the FAB 80/56 animation; MaterialAppBarScrollBehavior
+       (floating exit-always) supplies hide/show. -->
   <ControlTheme x:Key="{x:Type xr:XrToolbar}" TargetType="xr:XrToolbar">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="MinHeight" Value="64" />
     <Setter Property="Template">
       <ControlTemplate>
-        <StackPanel Orientation="{TemplateBinding Orientation}" Spacing="8" Background="Transparent">
-          <Border Background="{TemplateBinding Background}" CornerRadius="72" Padding="12">
+        <xr:MaterialFloatingToolbarLayout Name="PART_Layout"
+                                          ExpandedProgress="{TemplateBinding ExpandedProgress}"
+                                          Orientation="{TemplateBinding Orientation}"
+                                          FabPosition="{TemplateBinding EffectiveFabPosition}"
+                                          ShowFab="{TemplateBinding ShowFab}">
+          <Border Name="PART_Background" ClipToBounds="True"
+                  Background="{TemplateBinding Background}" CornerRadius="32" />
+          <Border Name="PART_Leading" ClipToBounds="True">
+            <ContentPresenter Content="{TemplateBinding LeadingContent}"
+                              VerticalAlignment="Center" HorizontalAlignment="Center" />
+          </Border>
+          <Border Name="PART_Content" ClipToBounds="True"
+                  Padding="{TemplateBinding ContentPadding}">
             <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
           </Border>
+          <Border Name="PART_Trailing" ClipToBounds="True">
+            <ContentPresenter Content="{TemplateBinding TrailingContent}"
+                              VerticalAlignment="Center" HorizontalAlignment="Center" />
+          </Border>
           <Button Name="PART_Fab" Theme="{StaticResource XrFabTheme}"
-                  IsVisible="{TemplateBinding ShowFab}"
+                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                   Command="{TemplateBinding FabCommand}"
                   CommandParameter="{TemplateBinding FabCommandParameter}"
-                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  IsVisible="{TemplateBinding ShowFab}"
                   AutomationProperties.Name="{Binding FabLabel, RelativeSource={RelativeSource TemplatedParent}}">
             <Path Data="{TemplateBinding FabIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                   Width="24" Height="24" Stretch="Uniform" />
           </Button>
-        </StackPanel>
+        </xr:MaterialFloatingToolbarLayout>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^:vertical">
+      <Setter Property="MinWidth" Value="64" />
+    </Style>
     <!-- The FAB follows the toolbar tone: tertiary container on surface tones, primary on
          the tertiary toolbar. The FAB theme carries no colors, so these setters are final. -->
     <Style Selector="^ /template/ Button#PART_Fab">

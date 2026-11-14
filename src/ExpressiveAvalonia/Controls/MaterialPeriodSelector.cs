@@ -36,6 +36,11 @@ public sealed class MaterialPeriodSelector : TemplatedControl
     public static readonly StyledProperty<bool> IsCompactProperty =
         AvaloniaProperty.Register<MaterialPeriodSelector, bool>(nameof(IsCompact));
 
+    /// <summary>Uses the vibrant toggle roles: no outline, SurfaceContainerLowest container, and
+    /// PrimaryContainer/OnPrimaryContainer selected cells.</summary>
+    public static readonly StyledProperty<bool> IsVibrantProperty =
+        AvaloniaProperty.Register<MaterialPeriodSelector, bool>(nameof(IsVibrant));
+
     private ToggleButton? _am;
     private ToggleButton? _pm;
     private bool _syncing;
@@ -66,6 +71,13 @@ public sealed class MaterialPeriodSelector : TemplatedControl
         set => SetValue(IsCompactProperty, value);
     }
 
+    /// <summary>Whether the vibrant period-toggle roles and shape are used.</summary>
+    public bool IsVibrant
+    {
+        get => GetValue(IsVibrantProperty);
+        set => SetValue(IsVibrantProperty, value);
+    }
+
     /// <summary>Raised when the selected period changes through pointer or keyboard input.</summary>
     public event EventHandler? IsPmChanged;
 
@@ -81,6 +93,7 @@ public sealed class MaterialPeriodSelector : TemplatedControl
         if (_pm is not null) _pm.Click += CellClick;
         UpdateOrientation();
         UpdateCompact();
+        UpdateVibrant();
         UpdateSelection();
     }
 
@@ -99,6 +112,10 @@ public sealed class MaterialPeriodSelector : TemplatedControl
         else if (change.Property == IsCompactProperty)
         {
             UpdateCompact();
+        }
+        else if (change.Property == IsVibrantProperty)
+        {
+            UpdateVibrant();
         }
     }
 
@@ -148,4 +165,21 @@ public sealed class MaterialPeriodSelector : TemplatedControl
     }
 
     private void UpdateCompact() => PseudoClasses.Set(":compact", IsCompact);
+
+    private void UpdateVibrant()
+    {
+        PseudoClasses.Set(":vibrant", IsVibrant);
+        SetCellVibrant(_am);
+        SetCellVibrant(_pm);
+
+        void SetCellVibrant(ToggleButton? cell)
+        {
+            if (cell is null) return;
+            var present = cell.Classes.Contains("vibrant");
+            if (IsVibrant && !present)
+                cell.Classes.Add("vibrant");
+            else if (!IsVibrant && present)
+                cell.Classes.Remove("vibrant");
+        }
+    }
 }

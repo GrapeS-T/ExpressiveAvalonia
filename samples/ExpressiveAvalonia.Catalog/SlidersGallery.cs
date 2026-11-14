@@ -14,7 +14,7 @@ public static class SlidersGallery
     public static Control Create() => new SliderPlayground();
 }
 
-internal sealed class SliderPlayground : Grid
+internal sealed class SliderPlayground : Grid, IComponentPlayground
 {
     private readonly Border _host = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Slider _single = new() { Minimum = 0, Maximum = 100, Value = 50 };
@@ -35,7 +35,7 @@ internal sealed class SliderPlayground : Grid
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _rtl;
     private bool _syncing;
-    internal StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = new() { Spacing = 16 };
 
     internal SliderPlayground()
     {
@@ -76,6 +76,8 @@ internal sealed class SliderPlayground : Grid
         {
             if (e.Property == MaterialRangeSlider.LowerValueProperty || e.Property == MaterialRangeSlider.UpperValueProperty) SyncValues();
         };
+        // The range readout only claims a finished interaction when the range reports one.
+        _range.ValueChangeCompleted += (_, _) => SyncValues(completed: true);
         Apply();
     }
 
@@ -96,7 +98,7 @@ internal sealed class SliderPlayground : Grid
         {
             var editor = new TextBox
             {
-                Name = "PART_TextBox", MinHeight = 56,
+                Name = "PART_TextBox", MinHeight = 56, Margin = new Thickness(0, 8, 0, 0),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 VerticalContentAlignment = VerticalAlignment.Center
             };
@@ -181,7 +183,7 @@ internal sealed class SliderPlayground : Grid
         SyncValues();
     }
 
-    private void SyncValues()
+    private void SyncValues(bool completed = false)
     {
         if (_syncing) return;
         _syncing = true;
@@ -189,7 +191,8 @@ internal sealed class SliderPlayground : Grid
         _lower.Value = (decimal)_range.LowerValue;
         _upper.Value = (decimal)_range.UpperValue;
         _readout.Text = _kind.SelectedIndex == 2
-            ? $"Диапазон: {_range.LowerValue:0.##} — {_range.UpperValue:0.##}"
+            ? $"Диапазон: {_range.LowerValue:0.##} — {_range.UpperValue:0.##}" +
+              (completed ? " · изменение завершено" : "")
             : $"Значение: {_single.Value:0.##}";
         _syncing = false;
     }
@@ -223,7 +226,7 @@ internal sealed class SliderPlayground : Grid
                 var index = i;
                 var item = new MenuItem
                 {
-                    Header = options[i], MinWidth = 240, MinHeight = 56,
+                    Header = options[i], MinWidth = 240,
                     Icon = new PathIcon { Data = icon, Width = 24, Height = 24 }
                 };
                 MaterialMenu.SetSurfaceStyle(item, MaterialMenuSurfaceStyle.Expressive);

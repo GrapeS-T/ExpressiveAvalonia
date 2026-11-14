@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Linq;
 using Avalonia;
 using Avalonia.Collections;
@@ -20,7 +22,7 @@ using Path = Avalonia.Controls.Shapes.Path;
 namespace ExpressiveAvalonia.Controls;
 
 /// <summary>A row of <see cref="MaterialMenuTextField"/>.</summary>
-public sealed class MaterialMenuTextFieldItem
+public sealed class MaterialMenuTextFieldItem : INotifyPropertyChanged
 {
     public MaterialMenuTextFieldItem()
     {
@@ -33,23 +35,34 @@ public sealed class MaterialMenuTextFieldItem
         Icon = icon;
     }
 
+    private string? _label;
+    private string? _supportingText;
+    private object? _icon;
+    private string? _keywords;
+    private bool _isEnabled = true;
+    private object? _tag;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
     /// <summary>Primary text, rendered at 16/24.</summary>
-    public string? Label { get; set; }
-
+    public string? Label { get => _label; set => Set(ref _label, value); }
     /// <summary>Secondary text, rendered at 14/20 under the label.</summary>
-    public string? SupportingText { get; set; }
-
+    public string? SupportingText { get => _supportingText; set => Set(ref _supportingText, value); }
     /// <summary>Leading content; a 24x24 control such as a <see cref="Path"/> is expected.</summary>
-    public object? Icon { get; set; }
-
+    public object? Icon { get => _icon; set => Set(ref _icon, value); }
     /// <summary>Additional text matched by the filter but never displayed.</summary>
-    public string? Keywords { get; set; }
-
+    public string? Keywords { get => _keywords; set => Set(ref _keywords, value); }
     /// <summary>Disabled rows stay visible but cannot be selected or invoked.</summary>
-    public bool IsEnabled { get; set; } = true;
-
+    public bool IsEnabled { get => _isEnabled; set => Set(ref _isEnabled, value); }
     /// <summary>Consumer payload returned by <see cref="MaterialMenuTextField.ItemInvoked"/>.</summary>
-    public object? Tag { get; set; }
+    public object? Tag { get => _tag; set => Set(ref _tag, value); }
 
     internal bool Matches(string? query)
     {
@@ -110,6 +123,7 @@ public class MaterialMenuTextField : TemplatedControl
 
     private readonly AvaloniaList<MaterialMenuTextFieldItem> _items = new();
     private readonly ObservableCollection<MaterialMenuTextFieldItem> _visible = new();
+    private readonly HashSet<MaterialMenuTextFieldItem> _observedItems = new();
     private TextBox? _input;
     private ListBox? _list;
     private TextBlock? _empty;
@@ -177,7 +191,19 @@ public class MaterialMenuTextField : TemplatedControl
             SyncSelectionToList();
     }
 
-    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) => ApplyFilter();
+    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        var current = new HashSet<MaterialMenuTextFieldItem>(_items);
+        foreach (var item in _observedItems)
+            if (!current.Contains(item)) item.PropertyChanged -= OnItemPropertyChanged;
+        foreach (var item in current)
+            if (!_observedItems.Contains(item)) item.PropertyChanged += OnItemPropertyChanged;
+        _observedItems.Clear();
+        _observedItems.UnionWith(current);
+        ApplyFilter();
+    }
+
+    private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e) => ApplyFilter();
 
     private void DetachParts()
     {
@@ -238,7 +264,7 @@ public class MaterialMenuTextField : TemplatedControl
             {
                 // Keep the highlight on the same row while it still matches; otherwise start clean
                 // so the menu matches the source composition until the user navigates by keyboard.
-                _list.SelectedItem = previous is not null && _visible.Contains(previous) ? previous : null;
+                _list.SelectedItem = previous is not null && previous.IsEnabled && _visible.Contains(previous) ? previous : null;
                 SetCurrentValue(SelectedItemProperty, _list.SelectedItem as MaterialMenuTextFieldItem);
             }
         }
@@ -350,7 +376,7 @@ public class MaterialMenuTextField : TemplatedControl
 
     private void OnListPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (e.InitialPressMouseButton != MouseButton.Left || e.Source is not Visual source)
+        if ((e.Pointer.Type == PointerType.Mouse && e.InitialPressMouseButton != MouseButton.Left) || e.Source is not Visual source)
             return;
         if (source.FindAncestorOfType<ListBoxItem>(includeSelf: true) is not { } container)
             return;

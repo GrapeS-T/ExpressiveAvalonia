@@ -4,8 +4,10 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Rendering;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -21,7 +23,7 @@ namespace ExpressiveAvalonia.Controls;
 /// the source building block, whose "Show carousel text" property defaults to false.
 /// A tap or <see cref="Invoke"/> raises <see cref="Invoked"/> and executes <see cref="Command"/>.
 /// </remarks>
-public class MaterialCarouselItem : ListBoxItem
+public class MaterialCarouselItem : ListBoxItem, ICustomHitTest
 {
     /// <summary>Background media. Stretched with <see cref="ImageStretch"/> and clipped to the card.</summary>
     public static readonly StyledProperty<IImage?> ImageSourceProperty =
@@ -74,11 +76,52 @@ public class MaterialCarouselItem : ListBoxItem
         AvaloniaProperty.RegisterDirect<MaterialCarouselItem, bool>(nameof(IsSupportingTextVisible),
             item => item.IsSupportingTextVisible);
 
+    /// <summary>The keyline size assigned to this card (the pinned <c>CarouselItemDrawInfo.size</c>).</summary>
+    public static readonly DirectProperty<MaterialCarouselItem, double> ItemSizeProperty =
+        AvaloniaProperty.RegisterDirect<MaterialCarouselItem, double>(nameof(ItemSize),
+            item => item.ItemSize);
+
+    /// <summary>The smallest size any arrangement step assigns to a card.</summary>
+    public static readonly DirectProperty<MaterialCarouselItem, double> MinItemSizeProperty =
+        AvaloniaProperty.RegisterDirect<MaterialCarouselItem, double>(nameof(MinItemSize),
+            item => item.MinItemSize);
+
+    /// <summary>The largest size any arrangement step assigns to a card.</summary>
+    public static readonly DirectProperty<MaterialCarouselItem, double> MaxItemSizeProperty =
+        AvaloniaProperty.RegisterDirect<MaterialCarouselItem, double>(nameof(MaxItemSize),
+            item => item.MaxItemSize);
+
+    /// <summary>
+    /// The visible part of the card in its own coordinates (the pinned mask rect). Hit testing is
+    /// limited to this rectangle, matching the clip applied by the carousel.
+    /// </summary>
+    public static readonly DirectProperty<MaterialCarouselItem, Rect> MaskRectProperty =
+        AvaloniaProperty.RegisterDirect<MaterialCarouselItem, Rect>(nameof(MaskRect),
+            item => item.MaskRect);
+
+    private double _itemSize;
+    private double _minItemSize;
+    private double _maxItemSize;
+    private Rect _maskRect;
     private bool _isOverlayVisible;
     private bool _isSupportingTextVisible;
     private bool _pressed;
     private Point _pressedAt;
     private string? _assignedAutomationName;
+    private readonly TranslateTransform _parallaxTransform = new();
+    private Control? _parallaxContent;
+
+    internal void SetParallax(double translation) => _parallaxTransform.X = translation;
+
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        if (_parallaxContent is not null)
+            _parallaxContent.RenderTransform = null;
+        base.OnApplyTemplate(e);
+        _parallaxContent = e.NameScope.Find<Control>("PART_Card");
+        if (_parallaxContent is not null)
+            _parallaxContent.RenderTransform = _parallaxTransform;
+    }
 
     static MaterialCarouselItem()
     {
@@ -103,6 +146,38 @@ public class MaterialCarouselItem : ListBoxItem
 
     public bool IsOverlayVisible => _isOverlayVisible;
     public bool IsSupportingTextVisible => _isSupportingTextVisible;
+
+    /// <summary>The keyline size currently assigned to this card.</summary>
+    public double ItemSize => _itemSize;
+
+    /// <summary>The smallest size the strategy assigns to a card.</summary>
+    public double MinItemSize => _minItemSize;
+
+    /// <summary>The largest size the strategy assigns to a card.</summary>
+    public double MaxItemSize => _maxItemSize;
+
+    /// <summary>The card's visible rectangle in its own coordinates.</summary>
+    public Rect MaskRect => _maskRect;
+
+    internal void UpdateItemInfo(double itemSize, double minItemSize, double maxItemSize, Rect maskRect)
+    {
+        SetAndRaise(ItemSizeProperty, ref _itemSize, itemSize);
+        SetAndRaise(MinItemSizeProperty, ref _minItemSize, minItemSize);
+        SetAndRaise(MaxItemSizeProperty, ref _maxItemSize, maxItemSize);
+        SetAndRaise(MaskRectProperty, ref _maskRect, maskRect);
+    }
+
+    /// <summary>
+    /// Hit testing follows the visible mask instead of the full (clipped) card bounds, so a
+    /// partially masked card cannot be clicked in the clipped-away region.
+    /// </summary>
+    bool ICustomHitTest.HitTest(Point point)
+    {
+        if (!new Rect(Bounds.Size).Contains(point))
+            return false;
+
+        return _maskRect.Width <= 0 || _maskRect.Contains(point);
+    }
 
     /// <summary>Executes <see cref="Command"/> and raises <see cref="Invoked"/>; disabled cards do nothing.</summary>
     public void Invoke()

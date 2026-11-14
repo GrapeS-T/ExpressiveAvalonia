@@ -14,6 +14,11 @@ namespace ExpressiveAvalonia.Controls;
 /// </summary>
 /// <remarks>
 /// <para>
+/// The pinned Material3 package has no <c>Accordion.kt</c>; this is a local composition over the
+/// source "List item - Accordion" header row, so it is an extension and not an official port of a
+/// non-existent component.
+/// </para>
+/// <para>
 /// Derives from <see cref="ListBoxItem"/> and keeps the list-item style key, so the shared
 /// Material list anatomy (leading element, overline, headline, supporting text, trailing
 /// elements, densities and state layers) applies unchanged. The trailing accordion button is

@@ -16,10 +16,17 @@ namespace ExpressiveAvalonia.Controls;
 /// bar, a scrollable content region and an optional gesture bar.
 /// </summary>
 /// <remarks>
+/// <para>
+/// This is a desktop composition for catalog examples, not an official Material composable. It
+/// imitates device chrome; it is not the operating system's status bar and does not read real
+/// system state.
+/// </para>
+/// <para>
 /// Source anatomy (Device frame): an 8 DIP outline around a 28 DIP radius screen, a 52 DIP status
 /// bar, the screen content, and a 24 DIP gesture bar whose 108x4 handle is centred. Content scrolls
 /// inside the screen instead of growing the frame, which is what the source screens do. Turn
 /// <see cref="IsScrollable"/> off for surfaces that must lay out at their natural height.
+/// </para>
 /// </remarks>
 public sealed class MaterialDeviceFrame : ContentControl
 {

@@ -33,18 +33,34 @@ public sealed class MaterialDatePickerResult
 /// </summary>
 /// <remarks>
 /// The picker instance is released from the window when the dialog closes so the same control
-/// can be shown again or reused elsewhere. Escape and the platform close gesture both produce
-/// <see cref="MaterialDatePickerResult.Cancelled"/>; OK and Save confirm the current selection.
+/// can be shown again or reused elsewhere. The dialog owns the commit boundary: Escape, the
+/// platform close gesture and the picker's Cancel all discard the draft and restore the selection
+/// captured when the dialog opened; OK and Save confirm the current selection.
 /// </remarks>
 public sealed class MaterialDatePickerDialog : Window
 {
     private readonly MaterialDatePicker _picker;
+    private readonly DateTimeOffset? _committedStart;
+    private readonly DateTimeOffset? _committedEnd;
+    private readonly DateTimeOffset? _committedDisplay;
+    private readonly MaterialDatePickerView _committedView;
+    private readonly bool _committedInputMode;
     private MaterialDatePickerResult? _result;
+    private bool _closed;
 
     public MaterialDatePickerDialog(MaterialDatePicker picker)
     {
         ArgumentNullException.ThrowIfNull(picker);
         _picker = picker;
+
+        // The picker mutates its selection while the user works, matching the source state. The
+        // dialog owns the commit boundary: cancelling restores this snapshot, confirming keeps
+        // the live values as the result.
+        _committedStart = picker.SelectedDate;
+        _committedEnd = picker.SelectedEndDate;
+        _committedDisplay = picker.DisplayDate;
+        _committedView = picker.View;
+        _committedInputMode = picker.IsInputMode;
 
         Title = picker.EffectiveLabel;
         WindowDecorations = WindowDecorations.BorderOnly;
@@ -59,6 +75,7 @@ public sealed class MaterialDatePickerDialog : Window
 
         picker.Confirmed += OnPickerConfirmed;
         picker.Cancelled += OnPickerCancelled;
+        picker.PropertyChanged += OnPickerPropertyChanged;
     }
 
     /// <summary>The hosted picker.</summary>
@@ -95,32 +112,61 @@ public sealed class MaterialDatePickerDialog : Window
             return;
         if (e.Key == Key.Escape)
         {
-            Close(MaterialDatePickerResult.Cancelled);
+            CancelDialog();
             e.Handled = true;
         }
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        _closed = true;
         _picker.Confirmed -= OnPickerConfirmed;
         _picker.Cancelled -= OnPickerCancelled;
+        _picker.PropertyChanged -= OnPickerPropertyChanged;
+        // Any close that was not a confirmation discards the draft, like the source dialog where
+        // the caller simply does not read the state after a cancel.
+        if (_result is not { IsConfirmed: true })
+            RestoreCommittedState();
         Content = null;
         base.OnClosed(e);
     }
 
+    private void OnPickerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == MaterialDatePicker.EffectiveLabelProperty)
+            Title = _picker.EffectiveLabel;
+    }
+
+    private void CancelDialog()
+    {
+        if (_closed || _result is not null)
+            return;
+        _result = new MaterialDatePickerResult(_committedStart, _committedEnd, isConfirmed: false);
+        Close(_result);
+    }
+
+    private void RestoreCommittedState()
+    {
+        // DateRangePickerStateImpl.setSelection validates the pair as a unit. Restoring the
+        // endpoints one by one could expose the draft's end while the committed start is being
+        // written, which the picker would reject by clearing both.
+        _picker.RestoreSelection(_committedStart, _committedEnd);
+        _picker.DisplayDate = _committedDisplay;
+        _picker.View = _committedView;
+        _picker.IsInputMode = _committedInputMode;
+        // An IsInputMode transition re-targets the displayed month to the selected date, so the
+        // captured month is re-applied after the mode restore when it was altered.
+        if (_picker.DisplayDate != _committedDisplay)
+            _picker.DisplayDate = _committedDisplay;
+    }
+
     private void OnPickerConfirmed(object? sender, EventArgs e)
     {
-        if (_result is not null)
+        if (_closed || _result is not null)
             return;
         _result = new MaterialDatePickerResult(_picker.SelectedDate, _picker.SelectedEndDate, isConfirmed: true);
         Close(_result);
     }
 
-    private void OnPickerCancelled(object? sender, EventArgs e)
-    {
-        if (_result is not null)
-            return;
-        _result = new MaterialDatePickerResult(_picker.SelectedDate, _picker.SelectedEndDate, isConfirmed: false);
-        Close(_result);
-    }
+    private void OnPickerCancelled(object? sender, EventArgs e) => CancelDialog();
 }

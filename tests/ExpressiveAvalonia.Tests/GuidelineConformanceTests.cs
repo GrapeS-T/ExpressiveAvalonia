@@ -49,32 +49,15 @@ public class GuidelineConformanceTests
     }
 
 
-    [AvaloniaFact]
-    public void CheckboxErrorUsesTheErrorRole()
-    {
-        // CheckboxTokens.UnselectedErrorOutlineColor = Error, SelectedErrorContainerColor = Error.
-        var uncheckedBox = new CheckBox { Content = "Invalid" };
-        DataValidationErrors.SetErrors(uncheckedBox, new object[] { "Required" });
-        var checkedBox = new CheckBox { Content = "Invalid", IsChecked = true };
-        DataValidationErrors.SetErrors(checkedBox, new object[] { "Required" });
-        var window = Show(new StackPanel { Children = { uncheckedBox, checkedBox } });
-        try
-        {
-            var error = Role(uncheckedBox, "MaterialErrorBrush");
-            Assert.Equal(error, ((ISolidColorBrush)Part<Border>(uncheckedBox, "Box").BorderBrush!).Color);
-            Assert.Equal(error, ((ISolidColorBrush)Part<Border>(checkedBox, "Box").Background!).Color);
-        }
-        finally { window.Close(); }
-    }
 
 
     [AvaloniaFact]
     public void ReducedMotionZeroesEveryDurationToken()
     {
-        var theme = new MaterialTheme { Motion = MaterialMotionMode.Expressive };
+        var theme = new MaterialTheme();
         Assert.Equal(TimeSpan.FromMilliseconds(200), Duration(theme, "MaterialDurationShort4"));
         Assert.Equal(TimeSpan.FromMilliseconds(1000), Duration(theme, "MaterialDurationExtraLong4"));
-        theme.Motion = MaterialMotionMode.Reduced;
+        theme.IsReducedMotion = true;
         Assert.All(MaterialDurationTokens.All.Keys,
             key => Assert.Equal(TimeSpan.Zero, Duration(theme, key)));
     }

@@ -16,11 +16,16 @@ namespace ExpressiveAvalonia.Controls;
 /// an optional divider, and up to two text actions, hosted as a real modal window.
 /// </summary>
 /// <remarks>
+/// Desktop extension. The pinned <c>SpatialBasicAlertDialog</c> only hosts caller-provided content
+/// in a SpatialDialog; it defines no card anatomy. This card is the local design composition, and
+/// it uses an Avalonia modal window instead of the XR spatial dialog.
+/// <para>
 /// The dialog is a <see cref="Window"/> so it gets the native modal lifecycle: show it with
 /// <see cref="ShowDialogAsync"/> and it returns the invoked action. Escape dismisses, the primary action is the default button for Enter, focus
 /// moves to the primary action when the dialog opens, and the actions execute their commands
 /// before closing. The window is borderless and transparent; the card carries the surface tone,
 /// 28 unit corner radius, and elevation shadow.
+/// </para>
 /// </remarks>
 public class XrDialog : Window
 {

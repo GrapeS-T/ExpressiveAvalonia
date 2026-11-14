@@ -1,6 +1,7 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:theming="clr-namespace:ExpressiveAvalonia.Theming"
+        xmlns:controls="using:ExpressiveAvalonia.Controls"
         x:Class="ExpressiveAvalonia.Theming.MaterialTheme">
   <Styles.Resources>
     <ResourceDictionary>
@@ -42,11 +43,21 @@
   <Style Selector=":is(Button), :is(ToggleButton), :is(CheckBox), :is(RadioButton), :is(ToggleSwitch), :is(TextBox), :is(ComboBox), :is(ComboBoxItem), :is(ListBoxItem), :is(MenuItem), :is(TabItem), :is(Slider)">
     <Setter Property="theming:MaterialToolTip.KeyboardEnabled" Value="True" />
   </Style>
+  <Style Selector="controls|MaterialScrollField">
+    <Setter Property="Height" Value="120" />
+    <Setter Property="ContainerBrush" Value="{DynamicResource MaterialSurfaceContainerLowestBrush}" />
+    <Setter Property="ContentBrush" Value="{DynamicResource MaterialOutlineBrush}" />
+    <Setter Property="SelectedContentBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FocusRingBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+  </Style>
   <Style Selector="Window">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="FontSize" Value="{DynamicResource MaterialBodyLargeFontSize}" />
     <Setter Property="theming:MaterialMotion.IsReduced" Value="{DynamicResource MaterialReducedMotion}" />
+    <Setter Property="theming:MaterialMotion.Scheme" Value="{DynamicResource MaterialMotionScheme}" />
   </Style>
 </Styles>

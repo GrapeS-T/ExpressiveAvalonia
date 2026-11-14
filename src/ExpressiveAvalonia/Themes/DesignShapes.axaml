@@ -2,7 +2,8 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:controls="using:ExpressiveAvalonia.Controls">
   <!-- Shape family, dividers, scrim, focus indicator and state-layer building blocks.
-       Source geometry lives in Controls/MaterialShapeGeometries.cs (verbatim path data).
+       The 35 AndroidX MaterialShapes use normalized RoundedPolygon geometry; Hexagon and
+       the nine numbered extensions keep design-source path data in MaterialShapeGeometries.cs.
        Color roles, insets and opacities below are taken from the source design data:
          Shape Set (local-004595)        fill M3/sys/light/primary
          .Shape (local-004585)           fill M3/sys/light/primary-container

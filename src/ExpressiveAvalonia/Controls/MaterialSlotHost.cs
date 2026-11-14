@@ -16,11 +16,14 @@ namespace ExpressiveAvalonia.Controls;
 /// replacement prompt inside its safety zone.
 /// </summary>
 /// <remarks>
+/// A design-source building block, not an M3 composable.
+/// <para>
 /// Source anatomy (Shared Building Blocks/Slot-component): a 360x379 primary-container surface,
 /// a dashed safety zone, a swap glyph, the "slot" caption and the replacement instructions.
 /// The prompt is the component's real empty state, not a stand-in: assign <see cref="Content"/>
 /// (optionally with a template) to fill the slot. <see cref="PlaceholderContent"/> replaces the
 /// default prompt when an application wants different empty-slot guidance.
+/// </para>
 /// </remarks>
 public sealed class MaterialSlotHost : ContentControl
 {

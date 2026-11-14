@@ -33,12 +33,33 @@ public enum MaterialDividerVariant
 /// a 4 dp gap, then a title-small label in the on-surface-variant role.
 /// </para>
 /// <para>
+/// The line itself is ported from AndroidX Material3 <c>Divider.kt</c> at commit
+/// <c>77b2199d6f056c2fe829ce25523c34a905e769c1</c>: one DIP outline-variant line whose
+/// horizontal/vertical orientation follows the source
+/// <c>HorizontalDivider</c>/<c>VerticalDivider</c>. The insets, subheader, thickness override and
+/// the variant enum are library extensions from the divider design package; upstream callers
+/// apply insets with padding. A divider is decorative: it has no focus, is not a tab stop and is
+/// excluded from hit testing. <see cref="MaterialScrim"/> is the separate scrim surface (32%
+/// scrim over its bounds) and is not part of this control.
+/// </para>
+/// <para>
 /// A divider is not interactive; it takes no focus and handles no keys. It is a templated
 /// control so the line and subheader can be restyled without touching the geometry logic.
 /// </para>
 /// </remarks>
 public sealed class MaterialDivider : TemplatedControl
 {
+    /// <summary>
+    /// Creates a decorative separator. It is not focusable, takes no tab stop and is ignored by
+    /// hit testing, matching the source divider's non-interactive drawing.
+    /// </summary>
+    public MaterialDivider()
+    {
+        Focusable = false;
+        IsTabStop = false;
+        IsHitTestVisible = false;
+    }
+
     /// <summary>Defines the <see cref="Orientation"/> property.</summary>
     public static readonly StyledProperty<Orientation> OrientationProperty =
         AvaloniaProperty.Register<MaterialDivider, Orientation>(nameof(Orientation), Orientation.Horizontal);

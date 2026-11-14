@@ -17,12 +17,25 @@ public sealed class MaterialTheme : Styles
         AvaloniaProperty.Register<MaterialTheme, double>(nameof(Contrast), 0,
             validate: value => double.IsFinite(value) && value >= -1 && value <= 1);
 
-    public static readonly StyledProperty<MaterialMotionMode> MotionProperty =
-        AvaloniaProperty.Register<MaterialTheme, MaterialMotionMode>(nameof(Motion), MaterialMotionMode.Expressive);
+    public static readonly StyledProperty<MaterialMotionScheme> MotionSchemeProperty =
+        AvaloniaProperty.Register<MaterialTheme, MaterialMotionScheme>(nameof(MotionScheme), MaterialMotionScheme.Standard,
+            validate: value => value is MaterialMotionScheme.Standard or MaterialMotionScheme.Expressive);
+    public static readonly StyledProperty<bool> IsReducedMotionProperty =
+        AvaloniaProperty.Register<MaterialTheme, bool>(nameof(IsReducedMotion));
     public static readonly StyledProperty<FontFamily> FontFamilyProperty =
         AvaloniaProperty.Register<MaterialTheme, FontFamily>(nameof(FontFamily), new FontFamily("avares://ExpressiveAvalonia/Assets/Fonts#Roboto"));
 
-    public MaterialMotionMode Motion { get => GetValue(MotionProperty); set => SetValue(MotionProperty, value); }
+    /// <summary>
+    /// Physical spring scheme applied to the theme. Defaults to <see cref="MaterialMotionScheme.Standard"/>;
+    /// applications opt into <see cref="MaterialMotionScheme.Expressive"/> explicitly.
+    /// </summary>
+    public MaterialMotionScheme MotionScheme { get => GetValue(MotionSchemeProperty); set => SetValue(MotionSchemeProperty, value); }
+    /// <summary>
+    /// Accessibility reduced-motion policy. Independent of <see cref="MotionScheme"/>: when true it
+    /// zeroes duration tokens and stops spring/indeterminate motion. The Windows animation setting
+    /// is honored additionally.
+    /// </summary>
+    public bool IsReducedMotion { get => GetValue(IsReducedMotionProperty); set => SetValue(IsReducedMotionProperty, value); }
     public FontFamily FontFamily { get => GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
 
     public Color SeedColor
@@ -49,6 +62,15 @@ public sealed class MaterialTheme : Styles
         UpdateColors();
         Resources["MaterialFontFamily"] = FontFamily;
         UpdateMotion();
+        ((IResourceProvider)this).OwnerChanged += (_, _) =>
+        {
+            MaterialMotion.ReducedMotionChanged -= SystemMotionChanged;
+            if (((IResourceProvider)this).Owner is not null)
+            {
+                MaterialMotion.ReducedMotionChanged += SystemMotionChanged;
+                UpdateMotion();
+            }
+        };
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -56,7 +78,7 @@ public sealed class MaterialTheme : Styles
         base.OnPropertyChanged(change);
         if (change.Property == SeedColorProperty || change.Property == ContrastProperty)
             UpdateColors();
-        if (change.Property == MotionProperty) UpdateMotion();
+        if (change.Property == MotionSchemeProperty || change.Property == IsReducedMotionProperty) UpdateMotion();
         if (change.Property == FontFamilyProperty) Resources["MaterialFontFamily"] = FontFamily;
     }
 
@@ -70,10 +92,17 @@ public sealed class MaterialTheme : Styles
     // bind Duration to those keys. Springs and indeterminate loops stop on their own.
     private void UpdateMotion()
     {
-        _reduced = Motion == MaterialMotionMode.Reduced;
+        _reduced = IsReducedMotion || MaterialMotion.IsSystemReduced;
+        // All motion resources that can change at runtime are written to the Styles' own
+        // dictionary, whose changes notify DynamicResource consumers (Window scheme, transition
+        // durations); the merged token dictionary keeps the defaults. Spring numbers are also
+        // read in code through MaterialSpringTokens by MaterialMotion.
+        MaterialSpringTokens.Apply(Resources, MotionScheme);
         Resources["MaterialReducedMotion"] = _reduced;
-        MaterialDurationTokens.Apply(_tokens, _reduced);
+        MaterialDurationTokens.Apply((ResourceDictionary)Resources, _reduced);
     }
+
+    private void SystemMotionChanged(object? sender, EventArgs e) => UpdateMotion();
 
     private void UpdateVariant(ThemeVariant variant, bool dark)
     {
@@ -95,15 +124,38 @@ public sealed class MaterialTheme : Styles
         // Generate translucent roles alongside their source colors in each variant dictionary.
         void Translucent(string key, string role, double opacity) =>
             dictionary[key] = new SolidColorBrush((Color)dictionary[role + "Color"]!, opacity);
+        // Compose composites some disabled roles over the scheme surface and draws the result
+        // opaquely. These are real blends, not translucent layers: a translucent switch handle
+        // would composite over the track instead of over the surface the source uses.
+        void Composited(string key, string role, double opacity, string backdrop = "MaterialSurface")
+        {
+            var foreground = (Color)dictionary[role + "Color"]!;
+            var background = (Color)dictionary[backdrop + "Color"]!;
+            static byte Mix(byte fg, byte bg, double alpha) =>
+                (byte)Math.Round(fg * alpha + bg * (1 - alpha));
+            dictionary[key] = new SolidColorBrush(new Color(
+                Mix(foreground.A, background.A, opacity),
+                Mix(foreground.R, background.R, opacity),
+                Mix(foreground.G, background.G, opacity),
+                Mix(foreground.B, background.B, opacity)));
+        }
         // Generic disabled roles. Compose composites these over the container; it never dims
         // the complete control, which would stack two translucent layers.
         Translucent("MaterialDisabledContainerBrush", "MaterialOnSurface", .04);
         Translucent("MaterialDisabledContentBrush", "MaterialOnSurface", .38);
         Translucent("MaterialDisabledOutlineBrush", "MaterialOnSurface", .12);
         Translucent("MaterialSelectionDisabledOnSurfaceBrush", "MaterialOnSurface", .38);
-        Translucent("MaterialSwitchDisabledTrackBrush", "MaterialOnSurface", .12);
-        Translucent("MaterialSwitchDisabledOffTrackBrush", "MaterialSurfaceContainerHighest", .12);
-        Translucent("MaterialSwitchDisabledOffIconBrush", "MaterialSurfaceContainerHighest", .38);
+        Composited("MaterialSwitchDisabledTrackBrush", "MaterialOnSurface", .12);
+        Composited("MaterialSwitchDisabledOffTrackBrush", "MaterialSurfaceContainerHighest", .12);
+        Composited("MaterialSwitchDisabledOffIconBrush", "MaterialSurfaceContainerHighest", .38);
+        Composited("MaterialSwitchDisabledOffThumbBrush", "MaterialOnSurface", .38);
+        Composited("MaterialSwitchDisabledOnIconBrush", "MaterialOnSurface", .38);
+        // Card.kt outlinedCardBorder(enabled = false) composites outline@0.12 over
+        // ElevatedCardTokens.ContainerColor (surface-container-low), not over the outlined card's
+        // own surface container; the stroke is that opaque result.
+        Composited("MaterialCardOutlinedDisabledOutlineBrush", "MaterialOutline", .12,
+            "MaterialSurfaceContainerLow");
+        Composited("MaterialSliderDisabledHandleBrush", "MaterialOnSurface", .38);
         Translucent("MaterialTextFieldDisabledContentBrush", "MaterialOnSurface", .38);
         Translucent("MaterialTextFieldDisabledAffixBrush", "MaterialOnSurfaceVariant", .38);
         Translucent("MaterialTextFieldDisabledOutlineBrush", "MaterialOnSurface", .12);

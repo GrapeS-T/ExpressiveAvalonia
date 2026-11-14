@@ -211,6 +211,7 @@ public sealed class MaterialNavigationItem : Button
 
         public bool IsSelected => Owner.IsSelected;
 
+
         public ISelectionProvider? SelectionContainer => Owner.Drawer is { } drawer
             ? CreatePeerForElement(drawer) as ISelectionProvider
             : null;

@@ -1,8 +1,18 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
   <!-- Popup, Track and presenters retain their native layout and input implementations. -->
   <!-- Native contracts verified against AvaloniaUI/Avalonia tag 12.1.4:
        src/Avalonia.Controls and src/Avalonia.Themes.Simple/Controls. No stock theme is loaded. -->
+  <ControlTheme x:Key="{x:Type PathIcon}" TargetType="PathIcon">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Viewbox Stretch="Uniform">
+          <Path Data="{TemplateBinding Data}" Fill="{TemplateBinding Foreground}" />
+        </Viewbox>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
   <ControlTheme x:Key="{x:Type Window}" TargetType="Window">
     <Setter Property="Template">
       <ControlTemplate>
@@ -92,29 +102,32 @@
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Template"><ControlTemplate><Border Background="{TemplateBinding Background}" /></ControlTemplate></Setter>
   </ControlTheme>
+  <ControlTheme x:Key="MaterialScrollThumb" TargetType="Thumb">
+    <Setter Property="Background" Value="{DynamicResource MaterialOutlineBrush}" />
+    <Setter Property="Template"><ControlTemplate>
+      <Border Background="Transparent">
+        <Border Background="{TemplateBinding Background}" CornerRadius="999" Margin="4" Opacity="0.7" />
+      </Border>
+    </ControlTemplate></Setter>
+    <Style Selector="^:pointerover"><Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" /></Style>
+    <Style Selector="^:pressed"><Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" /></Style>
+  </ControlTheme>
+
 
   <ControlTheme x:Key="{x:Type ScrollBar}" TargetType="ScrollBar">
-    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="Background" Value="Transparent" />
     <Setter Property="Cursor" Value="Arrow" />
     <Style Selector="^:horizontal">
       <Setter Property="Height" Value="12" />
       <Setter Property="Template"><ControlTemplate>
         <Border Background="{TemplateBinding Background}">
-          <Grid ColumnDefinitions="12,*,12">
-            <RepeatButton Name="PART_LineUpButton" Focusable="False" AutomationProperties.Name="{DynamicResource MaterialScrollLeftText}">
-              <Path Data="M 4 0 L 0 4 L 4 8" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" StrokeThickness="1.5" />
-            </RepeatButton>
-            <Track Grid.Column="1" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
-                   Orientation="Horizontal" ViewportSize="{TemplateBinding ViewportSize}"
-                   DeferThumbDrag="{TemplateBinding ScrollViewer.IsDeferredScrollingEnabled}" Value="{TemplateBinding Value, Mode=TwoWay}">
-              <Track.DecreaseButton><RepeatButton Name="PART_PageUpButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="{DynamicResource MaterialPageLeftText}" /></Track.DecreaseButton>
-              <Track.IncreaseButton><RepeatButton Name="PART_PageDownButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="{DynamicResource MaterialPageRightText}" /></Track.IncreaseButton>
-              <Thumb MinWidth="18" Height="6" Margin="0,3" AutomationProperties.Name="{DynamicResource MaterialScrollPositionText}" />
-            </Track>
-            <RepeatButton Name="PART_LineDownButton" Grid.Column="2" Focusable="False" AutomationProperties.Name="{DynamicResource MaterialScrollRightText}">
-              <Path Data="M 0 0 L 4 4 L 0 8" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" StrokeThickness="1.5" />
-            </RepeatButton>
-          </Grid>
+          <Track Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                 Orientation="Horizontal" ViewportSize="{TemplateBinding ViewportSize}" Margin="2,0"
+                 DeferThumbDrag="{TemplateBinding ScrollViewer.IsDeferredScrollingEnabled}" Value="{TemplateBinding Value, Mode=TwoWay}">
+            <Track.DecreaseButton><RepeatButton Name="PART_PageUpButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="{DynamicResource MaterialPageLeftText}" /></Track.DecreaseButton>
+            <Track.IncreaseButton><RepeatButton Name="PART_PageDownButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="{DynamicResource MaterialPageRightText}" /></Track.IncreaseButton>
+            <Thumb Theme="{StaticResource MaterialScrollThumb}" MinWidth="32" AutomationProperties.Name="{DynamicResource MaterialScrollPositionText}" />
+          </Track>
         </Border>
       </ControlTemplate></Setter>
     </Style>
@@ -122,21 +135,13 @@
       <Setter Property="Width" Value="12" />
       <Setter Property="Template"><ControlTemplate>
         <Border Background="{TemplateBinding Background}">
-          <Grid RowDefinitions="12,*,12">
-            <RepeatButton Name="PART_LineUpButton" Focusable="False" AutomationProperties.Name="{DynamicResource MaterialScrollUpText}">
-              <Path Data="M 0 4 L 4 0 L 8 4" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" StrokeThickness="1.5" />
-            </RepeatButton>
-            <Track Grid.Row="1" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
-                   Orientation="Vertical" IsDirectionReversed="True" ViewportSize="{TemplateBinding ViewportSize}"
-                   DeferThumbDrag="{TemplateBinding ScrollViewer.IsDeferredScrollingEnabled}" Value="{TemplateBinding Value, Mode=TwoWay}">
-              <Track.DecreaseButton><RepeatButton Name="PART_PageUpButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="{DynamicResource MaterialPageUpText}" /></Track.DecreaseButton>
-              <Track.IncreaseButton><RepeatButton Name="PART_PageDownButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="{DynamicResource MaterialPageDownText}" /></Track.IncreaseButton>
-              <Thumb MinHeight="18" Width="6" Margin="3,0" AutomationProperties.Name="{DynamicResource MaterialScrollPositionText}" />
-            </Track>
-            <RepeatButton Name="PART_LineDownButton" Grid.Row="2" Focusable="False" AutomationProperties.Name="{DynamicResource MaterialScrollDownText}">
-              <Path Data="M 0 0 L 4 4 L 8 0" Stroke="{DynamicResource MaterialOnSurfaceVariantBrush}" StrokeThickness="1.5" />
-            </RepeatButton>
-          </Grid>
+          <Track Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                 Orientation="Vertical" IsDirectionReversed="True" ViewportSize="{TemplateBinding ViewportSize}" Margin="0,2"
+                 DeferThumbDrag="{TemplateBinding ScrollViewer.IsDeferredScrollingEnabled}" Value="{TemplateBinding Value, Mode=TwoWay}">
+            <Track.DecreaseButton><RepeatButton Name="PART_PageUpButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="{DynamicResource MaterialPageUpText}" /></Track.DecreaseButton>
+            <Track.IncreaseButton><RepeatButton Name="PART_PageDownButton" Theme="{StaticResource MaterialScrollTrackButton}" AutomationProperties.Name="{DynamicResource MaterialPageDownText}" /></Track.IncreaseButton>
+            <Thumb Theme="{StaticResource MaterialScrollThumb}" MinHeight="32" AutomationProperties.Name="{DynamicResource MaterialScrollPositionText}" />
+          </Track>
         </Border>
       </ControlTemplate></Setter>
     </Style>
@@ -164,7 +169,7 @@
         </ScrollContentPresenter>
         <ScrollBar Name="PART_HorizontalScrollBar" Grid.Row="1" Orientation="Horizontal" />
         <ScrollBar Name="PART_VerticalScrollBar" Grid.Column="1" Orientation="Vertical" />
-        <Panel Grid.Row="1" Grid.Column="1" Background="{DynamicResource MaterialSurfaceContainerBrush}" />
+        <Panel Grid.Row="1" Grid.Column="1" Background="Transparent" />
       </Grid>
     </ControlTemplate></Setter>
   </ControlTheme>
@@ -256,6 +261,11 @@
     </ControlTemplate></Setter>
   </ControlTheme>
 
+  <!-- Interaction: the shared MaterialRipple is the source indication for the ComboBox trailing
+       toggle and the calendar header navigation buttons. It draws the bounded press ripple plus the
+       source 15/45/150 ms hover/focus state layer at StateTokens opacity, so the old always-on
+       Border opacity layer and its 200 ms DoubleTransition are gone and no second pressed alpha is
+       painted. The native Button keeps command, Space/Enter, access-key and automation behavior. -->
   <ControlTheme x:Key="MaterialInfrastructureButton" TargetType="Button">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
@@ -271,23 +281,23 @@
                           CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"
                           HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                           VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
-        <Border Name="StateLayer" Background="{TemplateBinding Foreground}" CornerRadius="{TemplateBinding CornerRadius}"
-                Opacity="0" IsHitTestVisible="False" />
+        <theming:MaterialRipple Name="Ripple"
+                                Fill="{TemplateBinding Foreground}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                IsBounded="True"
+                                PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                EnableDrag="False" />
         <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2"
                 CornerRadius="{TemplateBinding CornerRadius}" IsVisible="False" IsHitTestVisible="False" />
       </Panel>
     </ControlTemplate></Setter>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
     <Style Selector="^:disabled"><Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" /></Style>
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="MaterialComboBoxToggle" TargetType="ToggleButton" BasedOn="{StaticResource MaterialInfrastructureButton}">
@@ -401,20 +411,22 @@
                           CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"
                           HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                           VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
-        <Border Name="StateLayer" Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
+        <!-- Source rows use a ripple indication above the row content; the selected container is
+             the separate persistent paint below. The ripple is the only pressed alpha. -->
+        <theming:MaterialRipple Name="Ripple"
+                                Fill="{TemplateBinding Foreground}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                IsBounded="True"
+                                PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                EnableDrag="False" />
         <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2" IsVisible="False" IsHitTestVisible="False" />
       </Panel>
     </ControlTemplate></Setter>
     <Style Selector="^:selected">
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
-    </Style>
-    <Style Selector="^ /template/ Border#StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
     </Style>
     <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Transitions">
@@ -423,10 +435,11 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="^:pointerover /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
     <Style Selector="^:disabled"><Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" /></Style>
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type Calendar}" TargetType="Calendar">
@@ -501,19 +514,33 @@
         <Border Margin="4" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" />
         <Border Name="TodayRing" Margin="4" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="1"
                 CornerRadius="{TemplateBinding CornerRadius}" IsVisible="False" />
-        <Border Name="StateLayer" Margin="4" Background="{TemplateBinding Foreground}" CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+        <!-- Source day/month cell indication: a bounded ripple in the cell content color, clipped to
+             the 40 DIP circle inside the 48 DIP touch target. It replaces the old opacity-only
+             state layer, so press/hover/focus are one indication and the selected/today paints stay
+             separate below. CalendarDayButton and CalendarButton are not focusable; keyboard focus
+             is drawn by the :dayfocused/:btnfocused ring instead. -->
         <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                           Margin="8" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                           VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        <theming:MaterialRipple Name="Ripple" Margin="4"
+                                Fill="{TemplateBinding Foreground}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                IsBounded="True"
+                                PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                EnableFocus="False"
+                                EnableDrag="False" />
         <Border Name="FocusRing" Margin="1" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2"
                 CornerRadius="{TemplateBinding CornerRadius}" IsVisible="False" IsHitTestVisible="False" />
         <Path Name="BlackoutVisual" Width="24" Height="24" Data="M 0,24 L 24,0" Stroke="{TemplateBinding Foreground}"
               StrokeThickness="1" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
       </Panel>
     </ControlTemplate></Setter>
-    <Style Selector="^:pointerover /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" /></Style>
-    <Style Selector="^:pressed /template/ Border#StateLayer"><Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" /></Style>
     <Style Selector="^:disabled"><Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" /></Style>
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type CalendarButton}" TargetType="CalendarButton" BasedOn="{StaticResource MaterialCalendarCell}">

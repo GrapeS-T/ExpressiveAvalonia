@@ -1,16 +1,23 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls">
-  <!-- Icon and tonal-palette assets ported from the design source.
-       Icons: 140 exported 24 dp glyphs (Assets/DesignSystem/Icons), keyed by source node id in
-       MaterialIcons so duplicate layer names keep distinct geometry. The source fill variable
-       (local-005802 = #1D1B20) is the on-surface role, so the glyph tints with Foreground.
+                    xmlns:controls="clr-namespace:ExpressiveAvalonia.Controls"
+                    xmlns:theming="using:ExpressiveAvalonia.Theming">
+  <!-- Icon, label and tonal-palette assets.
+       Icons: the design source exported 140 24 dp glyphs (Assets/DesignSystem/Icons), keyed by
+       source node id in MaterialIcons so duplicate layer names keep distinct geometry. This is an
+       asset adaptation, not the official Compose material-icons set. The M3 Icon contract from
+       Icon.kt is applied on top: the 24 dp default comes from SmallIconButtonTokens.IconSize, the
+       tint is the current Foreground (the source fill variable local-005802 = #1D1B20 is the
+       on-surface role; Foreground=null disables tint like Color.Unspecified), content
+       descriptions drive Image-role semantics, and an icon without one is decorative.
+       Label: Label.kt anchors a plain tooltip above its content; the plain-tooltip tokens
+       (inverse surface, inverse on-surface body small, extra-small shape, 8x4 padding, 40x24,
+       200 maximum width, 4 DIP gap) drive MaterialLabel.
        Tonal palettes: the .Tonal palettes board (local-005641): 6 rows x 13 tones, 61 x 108 cells
        (the last row is 70 as exported), 140 label column, 20 row gap and an extra 40 gap before
-       the neutral group. -->
+       the neutral group. This is the fixed source board, not M3 TonalPalette.kt theme data. -->
 
   <ControlTheme x:Key="{x:Type controls:MaterialIcon}" TargetType="controls:MaterialIcon">
-    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="Width" Value="24" />
     <Setter Property="Height" Value="24" />
     <Setter Property="Stretch" Value="Uniform" />
@@ -19,13 +26,56 @@
         <Path Name="PART_Glyph"
               Data="{TemplateBinding Geometry}"
               Stretch="{TemplateBinding Stretch}"
-              Fill="{TemplateBinding Foreground}"
+              Fill="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}, TargetNullValue=#1D1B20}"
               HorizontalAlignment="Stretch"
               VerticalAlignment="Stretch" />
       </ControlTemplate>
     </Setter>
-    <Style Selector="^:disabled">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type controls:MaterialLabel}" TargetType="controls:MaterialLabel">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <!-- The label is measured outside the anchor's size and arranged 4 DIP above it, the
+             source SpacingBetweenTooltipAndAnchor. It never takes hit testing. -->
+        <controls:MaterialLabelPanel Background="{TemplateBinding Background}">
+          <ContentPresenter Name="PART_Content"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+          <Border Name="PART_Label"
+                  IsHitTestVisible="False"
+                  IsVisible="{TemplateBinding IsLabelVisible}"
+                  Background="{DynamicResource MaterialInverseSurfaceBrush}"
+                  CornerRadius="{DynamicResource MaterialShapeExtraSmallCornerRadius}"
+                  MinWidth="40" MinHeight="24" MaxWidth="200" Padding="8,4"
+                  HorizontalAlignment="Center" VerticalAlignment="Top">
+            <!-- PlainTooltipTokens: inverse surface container, inverse on-surface body-small. -->
+            <ContentPresenter Name="PART_LabelContent"
+                              Content="{TemplateBinding Label}"
+                              ContentTemplate="{TemplateBinding LabelTemplate}"
+                              TextElement.FontFamily="{DynamicResource MaterialFontFamily}"
+                              TextElement.FontSize="{DynamicResource MaterialBodySmallFontSize}"
+                              TextElement.FontWeight="{DynamicResource MaterialBodySmallFontWeight}"
+                              TextElement.LetterSpacing="{DynamicResource MaterialBodySmallLetterSpacing}"
+                              TextElement.Foreground="{DynamicResource MaterialInverseOnSurfaceBrush}" />
+          </Border>
+        </controls:MaterialLabelPanel>
+      </ControlTemplate>
+    </Setter>
+    <!-- Plain tooltips use the body-small token, including its 16 unit line height, and wrap at
+         their 200 maximum width. The style targets the generated TextBlock because the
+         ContentPresenter itself does not carry a LineHeight attached property. -->
+    <Style Selector="^ /template/ ContentPresenter#PART_LabelContent TextBlock">
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialBodySmallLineHeight}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
   </ControlTheme>
 
@@ -43,10 +93,15 @@
           <Border Name="PART_Swatch"
                   Background="{TemplateBinding SwatchBrush}"
                   CornerRadius="{TemplateBinding CornerRadius}" />
-          <Border Name="PART_StateLayer"
-                  Background="{DynamicResource MaterialOnSurfaceBrush}"
-                  CornerRadius="{TemplateBinding CornerRadius}"
-                  Opacity="0" />
+          <!-- Source RippleNode draws the hover/focus state layer and the bounded press ripple
+               above the swatch; there is no second pressed alpha in this template. -->
+          <theming:MaterialRipple Name="Ripple"
+                                  Fill="{DynamicResource MaterialOnSurfaceBrush}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  IsHitTestVisible="False" />
           <Border Name="PART_FocusRing"
                   BorderBrush="{DynamicResource MaterialPrimaryBrush}"
                   BorderThickness="2"
@@ -64,19 +119,8 @@
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^ /template/ Border#PART_StateLayer">
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector="^:pointerover /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
-    </Style>
-    <Style Selector="^:pressed /template/ Border#PART_StateLayer">
-      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
-    </Style>
+    <!-- Interaction is the shared MaterialRipple: hover, focus and press alpha plus the bounded
+         ripple. The swatch keeps its own 2 DIP primary focus ring. -->
     <Style Selector="^:focus-visible /template/ Border#PART_FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>

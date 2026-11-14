@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using ExpressiveAvalonia.Theming;
+using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Catalog;
 
@@ -24,7 +25,9 @@ internal static class Program
 
 public sealed class CatalogApp : Application
 {
-    private readonly MaterialTheme _theme = new();
+    // The library defaults to the pinned Standard motion scheme. The catalog is the Expressive
+    // design showcase, so it opts in explicitly instead of relying on a library-wide default.
+    private readonly MaterialTheme _theme = new() { MotionScheme = MaterialMotionScheme.Expressive };
     public override void Initialize() => Styles.Add(_theme);
 
     public override void OnFrameworkInitializationCompleted()

@@ -79,6 +79,11 @@ public sealed class MaterialKeyboardChromeEventArgs(MaterialKeyboardChrome actio
 /// </summary>
 /// <remarks>
 /// <para>
+/// This is an example composition from the project's design source, not an M3 composable and not a
+/// replacement for the operating-system IME. It never publishes itself as a system input service;
+/// hosts wire <see cref="InputTarget"/> or react to <see cref="TextInserted"/>.
+/// </para>
+/// <para>
 /// Keys are native <see cref="Button"/>s (or <see cref="RepeatButton"/> for backspace), so pointer,
 /// Space/Enter activation, focus visuals and automation come from Avalonia. The control adds the
 /// keyboard-specific behaviour: shift and double-tap caps lock, the symbol and emoji layers,

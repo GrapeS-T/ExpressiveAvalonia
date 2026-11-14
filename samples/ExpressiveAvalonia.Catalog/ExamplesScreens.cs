@@ -104,7 +104,6 @@ public static class ExamplesScreens
             Configuration = configuration,
             Title = title,
             Subtitle = subtitle,
-            IsSubtitleVisible = subtitle is not null,
             LeadingIcon = Geometry("menu"),
             TrailingContent = TrailingActions()
         };
@@ -219,7 +218,7 @@ public static class ExamplesScreens
     {
         var bar = new MaterialNavigationBar
         {
-            ItemOrientation = MaterialNavigationBarItemOrientation.Vertical
+            ItemIconPosition = MaterialNavigationItemIconPosition.Top
         };
         bar.Items.Add(NavItem("Home", "stars", selectedIndex == 0));
         bar.Items.Add(NavItem("Search", "search", selectedIndex == 1));
@@ -818,6 +817,8 @@ public static class ExamplesScreens
         {
             PlaceholderText = "Hinted search text",
             Width = 300,
+            // The compact composer is narrower than the source's 360 DIP collapsed minimum.
+            MinWidth = 0,
             ShowTrailingIcon = true,
             TrailingIcon = Geometry("send"),
             TrailingIconName = "Send"

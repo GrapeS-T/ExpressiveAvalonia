@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -48,6 +49,29 @@ public class MaterialDialogListItem : ListBoxItem
     public MaterialDialogListItem()
     {
         UpdateAutomationName();
+        UpdateLineCount();
+    }
+
+    static MaterialDialogListItem()
+    {
+        OverlineProperty.Changed.AddClassHandler<MaterialDialogListItem>(static (item, _) => item.UpdateLineCount());
+        SupportingTextProperty.Changed.AddClassHandler<MaterialDialogListItem>(static (item, _) => item.UpdateLineCount());
+    }
+
+    /// <summary>
+    /// Keeps the dialog row on the same ListItemType classification as the shared list:
+    /// overline plus supporting text (or an explicit newline) is three-line, either alone is
+    /// two-line, neither is one-line.
+    /// </summary>
+    private void UpdateLineCount()
+    {
+        var supporting = SupportingText;
+        var lines = !string.IsNullOrEmpty(Overline) && !string.IsNullOrEmpty(supporting)
+            ? 3
+            : !string.IsNullOrEmpty(supporting) && supporting.Contains('\n')
+                ? 3
+                : !string.IsNullOrEmpty(Overline) || !string.IsNullOrEmpty(supporting) ? 2 : 1;
+        MaterialList.SetLineCount(this, lines);
     }
 
     public string? Initial { get => GetValue(InitialProperty); set => SetValue(InitialProperty, value); }
