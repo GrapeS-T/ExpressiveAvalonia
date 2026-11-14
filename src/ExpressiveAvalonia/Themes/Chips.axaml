@@ -191,11 +191,18 @@
     <Style Selector="^:has-icon, ^:filter:selected">
       <Setter Property="Padding" Value="8,6,16,6" />
     </Style>
+    <Style Selector="^:has-avatar">
+      <Setter Property="Padding" Value="4,4,16,4" />
+      <Setter Property="CornerRadius" Value="16" />
+    </Style>
     <Style Selector="^:trailing">
       <Setter Property="Padding" Value="16,6,8,6" />
     </Style>
     <Style Selector="^:has-icon:trailing, ^:filter:selected:trailing">
       <Setter Property="Padding" Value="8,6,8,6" />
+    </Style>
+    <Style Selector="^:has-avatar:trailing">
+      <Setter Property="Padding" Value="4,4,8,4" />
     </Style>
     <Style Selector="^:input">
       <Setter Property="Padding" Value="12,6" />

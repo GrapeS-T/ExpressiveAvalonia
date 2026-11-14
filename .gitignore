@@ -4,3 +4,8 @@
 .idea/
 artifacts/
 tools/FigmaExport/
+
+# Custom local scripts
+/run.bat
+*.local.bat
+

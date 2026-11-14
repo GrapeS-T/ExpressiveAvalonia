@@ -115,11 +115,16 @@ public static class ProgressGallery
         for (var step = 1; step <= 7; step++)
             bare.Children.Add(new LoadingIndicator { Step = step, IsAnimated = false });
         panel.Children.Add(bare);
-        panel.Children.Add(Note("Анимированные индикаторы: с контейнером и без, крупный вариант 96 dp."));
+        panel.Children.Add(Note("Анимированные индикаторы с плавной трансформацией: с контейнером и без, крупный вариант 96 dp."));
         panel.Children.Add(Row(
-            new LoadingIndicator { IsAnimated = true },
-            new LoadingIndicator { IsAnimated = true, ShowContainer = true },
-            new LoadingIndicator { IsAnimated = true, ShowContainer = true, Width = 96, Height = 96 }));
+            new LoadingIndicator { IsAnimated = true, Motion = LoadingIndicatorMotion.Smooth },
+            new LoadingIndicator { IsAnimated = true, ShowContainer = true, Motion = LoadingIndicatorMotion.Smooth },
+            new LoadingIndicator { IsAnimated = true, ShowContainer = true, Width = 96, Height = 96, Motion = LoadingIndicatorMotion.Smooth }));
+        panel.Children.Add(Note("Анимированные индикаторы с трансформацией и пружинным скачком (Spring bounce): без фона и с фоном."));
+        panel.Children.Add(Row(
+            new LoadingIndicator { IsAnimated = true, Motion = LoadingIndicatorMotion.SpringBounce },
+            new LoadingIndicator { IsAnimated = true, ShowContainer = true, Motion = LoadingIndicatorMotion.SpringBounce },
+            new LoadingIndicator { IsAnimated = true, ShowContainer = true, Width = 96, Height = 96, Motion = LoadingIndicatorMotion.SpringBounce }));
 
         return new ScrollViewer
         {
@@ -211,8 +216,12 @@ public static class ProgressGallery
 
     private static StackPanel Row(params Control[] children)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
-        foreach (var child in children) row.Children.Add(child);
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16, VerticalAlignment = VerticalAlignment.Center };
+        foreach (var child in children)
+        {
+            child.VerticalAlignment = VerticalAlignment.Center;
+            row.Children.Add(child);
+        }
         return row;
     }
 }

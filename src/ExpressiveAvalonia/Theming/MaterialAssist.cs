@@ -2,8 +2,10 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Theming;
 
@@ -244,12 +246,26 @@ public sealed class MaterialAssist : AvaloniaObject
         private void OnPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
         {
             if (args.Property == Button.IsPressedProperty || args.Property == ToggleButton.IsCheckedProperty)
+            {
                 Update(true);
+            }
+            else if (args.Property == Button.BoundsProperty)
+            {
+                if (args.OldValue is Rect oldBounds && args.NewValue is Rect newBounds &&
+                    Math.Abs(oldBounds.Width - newBounds.Width) < 0.01 &&
+                    Math.Abs(oldBounds.Height - newBounds.Height) < 0.01)
+                {
+                    return;
+                }
+                Update(_spring is not null);
+            }
             else if (args.Property == MaterialMotion.IsReducedProperty ||
-                     args.Property == Button.CornerRadiusProperty || args.Property == Button.BoundsProperty ||
+                     args.Property == Button.CornerRadiusProperty ||
                      args.Property == ControlSizeProperty || args.Property == ButtonShapeProperty ||
                      args.Property == IsIconButtonProperty || args.Property == ContainerInsetProperty)
+            {
                 Update(false);
+            }
         }
 
         private void Update(bool animate)
@@ -339,14 +355,6 @@ public sealed class MaterialAssist : AvaloniaObject
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
 {
-    // Source ripple normalized to its own bounding box (x / 84, y / 28 of the Small vector).
-    private static readonly Geometry Shape = StreamGeometry.Parse(
-        "M1,0.111568 L1,1 L0,1 C0,0.447714 0.306768,0 0.685186,0 C0.798683,0 0.905736,0.0402754 1,0.111568 Z");
-
-    /// <summary>
-    /// A purely decorative layer never takes pointer input, so it can never block the interactive
-    /// control it is layered on, whatever the host's z-order or Opacity.
-    /// </summary>
     bool Avalonia.Rendering.ICustomHitTest.HitTest(Point point) => false;
 
     public static readonly StyledProperty<IBrush?> FillProperty =
@@ -361,10 +369,6 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
     public static readonly StyledProperty<double> RippleHeightProperty =
         AvaloniaProperty.Register<MaterialRipple, double>(nameof(RippleHeight), 28d);
 
-    /// <summary>
-    /// An optional ripple outline in normalized (0..1) coordinates that replaces the built-in
-    /// source vector. Families whose source Ripple differs in a corner can pass their own path.
-    /// </summary>
     public static readonly StyledProperty<Geometry?> DataProperty =
         AvaloniaProperty.Register<MaterialRipple, Geometry?>(nameof(Data));
 
@@ -374,38 +378,30 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
             FillProperty, CornerRadiusProperty, RippleWidthProperty, RippleHeightProperty, DataProperty);
     }
 
-    /// <summary>Gets or sets the ripple brush; the theme passes the button foreground.</summary>
     public IBrush? Fill
     {
         get => GetValue(FillProperty);
         set => SetValue(FillProperty, value);
     }
 
-    /// <summary>Gets or sets the silhouette the ripple is clipped by.</summary>
     public CornerRadius CornerRadius
     {
         get => GetValue(CornerRadiusProperty);
         set => SetValue(CornerRadiusProperty, value);
     }
 
-    /// <summary>Gets or sets the ripple box width from the source vector.</summary>
     public double RippleWidth
     {
         get => GetValue(RippleWidthProperty);
         set => SetValue(RippleWidthProperty, value);
     }
 
-    /// <summary>Gets or sets the ripple box height from the source vector.</summary>
     public double RippleHeight
     {
         get => GetValue(RippleHeightProperty);
         set => SetValue(RippleHeightProperty, value);
     }
 
-    /// <summary>
-    /// Gets or sets a normalized (0..1) ripple outline. When null the built-in source vector is
-    /// used; see <see cref="Shape"/>.
-    /// </summary>
     public Geometry? Data
     {
         get => GetValue(DataProperty);
@@ -413,12 +409,14 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
     }
 
     private Size _arrangedSize;
+    private Point? _pressPoint;
+    private double _rippleProgress;
+    private MaterialMotion.SpringAnimation? _spring;
 
     protected override Size ArrangeOverride(Size finalSize)
     {
         var size = base.ArrangeOverride(finalSize);
 
-        // The ripple is drawn from Bounds, so a container resize has to re-record the drawing.
         if (!_arrangedSize.Equals(size))
         {
             _arrangedSize = size;
@@ -428,15 +426,88 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
         return size;
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (TemplatedParent is InputElement parent)
+        {
+            parent.AddHandler(InputElement.PointerPressedEvent, OnParentPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel | Avalonia.Interactivity.RoutingStrategies.Bubble);
+        }
+        else if (Parent is InputElement directParent)
+        {
+            directParent.AddHandler(InputElement.PointerPressedEvent, OnParentPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel | Avalonia.Interactivity.RoutingStrategies.Bubble);
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (TemplatedParent is InputElement parent)
+        {
+            parent.RemoveHandler(InputElement.PointerPressedEvent, OnParentPointerPressed);
+        }
+        else if (Parent is InputElement directParent)
+        {
+            directParent.RemoveHandler(InputElement.PointerPressedEvent, OnParentPointerPressed);
+        }
+        _spring?.Dispose();
+        _spring = null;
+    }
+
+    private void OnParentPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _pressPoint = e.GetPosition(this);
+        TriggerRipple();
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == OpacityProperty)
+        {
+            var opacity = change.GetNewValue<double>();
+            if (opacity > 0.01 && _rippleProgress < 0.5)
+            {
+                TriggerRipple();
+            }
+            else if (opacity <= 0.01)
+            {
+                _pressPoint = null;
+                _rippleProgress = 0;
+            }
+        }
+    }
+
+    private void TriggerRipple()
+    {
+        if (Data is not null)
+            return;
+
+        if (MaterialMotion.GetIsReduced(this) || !this.IsAttachedToVisualTree())
+        {
+            _spring?.Dispose();
+            _spring = null;
+            _rippleProgress = 1.0;
+            InvalidateVisual();
+            return;
+        }
+
+        _rippleProgress = 0.15;
+        InvalidateVisual();
+        _spring?.Dispose();
+        _spring = MaterialMotion.Animate(this, 0.15, 1.0, progress =>
+        {
+            _rippleProgress = progress;
+            InvalidateVisual();
+        }, MaterialSpring.SpatialFast);
+    }
+
     public override void Render(DrawingContext context)
     {
         var fill = Fill;
-        var width = RippleWidth;
-        var height = RippleHeight;
         var size = Bounds.Size;
-        var geometry = Data ?? Shape;
 
-        if (fill is null || !(width > 0) || !(height > 0) || !(size.Width > 0) || !(size.Height > 0))
+        if (fill is null || !(size.Width > 0) || !(size.Height > 0))
             return;
 
         var limit = Math.Min(size.Width, size.Height) / 2;
@@ -446,14 +517,36 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
             Clamp(corners.TopLeft), Clamp(corners.TopRight),
             Clamp(corners.BottomRight), Clamp(corners.BottomLeft));
 
-        // Right- and bottom-anchored, as in every source variant; overflow is clipped.
-        var ripple = new Rect(size.Width - width, size.Height - height, width, height);
-
         using (context.PushClip(new RoundedRect(new Rect(size), radii)))
-        using (context.PushTransform(Matrix.CreateTranslation(ripple.X, ripple.Y)))
-        using (context.PushTransform(Matrix.CreateScale(ripple.Width, ripple.Height)))
         {
-            context.DrawGeometry(fill, null, geometry);
+            if (Data is not null)
+            {
+                var width = RippleWidth > 0 ? RippleWidth : size.Width;
+                var height = RippleHeight > 0 ? RippleHeight : size.Height;
+                var ripple = new Rect(size.Width - width, size.Height - height, width, height);
+
+                using (context.PushTransform(Matrix.CreateTranslation(ripple.X, ripple.Y)))
+                using (context.PushTransform(Matrix.CreateScale(ripple.Width, ripple.Height)))
+                {
+                    context.DrawGeometry(fill, null, Data);
+                }
+            }
+            else
+            {
+                var origin = _pressPoint ?? new Point(size.Width / 2, size.Height / 2);
+                origin = new Point(Math.Clamp(origin.X, 0, size.Width), Math.Clamp(origin.Y, 0, size.Height));
+
+                var d1 = Math.Sqrt(origin.X * origin.X + origin.Y * origin.Y);
+                var d2 = Math.Sqrt((size.Width - origin.X) * (size.Width - origin.X) + origin.Y * origin.Y);
+                var d3 = Math.Sqrt(origin.X * origin.X + (size.Height - origin.Y) * (size.Height - origin.Y));
+                var d4 = Math.Sqrt((size.Width - origin.X) * (size.Width - origin.X) + (size.Height - origin.Y) * (size.Height - origin.Y));
+                var maxRadius = Math.Max(Math.Max(d1, d2), Math.Max(d3, d4)) * 1.05;
+
+                var progress = _rippleProgress > 0 ? _rippleProgress : 1.0;
+                var radius = maxRadius * Math.Clamp(progress, 0.05, 1.0);
+
+                context.DrawEllipse(fill, null, origin, radius, radius);
+            }
         }
     }
 }

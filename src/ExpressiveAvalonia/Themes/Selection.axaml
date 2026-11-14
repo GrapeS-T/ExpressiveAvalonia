@@ -68,6 +68,7 @@
                             Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
                             LetterSpacing="{TemplateBinding LetterSpacing}"
+                            VerticalAlignment="Center"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             RecognizesAccessKey="True" />
@@ -220,6 +221,7 @@
                             Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
                             LetterSpacing="{TemplateBinding LetterSpacing}"
+                            VerticalAlignment="Center"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             RecognizesAccessKey="True" />
@@ -366,6 +368,7 @@
                             Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
                             LetterSpacing="{TemplateBinding LetterSpacing}"
+                            VerticalAlignment="Center"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True" />
         </Grid>

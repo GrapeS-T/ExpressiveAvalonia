@@ -34,7 +34,9 @@ internal sealed partial class CatalogWindow
         {
             Data = Geometry.Parse("M3,6 L15,6 L15,8 L3,8 Z M3,11 L12,11 L12,13 L3,13 Z M3,16 L15,16 L15,18 L3,18 Z M20,7 L22,9 L19,12 L22,15 L20,17 L15,12 Z"),
             Width = 24,
-            Height = 24
+            Height = 24,
+            RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative),
+            RenderTransform = new Avalonia.Media.ScaleTransform(1, 1)
         };
         collapseIcon.Bind(ForegroundProperty, this.GetResourceObservable("MaterialOnSurfaceBrush"));
         // A local template keeps the navigation glyph independent of the gallery's icon-button anatomy.
@@ -107,7 +109,7 @@ internal sealed partial class CatalogWindow
         introduction.Children.Add(_sectionLabel);
         introduction.Children.Add(_pageTitle);
         stage.Children.Add(introduction);
-        var viewport = new ScrollViewer { Content = _preview, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        var viewport = new ScrollViewer { Content = _preview, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         viewport.SizeChanged += (_, _) => UpdatePreviewWidth(viewport.Bounds.Width);
         Grid.SetRow(viewport, 1);
         stage.Children.Add(viewport);
@@ -146,16 +148,37 @@ internal sealed partial class CatalogWindow
 
     private static Geometry NavigationIcon(string? page) => Geometry.Parse(page switch
     {
-        "Buttons" or "Button groups" or "Chips" => "M6,6 L18,6 A6,6 0 0 1 18,18 L6,18 A6,6 0 0 1 6,6 Z M7,11 L17,11 L17,13 L7,13 Z",
-        "Selection" => "M3,3 L21,3 L21,21 L3,21 Z M6,12 L10,16 L18,8 L16,6 L10,12 L8,10 Z",
-        "Navigation rail" or "Navigation drawer" => "M3,3 L21,3 L21,21 L3,21 Z M5,5 L5,19 L9,19 L9,5 Z M11,5 L11,19 L19,19 L19,5 Z",
-        "FAB" => "M12,2 A10,10 0 1 1 11.99,2 Z M11,6 L11,11 L6,11 L6,13 L11,13 L11,18 L13,18 L13,13 L18,13 L18,11 L13,11 L13,6 Z",
-        "Text fields" or "Input" or "Typography" => "M3,4 L21,4 L21,8 L19,8 L19,6 L13,6 L13,20 L11,20 L11,6 L5,6 L5,8 L3,8 Z",
-        "Sliders" or "Ranges" => "M3,7 L8,7 L8,4 L10,4 L10,12 L8,12 L8,9 L3,9 Z M12,7 L21,7 L21,9 L12,9 Z M3,16 L14,16 L14,13 L16,13 L16,21 L14,21 L14,18 L3,18 Z M18,16 L21,16 L21,18 L18,18 Z",
-        "Lists" or "Collections" or "Menus" => "M3,4 L6,4 L6,7 L3,7 Z M9,4 L21,4 L21,7 L9,7 Z M3,10 L6,10 L6,13 L3,13 Z M9,10 L21,10 L21,13 L9,13 Z M3,16 L6,16 L6,19 L3,19 Z M9,16 L21,16 L21,19 L9,19 Z",
-        "Search" => "M10,2 A8,8 0 1 1 4.34,15.66 A8,8 0 0 1 10,2 Z M10,4 A6,6 0 1 0 10,16 A6,6 0 0 0 10,4 Z M15,14 L22,21 L20,23 L13,16 Z",
-        "Date pickers" or "Time pickers" => "M5,2 L7,2 L7,4 L17,4 L17,2 L19,2 L19,4 L22,4 L22,22 L2,22 L2,4 L5,4 Z M4,9 L4,20 L20,20 L20,9 Z",
-        _ => "M3,3 L10,3 L10,10 L3,10 Z M14,3 L21,3 L21,10 L14,10 Z M3,14 L10,14 L10,21 L3,21 Z M14,14 L21,14 L21,21 L14,21 Z"
+        "Buttons" => "F0 M19,7H5C3.9,7,3,7.9,3,9v6c0,1.1,0.9,2,2,2h14c1.1,0,2-0.9,2-2V9C21,7.9,20.1,7,19,7z M19,15H5V9h14V15z M7,11h10v2H7V11z",
+        "Selection" => "F0 M19,3H5C3.9,3,3,3.9,3,5v14c0,1.1,0.9,2,2,2h14c1.1,0,2-0.9,2-2V5C21,3.9,20.1,3,19,3z M19,19H5V5h14V19z M10,17l-5-5l1.41-1.41L10,14.17l7.59-7.59L19,8L10,17z",
+        "Navigation rail" => "F0 M4,4h16c1.1,0,2,0.9,2,2v12c0,1.1-0.9,2-2,2H4c-1.1,0-2-0.9-2-2V6C2,4.9,2.9,4,4,4z M4,6v12h5V6H4z M11,6v12h9V6H11z M5,8h3v2H5V8z M5,12h3v2H5V12z",
+        "Snackbar" => "F0 M19,5H5C3.9,5,3,5.9,3,7v10c0,1.1,0.9,2,2,2h14c1.1,0,2-0.9,2-2V7C21,5.9,20.1,5,19,5z M19,17H5V7h14V17z M7,13h7v2H7V13z M7,9h10v2H7V9z",
+        "FAB" => "F0 M12,2C6.48,2,2,6.48,2,12s4.48,10,10,10s10-4.48,10-10S17.52,2,12,2z M12,20c-4.41,0-8-3.59-8-8s3.59-8,8-8s8,3.59,8,8S16.41,20,12,20z M13,7h-2v4H7v2h4v4h2v-4h4v-2h-4V7z",
+        "XR" => "F0 M20,6H4C2.9,6,2,6.9,2,8v8c0,1.1,0.9,2,2,2h4.5l2-2h3l2,2H20c1.1,0,2-0.9,2-2V8C22,6.9,21.1,6,20,6z M7,14c-1.66,0-3-1.34-3-3s1.34-3,3-3s3,1.34,3,3S8.66,14,7,14z M17,14c-1.66,0-3-1.34-3-3s1.34-3,3-3s3,1.34,3,3S18.66,14,17,14z",
+        "App bars" => "F0 M4,4h16c1.1,0,2,0.9,2,2v12c0,1.1-0.9,2-2,2H4c-1.1,0-2-0.9-2-2V6C2,4.9,2.9,4,4,4z M4,6v3h16V6H4z M4,11v7h16v-7H4z M6,7h3v1H6V7z",
+        "Button groups" => "F0 M2,7h20v10H2V7z M4,9v6h4V9H4z M10,9v6h4V9H10z M16,9v6h4V9H16z",
+        "Chips" => "F0 M21.41,11.58l-9-9C12.05,2.22,11.55,2,11,2H4C2.9,2,2,2.9,2,4v7c0,0.55,0.22,1.05,0.59,1.42l9,9c0.36,0.36,0.86,0.58,1.41,0.58c0.55,0,1.05-0.22,1.41-0.59l7-7c0.37-0.36,0.59-0.86,0.59-1.41C22,12.44,21.77,11.94,21.41,11.58z M13,20.01L4,11V4h7v0.01l9,9L13,20.01z M6.5,8C5.67,8,5,7.33,5,6.5S5.67,5,6.5,5S8,5.67,8,6.5S7.33,8,6.5,8z",
+        "Dialogs" => "F0 M19,4H5C3.89,4,3,4.89,3,6v12c0,1.1,0.89,2,2,2h14c1.1,0,2-0.9,2-2V6C21,4.89,20.1,4,19,4z M19,18H5V6h14V18z M7,8h10v2H7V8z M7,11h7v2H7V11z M13,14h4v2h-4V14z",
+        "Sheets" => "F0 M19,3H5C3.9,3,3,3.9,3,5v14c0,1.1,0.9,2,2,2h14c1.1,0,2-0.9,2-2V5C21,3.9,20.1,3,19,3z M19,11H5V5h14V11z M19,19H5v-6h14V19z M10,14h4v1h-4V14z",
+        "Navigation bar" => "F0 M4,4h16c1.1,0,2,0.9,2,2v12c0,1.1-0.9,2-2,2H4c-1.1,0-2-0.9-2-2V6C2,4.9,2.9,4,4,4z M4,6v8h16V6H4z M4,16v2h16v-2H4z M6,17h2v1H6V17z M11,17h2v1h-2V17z M16,17h2v1h-2V17z",
+        "Navigation drawer" => "F0 M4,4h16c1.1,0,2,0.9,2,2v12c0,1.1-0.9,2-2,2H4c-1.1,0-2-0.9-2-2V6C2,4.9,2.9,4,4,4z M4,6v12h7V6H4z M13,6v12h7V6H13z M5,8h5v2H5V8z M5,11h5v2H5V11z",
+        "Search" => "F0 M15.5,14h-0.79l-0.28-0.27C15.41,12.59,16,11.11,16,9.5C16,5.91,13.09,3,9.5,3S3,5.91,3,9.5S5.91,16,9.5,16c1.61,0,3.09-0.59,4.23-1.57l0.27,0.28v0.79l5,4.99L20.49,19L15.5,14z M9.5,14C7.01,14,5,11.99,5,9.5S7.01,5,9.5,5S14,7.01,14,9.5S11.99,14,9.5,14z",
+        "Date pickers" => "F0 M19,4h-1V2h-2v2H8V2H6v2H5C3.89,4,3.01,4.9,3.01,6L3,20c0,1.1,0.89,2,2,2h14c1.1,0,2-0.9,2-2V6C21,4.9,20.1,4,19,4z M19,20H5V10h14V20z M19,8H5V6h14V8z M7,12h2v2H7V12z M11,12h2v2h-2V12z M15,12h2v2h-2V12z",
+        "Lists" or "Collections" => "F0 M3,13h2v-2H3V13z M3,17h2v-2H3V17z M3,9h2V7H3V9z M7,13h14v-2H7V13z M7,17h14v-2H7V17z M7,7v2h14V7H7z",
+        "Tabs" => "F0 M21,3H3C1.9,3,1,3.9,1,5v14c0,1.1,0.9,2,2,2h18c1.1,0,2-0.9,2-2V5C23,3.9,22.1,3,21,3z M21,19H3V9h18V19z M21,7H3V5h18V7z M4,6h4v1H4V6z M10,6h4v1h-4V6z",
+        "Text fields" or "Input" => "F0 M4,4h16c1.1,0,2,0.9,2,2v12c0,1.1-0.9,2-2,2H4c-1.1,0-2-0.9-2-2V6C2,4.9,2.9,4,4,4z M4,6v12h16V6H4z M7,8h10v2H7V8z M7,11h6v2H7V11z",
+        "Sliders" or "Ranges" => "F0 M3,17v2h6v-2H3z M3,5v2h10V5H3z M13,21v-2h8v-2h-8v-2h-2v6H13z M7,9v2H3v2h4v2h2V9H7z M21,13v-2H11v2H21z M17,9h4V7h-4V5h-2v6H17z",
+        "Progress" => "F0 M12,4V1L8,5l4,4V6c3.31,0,6,2.69,6,6c0,1.01-0.25,1.97-0.7,2.8l1.46,1.46C19.54,15.03,20,13.57,20,12C20,7.58,16.42,4,12,4z M12,18c-3.31,0-6-2.69-6-6c0-1.01,0.25-1.97,0.7-2.8L5.24,7.74C4.46,8.97,4,10.43,4,12c0,4.42,3.58,8,8,8v3l4-4l-4-4V18z",
+        "Menus" => "F0 M3,18h18v-2H3V18z M3,13h18v-2H3V13z M3,6v2h18V6H3z",
+        "Tooltips" => "F0 M20,2H4C2.9,2,2,2.9,2,4v12c0,1.1,0.9,2,2,2h14l4,4V4C22,2.9,21.1,2,20,2z M20,16H4V4h16V16z M11,12h2v2h-2V12z M11,6h2v4h-2V6z",
+        "Shapes" => "F0 M12,2L6,12h12L12,2z M12,6.5l2.7,4.5H9.3L12,6.5z M4,14h6v6H4V14z M18,14a3,3 0 1,1 0,6a3,3 0 0,1 0,-6z",
+        "Avatars" => "F0 M12,2C6.48,2,2,6.48,2,12s4.48,10,10,10s10-4.48,10-10S17.52,2,12,2z M12,20c-4.41,0-8-3.59-8-8s3.59-8,8-8s8,3.59,8,8S16.41,20,12,20z M12,6c1.66,0,3,1.34,3,3s-1.34,3-3,3s-3-1.34-3-3S10.34,6,12,6z M12,14c2.67,0,8,1.34,8,4v1H4v-1C4,15.34,9.33,14,12,14z",
+        "Assets" => "F0 M21,19V5c0-1.1-0.9-2-2-2H5C3.9,2,3,2.9,3,4v14c0,1.1,0.9,2,2,2h14C20.1,20,21,19.1,21,19z M5,18l4-5l3,4l4-5l4,6H5z M19,4v10.5l-3.5-4.5l-4,5l-3-4L5,15.5V4H19z",
+        "Cards" => "F0 M20,4H4C2.89,4,2.01,4.89,2.01,6L2,18c0,1.11,0.89,2,2,2h16c1.11,0,2-0.89,2-2V6C22,4.89,21.11,4,20,4z M20,18H4v-6h16V18z M20,8H4V6h16V8z",
+        "Carousel" => "F0 M7,19h10V5H7V19z M9,7h6v10H9V7z M2,17h4V7H2V17z M18,7v10h4V7H18z",
+        "Time pickers" => "F0 M11.99,2C6.47,2,2,6.48,2,12s4.47,10,9.99,10C17.52,22,22,17.52,22,12S17.52,2,11.99,2z M12,20c-4.42,0-8-3.58-8-8s3.58-8,8-8s8,3.58,8,8S16.42,20,12,20z M12.5,7H11v6l5.25,3.15l0.75-1.23l-4.5-2.67V7z",
+        "Typography" => "F0 M5,4v3h5v12h3V7h5V4H5z",
+        "Examples" => "F0 M4,4h6v6H4V4z M14,4h6v6h-6V4z M4,14h6v6H4V14z M14,14h6v6h-6V14z",
+        _ => "F0 M4,4h6v6H4V4z M14,4h6v6h-6V4z M4,14h6v6H4V14z M14,14h6v6h-6V14z"
     });
 
     internal void SelectPage(bool expressive, int index)

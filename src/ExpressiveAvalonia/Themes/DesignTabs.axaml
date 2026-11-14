@@ -150,8 +150,6 @@
       <Setter Property="Transitions">
         <Transitions>
           <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
-          <DoubleTransition Property="Width" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.05,0.7,0.1,1" />
-          <DoubleTransition Property="Height" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.05,0.7,0.1,1" />
         </Transitions>
       </Setter>
     </Style>

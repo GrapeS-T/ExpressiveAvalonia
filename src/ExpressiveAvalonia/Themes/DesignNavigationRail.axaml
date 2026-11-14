@@ -120,7 +120,8 @@
       <Setter Property="Height" Value="64" />
     </Style>
     <Style Selector="^:horizontal">
-      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="4,0" />
       <Setter Property="Template" Value="{StaticResource MaterialNavigationRailItemHorizontalTemplate}" />
       <Setter Property="Height" Value="56" />
     </Style>

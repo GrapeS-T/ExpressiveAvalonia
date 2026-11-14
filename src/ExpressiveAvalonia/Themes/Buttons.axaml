@@ -38,6 +38,7 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="theming:MaterialAssist.ContainerInset" Value="0,4" />
     <Setter Property="theming:MaterialAssist.AnimateShape" Value="True" />
+    <Setter Property="UseLayoutRounding" Value="True" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
@@ -67,21 +68,27 @@
                   CornerRadius="{TemplateBinding theming:MaterialAssist.AnimatedCornerRadius}"
                   IsHitTestVisible="False" />
           <Viewbox Name="ContentHost" Stretch="None"
+                   UseLayoutRounding="True"
                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
           <!-- The icon host is a sibling of the content presenter so the icon sits inside the
                token padding. Its spacing is a right margin, which collapses with the host, so a
                button without an icon keeps the exact token content width. -->
           <StackPanel Name="ContentRoot" Orientation="Horizontal"
-                      Margin="{TemplateBinding Padding}">
+                      Margin="{TemplateBinding Padding}"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
           <ContentPresenter Name="IconHost"
                             Content="{TemplateBinding theming:MaterialAssist.DisplayedIcon}"
                             IsVisible="{TemplateBinding theming:MaterialAssist.IsIconVisible}"
+                            Foreground="{TemplateBinding Foreground}"
                             VerticalAlignment="Center" />
           <ContentPresenter Name="PART_ContentPresenter"
                             Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             Padding="0"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
@@ -205,6 +212,14 @@
     </Style>
 
     <!-- Sizes: container height, token padding, type scale, icon size and icon gap. -->
+    <Style Selector="^ /template/ ContentPresenter#IconHost[IsVisible=False]">
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Width" Value="0" />
+      <Setter Property="Height" Value="0" />
+    </Style>
+    <Style Selector="^ /template/ ContentPresenter#IconHost PathIcon">
+      <Setter Property="Foreground" Value="{Binding $parent[Button].Foreground}" />
+    </Style>
     <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]">
       <Setter Property="MinHeight" Value="48" />
       <Setter Property="theming:MaterialAssist.ContainerInset" Value="0,8" />

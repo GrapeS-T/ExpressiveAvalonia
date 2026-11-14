@@ -46,7 +46,7 @@ public static class ButtonsGallery
         panel.Children.Add(status);
 
         // Labeled buttons: six color treatments across all five sizes.
-        panel.Children.Add(Caption("Labeled buttons - variants x sizes (press to see the source ripple)"));
+        panel.Children.Add(Caption("Labeled buttons - variants x sizes (press to see the ripple)"));
         foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
         {
             panel.Children.Add(new ViewportGallery(() =>
@@ -61,6 +61,29 @@ public static class ButtonsGallery
             foreach (var size in Enum.GetValues<MaterialControlSize>())
             {
                 var button = Labeled("Label", variant, size);
+                button.Click += (_, _) => Count();
+                row.Children.Add(button);
+            }
+                return row;
+            }, 136));
+        }
+
+        // Labeled buttons with icon: six color treatments across all five sizes.
+        panel.Children.Add(Caption("Labeled buttons with icon - variants x sizes"));
+        foreach (var variant in Enum.GetValues<MaterialButtonVariant>())
+        {
+            panel.Children.Add(new ViewportGallery(() =>
+            {
+            var row = Row();
+            row.Children.Add(new TextBlock
+            {
+                Text = variant.ToString(),
+                Width = 92,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            foreach (var size in Enum.GetValues<MaterialControlSize>())
+            {
+                var button = Labeled("Label", variant, size, icon: Star);
                 button.Click += (_, _) => Count();
                 row.Children.Add(button);
             }
@@ -190,7 +213,7 @@ public static class ButtonsGallery
         // keeps the label readable. Space and Enter are handled by Button/ToggleButton.
         panel.Children.Add(Caption("Keyboard"));
         var keyboardRow = Row();
-        var save = Labeled("_Save", MaterialButtonVariant.Filled, MaterialControlSize.Small);
+        var save = Labeled("_Save", MaterialButtonVariant.Filled, MaterialControlSize.Small, icon: Star);
         save.Click += (_, _) => Count();
         AutomationProperties.SetName(save, "Save");
         keyboardRow.Children.Add(save);
@@ -219,7 +242,8 @@ public static class ButtonsGallery
         string text,
         MaterialButtonVariant variant,
         MaterialControlSize size,
-        MaterialButtonShape shape = MaterialButtonShape.Round)
+        MaterialButtonShape shape = MaterialButtonShape.Round,
+        Geometry? icon = null)
     {
         var button = new Button
         {
@@ -229,7 +253,10 @@ public static class ButtonsGallery
         MaterialAssist.SetButtonVariant(button, variant);
         MaterialAssist.SetControlSize(button, size);
         MaterialAssist.SetButtonShape(button, shape);
-        MaterialAssist.SetIcon(button, new PathIcon { Data = Star });
+        if (icon is not null)
+        {
+            MaterialAssist.SetIcon(button, new PathIcon { Data = icon });
+        }
         return button;
     }
 

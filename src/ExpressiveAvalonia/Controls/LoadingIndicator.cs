@@ -9,6 +9,14 @@ using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
 
+public enum LoadingIndicatorMotion
+{
+    /// <summary>Плавная трансформация силуэтов (smooth shape morphing).</summary>
+    Smooth,
+    /// <summary>Трансформация с пружинным скачком (spring bounce / jump morph).</summary>
+    SpringBounce
+}
+
 /// <summary>
 /// The Expressive loading indicator: the source silhouette slowly turns while it alternates
 /// between the seven source "Steps", optionally inside the 48 dp circular container.
@@ -37,11 +45,13 @@ public sealed class LoadingIndicator : TemplatedControl
         AvaloniaProperty.Register<LoadingIndicator, bool>(nameof(ShowContainer));
     public static readonly StyledProperty<IBrush?> ContainerBrushProperty =
         AvaloniaProperty.Register<LoadingIndicator, IBrush?>(nameof(ContainerBrush));
+    public static readonly StyledProperty<LoadingIndicatorMotion> MotionProperty =
+        AvaloniaProperty.Register<LoadingIndicator, LoadingIndicatorMotion>(nameof(Motion), LoadingIndicatorMotion.Smooth);
 
-    // Each step holds its silhouette, then cross-fades into the next one.
-    private const double HoldMilliseconds = 400;
-    private const double FadeMilliseconds = 200;
-    private const double SlotMilliseconds = HoldMilliseconds + FadeMilliseconds;
+    // Each step holds its silhouette briefly, then morphs into the next one.
+    private const double HoldMilliseconds = 250;
+    private const double MorphMilliseconds = 350;
+    private const double SlotMilliseconds = HoldMilliseconds + MorphMilliseconds;
     private const double CycleMilliseconds = SlotMilliseconds * 7;
 
     private readonly ProgressAnimationClock _clock;
@@ -49,7 +59,7 @@ public sealed class LoadingIndicator : TemplatedControl
     static LoadingIndicator()
     {
         AffectsRender<LoadingIndicator>(StepProperty, ShowContainerProperty, ContainerBrushProperty,
-            ForegroundProperty, IsAnimatedProperty);
+            ForegroundProperty, IsAnimatedProperty, MotionProperty);
     }
 
     public LoadingIndicator() => _clock = new ProgressAnimationClock(this, () => IsAnimated);
@@ -57,13 +67,16 @@ public sealed class LoadingIndicator : TemplatedControl
     /// <summary>Source "Steps" axis: 1–7. Also the first silhouette of the animated cycle.</summary>
     public int Step { get => GetValue(StepProperty); set => SetValue(StepProperty, value); }
 
-    /// <summary>Cross-fades through the seven source silhouettes; paused for reduced motion.</summary>
+    /// <summary>Morphs through the seven source silhouettes; paused for reduced motion.</summary>
     public bool IsAnimated { get => GetValue(IsAnimatedProperty); set => SetValue(IsAnimatedProperty, value); }
 
     /// <summary>Source "Show container" axis: draws the circular container behind the shape.</summary>
     public bool ShowContainer { get => GetValue(ShowContainerProperty); set => SetValue(ShowContainerProperty, value); }
 
     public IBrush? ContainerBrush { get => GetValue(ContainerBrushProperty); set => SetValue(ContainerBrushProperty, value); }
+
+    /// <summary>Animation style: Smooth shape morphing or SpringBounce jump morph.</summary>
+    public LoadingIndicatorMotion Motion { get => GetValue(MotionProperty); set => SetValue(MotionProperty, value); }
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -93,53 +106,85 @@ public sealed class LoadingIndicator : TemplatedControl
         if (ShowContainer && ContainerBrush is { } container)
             context.DrawEllipse(container, null, center, size / 2, size / 2);
 
-        var (current, next, blend, angle) = CurrentFrame();
         var scale = size / LoadingIndicatorShapes.Artboard;
-        DrawShape(context, current, 1 - blend, angle, scale, center);
-        if (blend > 0 && next != current)
-            DrawShape(context, next, blend, angle, scale, center);
+
+        if (!IsAnimated || MaterialMotion.GetIsReduced(this))
+        {
+            DrawStaticShape(context, Step, 0, scale, center);
+            return;
+        }
+
+        var (current, next, morphT, angle, springScale) = CurrentFrame();
+        var geometry = LoadingIndicatorShapes.CreateMorphedGeometry(current, next, morphT);
+        var totalScale = scale * springScale;
+
+        using (context.PushTransform(
+                   Matrix.CreateRotation(angle) *
+                   Matrix.CreateScale(totalScale, totalScale) *
+                   Matrix.CreateTranslation(center.X, center.Y)))
+        {
+            context.DrawGeometry(Foreground, null, geometry);
+        }
     }
 
-    /// <summary>
-    /// Draws one source silhouette centred on <paramref name="center"/>. The path data is in the
-    /// 48-unit artboard space, so the control scale is applied uniformly and each shape is
-    /// centred by its own bounds instead of assuming the artwork is centred in its box.
-    /// </summary>
-    private void DrawShape(DrawingContext context, int step, double opacity, double angle,
-        double scale, Point center)
+    private void DrawStaticShape(DrawingContext context, int step, double angle, double scale, Point center)
     {
-        if (opacity <= 0)
-            return;
         var geometry = LoadingIndicatorShapes.Get(step);
-        var bounds = geometry.Bounds;
-        if (bounds.Width <= 0 || bounds.Height <= 0)
-            return;
+        var origin = LoadingIndicatorShapes.GetCenter(step);
         using (context.PushTransform(
-                   Matrix.CreateTranslation(-(bounds.X + bounds.Width / 2), -(bounds.Y + bounds.Height / 2)) *
+                   Matrix.CreateTranslation(-origin.X, -origin.Y) *
                    Matrix.CreateRotation(angle) *
                    Matrix.CreateScale(scale, scale) *
                    Matrix.CreateTranslation(center.X, center.Y)))
-        using (context.PushOpacity(opacity))
+        {
             context.DrawGeometry(Foreground, null, geometry);
+        }
     }
 
-    /// <summary>Returns the silhouette pair, its cross-fade weight and the current turn angle.</summary>
-    private (int Current, int Next, double Blend, double Angle) CurrentFrame()
+    /// <summary>Returns the silhouette pair, morph blend t, current turn angle, and spring scale factor.</summary>
+    private (int Current, int Next, double MorphT, double Angle, double SpringScale) CurrentFrame()
     {
         if (!IsAnimated || MaterialMotion.GetIsReduced(this))
-            return (Step, Step, 0, 0);
+            return (Step, Step, 0, 0, 1.0);
 
         // Start the cycle at the selected step so Step stays meaningful while animating.
         var time = (_clock.ElapsedMilliseconds + (Step - 1) * SlotMilliseconds) % CycleMilliseconds;
         var index = (int)(time / SlotMilliseconds);
         var local = time - index * SlotMilliseconds;
-        var progress = local <= HoldMilliseconds ? 0 : (local - HoldMilliseconds) / FadeMilliseconds;
-        // Smoothstep keeps the fade free of a velocity jump at both ends.
-        var blend = progress * progress * (3 - 2 * progress);
         var current = index + 1;
         var next = current % LoadingIndicatorShapes.Count + 1;
-        // One slow turn per cycle, as a loading affordance; the source art itself is static.
-        return (current, next, blend, time / CycleMilliseconds * Math.Tau);
+        var baseAngle = time / CycleMilliseconds * Math.Tau;
+
+        if (local <= HoldMilliseconds)
+        {
+            return (current, next, 0, baseAngle, 1.0);
+        }
+
+        var p = (local - HoldMilliseconds) / MorphMilliseconds; // 0.0 to 1.0
+
+        if (Motion == LoadingIndicatorMotion.Smooth)
+        {
+            // Smoothstep curve for seamless fluid shape morphing
+            var morphT = p * p * (3.0 - 2.0 * p);
+            return (current, next, morphT, baseAngle, 1.0);
+        }
+        else // SpringBounce
+        {
+            // Underdamped spring curve for morph parameter t with subtle overshoot
+            var springProgress = 1.0 - Math.Exp(-5.0 * p) * Math.Cos(p * Math.PI * 2.5);
+            var morphT = Math.Clamp(springProgress, 0.0, 1.12);
+
+            // Dynamic spring scale pop / bounce:
+            // Anticipatory squash, explosive spring pop outward to ~1.14, then harmonic settling
+            var bounce = -Math.Sin(p * Math.PI * 3.5) * Math.Exp(-4.0 * p);
+            var springScale = 1.0 + 0.16 * bounce;
+
+            // Rotational spring torque impulse
+            var kick = 0.12 * Math.Sin(p * Math.PI) * Math.Exp(-2.5 * p);
+            var angle = baseAngle + kick;
+
+            return (current, next, morphT, angle, springScale);
+        }
     }
 
     private sealed class LoadingIndicatorAutomationPeer(LoadingIndicator owner) : ControlAutomationPeer(owner)

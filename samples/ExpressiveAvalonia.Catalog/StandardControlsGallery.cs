@@ -131,7 +131,7 @@ internal static class StandardControlsGallery
             MaterialList.SetHeadline(item, "List item headline");
             MaterialList.SetLineCount(item, lines);
             if (lines > 1) MaterialList.SetSupportingText(item, lines == 2 ? "Supporting text" : "Supporting text that wraps over two lines to demonstrate the three-line list layout.");
-            MaterialList.SetLeadingContent(item, new PathIcon { Data = Avalonia.Media.Geometry.Parse("M3,5 L21,5 L21,19 L3,19 Z M3,5 L12,12 L21,5"), Width = 24, Height = 24 });
+            MaterialList.SetLeadingContent(item, new PathIcon { Data = Avalonia.Media.Geometry.Parse("F0 M20,4H4C2.9,4,2.01,4.9,2.01,6L2,18c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V6C22,4.9,21.1,4,20,4z M20,18H4V8l8,5l8-5V18z M12,11L4,6h16L12,11z"), Width = 24, Height = 24 });
             MaterialList.SetTrailingContent(item, new TextBlock { Text = "100+" });
             list.Items.Add(item);
         }

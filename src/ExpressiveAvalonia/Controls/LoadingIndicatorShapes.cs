@@ -32,8 +32,82 @@ internal static class LoadingIndicatorShapes
 
     private static readonly Geometry[] Cache = [.. Data.Select(Geometry.Parse)];
 
+    /// <summary>
+    /// Calibrated geometric centers for each silhouette so rotation and static placement
+    /// occur around their true center of visual mass / symmetry rather than naive AABB centers.
+    /// Step 3 (pentagon) is placed at its true centroid (17.0, 17.09) rather than AABB mid (17.0, 15.96).
+    /// </summary>
+    private static readonly Avalonia.Point[] Centers =
+    [
+        new(16.5, 17.0),
+        new(17.0, 16.84),
+        new(17.0, 17.09),
+        new(15.0, 15.0),
+        new(17.0, 17.0),
+        new(14.0, 14.0),
+        new(15.0, 15.0)
+    ];
+
     public static int Count => Cache.Length;
 
     /// <summary>Step numbers are one-based, as in the source property.</summary>
     public static Geometry Get(int step) => Cache[Math.Clamp(step, 1, Cache.Length) - 1];
+
+    /// <summary>Returns the calibrated geometric center for the given silhouette step.</summary>
+    public static Avalonia.Point GetCenter(int step) => Centers[Math.Clamp(step, 1, Centers.Length) - 1];
+
+    private const int SampleCount = 120;
+    private static readonly (double Cos, double Sin)[] Directions = PrecomputeDirections(SampleCount);
+
+    private static (double Cos, double Sin)[] PrecomputeDirections(int count)
+    {
+        var dirs = new (double Cos, double Sin)[count];
+        for (var i = 0; i < count; i++)
+        {
+            var theta = i * Math.Tau / count;
+            dirs[i] = (Math.Cos(theta), Math.Sin(theta));
+        }
+        return dirs;
+    }
+
+    /// <summary>
+    /// 120 radial boundary samples measured along each ray from the calibrated centers,
+    /// ensuring seamless morphing without runtime overhead or dependency on HitTest stubs.
+    /// </summary>
+    private static readonly float[][] ShapeRadii =
+    [
+        [13.58f, 13.75f, 14.39f, 15.26f, 16.28f, 17.06f, 17.23f, 16.97f, 16.07f, 15.07f, 14.22f, 13.64f, 13.51f, 13.72f, 14.38f, 15.24f, 16.25f, 16.95f, 17.08f, 16.80f, 15.91f, 14.94f, 14.11f, 13.54f, 13.40f, 13.58f, 14.21f, 15.04f, 16.02f, 16.80f, 17.00f, 16.80f, 16.02f, 15.04f, 14.21f, 13.58f, 13.40f, 13.54f, 14.11f, 14.94f, 15.91f, 16.80f, 17.08f, 16.95f, 16.25f, 15.24f, 14.38f, 13.72f, 13.51f, 13.64f, 14.22f, 15.07f, 16.07f, 16.97f, 17.23f, 17.06f, 16.28f, 15.26f, 14.39f, 13.75f, 13.58f, 13.75f, 14.39f, 15.26f, 16.28f, 17.06f, 17.23f, 16.97f, 16.07f, 15.07f, 14.22f, 13.64f, 13.51f, 13.72f, 14.38f, 15.24f, 16.25f, 16.95f, 17.08f, 16.80f, 15.91f, 14.94f, 14.11f, 13.54f, 13.40f, 13.58f, 14.21f, 15.04f, 16.02f, 16.80f, 17.00f, 16.80f, 16.02f, 15.04f, 14.21f, 13.58f, 13.40f, 13.54f, 14.11f, 14.94f, 15.91f, 16.80f, 17.08f, 16.95f, 16.25f, 15.24f, 14.38f, 13.72f, 13.51f, 13.64f, 14.22f, 15.07f, 16.07f, 16.97f, 17.23f, 17.06f, 16.28f, 15.26f, 14.39f, 13.75f],
+        [16.72f, 16.38f, 16.01f, 15.82f, 15.80f, 15.96f, 16.31f, 16.73f, 17.03f, 17.22f, 17.31f, 17.30f, 17.19f, 16.97f, 16.64f, 16.24f, 16.00f, 15.95f, 16.06f, 16.37f, 16.79f, 17.11f, 17.31f, 17.41f, 17.41f, 17.30f, 17.09f, 16.77f, 16.36f, 16.08f, 16.00f, 16.08f, 16.36f, 16.77f, 17.09f, 17.30f, 17.41f, 17.41f, 17.31f, 17.11f, 16.79f, 16.37f, 16.06f, 15.95f, 16.00f, 16.24f, 16.64f, 16.97f, 17.19f, 17.30f, 17.31f, 17.22f, 17.03f, 16.73f, 16.31f, 15.96f, 15.80f, 15.82f, 16.01f, 16.38f, 16.72f, 16.96f, 17.09f, 17.13f, 17.06f, 16.89f, 16.62f, 16.25f, 15.84f, 15.63f, 15.58f, 15.71f, 16.02f, 16.40f, 16.67f, 16.85f, 16.92f, 16.90f, 16.79f, 16.58f, 16.26f, 15.85f, 15.55f, 15.43f, 15.47f, 15.69f, 16.07f, 16.41f, 16.65f, 16.79f, 16.84f, 16.79f, 16.65f, 16.41f, 16.07f, 15.69f, 15.47f, 15.43f, 15.55f, 15.85f, 16.26f, 16.58f, 16.79f, 16.90f, 16.92f, 16.85f, 16.67f, 16.40f, 16.02f, 15.71f, 15.58f, 15.63f, 15.84f, 16.25f, 16.62f, 16.89f, 17.06f, 17.13f, 17.09f, 16.96f],
+        [16.14f, 15.87f, 15.65f, 15.48f, 15.35f, 15.27f, 15.23f, 15.26f, 15.33f, 15.44f, 15.60f, 15.80f, 16.05f, 16.35f, 16.68f, 16.97f, 17.15f, 17.24f, 17.23f, 17.14f, 16.96f, 16.67f, 16.32f, 15.97f, 15.66f, 15.41f, 15.21f, 15.05f, 14.93f, 14.86f, 14.83f, 14.86f, 14.93f, 15.05f, 15.21f, 15.41f, 15.66f, 15.97f, 16.32f, 16.67f, 16.96f, 17.14f, 17.23f, 17.24f, 17.15f, 16.97f, 16.68f, 16.35f, 16.05f, 15.80f, 15.60f, 15.44f, 15.33f, 15.26f, 15.23f, 15.27f, 15.35f, 15.48f, 15.65f, 15.87f, 16.14f, 16.46f, 16.81f, 17.15f, 17.38f, 17.49f, 17.51f, 17.43f, 17.26f, 16.97f, 16.60f, 16.23f, 15.91f, 15.64f, 15.42f, 15.25f, 15.12f, 15.03f, 14.99f, 15.02f, 15.08f, 15.18f, 15.33f, 15.53f, 15.77f, 16.06f, 16.39f, 16.70f, 16.92f, 17.05f, 17.09f, 17.05f, 16.92f, 16.70f, 16.39f, 16.06f, 15.77f, 15.53f, 15.33f, 15.18f, 15.08f, 15.02f, 14.99f, 15.03f, 15.12f, 15.25f, 15.42f, 15.64f, 15.91f, 16.23f, 16.60f, 16.97f, 17.26f, 17.43f, 17.51f, 17.49f, 17.38f, 17.15f, 16.81f, 16.46f],
+        [14.83f, 14.70f, 14.56f, 14.42f, 14.28f, 14.13f, 13.97f, 13.82f, 13.66f, 13.50f, 13.34f, 13.18f, 13.06f, 12.97f, 12.91f, 12.90f, 12.91f, 12.97f, 13.06f, 13.18f, 13.34f, 13.50f, 13.66f, 13.82f, 13.97f, 14.13f, 14.28f, 14.42f, 14.56f, 14.70f, 14.83f, 14.95f, 15.07f, 15.18f, 15.29f, 15.39f, 15.48f, 15.56f, 15.63f, 15.70f, 15.75f, 15.79f, 15.83f, 15.85f, 15.87f, 15.87f, 15.87f, 15.85f, 15.83f, 15.80f, 15.75f, 15.70f, 15.63f, 15.56f, 15.48f, 15.39f, 15.29f, 15.18f, 15.07f, 14.95f, 14.83f, 14.70f, 14.56f, 14.42f, 14.28f, 14.13f, 13.97f, 13.82f, 13.66f, 13.50f, 13.34f, 13.18f, 13.06f, 12.97f, 12.91f, 12.90f, 12.91f, 12.97f, 13.06f, 13.18f, 13.34f, 13.50f, 13.66f, 13.82f, 13.97f, 14.13f, 14.28f, 14.42f, 14.56f, 14.70f, 14.83f, 14.95f, 15.07f, 15.18f, 15.29f, 15.39f, 15.48f, 15.56f, 15.63f, 15.70f, 15.75f, 15.79f, 15.83f, 15.85f, 15.87f, 15.87f, 15.87f, 15.85f, 15.83f, 15.79f, 15.75f, 15.70f, 15.63f, 15.56f, 15.48f, 15.39f, 15.29f, 15.18f, 15.07f, 14.95f],
+        [17.00f, 16.87f, 16.45f, 15.90f, 15.42f, 15.00f, 14.65f, 14.39f, 14.39f, 14.65f, 15.00f, 15.42f, 15.90f, 16.45f, 16.87f, 17.00f, 16.87f, 16.45f, 15.90f, 15.42f, 15.00f, 14.64f, 14.39f, 14.39f, 14.65f, 15.00f, 15.42f, 15.90f, 16.45f, 16.87f, 17.00f, 16.87f, 16.45f, 15.90f, 15.42f, 15.00f, 14.65f, 14.39f, 14.39f, 14.64f, 15.00f, 15.42f, 15.90f, 16.45f, 16.87f, 17.00f, 16.87f, 16.45f, 15.90f, 15.42f, 15.00f, 14.65f, 14.39f, 14.39f, 14.65f, 15.00f, 15.42f, 15.90f, 16.45f, 16.87f, 17.00f, 16.87f, 16.45f, 15.90f, 15.42f, 15.00f, 14.65f, 14.39f, 14.39f, 14.65f, 15.00f, 15.42f, 15.90f, 16.45f, 16.87f, 17.00f, 16.87f, 16.45f, 15.90f, 15.42f, 15.00f, 14.64f, 14.39f, 14.39f, 14.65f, 15.00f, 15.42f, 15.90f, 16.45f, 16.87f, 17.00f, 16.87f, 16.45f, 15.90f, 15.42f, 15.00f, 14.65f, 14.39f, 14.39f, 14.64f, 15.00f, 15.42f, 15.90f, 16.45f, 16.87f, 17.00f, 16.87f, 16.45f, 15.90f, 15.42f, 15.00f, 14.65f, 14.39f, 14.39f, 14.65f, 15.00f, 15.42f, 15.90f, 16.45f, 16.87f],
+        [12.35f, 12.40f, 12.54f, 12.79f, 13.18f, 13.70f, 14.29f, 14.83f, 15.30f, 15.70f, 16.04f, 16.31f, 16.51f, 16.66f, 16.75f, 16.77f, 16.75f, 16.66f, 16.51f, 16.31f, 16.04f, 15.70f, 15.30f, 14.83f, 14.29f, 13.70f, 13.18f, 12.79f, 12.54f, 12.40f, 12.35f, 12.40f, 12.54f, 12.79f, 13.18f, 13.70f, 14.29f, 14.83f, 15.30f, 15.70f, 16.04f, 16.31f, 16.51f, 16.66f, 16.75f, 16.77f, 16.75f, 16.66f, 16.51f, 16.31f, 16.04f, 15.70f, 15.30f, 14.83f, 14.29f, 13.70f, 13.18f, 12.79f, 12.54f, 12.40f, 12.35f, 12.40f, 12.54f, 12.79f, 13.18f, 13.70f, 14.29f, 14.83f, 15.30f, 15.70f, 16.04f, 16.31f, 16.51f, 16.66f, 16.75f, 16.77f, 16.75f, 16.66f, 16.51f, 16.31f, 16.04f, 15.70f, 15.30f, 14.83f, 14.29f, 13.70f, 13.18f, 12.79f, 12.54f, 12.40f, 12.35f, 12.40f, 12.54f, 12.79f, 13.18f, 13.70f, 14.29f, 14.83f, 15.30f, 15.70f, 16.04f, 16.31f, 16.51f, 16.66f, 16.75f, 16.77f, 16.75f, 16.66f, 16.51f, 16.31f, 16.04f, 15.70f, 15.30f, 14.83f, 14.29f, 13.70f, 13.18f, 12.79f, 12.54f, 12.40f],
+        [13.67f, 13.38f, 13.12f, 12.87f, 12.65f, 12.45f, 12.26f, 12.10f, 11.96f, 11.84f, 11.73f, 11.65f, 11.58f, 11.54f, 11.51f, 11.50f, 11.51f, 11.54f, 11.58f, 11.65f, 11.73f, 11.84f, 11.96f, 12.10f, 12.26f, 12.45f, 12.65f, 12.87f, 13.12f, 13.38f, 13.67f, 13.97f, 14.29f, 14.63f, 14.98f, 15.34f, 15.70f, 16.06f, 16.41f, 16.74f, 17.05f, 17.31f, 17.53f, 17.69f, 17.79f, 17.82f, 17.79f, 17.69f, 17.53f, 17.31f, 17.05f, 16.74f, 16.41f, 16.06f, 15.70f, 15.34f, 14.98f, 14.63f, 14.29f, 13.97f, 13.67f, 13.38f, 13.12f, 12.87f, 12.65f, 12.45f, 12.26f, 12.10f, 11.96f, 11.84f, 11.73f, 11.65f, 11.58f, 11.54f, 11.51f, 11.50f, 11.51f, 11.54f, 11.58f, 11.65f, 11.73f, 11.84f, 11.96f, 12.10f, 12.26f, 12.45f, 12.65f, 12.87f, 13.12f, 13.38f, 13.67f, 13.97f, 14.29f, 14.63f, 14.98f, 15.34f, 15.70f, 16.06f, 16.41f, 16.74f, 17.05f, 17.31f, 17.53f, 17.69f, 17.79f, 17.82f, 17.79f, 17.69f, 17.53f, 17.31f, 17.05f, 16.74f, 16.41f, 16.06f, 15.70f, 15.34f, 14.98f, 14.63f, 14.29f, 13.97f],
+    ];
+
+    /// <summary>
+    /// Creates a smoothly interpolated geometry morphed from <paramref name="fromStep"/>
+    /// to <paramref name="toStep"/> at progress <paramref name="t"/>, centered around (0, 0).
+    /// </summary>
+    public static Geometry CreateMorphedGeometry(int fromStep, int toStep, double t)
+    {
+        var fromIndex = Math.Clamp(fromStep, 1, Cache.Length) - 1;
+        var toIndex = Math.Clamp(toStep, 1, Cache.Length) - 1;
+        var r1 = ShapeRadii[fromIndex];
+        var r2 = ShapeRadii[toIndex];
+
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            var r0 = (1.0 - t) * r1[0] + t * r2[0];
+            ctx.BeginFigure(new Avalonia.Point(r0 * Directions[0].Cos, r0 * Directions[0].Sin), isFilled: true);
+            for (var i = 1; i < SampleCount; i++)
+            {
+                var r = (1.0 - t) * r1[i] + t * r2[i];
+                ctx.LineTo(new Avalonia.Point(r * Directions[i].Cos, r * Directions[i].Sin));
+            }
+            ctx.EndFigure(isClosed: true);
+        }
+        return geometry;
+    }
 }
