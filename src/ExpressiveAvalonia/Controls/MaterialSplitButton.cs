@@ -7,9 +7,12 @@ using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Styling;
+using Avalonia.VisualTree;
 using ExpressiveAvalonia.Theming;
 using ExpressiveAvalonia.Tokens;
 
@@ -41,7 +44,7 @@ namespace ExpressiveAvalonia.Controls;
 /// <para>
 /// Geometry follows the pinned source: visual heights 32/40/56/96/136 inside 48/48/56/96/136
 /// targets, a 2-DIP seam, full-round outer corners, inner seam corners of 4/4/4/8/12 DIP that morph
-/// to 8/12/12/20/20 DIP on press with the DefaultEffects spring, a circular trailing silhouette
+/// to 8/12/12/20/20 DIP on press with the FastSpatial spring, a circular trailing silhouette
 /// while the trailing half is checked or its menu is open, leading content padding of 12+10,
 /// 16+12, 24+24, 48+48 and
 /// 64+64, trailing padding of 13/13, 15/15, 29/29 and 43/43, and the source trailing icon sizes.
@@ -53,6 +56,7 @@ namespace ExpressiveAvalonia.Controls;
 /// leading half stays logically first. Reduced motion snaps every shape change.
 /// </para>
 /// </remarks>
+[PseudoClasses(":trailing-active")]
 [TemplatePart("PART_PrimaryButton", typeof(Button))]
 [TemplatePart("PART_TrailingButton", typeof(Button))]
 public class MaterialSplitButton : ContentControl
@@ -144,13 +148,20 @@ public class MaterialSplitButton : ContentControl
     public static readonly StyledProperty<double> ContentSpacingProperty =
         AvaloniaProperty.Register<MaterialSplitButton, double>(nameof(ContentSpacing), 8d);
 
-    /// <summary>The physical left inset of the trailing content, used to clamp optical centering.</summary>
+    /// <summary>The logical start inset of the trailing content, used to clamp optical centering.</summary>
     public static readonly StyledProperty<double> TrailingContentPaddingStartProperty =
         AvaloniaProperty.Register<MaterialSplitButton, double>(nameof(TrailingContentPaddingStart), 13d);
 
-    /// <summary>The physical right inset of the trailing content, used to clamp optical centering.</summary>
+    /// <summary>The logical end inset of the trailing content, used to clamp optical centering.</summary>
     public static readonly StyledProperty<double> TrailingContentPaddingEndProperty =
         AvaloniaProperty.Register<MaterialSplitButton, double>(nameof(TrailingContentPaddingEnd), 13d);
+
+    /// <summary>
+    /// Accessible name of the trailing button. When unset, resolves the
+    /// <c>MaterialSplitButtonMoreOptionsText</c> resource ("More options").
+    /// </summary>
+    public static readonly StyledProperty<string?> TrailingAccessibleNameProperty =
+        AvaloniaProperty.Register<MaterialSplitButton, string?>(nameof(TrailingAccessibleName));
 
     /// <summary>Whether the primary half is effectively enabled (own flag and inherited state).</summary>
     public static readonly StyledProperty<bool> IsPrimaryEffectivelyEnabledProperty =
@@ -181,12 +192,21 @@ public class MaterialSplitButton : ContentControl
     private MaterialSplitButtonAutomationPeer? _peer;
     private MaterialCornerRadiusTransition? _primaryCorners;
     private MaterialCornerRadiusTransition? _trailingCorners;
+    private MaterialElevationAnimation? _primaryElevation;
+    private MaterialElevationAnimation? _trailingElevation;
+    private IDisposable? _trailingAutoName;
+    private IDisposable? _iconTheme;
     private CornerRadius _primaryResting;
     private CornerRadius _primaryPressed;
     private CornerRadius _trailingResting;
     private CornerRadius _trailingPressed;
     private bool _syncingMenu;
     private bool _syncingTrailingChecked;
+
+    public MaterialSplitButton()
+    {
+        ResourcesChanged += (_, _) => UpdateTrailingAccessibleName();
+    }
 
     public object? Icon { get => GetValue(IconProperty); set => SetValue(IconProperty, value); }
     public MaterialButtonVariant Variant { get => GetValue(VariantProperty); set => SetValue(VariantProperty, value); }
@@ -207,6 +227,7 @@ public class MaterialSplitButton : ContentControl
     public double ContentSpacing { get => GetValue(ContentSpacingProperty); set => SetValue(ContentSpacingProperty, value); }
     public double TrailingContentPaddingStart { get => GetValue(TrailingContentPaddingStartProperty); set => SetValue(TrailingContentPaddingStartProperty, value); }
     public double TrailingContentPaddingEnd { get => GetValue(TrailingContentPaddingEndProperty); set => SetValue(TrailingContentPaddingEndProperty, value); }
+    public string? TrailingAccessibleName { get => GetValue(TrailingAccessibleNameProperty); set => SetValue(TrailingAccessibleNameProperty, value); }
     public bool IsPrimaryEffectivelyEnabled { get => GetValue(IsPrimaryEffectivelyEnabledProperty); private set => SetValue(IsPrimaryEffectivelyEnabledProperty, value); }
     public bool IsTrailingEffectivelyEnabled { get => GetValue(IsTrailingEffectivelyEnabledProperty); private set => SetValue(IsTrailingEffectivelyEnabledProperty, value); }
 
@@ -244,7 +265,8 @@ public class MaterialSplitButton : ContentControl
             _primaryButton.Click += OnPrimaryClick;
             _primaryButton.PropertyChanged += OnSegmentPropertyChanged;
             _primaryCorners = new MaterialCornerRadiusTransition(_primaryButton, default,
-                value => _primaryButton.CornerRadius = value, MaterialSpring.EffectsDefault);
+                value => SetSegmentCorners(_primaryButton, value), MaterialSpring.SpatialFast);
+            _primaryElevation = new MaterialElevationAnimation(_primaryButton, ResolveSegmentElevationSpecs);
         }
 
         if (_trailingButton is not null)
@@ -257,9 +279,12 @@ public class MaterialSplitButton : ContentControl
             if (_trailingButton is ToggleButton trailingToggle)
                 trailingToggle.IsCheckedChanged += OnNativeTrailingCheckedChanged;
             _trailingCorners = new MaterialCornerRadiusTransition(_trailingButton, default,
-                value => _trailingButton.CornerRadius = value, MaterialSpring.EffectsDefault);
+                value => SetSegmentCorners(_trailingButton, value), MaterialSpring.SpatialFast);
+            _trailingElevation = new MaterialElevationAnimation(_trailingButton, ResolveSegmentElevationSpecs);
         }
 
+        UpdateLeadingIcon();
+        UpdateTrailingAccessibleName();
         UpdateTrailingCheckedState(animate: false);
         ApplyMetrics();
         AttachFlyout();
@@ -271,12 +296,15 @@ public class MaterialSplitButton : ContentControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        UpdateLeadingIcon();
+        UpdateTrailingAccessibleName();
         UpdateCommandSubscriptions();
         AttachFlyout();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        ClearLeadingIcon();
         DetachFlyout();
         UnsubscribeCommands();
         base.OnDetachedFromVisualTree(e);
@@ -293,6 +321,14 @@ public class MaterialSplitButton : ContentControl
             UpdateMenuShape(animate: true);
             SyncNativeCommands();
             UpdateEnabledFlags();
+        }
+        else if (change.Property == IconProperty)
+        {
+            UpdateLeadingIcon();
+        }
+        else if (change.Property == TrailingAccessibleNameProperty)
+        {
+            UpdateTrailingAccessibleName();
         }
         else if (change.Property == IsTrailingCheckableProperty)
         {
@@ -316,6 +352,11 @@ public class MaterialSplitButton : ContentControl
         {
             ApplyMetrics();
             UpdateMenuShape(animate: false);
+            if (change.Property == VariantProperty)
+            {
+                _primaryElevation?.Refresh(snap: false);
+                _trailingElevation?.Refresh(snap: false);
+            }
         }
         else if (change.Property == CommandProperty || change.Property == CommandParameterProperty ||
                  change.Property == TrailingCommandProperty ||
@@ -328,11 +369,6 @@ public class MaterialSplitButton : ContentControl
                  change.Property == IsTrailingEnabledProperty)
         {
             UpdateEnabledFlags();
-        }
-        else if (change.Property == FlowDirectionProperty)
-        {
-            ApplyMetrics();
-            UpdateMenuShape(animate: false);
         }
     }
 
@@ -367,12 +403,70 @@ public class MaterialSplitButton : ContentControl
             if (_trailingButton is ToggleButton trailingToggle)
                 trailingToggle.IsCheckedChanged -= OnNativeTrailingCheckedChanged;
         }
+        _trailingAutoName?.Dispose();
+        _trailingAutoName = null;
+        _primaryElevation?.Dispose();
+        _trailingElevation?.Dispose();
+        _primaryElevation = null;
+        _trailingElevation = null;
         _primaryCorners?.Dispose();
         _trailingCorners?.Dispose();
         _primaryCorners = null;
         _trailingCorners = null;
         _primaryButton = null;
         _trailingButton = null;
+    }
+
+    private static void SetSegmentCorners(Button segment, CornerRadius value)
+    {
+        segment.CornerRadius = value;
+        MaterialAssist.SetFocusRingCornerRadius(segment,
+            new CornerRadius(value.TopLeft + 5, value.TopRight + 5, value.BottomRight + 5, value.BottomLeft + 5));
+    }
+
+    private MaterialElevationSpecs ResolveSegmentElevationSpecs() => Variant switch
+    {
+        MaterialButtonVariant.Elevated => new MaterialElevationSpecs(1, 1, 1, 2, 0, 0),
+        MaterialButtonVariant.Outlined or MaterialButtonVariant.Text => default,
+        _ => new MaterialElevationSpecs(0, 0, 0, 1, 0, 0),
+    };
+
+    private void UpdateTrailingAccessibleName()
+    {
+        _trailingAutoName?.Dispose();
+        _trailingAutoName = null;
+        if (_trailingButton is null)
+            return;
+
+        var text = TrailingAccessibleName;
+        if (string.IsNullOrEmpty(text))
+        {
+            text = this.TryFindResource("MaterialSplitButtonMoreOptionsText", out var resource)
+                   && resource is string localized && !string.IsNullOrEmpty(localized)
+                ? localized
+                : "More options";
+        }
+
+        _trailingAutoName = _trailingButton.SetValue(
+            AutomationProperties.NameProperty, text, BindingPriority.Style);
+    }
+
+    private void ClearLeadingIcon()
+    {
+        _iconTheme?.Dispose();
+        _iconTheme = null;
+    }
+
+    private void UpdateLeadingIcon()
+    {
+        ClearLeadingIcon();
+        if (Icon is not (PathIcon or MaterialIcon) || !this.IsAttachedToVisualTree())
+            return;
+
+        var icon = (Control)Icon;
+        var key = icon is PathIcon ? "MaterialButtonPathIconTheme" : "MaterialButtonIconTheme";
+        if (this.TryFindResource(key, out var resource) && resource is ControlTheme theme)
+            _iconTheme = icon.SetValue(ThemeProperty, theme, BindingPriority.Style);
     }
 
     private void OnSegmentPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -644,7 +738,6 @@ public class MaterialSplitButton : ContentControl
     private void ApplyMetrics()
     {
         var metrics = Metrics(ControlSize, ButtonShape);
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
 
         SetCurrentValue(MinHeightProperty, metrics.TotalHeight);
         SetCurrentValue(PaddingProperty, new Thickness(0, metrics.Inset));
@@ -664,9 +757,7 @@ public class MaterialSplitButton : ContentControl
         if (_primaryButton is not null)
         {
             _primaryButton.MinHeight = metrics.SegmentHeight;
-            _primaryButton.Padding = rtl
-                ? new Thickness(metrics.PrimaryTrailingPadding, 0, metrics.PrimaryLeadingPadding, 0)
-                : new Thickness(metrics.PrimaryLeadingPadding, 0, metrics.PrimaryTrailingPadding, 0);
+            _primaryButton.Padding = new Thickness(metrics.PrimaryLeadingPadding, 0, metrics.PrimaryTrailingPadding, 0);
         }
 
         if (_trailingButton is not null)
@@ -676,20 +767,12 @@ public class MaterialSplitButton : ContentControl
             _trailingButton.Padding = new Thickness(metrics.TrailingPadding, 0);
         }
 
-        // Source seam: full-round outer corners; inner corners keep the physical side of the
-        // leading/trailing halves, which swaps in right-to-left layouts.
-        _primaryResting = rtl
-            ? new CornerRadius(metrics.Inner, metrics.Outer, metrics.Outer, metrics.Inner)
-            : new CornerRadius(metrics.Outer, metrics.Inner, metrics.Inner, metrics.Outer);
-        _primaryPressed = rtl
-            ? new CornerRadius(metrics.PressedInner, metrics.Outer, metrics.Outer, metrics.PressedInner)
-            : new CornerRadius(metrics.Outer, metrics.PressedInner, metrics.PressedInner, metrics.Outer);
-        _trailingResting = rtl
-            ? new CornerRadius(metrics.Outer, metrics.Inner, metrics.Inner, metrics.Outer)
-            : new CornerRadius(metrics.Inner, metrics.Outer, metrics.Outer, metrics.Inner);
-        _trailingPressed = rtl
-            ? new CornerRadius(metrics.Outer, metrics.PressedInner, metrics.PressedInner, metrics.Outer)
-            : new CornerRadius(metrics.PressedInner, metrics.Outer, metrics.Outer, metrics.PressedInner);
+        // Source seam: full-round outer corners and flat inner seam corners in logical start-to-end
+        // order; Avalonia's Visual.HasMirrorTransform performs the single horizontal reflection in RTL.
+        _primaryResting = new CornerRadius(metrics.Outer, metrics.Inner, metrics.Inner, metrics.Outer);
+        _primaryPressed = new CornerRadius(metrics.Outer, metrics.PressedInner, metrics.PressedInner, metrics.Outer);
+        _trailingResting = new CornerRadius(metrics.Inner, metrics.Outer, metrics.Outer, metrics.Inner);
+        _trailingPressed = new CornerRadius(metrics.PressedInner, metrics.Outer, metrics.Outer, metrics.PressedInner);
 
         UpdateMenuShape(animate: false);
         UpdateLayout();
@@ -699,12 +782,15 @@ public class MaterialSplitButton : ContentControl
     // the inner seam. Checked/open trailing state stays circular unless pressed.
     private void UpdateMenuShape(bool animate)
     {
+        var trailingActive = IsTrailingChecked || IsMenuOpen && Flyout is not null;
+        PseudoClasses.Set(":trailing-active", trailingActive);
+
         var reduced = MaterialMotion.GetIsReduced(this);
         if (_primaryButton is not null && _primaryCorners is not null)
         {
             var target = _primaryButton.IsPressed || _primaryButton.IsEffectivelyEnabled && _primaryButton.IsPointerOver
                 ? _primaryPressed : _primaryResting;
-            _primaryCorners.Set(target, animate && !reduced, MaterialSpring.EffectsDefault);
+            _primaryCorners.Set(target, animate && !reduced, MaterialSpring.SpatialFast);
         }
 
         if (_trailingButton is not null && _trailingCorners is not null)
@@ -712,11 +798,11 @@ public class MaterialSplitButton : ContentControl
             var circle = new CornerRadius(_trailingButton.MinHeight / 2);
             var target = _trailingButton.IsPressed
                 ? _trailingPressed
-                : IsTrailingChecked || IsMenuOpen && Flyout is not null
+                : trailingActive
                     ? circle
                     : _trailingButton.IsEffectivelyEnabled && _trailingButton.IsPointerOver
                         ? _trailingPressed : _trailingResting;
-            _trailingCorners.Set(target, animate && !reduced, MaterialSpring.EffectsDefault);
+            _trailingCorners.Set(target, animate && !reduced, MaterialSpring.SpatialFast);
         }
     }
 
@@ -728,7 +814,7 @@ public class MaterialSplitButton : ContentControl
         var (total, segment, inset, leading, trailingPad, trailingWidth, leadingPad, chevron,
             spacing, font, weight, square, inner, pressedInner) = size switch
         {
-            MaterialControlSize.ExtraSmall => (48d, 32d, 8d, 12d, 10d, 48d, 13d, 22d, 8d, 14d,
+            MaterialControlSize.ExtraSmall => (48d, 32d, 8d, 12d, 10d, 48d, 13d, 22d, 4d, 14d,
                 FontWeight.Medium, 12d, 4d, 8d),
             MaterialControlSize.Small => (48d, 40d, 4d, 16d, 12d, 48d, 13d, 22d, 8d, 14,
                 FontWeight.Medium, 12d, 4d, 12d),

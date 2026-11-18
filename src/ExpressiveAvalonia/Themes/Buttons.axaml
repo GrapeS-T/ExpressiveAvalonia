@@ -234,24 +234,6 @@
       </Style>
     </Style>
 
-    <!-- The icon gap is a physical right margin in LTR; in RTL the StackPanel reverses the child
-         order, so the same gap must sit on the icon's left. -->
-    <Style Selector="^:rtl /template/ ContentPresenter#IconHost">
-      <Setter Property="Margin" Value="8,0,0,0" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraSmall]:rtl /template/ ContentPresenter#IconHost">
-      <Setter Property="Margin" Value="4,0,0,0" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=Large]:rtl /template/ ContentPresenter#IconHost">
-      <Setter Property="Margin" Value="12,0,0,0" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.ControlSize)=ExtraLarge]:rtl /template/ ContentPresenter#IconHost">
-      <Setter Property="Margin" Value="16,0,0,0" />
-    </Style>
-    <Style Selector="^[(theming|MaterialAssist.IsIconButton)=True]:rtl /template/ ContentPresenter#IconHost">
-      <Setter Property="Margin" Value="0" />
-    </Style>
-
     <!-- Silhouettes. Round is CornerFull; Square uses the per-size token. -->
     <Style Selector="^[(theming|MaterialAssist.ButtonShape)=Round]">
       <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />

@@ -109,6 +109,17 @@ public static class MaterialTokens
             ["MaterialPageUpText"] = "Page up",
             ["MaterialPageDownText"] = "Page down",
             ["MaterialScrollPositionText"] = "Scroll position",
+            ["MaterialSplitButtonMoreOptionsText"] = "More options",
+            ["MaterialButtonGroupOverflowText"] = "More options",
+            ["MaterialButtonGroupActionText"] = "Action",
+            ["MaterialSwipeActionText"] = "Action",
+            ["MaterialGeneralItemText"] = "Item",
+            ["MaterialProgressIndeterminateText"] = "Indeterminate",
+            ["MaterialLoadingIndicatorText"] = "Loading",
+            ["MaterialPullToRefreshRefreshingText"] = "Refreshing",
+            ["MaterialSideSheetText"] = "Side sheet",
+            ["MaterialNavigationRailName"] = "Navigation rail",
+            ["MaterialNavigationDrawerName"] = "Navigation drawer",
         };
 
         MaterialDurationTokens.Apply(resources, reduced: false);

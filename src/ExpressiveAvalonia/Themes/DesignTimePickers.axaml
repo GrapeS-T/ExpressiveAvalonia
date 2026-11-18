@@ -22,14 +22,6 @@
     <!-- Icons.Filled.SwipeVertical, used by ScrollDisplayModeToggle while in input mode. -->
     <StreamGeometry x:Key="MaterialTimePickerSwipeVerticalIconGeometry">M2 22V20.5H4.03Q2.55 18.7 1.78 16.52T1 12T1.78 7.47T4.03 3.5H2V2H7V7H5.5V4.1Q4.05 5.75 3.28 7.77T2.5 12t.78 4.23T5.5 19.9V17H7v5H2Z M16.45 20.83q-.57.2-1.16.19T14.15 20.73L7.6 17.68l.45-1q.25-.5.7-.81t1-.36l1.7-.13L8.65 7.7q-.15-.4.03-.76T9.25 6.43q.4-.15.76.02t.51.57l3.7 10.18-2.5.18L15 18.9q.18.08.38.09t.38-.04l3.93-1.43q.78-.27 1.13-1.04t.07-1.54L19.5 11.2q-.15-.4.03-.76q.18-.37.57-.52t.76.03.51.57l1.38 3.75q.58 1.58-.11 3.06q-.69 1.49-2.26 2.06l-3.93 1.43Z M14.2 14.2l-1.35-3.77q-.15-.41.03-.77T13.45 9.15t.76.03.51.58L16.1 13.5l-1.9.7Z m2.83-1.03L16 10.35q-.15-.4.03-.76Q16.2 9.23 16.6 9.07T17.36 9.1q.36.17.51.57l1.03 2.8-1.88.7Z m.2 2.2Z</StreamGeometry>
 
-  <!-- TimePicker/TimeInput tokens define no explicit disabled colors. The component is disabled
-       as a whole, so content and outline use the source disabled alpha (0.38) over OnSurfaceVariant
-       and Outline instead of the shared cross-component MaterialDisabled* adaptations. -->
-  <SolidColorBrush x:Key="MaterialTimePickerDisabledContentBrush"
-                   Color="{DynamicResource MaterialOnSurfaceVariantColor}" Opacity="0.38" />
-  <SolidColorBrush x:Key="MaterialTimePickerDisabledOutlineBrush"
-                   Color="{DynamicResource MaterialOutlineColor}" Opacity="0.38" />
-
   <!-- Template strings. Override any key to localize the picker; the control code reads them
        through TryFindResource and falls back to invariant English when a key is absent. -->
   <x:String x:Key="MaterialTimePickerSelectTimeText">Select time</x:String>
@@ -61,6 +53,7 @@
   <!-- Native TextBox inside a time cell. An explicit theme keeps the standalone floating-label
        TextBox behavior off while retaining caret, selection, clipboard, IME and automation. -->
   <ControlTheme x:Key="MaterialTimeSegmentEditor" TargetType="TextBox">
+    <Setter Property="FlowDirection" Value="LeftToRight" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="0" />
@@ -116,25 +109,35 @@
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
+    <Setter Property="ClipToBounds" Value="False" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <StackPanel>
-          <Panel>
+        <StackPanel ClipToBounds="False">
+          <Panel ClipToBounds="False">
             <Border Name="Field" Height="{TemplateBinding FieldHeight}"
                     Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
                     CornerRadius="{TemplateBinding CornerRadius}">
-              <TextBox Name="PART_Editor" Theme="{StaticResource MaterialTimeSegmentEditor}"
-                       Foreground="{TemplateBinding Foreground}"
-                       CaretBrush="{TemplateBinding Foreground}"
-                       FontFamily="{TemplateBinding FontFamily}" />
+              <Panel>
+                <TextBox Name="PART_Editor" Theme="{StaticResource MaterialTimeSegmentEditor}"
+                         Foreground="{TemplateBinding Foreground}"
+                         CaretBrush="{TemplateBinding Foreground}"
+                         FontFamily="{TemplateBinding FontFamily}" />
+                <theming:MaterialRipple Name="StateLayer"
+                                        InteractionTarget="{Binding ElementName=PART_Editor}"
+                                        CornerRadius="{TemplateBinding CornerRadius}"
+                                        Fill="{TemplateBinding Foreground}"
+                                        PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                        HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                        FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                        EnableDrag="False" IsHitTestVisible="False" />
+              </Panel>
             </Border>
-            <!-- Source focus indicator: 100 x 84 for the 96 x 80 cell (2 DIP outset), 3 DIP stroke,
-                 radius 2, #625C70 (nearest role: OnSurfaceVariant). -->
-            <Border Name="FocusRing" Margin="-2"
-                    CornerRadius="2"
-                    BorderBrush="{DynamicResource MaterialOnSurfaceVariantBrush}"
+            <Border Name="FocusRing" Margin="-5"
+                    CornerRadius="{TemplateBinding FocusRingCornerRadius}"
+                    BorderBrush="{DynamicResource MaterialSecondaryBrush}"
                     BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
           </Panel>
           <TextBlock Name="SegmentLabel" IsVisible="False" Margin="0,7,0,0"
@@ -153,7 +156,7 @@
       <Setter Property="LineHeight" Value="{DynamicResource MaterialDisplayLargeLineHeight}" />
       <Setter Property="LetterSpacing" Value="{DynamicResource MaterialDisplayLargeLetterSpacing}" />
     </Style>
-    <Style Selector="^:selected">
+    <Style Selector="^:selected:not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryContainerBrush}" />
     </Style>
@@ -169,7 +172,7 @@
       <Setter Property="LineHeight" Value="{DynamicResource MaterialDisplayMediumLineHeight}" />
       <Setter Property="LetterSpacing" Value="{DynamicResource MaterialDisplayMediumLetterSpacing}" />
     </Style>
-    <Style Selector="^:keyboard:selected">
+    <Style Selector="^:keyboard:selected:not(:disabled)">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
@@ -196,40 +199,45 @@
     <Style Selector="^:uncontained /template/ TextBox#PART_Editor">
       <Setter Property="FontSize" Value="{DynamicResource MaterialDisplayLargeFontSize}" />
     </Style>
-    <Style Selector="^:vibrant:selected">
+    <Style Selector="^:vibrant:selected:not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowestBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
-    <Style Selector="^:uncontained:selected">
+    <Style Selector="^:uncontained:selected:not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowestBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
-    <Style Selector="^:vibrant:invalid /template/ Border#Field">
+    <Style Selector="^:vibrant:invalid:not(:disabled) /template/ Border#Field">
       <Setter Property="Background" Value="{DynamicResource MaterialErrorContainerBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialErrorBrush}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
-    <Style Selector="^:uncontained:invalid /template/ Border#Field">
+    <Style Selector="^:uncontained:invalid:not(:disabled) /template/ Border#Field">
       <Setter Property="Background" Value="{DynamicResource MaterialErrorContainerBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialErrorBrush}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
-    <Style Selector="^:invalid /template/ Border#Field">
+    <Style Selector="^:invalid:not(:disabled) /template/ Border#Field">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialErrorBrush}" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
-    <Style Selector="^:invalid">
+    <Style Selector="^:invalid:not(:disabled)">
       <Setter Property="Foreground" Value="{DynamicResource MaterialErrorBrush}" />
     </Style>
-    <Style Selector="^:focus-within /template/ Border#FocusRing">
+    <Style Selector="^:focus-visible /template/ Border#FocusRing, ^:segment-focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:disabled">
-      <Setter Property="Background" Value="Transparent" />
+    <Style Selector="^:disabled, ^:vibrant:disabled, ^:uncontained:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialTimePickerDisabledContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialTimePickerDisabledContentBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ TextBlock#SegmentLabel">
       <Setter Property="Foreground" Value="{DynamicResource MaterialTimePickerDisabledContentBrush}" />
     </Style>
   </ControlTheme>
@@ -246,9 +254,12 @@
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="FontSize" Value="{DynamicResource MaterialTitleMediumFontSize}" />
     <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleMediumFontWeight}" />
+    <Setter Property="ClipToBounds" Value="False" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="theming:MaterialAssist.FocusRingCornerRadius" Value="5" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="Transparent">
+        <Panel Background="Transparent" ClipToBounds="False">
           <Border Name="CellBackground" Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}" />
           <ContentPresenter Name="PART_ContentPresenter"
@@ -268,13 +279,15 @@
                                   HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
                                   FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                   EnableDrag="False" IsHitTestVisible="False" />
-          <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialSecondaryBrush}"
-                  BorderThickness="2" CornerRadius="{TemplateBinding CornerRadius}"
+          <Border Name="FocusRing" Margin="-5"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                  BorderThickness="3"
+                  CornerRadius="{TemplateBinding theming:MaterialAssist.FocusRingCornerRadius}"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^:checked">
+    <Style Selector="^:checked:not(:disabled)">
       <!-- TimePickerTokens.PeriodSelectorSelectedContainerColor = TertiaryContainer. -->
       <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
@@ -282,11 +295,11 @@
     <!-- Vibrant toggle roles: PrimaryContainer/OnPrimaryContainer selected, transparent
          unselected, no outline. Applied by MaterialPeriodSelector.IsVibrant through the
          "vibrant" class on each cell so it wins over the standard checked role above. -->
-    <Style Selector="^:vibrant">
+    <Style Selector="^.vibrant:not(:disabled)">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     </Style>
-    <Style Selector="^:vibrant:checked">
+    <Style Selector="^.vibrant:checked:not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryContainerBrush}" />
     </Style>
@@ -294,6 +307,11 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialTimePickerDisabledContentBrush}" />
+    </Style>
+    <Style Selector="^:checked:disabled, ^.vibrant:checked:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialTimePickerDisabledContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialTimePickerDisabledContentBrush}" />
     </Style>
   </ControlTheme>
@@ -308,14 +326,15 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Border Background="{TemplateBinding Background}"
                 BorderBrush="{TemplateBinding BorderBrush}"
                 BorderThickness="{TemplateBinding BorderThickness}"
                 CornerRadius="{TemplateBinding CornerRadius}"
-                ClipToBounds="True">
-          <Grid Name="Cells" RowDefinitions="*,Auto,*" ColumnDefinitions="*,Auto,*">
+                ClipToBounds="False">
+          <Grid Name="Cells" RowDefinitions="*,Auto,*" ColumnDefinitions="*,Auto,*" ClipToBounds="False">
             <ToggleButton Name="PART_Am" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
                           Theme="{StaticResource MaterialPeriodCell}"
                           Content="{DynamicResource MaterialTimePickerAmText}" />
@@ -359,11 +378,6 @@
     <Style Selector="^:vibrant">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowestBrush}" />
       <Setter Property="BorderThickness" Value="0" />
-    </Style>
-    <Style Selector="^:vibrant /template/ ToggleButton#PART_Am">
-      <Setter Property="CornerRadius" Value="999" />
-    </Style>
-    <Style Selector="^:vibrant /template/ ToggleButton#PART_Pm">
       <Setter Property="CornerRadius" Value="999" />
     </Style>
     <Style Selector="^:vibrant /template/ Border#DividerVertical">
@@ -382,7 +396,14 @@
       <Setter Property="IsVisible" Value="False" />
     </Style>
     <Style Selector="^:disabled">
+      <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialTimePickerDisabledOutlineBrush}" />
+    </Style>
+    <Style Selector="^:vibrant:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialTimePickerDisabledContainerBrush}" />
+    </Style>
+    <Style Selector="^.side:disabled">
+      <Setter Property="Background" Value="Transparent" />
     </Style>
   </ControlTheme>
 
@@ -392,6 +413,7 @@
   <ControlTheme x:Key="{x:Type controls:MaterialClockDial}" TargetType="controls:MaterialClockDial">
     <Setter Property="Width" Value="256" />
     <Setter Property="Height" Value="256" />
+    <Setter Property="FlowDirection" Value="LeftToRight" />
     <Setter Property="FaceBrush" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
     <Setter Property="NumberBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="SelectedBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
@@ -436,9 +458,9 @@
                        LineHeight="{DynamicResource MaterialLabelMediumLineHeight}"
                        LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}" />
 
-            <StackPanel Name="InputSelection" Orientation="Vertical" Spacing="36" Margin="24,20,24,0">
-              <StackPanel Name="InputColumn" Orientation="Horizontal" Spacing="12">
-                <StackPanel Name="TimeInputs" Orientation="Horizontal">
+            <StackPanel Name="InputSelection" Orientation="Vertical" Spacing="36" Margin="24,20,24,0" ClipToBounds="False">
+              <StackPanel Name="InputColumn" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" ClipToBounds="False">
+                <StackPanel Name="TimeInputs" Orientation="Horizontal" FlowDirection="LeftToRight" ClipToBounds="False">
                   <controls:MaterialTimeInputSegment Name="PART_Hour" />
                   <TextBlock Name="Colon" Text=":" Width="24" TextAlignment="Center"
                              VerticalAlignment="Center"
@@ -451,8 +473,12 @@
                 </StackPanel>
                 <!-- TimeScroll uses two material3 ScrollFields; the hour formatter is 1-12 or
                      0-23 and the wheels are linked to the same Time state. -->
-                <StackPanel Name="ScrollInputs" Orientation="Horizontal" Spacing="0" IsVisible="False">
-                  <controls:MaterialScrollField Name="PART_HourScroll" Width="100" />
+                <StackPanel Name="ScrollInputs" Orientation="Horizontal" Spacing="0" IsVisible="False"
+                            FlowDirection="LeftToRight" ClipToBounds="False">
+                  <controls:MaterialScrollField Name="PART_HourScroll" Width="100"
+                                                DisabledContainerBrush="{DynamicResource MaterialTimePickerDisabledContainerBrush}"
+                                                DisabledContentBrush="{DynamicResource MaterialTimePickerDisabledContentBrush}"
+                                                DisabledSelectedContentBrush="{DynamicResource MaterialTimePickerDisabledContentBrush}" />
                   <TextBlock Name="ScrollColon" Text=":" Width="16" TextAlignment="Center"
                              VerticalAlignment="Center"
                              Foreground="{TemplateBinding Foreground}"
@@ -460,11 +486,14 @@
                              FontSize="{DynamicResource MaterialDisplayLargeFontSize}"
                              LineHeight="{DynamicResource MaterialDisplayLargeLineHeight}"
                              LetterSpacing="{DynamicResource MaterialDisplayLargeLetterSpacing}" />
-                  <controls:MaterialScrollField Name="PART_MinuteScroll" Width="100" />
+                  <controls:MaterialScrollField Name="PART_MinuteScroll" Width="100"
+                                                DisabledContainerBrush="{DynamicResource MaterialTimePickerDisabledContainerBrush}"
+                                                DisabledContentBrush="{DynamicResource MaterialTimePickerDisabledContentBrush}"
+                                                DisabledSelectedContentBrush="{DynamicResource MaterialTimePickerDisabledContentBrush}" />
                 </StackPanel>
                 <controls:MaterialPeriodSelector Name="PART_Period" VerticalAlignment="Top" />
                 <StackPanel Name="SideControls" Orientation="Vertical" Spacing="8"
-                            VerticalAlignment="Top" IsVisible="False">
+                            VerticalAlignment="Top" IsVisible="False" ClipToBounds="False">
                   <controls:MaterialPeriodSelector Name="PART_SidePeriod" VerticalAlignment="Top" />
                   <Button Name="PART_SideModeToggle"
                           theming:MaterialAssist.IsIconButton="True"
@@ -472,7 +501,7 @@
                           theming:MaterialAssist.ButtonVariant="Standard" />
                 </StackPanel>
               </StackPanel>
-              <controls:MaterialClockDial Name="PART_Dial" HorizontalAlignment="Left" />
+              <controls:MaterialClockDial Name="PART_Dial" HorizontalAlignment="Center" FlowDirection="LeftToRight" />
             </StackPanel>
 
             <Grid Name="Actions" Margin="12,20,24,20" ColumnDefinitions="Auto,*,Auto">
@@ -517,6 +546,7 @@
     </Style>
     <Style Selector="^:horizontal /template/ StackPanel#InputSelection">
       <Setter Property="Orientation" Value="Horizontal" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
       <Setter Property="Spacing" Value="52" />
     </Style>
     <Style Selector="^:horizontal /template/ StackPanel#InputColumn">

@@ -30,6 +30,7 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
 {
     private readonly Grid _host = new();
     private readonly Border _surface;
+    private readonly StackPanel _sideBody;
     private readonly MaterialSideSheet _side;
     private readonly MaterialBottomSheet _bottom;
     private readonly MaterialBottomSheetScaffold _scaffold;
@@ -73,7 +74,9 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
     private readonly Slider _peek;
     private readonly StackPanel _sideSettings = new() { Spacing = 16 };
     private readonly StackPanel _bottomSettings = new() { Spacing = 16 };
+    private readonly StackPanel _persistentOnlySettings = new() { Spacing = 16 };
     private bool _showingSide = true;
+    private bool _wasModal = true;
     private bool _built;
 
     public StackPanel Settings { get; } = new() { Spacing = 16 };
@@ -117,15 +120,15 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
         _scaffold.Content = BuildScaffoldBody();
         _sideReadout.Bind(TextBlock.TextProperty, _readout.GetObservable(TextBlock.TextProperty));
 
-        var sideBody = new StackPanel
+        _sideBody = new StackPanel
         {
             Spacing = 16,
             Margin = new Thickness(32),
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Left,
         };
-        sideBody.Children.Add(new TextBlock { Text = "Область приложения", FontSize = 24, FontWeight = FontWeight.Medium });
-        sideBody.Children.Add(new TextBlock
+        _sideBody.Children.Add(new TextBlock { Text = "Область приложения", FontSize = 24, FontWeight = FontWeight.Medium });
+        _sideBody.Children.Add(new TextBlock
         {
             Text = "Лист открывается поверх этой области. Модальный лист блокирует страницу, " +
                    "циклически проводит Tab и закрывается по Escape или клику по scrim; " +
@@ -134,16 +137,16 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
             MaxWidth = 420,
             Opacity = 0.7,
         });
-        sideBody.Children.Add(_open);
-        sideBody.Children.Add(_sideReadout);
+        _sideBody.Children.Add(_open);
+        _sideBody.Children.Add(_sideReadout);
 
         MaterialAssist.SetButtonVariant(_open, MaterialButtonVariant.Filled);
         MaterialAssist.SetControlSize(_open, MaterialControlSize.Small);
         _open.Content = "Открыть боковой лист";
         AutomationProperties.SetName(_open, "Открыть боковой лист");
-        _open.Click += (_, _) => OpenSideSheet();
+        _open.Click += (_, _) => OpenActiveSheet();
 
-        _host.Children.Add(sideBody);
+        _host.Children.Add(_sideBody);
         _host.Children.Add(_scaffold);
         _host.Children.Add(_side);
         // The modal sheet is the last child so its scrim covers the scaffold and side sheet.
@@ -164,7 +167,7 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
         _surface.Bind(Border.BorderBrushProperty, this.GetResourceObservable("MaterialOutlineVariantBrush"));
         Children.Add(_surface);
 
-        _form = Choice(Settings, "Форма", new[] { "Боковая", "Persistent scaffold" }, 0);
+        _form = Choice(Settings, "Форма", new[] { "Боковой лист", "Нижний лист" }, 0);
         _modal = Toggle(Settings, "Модальный", true);
 
         _edge = Choice(_sideSettings, "Сторона", new[] { "Start", "End" }, 1);
@@ -175,9 +178,10 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
         Settings.Children.Add(_sideSettings);
 
         _dragHandle = Toggle(_bottomSettings, "Drag handle", true);
-        _peek = Number(_bottomSettings, "Peek height", 0, 240, 56, 8);
-        _skipHidden = Toggle(_bottomSettings, "Пропускать Hidden anchor", true);
         _swipe = Toggle(_bottomSettings, "Свайп и drag", true);
+        _peek = Number(_persistentOnlySettings, "Peek height", 0, 240, 56, 8);
+        _skipHidden = Toggle(_persistentOnlySettings, "Пропускать Hidden anchor", true);
+        _bottomSettings.Children.Add(_persistentOnlySettings);
         Settings.Children.Add(_bottomSettings);
 
         _dismiss = Toggle(Settings, "Закрытие по Escape и scrim", true);
@@ -209,33 +213,33 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
             var persistent = ReferenceEquals(sheet, _scaffold.Sheet);
             sheet.Opening += (_, _) =>
             {
-                if (!persistent || !_showingSide)
+                if (!persistent || (!_showingSide && !_wasModal))
                     _readout.Text = $"{name}: открывается";
             };
             sheet.Opened += (_, _) =>
             {
-                if (!persistent || !_showingSide)
+                if (!persistent || (!_showingSide && !_wasModal))
                     _readout.Text = $"{name}: открыт · {(sheet.IsModal ? "модальный" : "стандартный")}";
             };
             sheet.Closing += (_, _) =>
             {
-                if (!persistent || !_showingSide)
+                if (!persistent || (!_showingSide && !_wasModal))
                     _readout.Text = $"{name}: закрывается";
             };
             sheet.Closed += (_, _) =>
             {
-                if (!persistent || !_showingSide)
+                if (!persistent || (!_showingSide && !_wasModal))
                     _readout.Text = $"{name}: закрыт";
             };
             sheet.ValueChangeRequested += (_, e) =>
             {
-                if (e.Cancel && (!persistent || !_showingSide))
+                if (e.Cancel && (!persistent || (!_showingSide && !_wasModal)))
                     _readout.Text = $"{name}: переход в {e.Value} отклонён";
             };
         }
         _scaffold.Sheet.PropertyChanged += (_, e) =>
         {
-            if (e.Property == MaterialSheet.CurrentValueProperty && !_showingSide)
+            if (e.Property == MaterialSheet.CurrentValueProperty && !_showingSide && !_wasModal)
                 _readout.Text =
                     $"Persistent лист: {Describe(_scaffold.Sheet.CurrentValue)} · " +
                     $"peek {_scaffold.SheetPeekHeight:0} · snackbar inset {_scaffold.SnackbarBottomInset:0}";
@@ -262,10 +266,18 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
         Apply();
     }
 
-    private void OpenSideSheet()
+    private void OpenActiveSheet()
     {
-        _bottom.IsOpen = false;
-        _side.IsOpen = true;
+        if (_showingSide)
+        {
+            _bottom.IsOpen = false;
+            _side.IsOpen = true;
+        }
+        else
+        {
+            _side.IsOpen = false;
+            _bottom.IsOpen = true;
+        }
     }
 
     private void ShowSnackbar()
@@ -530,30 +542,35 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
         var count = (int)Math.Round(_options.Value);
         var actionLabel = string.IsNullOrWhiteSpace(_actionLabel.Text) ? "Сохранить" : _actionLabel.Text;
 
-        var modeChanged = side != _showingSide;
+        var modeChanged = side != _showingSide || modal != _wasModal;
         if (modeChanged)
         {
             _showingSide = side;
+            _wasModal = modal;
             _side.IsOpen = false;
             _bottom.IsOpen = false;
         }
 
+        var showPersistentScaffold = !side && !modal;
+        _sideBody.IsVisible = !showPersistentScaffold;
+        _scaffold.IsVisible = showPersistentScaffold;
         _sideSettings.IsVisible = side;
         _bottomSettings.IsVisible = !side;
-        _anchorControls.IsVisible = !side;
-        _scaffold.IsVisible = !side;
+        _persistentOnlySettings.IsVisible = showPersistentScaffold;
+        _anchorControls.IsVisible = showPersistentScaffold;
 
         _side.IsModal = modal;
         _side.Side = _edge.SelectedIndex == 1 ? MaterialSheetSide.End : MaterialSheetSide.Start;
-        _side.Headline = string.IsNullOrWhiteSpace(_headline.Text) ? "Заголовок" : _headline.Text;
+        _side.Headline = string.IsNullOrWhiteSpace(_headline.Text) ? null : _headline.Text;
         _side.ShowBackButton = _back.IsChecked == true;
         _side.ShowCloseButton = _closeButton.IsChecked == true;
         _side.SheetWidth = _sideWidth.Value;
         _side.ShowActions = _actions.IsChecked == true;
         _side.IsDismissEnabled = _dismiss.IsChecked == true;
 
-        _bottom.IsModal = modal;
+        _bottom.IsModal = true;
         _bottom.ShowDragHandle = _dragHandle.IsChecked == true;
+        _bottom.AreGesturesEnabled = _swipe.IsChecked == true;
         _bottom.ShowActions = _actions.IsChecked == true;
         _bottom.IsDismissEnabled = _dismiss.IsChecked == true;
 
@@ -572,15 +589,16 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
         AutomationProperties.SetName(_persistentPrimary, actionLabel);
 
         _surface.Height = _height.Value;
-        _open.Content = "Открыть боковой лист";
-        AutomationProperties.SetName(_open, "Открыть боковой лист");
+        var openLabel = side ? "Открыть боковой лист" : "Открыть нижний лист";
+        _open.Content = openLabel;
+        AutomationProperties.SetName(_open, openLabel);
 
         SyncSideOptions(count);
         SyncModalItems(count);
         SyncPersistentItems(count);
 
         if (modeChanged)
-            _readout.Text = side
+            _readout.Text = !showPersistentScaffold
                 ? "Лист закрыт · нажмите «Открыть»"
                 : $"Persistent лист: {Describe(_scaffold.Sheet.CurrentValue)} · " +
                   $"peek {_scaffold.SheetPeekHeight:0}";

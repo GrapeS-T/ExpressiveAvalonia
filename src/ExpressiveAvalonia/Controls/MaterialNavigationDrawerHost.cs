@@ -520,7 +520,7 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
         var permanent = Presentation == MaterialNavigationDrawerPresentation.Permanent;
         var modal = Presentation == MaterialNavigationDrawerPresentation.Modal;
         var progress = permanent ? 1 : Math.Clamp(_progress, 0, 1);
-        var width = DrawerWidth();
+        var travel = DrawerTravel();
         var visible = permanent || progress > 0.0001;
 
         _drawerHost.IsVisible = visible;
@@ -528,7 +528,7 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
         {
             // DrawerState's closed anchor is -width and its open anchor is 0 on the relative
             // (leading) axis; the mirror produces the physical side, so the sign never flips.
-            _slide.X = -width * (1 - progress) * (permanent ? 0 : 1);
+            _slide.X = -travel * (1 - progress) * (permanent ? 0 : 1);
         }
 
         _drawerHost.Margin = DrawerMargin;
@@ -540,9 +540,9 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
         // clipped host instead of reflowing. Only a permanent drawer reserves width in layout;
         // a modal drawer never displaces the page.
         if (permanent)
-            SetContentOffset(width, reserveWidth: true);
+            SetContentOffset(travel, reserveWidth: true);
         else if (Presentation == MaterialNavigationDrawerPresentation.Dismissible)
-            SetContentOffset(width * progress, reserveWidth: false);
+            SetContentOffset(travel * progress, reserveWidth: false);
         else
             SetContentOffset(0, reserveWidth: false);
     }
@@ -578,6 +578,9 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
             return declared;
         return 360;
     }
+
+    private double DrawerTravel() =>
+        Math.Max(0, DrawerWidth() + DrawerMargin.Left + DrawerMargin.Right);
 
     private void OnDrawerHostSizeChanged(object? sender, SizeChangedEventArgs e) => ApplyProgress();
 
@@ -650,7 +653,9 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
     {
         if (!IsOpenTarget || Presentation == MaterialNavigationDrawerPresentation.Permanent)
             return;
-        var target = Drawer?.SelectedItem ?? GetDrawerFocusables().FirstOrDefault();
+        var target = Drawer?.SelectedItem is { Focusable: true, IsEffectivelyEnabled: true, IsEffectivelyVisible: true } selected
+            ? selected
+            : GetDrawerFocusables().FirstOrDefault();
         target?.Focus(NavigationMethod.Tab);
     }
 
@@ -734,7 +739,7 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
         _lastX = x;
         _lastTime = e.Timestamp;
 
-        var width = Math.Max(1, DrawerWidth());
+        var width = Math.Max(1, DrawerTravel());
         // The pointer delta is already in the host's logical coordinate space: Avalonia's RTL
         // mirror is applied exactly once at the flow-direction boundary, so it needs no second
         // reversal here (Compose reverses its physical deltas, this control never sees them).

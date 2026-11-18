@@ -638,9 +638,6 @@ public sealed class MaterialTimePicker : TemplatedControl
             ? FindText("MaterialTimePickerEnterTimeText") ?? "Enter time"
             : FindText("MaterialTimePickerSelectTimeText") ?? "Select time");
 
-        if (string.IsNullOrEmpty(AutomationProperties.GetName(this)))
-            AutomationProperties.SetName(this, EffectiveHeadline);
-
         UpdateModeTogglePresentation();
     }
 
@@ -1186,5 +1183,11 @@ public sealed class MaterialTimePicker : TemplatedControl
         protected override string GetClassNameCore() => nameof(MaterialTimePicker);
 
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Group;
+
+        protected override string? GetNameCore()
+        {
+            var name = base.GetNameCore();
+            return string.IsNullOrEmpty(name) ? owner.EffectiveHeadline : name;
+        }
     }
 }

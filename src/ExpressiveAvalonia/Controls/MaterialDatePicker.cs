@@ -386,6 +386,8 @@ public sealed class MaterialDatePicker : TemplatedControl
     private string _placeholder = string.Empty;
     private string _automationValue = string.Empty;
     private string? _validationMessage;
+    private string? _startValidationMessage;
+    private string? _endValidationMessage;
     private bool _hasSelection;
     private bool _isRange;
     private DatePickerPeer? _peer;
@@ -844,7 +846,7 @@ public sealed class MaterialDatePicker : TemplatedControl
     public void ClearSelection()
     {
         _previewDate = null;
-        _validationMessage = null;
+        ClearInputValidation();
         ApplySelection(null, null);
         Cleared?.Invoke(this, EventArgs.Empty);
     }
@@ -855,7 +857,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         if (IsInputMode)
         {
             NormalizeInputOnBlur(_startInput, isEnd: false);
-            if (IsRange && string.IsNullOrEmpty(_validationMessage))
+            if (IsRange && (string.IsNullOrEmpty(_startValidationMessage) || !string.IsNullOrWhiteSpace(_endInput?.Text)))
                 NormalizeInputOnBlur(_endInput, isEnd: true);
             if (!string.IsNullOrEmpty(_validationMessage))
                 return;
@@ -1049,7 +1051,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         if (change.Property == CultureProperty || change.Property == DateFormatProperty)
         {
             _inputFormat = null;
-            _validationMessage = null;
+            ClearInputValidation();
             BuildWeekdayRow(_weekdayRow);
             BuildWeekdayRow(_fullScreenWeekdayRow);
             UpdatePlaceholder();
@@ -1075,6 +1077,8 @@ public sealed class MaterialDatePicker : TemplatedControl
             change.Property == SelectableDatesProperty ||
             change.Property == IsInputModeProperty || change.Property == FlowDirectionProperty)
         {
+            if (change.Property == SelectionModeProperty && SelectionMode == MaterialDateSelectionMode.Single)
+                SetInputValidationMessage(isEnd: true, null);
             // Scrolling the full-screen month list only moves the shared DisplayDate; the
             // surrounding calendar/header do not consume it while the list itself is the view.
             if (change.Property == DisplayDateProperty && _syncingMonthDisplayFromViewport)
@@ -1110,7 +1114,7 @@ public sealed class MaterialDatePicker : TemplatedControl
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Handled)
+        if (e.Handled || !IsEffectivelyEnabled)
             return;
 
         if (e.Key == Key.Escape)
@@ -1151,7 +1155,7 @@ public sealed class MaterialDatePicker : TemplatedControl
     protected override void OnGotFocus(FocusChangedEventArgs e)
     {
         base.OnGotFocus(e);
-        if (e.Source != this)
+        if (!IsEffectivelyEnabled || e.Source != this)
             return;
         if (IsInputMode)
         {
@@ -1202,6 +1206,7 @@ public sealed class MaterialDatePicker : TemplatedControl
             _startInput.KeyDown -= OnStartInputKeyDown;
             _startInput.LostFocus -= OnStartInputLostFocus;
             _startInput.TextChanged -= OnStartInputTextChanged;
+            DataValidationErrors.SetError(_startInput, null);
             _startSyncedText = null;
         }
         if (_endInput is not null)
@@ -1209,6 +1214,7 @@ public sealed class MaterialDatePicker : TemplatedControl
             _endInput.KeyDown -= OnEndInputKeyDown;
             _endInput.LostFocus -= OnEndInputLostFocus;
             _endInput.TextChanged -= OnEndInputTextChanged;
+            DataValidationErrors.SetError(_endInput, null);
             _endSyncedText = null;
         }
         if (_dayGrid is not null)
@@ -1405,7 +1411,7 @@ public sealed class MaterialDatePicker : TemplatedControl
     {
         if (row is null)
             return;
-        var signature = $"{EffectiveCulture.Name}|{(IsRightToLeft ? "rtl" : "ltr")}";
+        var signature = $"{EffectiveCulture.Name}|{FlowDirection}|{(IsRightToLeft ? "rtl" : "ltr")}";
         if (row.Tag as string == signature && row.Children.Count == 7)
             return;
         row.Tag = signature;
@@ -1514,7 +1520,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         var firstYear = Math.Min(MinimumYear, MaximumYear);
         var lastYear = Math.Max(MinimumYear, MaximumYear);
         var signature = FormattableString.Invariant(
-            $"{firstYear}|{lastYear}|{EffectiveCulture.Name}|{(int)FirstDayOfWeek}|{(IsRightToLeft ? "rtl" : "ltr")}");
+            $"{firstYear}|{lastYear}|{EffectiveCulture.Name}|{(int)FirstDayOfWeek}|{FlowDirection}|{(IsRightToLeft ? "rtl" : "ltr")}");
         if (_fullScreenSignature != signature)
         {
             _fullScreenSignature = signature;
@@ -2237,11 +2243,7 @@ public sealed class MaterialDatePicker : TemplatedControl
             AutomationProperties.SetName(_editButton, editName);
             ToolTip.SetTip(_editButton, editName);
         }
-        if (_inputError is not null)
-        {
-            _inputError.Text = _validationMessage;
-            _inputError.IsVisible = !string.IsNullOrEmpty(_validationMessage);
-        }
+        SyncInputValidationErrors();
         if (_endInput is not null)
             _endInput.IsVisible = isRange;
 
@@ -3355,7 +3357,7 @@ public sealed class MaterialDatePicker : TemplatedControl
             cell.SetState(":today", date == today);
             cell.SetState(":outside", outside);
             cell.SetState(":empty", hidden);
-            cell.SetState(":rtl", IsRightToLeft);
+            cell.SetState(":rtl", IsRightToLeft && FlowDirection != FlowDirection.RightToLeft);
             cell.SetState(":range-start", completedRange && isStart);
             cell.SetState(":range-end", completedRange && isEnd);
             cell.SetState(":range-middle", middle);
@@ -3518,23 +3520,96 @@ public sealed class MaterialDatePicker : TemplatedControl
 
     private string ComputeHeadline()
     {
-        // Port of DatePickerDefaults.DatePickerHeadline / DateRangePicker headline: the selected
-        // date uses the yMMMd skeleton (month, day, year), and the empty value depends on the
-        // display mode.
+        // Port of DatePickerDefaults.DatePickerHeadline / DateRangePickerHeadline: the selected
+        // date uses DateFormat or the culture yMMMd skeleton, and empty range endpoints show their
+        // localized "Start date" / "End date" placeholders.
         var culture = EffectiveCulture;
+        if (SelectionMode == MaterialDateSelectionMode.Range)
+        {
+            var startPlaceholder = GetText("MaterialDatePickerStartDateText", "Start date");
+            var endPlaceholder = GetText("MaterialDatePickerEndDateText", "End date");
+            var startText = SelectedDate is { } rangeStart
+                ? FormatHeadlineDate(rangeStart.Date, culture)
+                : startPlaceholder;
+            var endText = SelectedEndDate is { } rangeEnd
+                ? FormatHeadlineDate(rangeEnd.Date, culture)
+                : endPlaceholder;
+            return $"{startText} – {endText}";
+        }
+
         if (SelectedDate is not { } start)
             return IsInputMode
                 ? GetText("MaterialDatePickerEnterDateText", "Enter date")
                 : GetText("MaterialDatePickerSelectDateText", "Select date");
-        var startDate = start.Date;
-        if (SelectionMode == MaterialDateSelectionMode.Range)
+        return FormatHeadlineDate(start.Date, culture);
+    }
+
+    private string FormatHeadlineDate(DateTime date, CultureInfo culture)
+    {
+        if (!string.IsNullOrWhiteSpace(DateFormat))
+            return date.ToString(DateFormat, culture);
+        return date.ToString(GetHeadlinePattern(culture), culture);
+    }
+
+    private static string GetHeadlinePattern(CultureInfo culture)
+    {
+        var longPattern = culture.DateTimeFormat.LongDatePattern;
+        if (string.IsNullOrWhiteSpace(longPattern))
+            return "MMM d, yyyy";
+
+        // Split into quoted literals and unquoted format tokens so literal text (such as 'de' or
+        // 'г.') is never altered while stripping weekday tokens (ddd/dddd) and shortening MMMM.
+        var segments = new List<(bool Quoted, string Text)>();
+        for (var i = 0; i < longPattern.Length;)
         {
-            if (SelectedEndDate is not { } end)
-                return startDate.ToString("MMM d, yyyy", culture);
-            return $"{startDate.ToString("MMM d, yyyy", culture)} – " +
-                   $"{end.Date.ToString("MMM d, yyyy", culture)}";
+            if (longPattern[i] == '\'')
+            {
+                var start = i++;
+                while (i < longPattern.Length)
+                {
+                    if (longPattern[i] == '\'')
+                    {
+                        i++;
+                        if (i < longPattern.Length && longPattern[i] == '\'')
+                        {
+                            i++;
+                            continue;
+                        }
+                        break;
+                    }
+                    i++;
+                }
+                segments.Add((true, longPattern[start..i]));
+                continue;
+            }
+
+            var unquotedStart = i;
+            while (i < longPattern.Length && longPattern[i] != '\'')
+                i++;
+            segments.Add((false, longPattern[unquotedStart..i]));
         }
-        return startDate.ToString("MMM d, yyyy", culture);
+
+        var builder = new StringBuilder(longPattern.Length);
+        for (var index = 0; index < segments.Count; index++)
+        {
+            var (quoted, text) = segments[index];
+            if (quoted)
+            {
+                builder.Append(text);
+                continue;
+            }
+
+            text = text.Replace("MMMM", "MMM");
+            if (index == 0)
+                text = Regex.Replace(text, @"^\s*\(?d{3,}\)?[\s,،、.]*", string.Empty);
+            if (index == segments.Count - 1)
+                text = Regex.Replace(text, @"[\s,،、.]*\(?d{3,}\)?\s*$", string.Empty);
+            text = Regex.Replace(text, @"[\s,،、]*\(?d{3,}\)?[\s,،、]*", " ");
+            builder.Append(text);
+        }
+
+        var result = builder.ToString().Trim(' ', ',', '،', '、');
+        return string.IsNullOrWhiteSpace(result) ? "MMM d, yyyy" : result;
     }
 
     private void UpdateMonthYearText()
@@ -3745,7 +3820,8 @@ public sealed class MaterialDatePicker : TemplatedControl
         e.Handled = true;
         var box = isEnd ? _endInput : _startInput;
         NormalizeInputOnBlur(box, isEnd);
-        if (box is null || !string.IsNullOrEmpty(_validationMessage))
+        var fieldError = isEnd ? _endValidationMessage : _startValidationMessage;
+        if (box is null || !string.IsNullOrEmpty(fieldError))
             return;
         if (!IsRange || isEnd)
             Commit();
@@ -3775,16 +3851,26 @@ public sealed class MaterialDatePicker : TemplatedControl
         var raw = box.Text?.Trim() ?? string.Empty;
         if (raw.Length == 0)
         {
-            SetValidationMessage(null);
+            SetInputValidationMessage(isEnd, null);
             if (isEnd)
-                ApplySelection(SelectedDate?.Date, null);
-            else
+            {
+                if (SelectedEndDate is not null)
+                    ApplySelection(SelectedDate?.Date, null);
+            }
+            else if (SelectedDate is not null || SelectedEndDate is not null)
+            {
                 ApplySelection(null, null);
+            }
             return;
         }
         if (!TryParseDate(raw, out var date))
         {
-            SetValidationMessage(GetText("MaterialDatePickerInvalidDateText", "Enter a valid date"));
+            if (TryParseCalendarDate(raw, out var outOfRangeDate) && !IsYearInRange(outOfRangeDate.Year))
+                SetInputValidationMessage(isEnd, FormatRangeError());
+            else if (outOfRangeDate != default && SelectableDates is { } selectable && !selectable.IsSelectableYear(outOfRangeDate.Year))
+                SetInputValidationMessage(isEnd, GetText("MaterialDatePickerDateNotAllowedText", "This date cannot be selected"));
+            else
+                SetInputValidationMessage(isEnd, GetText("MaterialDatePickerInvalidDateText", "Enter a valid date"));
             return;
         }
         _inputBeingNormalized = box;
@@ -3796,11 +3882,44 @@ public sealed class MaterialDatePicker : TemplatedControl
         {
             _inputBeingNormalized = null;
         }
-        if (string.IsNullOrEmpty(_validationMessage))
+        var fieldError = isEnd ? _endValidationMessage : _startValidationMessage;
+        if (string.IsNullOrEmpty(fieldError))
         {
             var formatted = InputFormat.Format(SelectedDateDigits(date));
             SetInputText(box, isEnd, formatted, formatted.Length);
         }
+    }
+
+    private bool TryParseCalendarDate(string trimmed, out DateTime date)
+    {
+        date = default;
+        var format = InputFormat;
+        var digits = DigitsOf(trimmed);
+        var culture = EffectiveCulture;
+        if (trimmed.All(char.IsDigit) && digits.Length == format.DigitCount &&
+            DateTime.TryParseExact(digits, format.PatternWithoutDelimiters, culture,
+                DateTimeStyles.None, out var patternDate))
+        {
+            date = patternDate.Date;
+            return true;
+        }
+
+        string[] formats =
+        [
+            EffectiveDateFormat,
+            culture.DateTimeFormat.ShortDatePattern,
+            "yyyy-MM-dd",
+            "yyyy/MM/dd",
+            "yyyyMMdd",
+        ];
+        if (DateTime.TryParseExact(trimmed, formats, culture,
+                DateTimeStyles.AllowWhiteSpaces, out var parsed) ||
+            DateTime.TryParse(trimmed, culture, DateTimeStyles.AllowWhiteSpaces, out parsed))
+        {
+            date = parsed.Date;
+            return true;
+        }
+        return false;
     }
 
     private string DigitsOf(string? text)
@@ -3821,7 +3940,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         if (box is null || _syncingInput || !box.IsFocused ||
             string.Equals(box.Text, SyncedInputText(isEnd), StringComparison.Ordinal))
             return;
-        SetValidationMessage(null);
+        SetInputValidationMessage(isEnd, null);
     }
 
     private string? SyncedInputText(bool isEnd) => isEnd ? _endSyncedText : _startSyncedText;
@@ -3859,7 +3978,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         {
             // DateInputTransformation: an incomplete buffer reports no date. For an end field the
             // start date stays pending; clearing the start clears the whole range.
-            SetValidationMessage(null);
+            SetInputValidationMessage(isEnd, null);
             if (isEnd)
                 ApplySelection(SelectedDate?.Date, null);
             else
@@ -3872,7 +3991,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         if (!DateTime.TryParseExact(digits, format.PatternWithoutDelimiters, EffectiveCulture,
                 DateTimeStyles.None, out var parsed))
         {
-            SetValidationMessage(GetText("MaterialDatePickerInvalidDateText", "Enter a valid date"));
+            SetInputValidationMessage(isEnd, GetText("MaterialDatePickerInvalidDateText", "Enter a valid date"));
             if (isEnd)
                 ApplySelection(start, null);
             else
@@ -3881,9 +4000,9 @@ public sealed class MaterialDatePicker : TemplatedControl
         }
 
         var date = parsed.Date;
-        if (!IsYearAllowed(date.Year))
+        if (!IsYearInRange(date.Year))
         {
-            SetValidationMessage(FormatRangeError());
+            SetInputValidationMessage(isEnd, FormatRangeError());
             if (isEnd)
                 ApplySelection(start, null);
             else
@@ -3891,12 +4010,21 @@ public sealed class MaterialDatePicker : TemplatedControl
             return;
         }
 
-        if ((SelectableDates is { } selectable &&
-             (!selectable.IsSelectableYear(date.Year) || !selectable.IsSelectableDate(date))) ||
-            (MinimumDate is { } min && date < min.Date) ||
+        if ((MinimumDate is { } min && date < min.Date) ||
             (MaximumDate is { } max && date > max.Date))
         {
-            SetValidationMessage(GetText("MaterialDatePickerDateNotAllowedText",
+            SetInputValidationMessage(isEnd, FormatBoundsError());
+            if (isEnd)
+                ApplySelection(start, null);
+            else
+                ApplySelection(null, null);
+            return;
+        }
+
+        if (SelectableDates is { } selectable &&
+            (!selectable.IsSelectableYear(date.Year) || !selectable.IsSelectableDate(date)))
+        {
+            SetInputValidationMessage(isEnd, GetText("MaterialDatePickerDateNotAllowedText",
                 "This date cannot be selected"));
             if (isEnd)
                 ApplySelection(start, null);
@@ -3907,7 +4035,7 @@ public sealed class MaterialDatePicker : TemplatedControl
 
         if (SelectionMode == MaterialDateSelectionMode.Single)
         {
-            SetValidationMessage(null);
+            SetInputValidationMessage(isEnd, null);
             ApplySelection(date, null);
             return;
         }
@@ -3916,12 +4044,12 @@ public sealed class MaterialDatePicker : TemplatedControl
         {
             if (start is { } pending && date < pending)
             {
-                SetValidationMessage(GetText("MaterialDatePickerRangeOrderText",
+                SetInputValidationMessage(isEnd, GetText("MaterialDatePickerRangeOrderText",
                     "The end date must be on or after the start date"));
                 ApplySelection(pending, null);
                 return;
             }
-            SetValidationMessage(null);
+            SetInputValidationMessage(isEnd, null);
             ApplySelection(start, date);
             return;
         }
@@ -3931,12 +4059,12 @@ public sealed class MaterialDatePicker : TemplatedControl
         // The native editor keeps the rejected text and its validation message.
         if (end is { } currentEnd && date > currentEnd)
         {
-            SetValidationMessage(GetText("MaterialDatePickerRangeOrderText",
+            SetInputValidationMessage(isEnd, GetText("MaterialDatePickerRangeOrderText",
                 "The end date must be on or after the start date"));
             ApplySelection(null, null);
             return;
         }
-        SetValidationMessage(null);
+        SetInputValidationMessage(isEnd, null);
         ApplySelection(date, end);
     }
 
@@ -3947,18 +4075,69 @@ public sealed class MaterialDatePicker : TemplatedControl
             MinimumYear.ToString(EffectiveCulture),
             MaximumYear.ToString(EffectiveCulture));
 
-    private void SetValidationMessage(string? message)
+    private string FormatBoundsError()
     {
+        var minYear = Math.Min(MinimumYear, MaximumYear);
+        var maxYear = Math.Max(MinimumYear, MaximumYear);
+        var minBound = MinimumDate?.Date ?? new DateTime(minYear, 1, 1);
+        var maxBound = MaximumDate?.Date ?? new DateTime(maxYear, 12, 31);
+        return string.Format(EffectiveCulture,
+            GetText("MaterialDatePickerOutOfRangeText",
+                "Enter a date between {0} and {1}"),
+            FormatDate(minBound),
+            FormatDate(maxBound));
+    }
+
+    private void ClearInputValidation()
+    {
+        _startValidationMessage = null;
+        _endValidationMessage = null;
+        UpdateValidationSummary();
+        SyncInputValidationErrors();
+    }
+
+    private void SetInputValidationMessage(bool isEnd, string? message)
+    {
+        if (isEnd)
+            _endValidationMessage = message;
+        else
+            _startValidationMessage = message;
+        UpdateValidationSummary();
+        SyncInputValidationErrors();
+    }
+
+    private void UpdateValidationSummary()
+    {
+        var message = _startValidationMessage ?? _endValidationMessage;
         if (message == _validationMessage)
             return;
         var old = _validationMessage;
         _validationMessage = message;
         RaisePropertyChanged(ValidationMessageProperty, old, message);
         PseudoClasses.Set(":invalid", !string.IsNullOrEmpty(message));
+    }
+
+    private void SyncInputValidationErrors()
+    {
+        if (_startInput is not null)
+        {
+            DataValidationErrors.SetError(_startInput,
+                string.IsNullOrEmpty(_startValidationMessage)
+                    ? null
+                    : new DataValidationException(_startValidationMessage));
+        }
+        if (_endInput is not null)
+        {
+            var endError = IsRange ? _endValidationMessage : null;
+            DataValidationErrors.SetError(_endInput,
+                string.IsNullOrEmpty(endError)
+                    ? null
+                    : new DataValidationException(endError));
+        }
         if (_inputError is not null)
         {
-            _inputError.Text = message;
-            _inputError.IsVisible = !string.IsNullOrEmpty(message);
+            _inputError.Text = _validationMessage;
+            _inputError.IsVisible = !string.IsNullOrEmpty(_validationMessage);
         }
     }
 

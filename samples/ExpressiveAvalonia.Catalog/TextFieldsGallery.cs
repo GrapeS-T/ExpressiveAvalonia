@@ -164,7 +164,10 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
         MaterialTextField.SetExpandedLabelAlignment(_field, alignment);
         MaterialTextField.SetMinimizedLabelAlignment(_field, alignment);
         MaterialTextField.SetAboveLabelAlignment(_field, alignment);
-        Avalonia.Automation.AutomationProperties.SetName(_field, string.IsNullOrEmpty(_label.Text) ? "Text field" : _label.Text);
+        if (string.IsNullOrEmpty(_label.Text))
+            _field.ClearValue(Avalonia.Automation.AutomationProperties.NameProperty);
+        else
+            Avalonia.Automation.AutomationProperties.SetName(_field, _label.Text);
         _field.PlaceholderText = _placeholder.Text;
         MaterialTextField.SetSupportingText(_field, _supporting.Text);
         MaterialTextField.SetPrefix(_field, _prefix.Text);

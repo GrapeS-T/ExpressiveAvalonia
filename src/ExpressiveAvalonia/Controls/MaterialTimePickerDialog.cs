@@ -2,6 +2,8 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.Media;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -26,19 +28,30 @@ public sealed class MaterialTimePickerResult
 
 /// <summary>
 /// Native modal host for a <see cref="MaterialTimePicker"/>. The picker keeps its own surface;
-/// the window supplies modal blocking, owner centering and focus restore.
+/// the window supplies modal blocking, scrim light-dismiss, owner centering and focus restore.
 /// </summary>
 /// <remarks>
 /// The picker instance is released from the window when the dialog closes so the same control can
-/// be shown again or reused elsewhere. Escape, the platform close gesture and the picker's Cancel
-/// action all discard the draft, restore the time and input mode captured at open, and produce a
-/// non-confirmed result; OK confirms the current time.
+/// be shown again or reused elsewhere. Escape, scrim click, the platform close gesture and the
+/// picker's Cancel action all discard the draft, restore the time and input mode captured at open,
+/// and produce a non-confirmed result; OK confirms the current time.
 /// </remarks>
 public sealed class MaterialTimePickerDialog : Window
 {
+    private const double ShadowMargin = 16;
+    private const double ModalMargin = 24;
+
     private readonly MaterialTimePicker _picker;
+    private readonly Panel _root;
+    private readonly Border _scrim;
     private readonly TimeSpan _committedTime;
     private readonly MaterialTimeInputMode _committedMode;
+    private readonly Thickness _savedMargin;
+    private readonly HorizontalAlignment _savedHorizontalAlignment;
+    private readonly VerticalAlignment _savedVerticalAlignment;
+    private readonly double _savedMaxWidth;
+    private Window? _ownerWindow;
+    private IInputElement? _previousFocus;
     private MaterialTimePickerResult? _result;
     private bool _closed;
 
@@ -51,21 +64,36 @@ public sealed class MaterialTimePickerDialog : Window
         // dialog supplies the commit boundary: a non-confirmed close restores this snapshot.
         _committedTime = picker.Time;
         _committedMode = picker.InputMode;
+        _savedMargin = picker.Margin;
+        _savedHorizontalAlignment = picker.HorizontalAlignment;
+        _savedVerticalAlignment = picker.VerticalAlignment;
+        _savedMaxWidth = picker.MaxWidth;
 
-        Title = picker.Variant == MaterialTimePickerVariant.Standard
-            ? picker.EffectiveHeadline ?? string.Empty
-            : string.Empty;
-        MinWidth = 328;
-        MaxWidth = 600;
-        WindowDecorations = WindowDecorations.BorderOnly;
-        SizeToContent = SizeToContent.WidthAndHeight;
+        Title = ResolveTitle(picker);
+        WindowDecorations = WindowDecorations.None;
+        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
+        Background = Brushes.Transparent;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         CanResize = false;
         CanMinimize = false;
         CanMaximize = false;
         ShowInTaskbar = false;
         Padding = new Thickness(0);
-        Content = picker;
+
+        _scrim = new Border
+        {
+            IsVisible = false,
+            IsHitTestVisible = true,
+        };
+        _scrim.PointerPressed += OnScrimPointerPressed;
+
+        _root = new Panel { ClipToBounds = false };
+        KeyboardNavigation.SetTabNavigation(_root, KeyboardNavigationMode.Cycle);
+        _root.Children.Add(_scrim);
+        _root.Children.Add(picker);
+        Content = _root;
+
+        ApplyPresentation(owner: null);
 
         picker.Confirmed += OnPickerConfirmed;
         picker.Cancelled += OnPickerCancelled;
@@ -74,10 +102,12 @@ public sealed class MaterialTimePickerDialog : Window
 
     private void OnPickerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == MaterialTimePicker.EffectiveHeadlineProperty)
-            Title = _picker.Variant == MaterialTimePickerVariant.Standard
-                ? _picker.EffectiveHeadline ?? string.Empty
-                : string.Empty;
+        if (e.Property == MaterialTimePicker.EffectiveHeadlineProperty ||
+            e.Property == MaterialTimePicker.HeadlineProperty ||
+            e.Property == MaterialTimePicker.VariantProperty)
+        {
+            Title = ResolveTitle(_picker);
+        }
     }
 
     /// <summary>The hosted picker.</summary>
@@ -98,6 +128,7 @@ public sealed class MaterialTimePickerDialog : Window
                 "The time picker already has a parent. Create a picker for the dialog instead.");
 
         var dialog = new MaterialTimePickerDialog(picker);
+        dialog.AttachOwner(owner);
         var result = await dialog.ShowDialog<MaterialTimePickerResult?>(owner);
         return result ?? new MaterialTimePickerResult(picker.Time, false);
     }
@@ -105,6 +136,11 @@ public sealed class MaterialTimePickerDialog : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
+        if (_ownerWindow is null && Owner is Window owner)
+            AttachOwner(owner);
+        else
+            ApplyPresentation(_ownerWindow);
+        Title = ResolveTitle(_picker);
         _picker.FocusFirstField();
     }
 
@@ -126,6 +162,10 @@ public sealed class MaterialTimePickerDialog : Window
         _picker.Confirmed -= OnPickerConfirmed;
         _picker.Cancelled -= OnPickerCancelled;
         _picker.PropertyChanged -= OnPickerPropertyChanged;
+        _scrim.PointerPressed -= OnScrimPointerPressed;
+        if (_ownerWindow is not null)
+            _ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
+
         if (_result is not { IsConfirmed: true })
         {
             _picker.Time = _committedTime;
@@ -134,8 +174,104 @@ public sealed class MaterialTimePickerDialog : Window
             // cells explicitly so a cancelled session never leaves "27" (or empty text) behind.
             _picker.ResetDrafts();
         }
+
+        _root.Children.Clear();
+        _picker.Margin = _savedMargin;
+        _picker.HorizontalAlignment = _savedHorizontalAlignment;
+        _picker.VerticalAlignment = _savedVerticalAlignment;
+        _picker.MaxWidth = _savedMaxWidth;
         Content = null;
         base.OnClosed(e);
+
+        if (_ownerWindow is { IsVisible: true } &&
+            _previousFocus is Control { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } target)
+        {
+            target.Focus();
+        }
+        _ownerWindow = null;
+        _previousFocus = null;
+    }
+
+    private void AttachOwner(Window owner)
+    {
+        if (ReferenceEquals(_ownerWindow, owner))
+            return;
+        if (_ownerWindow is not null)
+            _ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
+        _ownerWindow = owner;
+        _previousFocus ??= owner.FocusManager?.GetFocusedElement();
+        owner.PropertyChanged += OnOwnerPropertyChanged;
+        ApplyPresentation(owner);
+    }
+
+    private void OnOwnerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == ClientSizeProperty && !_closed)
+            ApplyPresentation(_ownerWindow);
+    }
+
+    private void ApplyPresentation(Window? owner)
+    {
+        if (double.IsPositiveInfinity(_savedMaxWidth))
+            _picker.MaxWidth = 600;
+
+        if (owner is { ClientSize: { Width: > 0, Height: > 0 } size })
+        {
+            SizeToContent = SizeToContent.Manual;
+            Width = size.Width;
+            Height = size.Height;
+            _scrim.Background = ResolveScrimBrush();
+            _scrim.Opacity = ResolveScrimOpacity();
+            _scrim.IsVisible = true;
+            _picker.HorizontalAlignment = HorizontalAlignment.Center;
+            _picker.VerticalAlignment = VerticalAlignment.Center;
+            _picker.Margin = new Thickness(ModalMargin);
+            return;
+        }
+
+        _scrim.IsVisible = false;
+        ClearValue(WidthProperty);
+        ClearValue(HeightProperty);
+        SizeToContent = SizeToContent.WidthAndHeight;
+        _picker.HorizontalAlignment = HorizontalAlignment.Center;
+        _picker.VerticalAlignment = VerticalAlignment.Center;
+        _picker.Margin = new Thickness(ShadowMargin);
+    }
+
+    private IBrush ResolveScrimBrush() =>
+        this.TryFindResource("MaterialScrimBrush", out var value) && value is IBrush brush
+            ? brush
+            : (_picker.TryFindResource("MaterialScrimBrush", out var pickerValue) && pickerValue is IBrush pickerBrush
+                ? pickerBrush
+                : Brushes.Black);
+
+    private double ResolveScrimOpacity() =>
+        this.TryFindResource("MaterialDialogScrimOpacity", out var value) && value is double opacity
+            ? opacity
+            : (_picker.TryFindResource("MaterialDialogScrimOpacity", out var pickerValue) && pickerValue is double pickerOpacity
+                ? pickerOpacity
+                : 0.32);
+
+    private static string ResolveTitle(MaterialTimePicker picker)
+    {
+        if (picker.EffectiveHeadline is { } effectiveHeadline && !string.IsNullOrWhiteSpace(effectiveHeadline))
+            return effectiveHeadline;
+        if (picker.Headline is { } headline && !string.IsNullOrWhiteSpace(headline))
+            return headline;
+        var key = picker.InputMode == MaterialTimeInputMode.Keyboard
+            ? "MaterialTimePickerEnterTimeText"
+            : "MaterialTimePickerSelectTimeText";
+        if (picker.TryFindResource(key, out var value) && value is string text && !string.IsNullOrWhiteSpace(text))
+            return text;
+        return picker.InputMode == MaterialTimeInputMode.Keyboard ? "Enter time" : "Select time";
+    }
+
+    private void OnScrimPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!ReferenceEquals(e.Source, _scrim))
+            return;
+        e.Handled = true;
+        CancelDialog();
     }
 
     private void CancelDialog()

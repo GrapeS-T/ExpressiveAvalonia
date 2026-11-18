@@ -416,8 +416,9 @@ public sealed class MaterialNavigationRailHost : ContentControl
             IsExpanded = false,
             IsFloating = false,
             SelectionMode = SelectionMode.Single,
-            Focusable = source.Focusable,
         };
+        clone.Bind(InputElement.FocusableProperty,
+            new Binding(nameof(Focusable)) { Source = source });
         clone.Bind(ItemsControl.ItemsSourceProperty,
             new Binding(nameof(ItemsControl.ItemsSource)) { Source = source });
         clone.Bind(MaterialNavigationRail.RailAlignmentProperty,
@@ -1084,8 +1085,10 @@ public sealed class MaterialNavigationRailHost : ContentControl
         if (!IsModal || !IsRailOpen || Rail is not { } rail)
             return;
 
-        var target = rail.SelectedItem as Control ?? rail.ContainerFromIndex(rail.SelectedIndex) ??
-                     GetRailFocusables().FirstOrDefault();
+        var selected = rail.SelectedItem as Control ?? rail.ContainerFromIndex(rail.SelectedIndex);
+        var target = selected is { Focusable: true, IsEffectivelyEnabled: true, IsEffectivelyVisible: true }
+            ? selected
+            : GetRailFocusables().FirstOrDefault();
         target?.Focus(NavigationMethod.Tab);
     }
 
@@ -1095,12 +1098,12 @@ public sealed class MaterialNavigationRailHost : ContentControl
         if (Rail is not { } rail)
             return result;
 
-        if (rail.Focusable)
+        if (rail.Focusable && rail.IsTabStop && rail.IsEffectivelyEnabled && rail.IsEffectivelyVisible)
             result.Add(rail);
 
         foreach (var control in rail.GetVisualDescendants().OfType<Control>())
         {
-            if (control.Focusable && control.IsEffectivelyEnabled && control.IsEffectivelyVisible)
+            if (control.Focusable && control.IsTabStop && control.IsEffectivelyEnabled && control.IsEffectivelyVisible)
                 result.Add(control);
         }
 

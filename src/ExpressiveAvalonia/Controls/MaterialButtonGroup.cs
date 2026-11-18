@@ -130,7 +130,7 @@ public class MaterialButtonGroup : ItemsControl
 
     /// <summary>
     /// Density from 0 to -3, lowering the painted container by 4 DIP per step while preserving
-    /// the minimum 48-DIP interaction target of standard and connected buttons.
+    /// the minimum 48-DIP interaction target.
     /// </summary>
     public static readonly StyledProperty<int> DensityProperty =
         AvaloniaProperty.Register<MaterialButtonGroup, int>(nameof(Density),
@@ -167,7 +167,10 @@ public class MaterialButtonGroup : ItemsControl
     public static readonly StyledProperty<bool> IsOverflowEnabledProperty =
         AvaloniaProperty.Register<MaterialButtonGroup, bool>(nameof(IsOverflowEnabled), true);
 
-    /// <summary>Accessible name of the overflow button. Override to localize.</summary>
+    /// <summary>
+    /// Accessible name of the overflow button. When unset, resolves the
+    /// <c>MaterialButtonGroupOverflowText</c> resource ("More options").
+    /// </summary>
     public static readonly StyledProperty<string> OverflowButtonAccessibleNameProperty =
         AvaloniaProperty.Register<MaterialButtonGroup, string>(
             nameof(OverflowButtonAccessibleName), "More options");
@@ -188,6 +191,7 @@ public class MaterialButtonGroup : ItemsControl
     private readonly List<MaterialButtonGroupItem> _hiddenByOverflow = [];
 
     private Button? _overflowButton;
+    private IDisposable? _overflowAutoName;
     private MaterialButtonGroupPanel? _panel;
     private double _availableWidth = double.PositiveInfinity;
     private bool _syncing;
@@ -200,6 +204,7 @@ public class MaterialButtonGroup : ItemsControl
         Focusable = false;
         AddHandler(KeyDownEvent, OnGroupKeyDown, RoutingStrategies.Tunnel);
         LayoutUpdated += OnLayoutUpdated;
+        ResourcesChanged += (_, _) => UpdateOverflowAccessibleName();
     }
 
     /// <summary>Raised after the selection changes, whether by pointer, keyboard or code.</summary>
@@ -287,15 +292,24 @@ public class MaterialButtonGroup : ItemsControl
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
+        if (_overflowButton is not null)
+            _overflowButton.Click -= OnOverflowButtonClick;
+        _overflowAutoName?.Dispose();
+        _overflowAutoName = null;
+
         base.OnApplyTemplate(e);
         _overflowButton = e.NameScope.Find<Button>("PART_OverflowButton");
         if (_overflowButton is not null)
-        {
             _overflowButton.Click += OnOverflowButtonClick;
-            AutomationProperties.SetName(_overflowButton, OverflowButtonAccessibleName);
-        }
+        UpdateOverflowAccessibleName();
         UpdatePanel();
         RefreshItems();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        UpdateOverflowAccessibleName();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -345,10 +359,28 @@ public class MaterialButtonGroup : ItemsControl
         {
             ApplySelectedItem();
         }
-        else if (change.Property == OverflowButtonAccessibleNameProperty && _overflowButton is not null)
+        else if (change.Property == OverflowButtonAccessibleNameProperty)
         {
-            AutomationProperties.SetName(_overflowButton, OverflowButtonAccessibleName);
+            UpdateOverflowAccessibleName();
         }
+    }
+
+    private void UpdateOverflowAccessibleName()
+    {
+        _overflowAutoName?.Dispose();
+        _overflowAutoName = null;
+        if (_overflowButton is null)
+            return;
+
+        var name = IsSet(OverflowButtonAccessibleNameProperty) && !string.IsNullOrEmpty(OverflowButtonAccessibleName)
+            ? OverflowButtonAccessibleName
+            : this.TryFindResource("MaterialButtonGroupOverflowText", out var value)
+              && value is string localized && !string.IsNullOrEmpty(localized)
+                ? localized
+                : OverflowButtonAccessibleName;
+
+        _overflowAutoName = _overflowButton.SetValue(
+            AutomationProperties.NameProperty, name, BindingPriority.Style);
     }
 
     protected override bool NeedsContainerOverride(object? item, int index, out object? recycleKey) =>
@@ -519,18 +551,19 @@ public class MaterialButtonGroup : ItemsControl
                     ? MaterialButtonGroupItemPosition.Last
                     : MaterialButtonGroupItemPosition.Middle;
 
-        var containerHeight = (ControlSize switch
-        {
-            MaterialControlSize.ExtraSmall => 32,
-            MaterialControlSize.Small => 40,
-            MaterialControlSize.Medium => 56,
-            MaterialControlSize.Large => 96,
-            _ => 136
-        }) + Density * 4;
+        var containerHeight = (Kind == MaterialButtonGroupKind.Segmented
+            ? 40
+            : ControlSize switch
+            {
+                MaterialControlSize.ExtraSmall => 32,
+                MaterialControlSize.Small => 40,
+                MaterialControlSize.Medium => 56,
+                MaterialControlSize.Large => 96,
+                _ => 136
+            }) + Density * 4;
         var height = Math.Max(48, containerHeight);
-        item.ContainerInset = Kind == MaterialButtonGroupKind.Segmented
-            ? default : new Thickness(0, (height - containerHeight) / 2);
-        item.MinHeight = Kind == MaterialButtonGroupKind.Segmented ? 40 + Density * 4 : height;
+        item.ContainerInset = new Thickness(0, (height - containerHeight) / 2);
+        item.MinHeight = height;
 
         UpdateItemZIndex(item);
 
@@ -538,17 +571,17 @@ public class MaterialButtonGroup : ItemsControl
         ApplyItemCorners(item, animate: false);
     }
 
-    // The segmented row draws the selected/pressed segment above its neighbours so the shared
-    // 1-DIP outline and the rounded outer corners stay intact (source InteractionZIndex).
+    // The segmented row draws the focused/pressed/selected segment above its neighbours so the
+    // outer focus indicator, shared 1-DIP outline, and rounded outer corners stay intact.
     private void UpdateItemZIndex(MaterialButtonGroupItem item)
     {
         if (Kind != MaterialButtonGroupKind.Segmented)
         {
-            item.ZIndex = 0;
+            item.ZIndex = item.IsKeyboardFocusWithin ? 3 : 0;
             return;
         }
 
-        item.ZIndex = item.IsPressed ? 2 : item.IsChecked == true ? 1 : 0;
+        item.ZIndex = item.IsKeyboardFocusWithin ? 3 : item.IsPressed ? 2 : item.IsChecked == true ? 1 : 0;
     }
 
     private void SetCompressionLimit(MaterialButtonGroupItem item)
@@ -841,6 +874,11 @@ public class MaterialButtonGroup : ItemsControl
             ApplyItemCorners(item, animate: true);
             if (Kind == MaterialButtonGroupKind.Standard && Orientation == AvaloniaOrientation.Horizontal)
                 SetPressExpansion(item, pressed);
+        }
+        else if (e.Property == InputElement.IsKeyboardFocusWithinProperty ||
+                 e.Property == InputElement.IsFocusedProperty)
+        {
+            UpdateItemZIndex(item);
         }
         else if (e.Property == TemplatedControl.PaddingProperty)
         {
@@ -1274,12 +1312,17 @@ public class MaterialButtonGroup : ItemsControl
         _ => null,
     };
 
-    private static string ItemLabel(MaterialButtonGroupItem item)
+    private string ItemLabel(MaterialButtonGroupItem item)
     {
         if (item.Content is string text && !string.IsNullOrWhiteSpace(text))
             return text;
         var name = AutomationProperties.GetName(item);
-        return string.IsNullOrWhiteSpace(name) ? "Action" : name;
+        if (!string.IsNullOrWhiteSpace(name))
+            return name;
+        return this.TryFindResource("MaterialButtonGroupActionText", out var value)
+               && value is string localized && !string.IsNullOrWhiteSpace(localized)
+            ? localized
+            : "Action";
     }
 
     private sealed class ItemExpansion

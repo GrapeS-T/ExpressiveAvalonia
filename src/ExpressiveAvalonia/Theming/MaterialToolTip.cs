@@ -84,6 +84,8 @@ public sealed class TooltipCaretRenderer : Control
         AffectsRender<TooltipCaretRenderer>(ShowCaretProperty, AnchorProperty, SurfaceProperty, FillProperty, PlacementProperty);
     }
 
+    protected override bool BypassFlowDirectionPolicies => true;
+
     public bool ShowCaret
     {
         get => GetValue(ShowCaretProperty);
@@ -129,13 +131,8 @@ public sealed class TooltipCaretRenderer : Control
 
         // The anchor lives in the window and this control lives in the native popup root, so
         // TranslatePoint cannot cross the two visual trees. PointToScreen is the common frame.
-        var scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
-        var surfaceOrigin = surface.PointToScreen(default);
-        var anchorOrigin = anchor.PointToScreen(default);
-        var surfaceRect = new Rect(new Point(surfaceOrigin.X, surfaceOrigin.Y),
-            new Size(surface.Bounds.Width * scale, surface.Bounds.Height * scale));
-        var anchorRect = new Rect(new Point(anchorOrigin.X, anchorOrigin.Y),
-            new Size(anchor.Bounds.Width * scale, anchor.Bounds.Height * scale));
+        var surfaceRect = ScreenRect(surface);
+        var anchorRect = ScreenRect(anchor);
         return ResolveSide(surfaceRect, anchorRect, Placement);
     }
 
@@ -145,19 +142,24 @@ public sealed class TooltipCaretRenderer : Control
         // top means the tooltip opened below the anchor. A horizontal placement is only taken
         // when the configured placement says so or when the surface really sits beside the anchor,
         // because a narrow tooltip below a wide anchor also has its left edge inside the anchor.
-        var horizontal = placement is PlacementMode.Left or PlacementMode.Right ||
+        var horizontal = placement is PlacementMode.Left or PlacementMode.LeftEdgeAlignedTop or PlacementMode.LeftEdgeAlignedBottom
+                         or PlacementMode.Right or PlacementMode.RightEdgeAlignedTop or PlacementMode.RightEdgeAlignedBottom ||
                          surface.Right <= anchor.Left || surface.Left >= anchor.Right;
         if (horizontal)
             return surface.Left >= anchor.Left ? TooltipCaretSide.Left : TooltipCaretSide.Right;
         return surface.Top > anchor.Top ? TooltipCaretSide.Top : TooltipCaretSide.Bottom;
     }
 
-    internal static Thickness MarginFor(TooltipCaretSide side) => side switch
+    internal static Thickness MarginFor(TooltipCaretSide side, bool rightToLeft = false) => side switch
     {
         TooltipCaretSide.Top => new Thickness(0, DefaultCaretHeight, 0, 0),
         TooltipCaretSide.Bottom => new Thickness(0, 0, 0, DefaultCaretHeight),
-        TooltipCaretSide.Left => new Thickness(DefaultCaretWidth, 0, 0, 0),
-        _ => new Thickness(0, 0, DefaultCaretWidth, 0),
+        TooltipCaretSide.Left => rightToLeft
+            ? new Thickness(0, 0, DefaultCaretHeight, 0)
+            : new Thickness(DefaultCaretHeight, 0, 0, 0),
+        _ => rightToLeft
+            ? new Thickness(DefaultCaretHeight, 0, 0, 0)
+            : new Thickness(0, 0, DefaultCaretHeight, 0),
     };
 
     /// <inheritdoc />
@@ -169,18 +171,12 @@ public sealed class TooltipCaretRenderer : Control
         if (!ShowCaret || Fill is null || surface is null || anchor is null) return;
 
         var scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
-        var surfaceOrigin = surface.TranslatePoint(default, this);
-        var surfaceScreenOrigin = surface.PointToScreen(default);
-        var anchorScreenOrigin = anchor.PointToScreen(default);
-        if (surfaceOrigin is null) return;
+        var localSurfaceRect = LocalRect(surface, this);
+        if (localSurfaceRect is null) return;
 
-        var localSurface = new Rect(surfaceOrigin.Value, surface.Bounds.Size);
-        var surfaceScreen = new Rect(
-            new Point(surfaceScreenOrigin.X, surfaceScreenOrigin.Y),
-            new Size(surface.Bounds.Width * scale, surface.Bounds.Height * scale));
-        var anchorScreen = new Rect(
-            new Point(anchorScreenOrigin.X, anchorScreenOrigin.Y),
-            new Size(anchor.Bounds.Width * scale, anchor.Bounds.Height * scale));
+        var localSurface = localSurfaceRect.Value;
+        var surfaceScreen = ScreenRect(surface);
+        var anchorScreen = ScreenRect(anchor);
         var side = ResolveSide(surfaceScreen, anchorScreen, Placement);
 
         double x, y;
@@ -195,18 +191,42 @@ public sealed class TooltipCaretRenderer : Control
                 y = localSurface.Bottom;
                 break;
             case TooltipCaretSide.Left:
-                x = localSurface.Left - DefaultCaretWidth;
-                y = localSurface.Top + localSurface.Height / 2 - DefaultCaretHeight / 2;
+                x = localSurface.Left - DefaultCaretHeight;
+                y = CaretY(localSurface, surfaceScreen, anchorScreen, scale) - DefaultCaretWidth / 2;
                 break;
             default:
                 x = localSurface.Right;
-                y = localSurface.Top + localSurface.Height / 2 - DefaultCaretHeight / 2;
+                y = CaretY(localSurface, surfaceScreen, anchorScreen, scale) - DefaultCaretWidth / 2;
                 break;
         }
 
         var geometry = GetGeometry(side);
         using (context.PushTransform(Matrix.CreateTranslation(x, y)))
             context.DrawGeometry(Fill, null, geometry);
+    }
+
+    private static Rect ScreenRect(Control control)
+    {
+        var p0 = control.PointToScreen(default);
+        var p1 = control.PointToScreen(new Point(control.Bounds.Width, control.Bounds.Height));
+        var left = Math.Min(p0.X, p1.X);
+        var top = Math.Min(p0.Y, p1.Y);
+        var right = Math.Max(p0.X, p1.X);
+        var bottom = Math.Max(p0.Y, p1.Y);
+        return new Rect(left, top, right - left, bottom - top);
+    }
+
+    private static Rect? LocalRect(Control target, Visual relativeTo)
+    {
+        var p0 = target.TranslatePoint(default, relativeTo);
+        var p1 = target.TranslatePoint(new Point(target.Bounds.Width, target.Bounds.Height), relativeTo);
+        if (p0 is null || p1 is null)
+            return null;
+        var left = Math.Min(p0.Value.X, p1.Value.X);
+        var top = Math.Min(p0.Value.Y, p1.Value.Y);
+        var right = Math.Max(p0.Value.X, p1.Value.X);
+        var bottom = Math.Max(p0.Value.Y, p1.Value.Y);
+        return new Rect(left, top, right - left, bottom - top);
     }
 
     /// <summary>
@@ -221,6 +241,17 @@ public sealed class TooltipCaretRenderer : Control
         if (max < min) return localSurface.Left + localSurface.Width / 2;
         var center = (anchorScreen.Left + anchorScreen.Width / 2 - surfaceScreen.Left) / scale +
                      localSurface.Left;
+        return Math.Clamp(center, min, max);
+    }
+
+    private static double CaretY(Rect localSurface, Rect surfaceScreen, Rect anchorScreen, double scale)
+    {
+        var half = DefaultCaretWidth / 2;
+        var min = localSurface.Top + half;
+        var max = localSurface.Bottom - half;
+        if (max < min) return localSurface.Top + localSurface.Height / 2;
+        var center = (anchorScreen.Top + anchorScreen.Height / 2 - surfaceScreen.Top) / scale +
+                     localSurface.Top;
         return Math.Clamp(center, min, max);
     }
 
@@ -245,14 +276,14 @@ public sealed class TooltipCaretRenderer : Control
                     context.LineTo(new Point(width / 2, height));
                     break;
                 case TooltipCaretSide.Left:
-                    context.BeginFigure(new Point(width, 0), true);
-                    context.LineTo(new Point(width, height));
-                    context.LineTo(new Point(0, height / 2));
+                    context.BeginFigure(new Point(height, 0), true);
+                    context.LineTo(new Point(height, width));
+                    context.LineTo(new Point(0, width / 2));
                     break;
                 default:
                     context.BeginFigure(new Point(0, 0), true);
-                    context.LineTo(new Point(0, height));
-                    context.LineTo(new Point(width, height / 2));
+                    context.LineTo(new Point(0, width));
+                    context.LineTo(new Point(height, width / 2));
                     break;
             }
             context.EndFigure(true);
@@ -332,7 +363,8 @@ public sealed class MaterialPlainToolTip : ToolTip
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == ShowCaretProperty) UpdateCaret();
+        if (change.Property == ShowCaretProperty || change.Property == FlowDirectionProperty)
+            UpdateCaret();
     }
 
     private void OnLayoutUpdated(object? sender, EventArgs e) => UpdateCaret();
@@ -352,8 +384,9 @@ public sealed class MaterialPlainToolTip : ToolTip
         _renderer.Placement = placement;
         _renderer.ShowCaret = ShowCaret;
         _renderer.Fill = Background;
-        var side = _renderer.ResolveSide() ?? GuessSide(placement);
-        var margin = ShowCaret ? TooltipCaretRenderer.MarginFor(side) : default;
+        var rightToLeft = FlowDirection == FlowDirection.RightToLeft;
+        var side = _renderer.ResolveSide() ?? GuessSide(placement, rightToLeft);
+        var margin = ShowCaret ? TooltipCaretRenderer.MarginFor(side, rightToLeft) : default;
         if (_surface.Margin != margin) _surface.Margin = margin;
         _renderer.InvalidateVisual();
     }
@@ -366,11 +399,13 @@ public sealed class MaterialPlainToolTip : ToolTip
         return null;
     }
 
-    private static TooltipCaretSide GuessSide(PlacementMode placement) => placement switch
+    private static TooltipCaretSide GuessSide(PlacementMode placement, bool rightToLeft) => placement switch
     {
-        PlacementMode.Top => TooltipCaretSide.Bottom,
-        PlacementMode.Left => TooltipCaretSide.Right,
-        PlacementMode.Right => TooltipCaretSide.Left,
+        PlacementMode.Top or PlacementMode.TopEdgeAlignedLeft or PlacementMode.TopEdgeAlignedRight => TooltipCaretSide.Bottom,
+        PlacementMode.Left or PlacementMode.LeftEdgeAlignedTop or PlacementMode.LeftEdgeAlignedBottom =>
+            rightToLeft ? TooltipCaretSide.Left : TooltipCaretSide.Right,
+        PlacementMode.Right or PlacementMode.RightEdgeAlignedTop or PlacementMode.RightEdgeAlignedBottom =>
+            rightToLeft ? TooltipCaretSide.Right : TooltipCaretSide.Left,
         _ => TooltipCaretSide.Top,
     };
 }
@@ -511,7 +546,9 @@ public sealed class MaterialToolTip : AvaloniaObject
         private bool _helpTextOwned;
         private string? _helpTextWritten;
         private bool _placementApplied;
-        private bool _offsetApplied;
+        private bool _horizontalOffsetApplied;
+        private bool _verticalOffsetApplied;
+        private bool _syncingPlacement;
         private bool _pointerAttached;
         private bool _syncingTip;
         private bool _tipWrapped;
@@ -681,6 +718,19 @@ public sealed class MaterialToolTip : AvaloniaObject
                 }
                 UpdateCaret();
                 SyncHelpText();
+            }
+            else if (!_syncingPlacement && change.Property == ToolTip.PlacementProperty)
+            {
+                _placementApplied = false;
+                ApplyPlacement();
+            }
+            else if (!_syncingPlacement && change.Property == ToolTip.HorizontalOffsetProperty)
+            {
+                _horizontalOffsetApplied = false;
+            }
+            else if (!_syncingPlacement && change.Property == ToolTip.VerticalOffsetProperty)
+            {
+                _verticalOffsetApplied = false;
             }
             else if (change.Property == InputElement.IsEffectivelyEnabledProperty && !_control.IsEffectivelyEnabled ||
                      change.Property == Visual.IsVisibleProperty && !_control.IsVisible)
@@ -852,40 +902,103 @@ public sealed class MaterialToolTip : AvaloniaObject
         private void ApplyPlacement()
         {
             if (!GetAutoPlacement(_control) || ToolTip.GetTip(_control) is null) return;
-            // Only take ownership of a value the application has not authored itself, so a
-            // consumer style or local value always wins.
-            if (_placementApplied || !_control.IsSet(ToolTip.PlacementProperty))
+            _syncingPlacement = true;
+            try
             {
-                var inAppBar = _control.GetVisualAncestors().Any(ancestor => ancestor is MaterialBarBase);
-                _control.SetValue(ToolTip.PlacementProperty, inAppBar ? PlacementMode.Bottom : PlacementMode.Top);
-                _placementApplied = true;
-            }
-            if (_offsetApplied || !_control.IsSet(ToolTip.VerticalOffsetProperty))
-            {
+                // Only take ownership of a value the application has not authored itself, so a
+                // consumer style or local value always wins.
+                if (_placementApplied || !_control.IsSet(ToolTip.PlacementProperty))
+                {
+                    var inAppBar = _control.GetVisualAncestors().Any(ancestor => ancestor is MaterialBarBase);
+                    _control.SetValue(ToolTip.PlacementProperty, inAppBar ? PlacementMode.Bottom : PlacementMode.Top);
+                    _placementApplied = true;
+                }
+
                 // Tooltip.kt places the surface 4 DIP from the anchor; a caret occupies 8 DIP of
                 // the popup bounds, so the popup origin moves back by the caret height. This keeps
                 // the surface at the same 4 DIP while the caret reaches toward the anchor.
                 var caretHeight = ToolTip.GetTip(_control) is MaterialPlainToolTip { ShowCaret: true }
                     ? TooltipCaretRenderer.DefaultCaretHeight
                     : 0d;
-                var offset = 4d - caretHeight;
-                _control.SetValue(ToolTip.VerticalOffsetProperty,
-                    ToolTip.GetPlacement(_control) == PlacementMode.Top ? -offset : offset);
-                _offsetApplied = true;
+                var distance = 4d - caretHeight;
+                var placement = ToolTip.GetPlacement(_control);
+                var horizontal = placement is PlacementMode.Left or PlacementMode.LeftEdgeAlignedTop or PlacementMode.LeftEdgeAlignedBottom
+                    or PlacementMode.Right or PlacementMode.RightEdgeAlignedTop or PlacementMode.RightEdgeAlignedBottom;
+                var vertical = placement is PlacementMode.Top or PlacementMode.TopEdgeAlignedLeft or PlacementMode.TopEdgeAlignedRight
+                    or PlacementMode.Bottom or PlacementMode.BottomEdgeAlignedLeft or PlacementMode.BottomEdgeAlignedRight;
+
+                if (horizontal)
+                {
+                    if (_verticalOffsetApplied)
+                    {
+                        _verticalOffsetApplied = false;
+                        _control.ClearValue(ToolTip.VerticalOffsetProperty);
+                    }
+                    if (_horizontalOffsetApplied || !_control.IsSet(ToolTip.HorizontalOffsetProperty))
+                    {
+                        var isLeft = placement is PlacementMode.Left or PlacementMode.LeftEdgeAlignedTop or PlacementMode.LeftEdgeAlignedBottom;
+                        _control.SetValue(ToolTip.HorizontalOffsetProperty, isLeft ? -distance : distance);
+                        _horizontalOffsetApplied = true;
+                    }
+                }
+                else if (vertical)
+                {
+                    if (_horizontalOffsetApplied)
+                    {
+                        _horizontalOffsetApplied = false;
+                        _control.ClearValue(ToolTip.HorizontalOffsetProperty);
+                    }
+                    if (_verticalOffsetApplied || !_control.IsSet(ToolTip.VerticalOffsetProperty))
+                    {
+                        var isTop = placement is PlacementMode.Top or PlacementMode.TopEdgeAlignedLeft or PlacementMode.TopEdgeAlignedRight;
+                        _control.SetValue(ToolTip.VerticalOffsetProperty, isTop ? -distance : distance);
+                        _verticalOffsetApplied = true;
+                    }
+                }
+                else
+                {
+                    if (_horizontalOffsetApplied)
+                    {
+                        _horizontalOffsetApplied = false;
+                        _control.ClearValue(ToolTip.HorizontalOffsetProperty);
+                    }
+                    if (_verticalOffsetApplied)
+                    {
+                        _verticalOffsetApplied = false;
+                        _control.ClearValue(ToolTip.VerticalOffsetProperty);
+                    }
+                }
+            }
+            finally
+            {
+                _syncingPlacement = false;
             }
         }
 
         private void RestorePlacement()
         {
-            if (_placementApplied)
+            _syncingPlacement = true;
+            try
             {
-                _placementApplied = false;
-                _control.ClearValue(ToolTip.PlacementProperty);
+                if (_placementApplied)
+                {
+                    _placementApplied = false;
+                    _control.ClearValue(ToolTip.PlacementProperty);
+                }
+                if (_horizontalOffsetApplied)
+                {
+                    _horizontalOffsetApplied = false;
+                    _control.ClearValue(ToolTip.HorizontalOffsetProperty);
+                }
+                if (_verticalOffsetApplied)
+                {
+                    _verticalOffsetApplied = false;
+                    _control.ClearValue(ToolTip.VerticalOffsetProperty);
+                }
             }
-            if (_offsetApplied)
+            finally
             {
-                _offsetApplied = false;
-                _control.ClearValue(ToolTip.VerticalOffsetProperty);
+                _syncingPlacement = false;
             }
         }
 

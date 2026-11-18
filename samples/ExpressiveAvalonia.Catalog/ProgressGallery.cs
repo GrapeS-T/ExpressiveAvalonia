@@ -82,7 +82,7 @@ internal sealed class ProgressPlayground : Grid, IComponentPlayground
         _value = Number("Прогресс", 0, 100, 50, 1, "%");
         _thickness = Number("Толщина", 4, 8, 4, 1, "dp");
         _length = Number("Длина", 120, 720, 320, 4, "dp");
-        _diameter = Number("Диаметр", 48, 144, 48, 4, "dp");
+        _diameter = Number("Диаметр", 40, 144, 48, 4, "dp");
         _wavelength = Number("Длина волны linear", 10, 80, 40, 1, "dp");
         _indeterminateWavelength = Number("Длина волны linear indeterminate", 10, 80, 20, 1, "dp");
         _circularWavelength = Number("Длина волны circular", 8, 40, 15, 1, "dp");
@@ -236,7 +236,10 @@ internal sealed class ProgressPlayground : Grid, IComponentPlayground
             if (_animate.IsChecked == true) control.ClearValue(MaterialMotion.IsReducedProperty);
             else MaterialMotion.SetIsReduced(control, true);
         }
-        _host.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        if (_rtl.IsChecked == true)
+            _host.FlowDirection = FlowDirection.RightToLeft;
+        else
+            _host.ClearValue(FlowDirectionProperty);
         _host.Child = loading ? _loading : circular ? _circular : _linear;
         UpdateValue();
         UpdateTimer();

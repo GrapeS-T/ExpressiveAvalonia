@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
@@ -7,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Metadata;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Path = Avalonia.Controls.Shapes.Path;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -47,8 +47,8 @@ public enum MaterialNavigationBarBadge
 /// <c>iconColor</c>/<c>textColor</c> straight to <c>NavigationItemLayout</c> and
 /// <c>animateColor = false</c> (NavigationItem.kt 356-370), so selection changes the tint on the
 /// next frame. Roles: unselected on-surface-variant, selected icon and start-position label
-/// on-secondary-container, selected top-position label secondary, disabled inactive role at
-/// <c>DisabledAlpha</c>.
+/// on-secondary-container, selected classic top-position label on-surface, selected short-bar
+/// top-position label secondary, disabled inactive role at <c>DisabledAlpha</c>.
 /// </para>
 /// <para>
 /// The bar owns selection. This item never creates a router or page: pointer release, Enter or
@@ -125,7 +125,8 @@ public class MaterialNavigationBarItem : ListBoxItem
     private bool _isLabelVisible;
     private bool _isContentVisible;
     private bool _pressed;
-    private string? _appliedAutomationName;
+    private IDisposable? _automationNameValue;
+    private IDisposable? _badgeStatusValue;
     private MaterialNavigationItemLayout? _layout;
     private Path? _iconPath;
     private Path? _selectedIconPath;
@@ -267,6 +268,11 @@ public class MaterialNavigationBarItem : ListBoxItem
         {
             UpdateVisualClasses();
             UpdateColorTargets(animate: true);
+            _bar?.UpdateRovingTabStop();
+        }
+        else if (change.Property == Visual.IsVisibleProperty)
+        {
+            _bar?.UpdateRovingTabStop();
         }
     }
 
@@ -303,7 +309,8 @@ public class MaterialNavigationBarItem : ListBoxItem
     private void UpdateLabelText()
     {
         // Only text content doubles as the accessible destination name; rich content keeps
-        // whatever name the consumer supplied.
+        // whatever name the consumer supplied. Style priority never overwrites an explicit
+        // caller AutomationProperties.Name.
         var text = Content as string;
         if (text == _labelText)
             return;
@@ -311,12 +318,10 @@ public class MaterialNavigationBarItem : ListBoxItem
         SetAndRaise(LabelTextProperty, ref _labelText, text);
         UpdateContentVisibility();
 
-        var current = AutomationProperties.GetName(this);
-        if (string.IsNullOrEmpty(current) || current == _appliedAutomationName)
-        {
-            _appliedAutomationName = text ?? string.Empty;
-            AutomationProperties.SetName(this, _appliedAutomationName);
-        }
+        _automationNameValue?.Dispose();
+        _automationNameValue = !string.IsNullOrEmpty(text)
+            ? SetValue(AutomationProperties.NameProperty, text, BindingPriority.Style)
+            : null;
     }
 
     private void UpdateContentVisibility()
@@ -336,6 +341,30 @@ public class MaterialNavigationBarItem : ListBoxItem
     private void UpdateSelectedIcon()
     {
         SetAndRaise(EffectiveSelectedIconProperty, ref _effectiveSelectedIcon, SelectedIcon ?? Icon);
+        ApplyIconViewport(_iconPath, Icon);
+        ApplyIconViewport(_selectedIconPath, _effectiveSelectedIcon);
+    }
+
+    private static void ApplyIconViewport(Path? path, Geometry? geometry)
+    {
+        if (path is null)
+            return;
+
+        var bounds = geometry?.Bounds ?? default;
+        var fitsViewport = geometry is null ||
+            (bounds.X >= -0.5 && bounds.Y >= -0.5 && bounds.Right <= 24.5 && bounds.Bottom <= 24.5);
+        if (fitsViewport)
+        {
+            path.Stretch = Stretch.None;
+            path.ClearValue(WidthProperty);
+            path.ClearValue(HeightProperty);
+        }
+        else
+        {
+            path.Stretch = Stretch.Uniform;
+            path.Width = 24;
+            path.Height = 24;
+        }
     }
 
     private void UpdateVisualClasses()
@@ -498,7 +527,9 @@ public class MaterialNavigationBarItem : ListBoxItem
                 ? RoleColor("MaterialOnSurfaceVariantColor")
                 : position == MaterialNavigationItemIconPosition.Start
                     ? RoleColor("MaterialOnSecondaryContainerColor")
-                    : RoleColor("MaterialSecondaryColor");
+                    : _bar?.Kind == MaterialNavigationBarKind.Short
+                        ? RoleColor("MaterialSecondaryColor")
+                        : RoleColor("MaterialOnSurfaceColor");
 
     /// <summary>disabled*Color is the inactive role copied at <c>DisabledAlpha</c>.</summary>
     private Color DisabledRoleColor()
@@ -514,27 +545,35 @@ public class MaterialNavigationBarItem : ListBoxItem
             ? color
             : Colors.Transparent;
 
-    private void OnResourcesChanged(object? sender, ResourcesChangedEventArgs e) =>
+    private void OnResourcesChanged(object? sender, ResourcesChangedEventArgs e)
+    {
         UpdateColorTargets(animate: false);
+        UpdateBadgeAutomation();
+    }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e) =>
         UpdateColorTargets(animate: false);
 
-    // The badge is decorative for pointer input but its count is meaningful to a screen reader.
+    // The badge is decorative for pointer input; expose its count/notification via ItemStatus at
+    // Style priority so explicit caller AutomationProperties are preserved and live localization
+    // resource changes apply immediately.
     private void UpdateBadgeAutomation()
     {
-        string? help = null;
+        _badgeStatusValue?.Dispose();
+        _badgeStatusValue = null;
+
+        if (Badge == MaterialNavigationBarBadge.None)
+            return;
+
         if (Badge == MaterialNavigationBarBadge.Large && !string.IsNullOrWhiteSpace(BadgeText))
         {
-            var format = Resource("MaterialNavigationBarBadgeHelpText", "{0} new items");
-            help = string.Format(CultureInfo.CurrentCulture, format, BadgeText);
+            _badgeStatusValue = SetValue(AutomationProperties.ItemStatusProperty, BadgeText, BindingPriority.Style);
+            return;
         }
-        else if (Badge == MaterialNavigationBarBadge.Small)
-            help = Resource("MaterialNavigationBarBadgeDotText", "New items");
 
-        AutomationProperties.SetHelpText(this, help ?? string.Empty);
+        var dotText = this.TryFindResource("MaterialNavigationBarBadgeDotText", out var value) && value is string text
+            ? text
+            : "New notification";
+        _badgeStatusValue = SetValue(AutomationProperties.ItemStatusProperty, dotText, BindingPriority.Style);
     }
-
-    private string Resource(string key, string fallback) =>
-        this.TryFindResource(key, out var value) && value is string text ? text : fallback;
 }

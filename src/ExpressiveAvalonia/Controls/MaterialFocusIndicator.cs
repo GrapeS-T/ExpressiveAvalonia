@@ -1,8 +1,10 @@
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -153,7 +155,7 @@ public sealed class MaterialFocusIndicator : Control
             _target.AddHandler(InputElement.LostFocusEvent, OnTargetFocusEvent, RoutingStrategies.Bubble, true);
         }
 
-        _targetFocused = _target?.IsKeyboardFocusWithin ?? false;
+        _targetFocused = HasKeyboardFocusVisible(_target);
         InvalidateVisual();
     }
 
@@ -172,17 +174,27 @@ public sealed class MaterialFocusIndicator : Control
 
     private void OnTargetPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == InputElement.IsKeyboardFocusWithinProperty)
+        if (e.Property == InputElement.IsKeyboardFocusWithinProperty || e.Property == InputElement.IsFocusedProperty)
             UpdateTargetFocus();
     }
 
     private void UpdateTargetFocus()
     {
-        var focused = _target?.IsKeyboardFocusWithin ?? false;
+        var focused = HasKeyboardFocusVisible(_target);
         if (focused == _targetFocused)
             return;
 
         _targetFocused = focused;
         InvalidateVisual();
+    }
+
+    private static bool HasKeyboardFocusVisible(Control? target)
+    {
+        if (target is null || !target.IsKeyboardFocusWithin)
+            return false;
+        if (target.Classes.Contains(":focus-visible"))
+            return true;
+        return target.GetVisualDescendants().OfType<Control>()
+            .Any(child => child.IsFocused && child.Classes.Contains(":focus-visible"));
     }
 }

@@ -54,7 +54,14 @@ public sealed class LoadingIndicator : TemplatedControl
             ContainerShapeStretchProperty);
     }
 
-    public LoadingIndicator() => _clock = new ProgressAnimationClock(this, () => IsAnimated && IsIndeterminate);
+    protected override bool BypassFlowDirectionPolicies => true;
+
+    public LoadingIndicator()
+    {
+        _clock = new ProgressAnimationClock(this, () => IsAnimated && IsIndeterminate);
+        ResourcesChanged += (_, _) => _peer?.NotifyResourcesChanged();
+        ActualThemeVariantChanged += (_, _) => _peer?.NotifyResourcesChanged();
+    }
 
     /// <summary>Determinate progress, coerced to 0..1. NaN maps to zero.</summary>
     public double Progress { get => GetValue(ProgressProperty); set => SetValue(ProgressProperty, value); }
@@ -277,33 +284,84 @@ public sealed class LoadingIndicator : TemplatedControl
         var minDimension = Math.Min(bounds.Width, bounds.Height);
         var rightToLeft = FlowDirection == FlowDirection.RightToLeft;
         var shape = IsSet(CornerRadiusProperty)
-            ? MaterialAssist.CornerShape.FromCornerRadius(CornerRadius, rightToLeft)
+            ? MaterialAssist.CornerShape.FromCornerRadius(CornerRadius, rightToLeft: false)
             : MaterialAssist.CornerShape.Full;
         return shape.Resolve(shape, 1, minDimension, rightToLeft);
     }
 
-    private sealed class LoadingIndicatorAutomationPeer(LoadingIndicator owner)
-        : ControlAutomationPeer(owner), IRangeValueProvider
+    private string ResolveResourceText(string key, string fallback) =>
+        this.TryFindResource(key, ActualThemeVariant, out var value) &&
+        value is string text && text.Length > 0
+            ? text
+            : fallback;
+
+    private sealed class LoadingIndicatorAutomationPeer : ControlAutomationPeer, IRangeValueProvider
     {
+        private readonly LoadingIndicator _owner;
+        private string? _lastName;
+        private string? _lastStatus;
+
+        public LoadingIndicatorAutomationPeer(LoadingIndicator owner) : base(owner)
+        {
+            _owner = owner;
+            _lastName = GetNameCore();
+            _lastStatus = GetItemStatusCore();
+        }
+
         protected override string GetClassNameCore() => nameof(LoadingIndicator);
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.ProgressBar;
-        protected override string? GetNameCore() => base.GetNameCore() is { Length: > 0 } name ? name : "Loading";
+
+        protected override string? GetNameCore() =>
+            base.GetNameCore() is { Length: > 0 } name
+                ? name
+                : _owner.ResolveResourceText("MaterialLoadingIndicatorText", "Loading");
+
         protected override string? GetItemStatusCore() =>
-            AutomationProperties.GetItemStatus(owner) ?? (owner.IsIndeterminate ? "Indeterminate" : base.GetItemStatusCore());
+            AutomationProperties.GetItemStatus(_owner) ??
+            (_owner.IsIndeterminate ? _owner.ResolveResourceText("MaterialProgressIndeterminateText", "Indeterminate") : base.GetItemStatusCore());
+
         protected override object? GetProviderCore(Type providerType) =>
-            providerType == typeof(IRangeValueProvider) ? owner.IsIndeterminate ? null : this : base.GetProviderCore(providerType);
+            providerType == typeof(IRangeValueProvider) ? _owner.IsIndeterminate ? null : this : base.GetProviderCore(providerType);
+
         internal void NotifyChanged(AvaloniaPropertyChangedEventArgs e)
         {
             if (e.Property == ProgressProperty)
                 RaisePropertyChangedEvent(RangeValuePatternIdentifiers.ValueProperty, e.OldValue, e.NewValue);
             if (e.Property == IsIndeterminateProperty)
-                RaisePropertyChangedEvent(AutomationElementIdentifiers.ItemStatusProperty,
-                    e.OldValue is true ? "Indeterminate" : null, GetItemStatusCore());
+                RefreshStatus();
+            if (e.Property == AutomationProperties.NameProperty || e.Property == AutomationProperties.LabeledByProperty)
+                _lastName = GetNameCore();
+            else if (e.Property == AutomationProperties.ItemStatusProperty)
+                _lastStatus = GetItemStatusCore();
         }
+
+        internal void NotifyResourcesChanged()
+        {
+            var currentName = GetNameCore();
+            if (!string.Equals(_lastName, currentName, StringComparison.Ordinal))
+            {
+                var previousName = _lastName;
+                _lastName = currentName;
+                RaisePropertyChangedEvent(AutomationElementIdentifiers.NameProperty, previousName, currentName);
+            }
+            RefreshStatus();
+        }
+
+        private void RefreshStatus()
+        {
+            var currentStatus = GetItemStatusCore();
+            if (!string.Equals(_lastStatus, currentStatus, StringComparison.Ordinal))
+            {
+                var previousStatus = _lastStatus;
+                _lastStatus = currentStatus;
+                RaisePropertyChangedEvent(AutomationElementIdentifiers.ItemStatusProperty, previousStatus, currentStatus);
+            }
+        }
+
         bool IRangeValueProvider.IsReadOnly => true;
         double IRangeValueProvider.Minimum => 0;
         double IRangeValueProvider.Maximum => 1;
-        double IRangeValueProvider.Value => owner.Progress;
+        double IRangeValueProvider.Value => _owner.Progress;
         double IRangeValueProvider.SmallChange => double.NaN;
         double IRangeValueProvider.LargeChange => double.NaN;
         void IRangeValueProvider.SetValue(double value) => throw new InvalidOperationException("Loading progress is read-only to automation.");

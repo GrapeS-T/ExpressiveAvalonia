@@ -20,11 +20,12 @@
     <Setter Property="Padding" Value="0" />
     <Setter Property="Width" Value="48" />
     <Setter Property="Height" Value="48" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Focusable" Value="True" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="Transparent">
+        <Panel Background="Transparent" ClipToBounds="False">
           <!-- The 48 DIP target reaches inward while keeping the icon at its original position. -->
           <theming:MaterialRipple Name="Ripple"
                                   Width="18" Height="18" Margin="14,0,0,0"
@@ -38,17 +39,26 @@
                 Data="M 0,0 L 10.5,10.5 M 10.5,0 L 0,10.5"
                 Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeLineCap="Round"
                 HorizontalAlignment="Center" VerticalAlignment="Center" />
-          <Border Name="FocusRing" Width="24" Height="24" Margin="14,0,0,0" CornerRadius="12"
+          <Border Name="FocusRing" Width="28" Height="28" Margin="14,0,0,0" CornerRadius="14"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
-                  IsVisible="False" IsHitTestVisible="False" />
+                  UseLayoutRounding="False" IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:rtl /template/ theming|MaterialRipple#Ripple, ^:rtl /template/ Path#Glyph, ^:rtl /template/ Border#FocusRing">
-      <Setter Property="Margin" Value="0,0,14,0" />
+    <Style Selector="^:disabled">
+      <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+    <Style Selector="^:disabled /template/ Path#Glyph">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
   </ControlTheme>
 
@@ -61,6 +71,7 @@
     <Setter Property="Padding" Value="16,6" />
     <Setter Property="MinWidth" Value="48" />
     <Setter Property="MinHeight" Value="48" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
     <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
@@ -69,25 +80,25 @@
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="Transparent">
+        <Panel Background="Transparent" ClipToBounds="False">
           <!-- The root reserves the 48 DIP target; the centered Visual panel keeps the 32 DIP
                container height and still grows with custom content instead of being clipped. -->
-          <Panel Name="Visual" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Panel Name="Visual" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="False">
             <Border Name="Surface" Background="{TemplateBinding Background}"
                     CornerRadius="{TemplateBinding CornerRadius}"
-                    BoxShadow="{TemplateBinding theming:MaterialAssist.AnimatedShadow}"
-                    ClipToBounds="True" />
+                    BoxShadow="{TemplateBinding theming:MaterialAssist.AnimatedShadow}" />
             <Border Name="Outline" BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
                     CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
-            <StackPanel Name="Content" Orientation="Horizontal" Spacing="8"
+            <StackPanel Name="Content" Orientation="Horizontal" Spacing="0"
                       Margin="{TemplateBinding Padding}"
                       HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
-            <!-- Leading slot: 18 DIP for an icon or check mark, 24 DIP for an avatar. The slot width
-                 and opacity are animated by the control (FastSpatial / DefaultEffects), and the slot
+            <!-- Leading slot: 18 DIP for an icon or check mark, 24 DIP for an avatar. The slot width,
+                 margin and opacity are animated together (FastSpatial / DefaultEffects), and the slot
                  leaves the layout only after it has fully collapsed. -->
-            <Border Name="LeadingHost" Width="{TemplateBinding LeadingSlotWidth}"
+            <Border Name="LeadingHost" Width="{TemplateBinding LeadingSlotWidth}" Height="24"
+                    Margin="{TemplateBinding LeadingSlotMargin}"
                     Opacity="{TemplateBinding LeadingSlotOpacity}"
                     IsVisible="{TemplateBinding IsLeadingSlotVisible}"
                     ClipToBounds="True" VerticalAlignment="Center">
@@ -97,9 +108,24 @@
                       Stroke="{TemplateBinding Foreground}" StrokeThickness="1.8"
                       StrokeLineCap="Round" StrokeJoin="Round" IsVisible="False"
                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                <ContentPresenter Name="PART_LeadingIcon" Content="{TemplateBinding LeadingSlotIcon}"
-                                  Width="18" Height="18" IsVisible="False"
-                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Viewbox Name="LeadingIconBox" Width="18" Height="18" Stretch="Uniform"
+                         IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Viewbox.Styles>
+                    <Style Selector="controls|MaterialIcon">
+                      <Setter Property="Theme" Value="{DynamicResource MaterialButtonIconTheme}" />
+                      <Setter Property="Width" Value="24" />
+                      <Setter Property="Height" Value="24" />
+                    </Style>
+                    <Style Selector="PathIcon">
+                      <Setter Property="Theme" Value="{DynamicResource MaterialButtonPathIconTheme}" />
+                      <Setter Property="Width" Value="24" />
+                      <Setter Property="Height" Value="24" />
+                    </Style>
+                  </Viewbox.Styles>
+                  <ContentPresenter Name="PART_LeadingIcon" Content="{TemplateBinding LeadingSlotIcon}"
+                                    IsVisible="False"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Viewbox>
                 <Border Name="AvatarHost" Width="24" Height="24" CornerRadius="12" ClipToBounds="True"
                         IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center">
                   <ContentPresenter Name="PART_Avatar" Content="{TemplateBinding LeadingSlotAvatar}"
@@ -113,13 +139,14 @@
                               RecognizesAccessKey="True" VerticalAlignment="Center"
                               LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
                               LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}" />
-            <!-- Trailing slot: 7.5 DIP caret for filter chips, 18 DIP close action for input
-                 chips. Animated with the same expand/shrink and fade specs as the leading slot. -->
-            <Border Name="TrailingHost" Width="{TemplateBinding TrailingSlotWidth}"
+            <!-- Trailing slot: 18 DIP for filter chip dropdown caret or input chip close action.
+                 Animated with the same expand/shrink and fade specs as the leading slot. -->
+            <Border Name="TrailingHost" Width="{TemplateBinding TrailingSlotWidth}" Height="18"
+                    Margin="{TemplateBinding TrailingSlotMargin}"
                     Opacity="{TemplateBinding TrailingSlotOpacity}"
                     IsVisible="{TemplateBinding IsTrailingSlotVisible}"
                     ClipToBounds="True" VerticalAlignment="Center">
-              <Panel>
+              <Panel Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Path Name="TrailingIcon" Width="7.5" Height="3.75" Stretch="Fill"
                       Data="M 0,0 L 7.5,0 L 3.75,3.75 Z"
                       Fill="{TemplateBinding Foreground}" IsVisible="False"
@@ -138,9 +165,10 @@
                                     DraggedOpacity="{DynamicResource MaterialDraggedStateLayerOpacity}"
                                     IsDragging="{TemplateBinding IsDragging}"
                                     IsHitTestVisible="False" />
-            <Border Name="FocusRing" Margin="-3" CornerRadius="{TemplateBinding CornerRadius}"
+            <Border Name="FocusRing" Margin="-5"
+                    CornerRadius="{TemplateBinding theming:MaterialAssist.FocusRingCornerRadius}"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
-                    IsVisible="False" IsHitTestVisible="False" />
+                    UseLayoutRounding="False" IsVisible="False" IsHitTestVisible="False" />
           <!-- The 48 DIP removal target is separate from the primary action. -->
           <Button Name="PART_RemoveButton" Theme="{StaticResource MaterialChipCloseButton}"
                   Foreground="{TemplateBinding Foreground}" IsVisible="False"
@@ -208,47 +236,30 @@
       <Setter Property="Fill" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     </Style>
 
+    <Style Selector="^:outlined:not(:selected):focus-visible:not(:disabled)">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+
+    <Style Selector="^:remove-pointerover /template/ theming|MaterialRipple#StateLayer">
+      <Setter Property="EnableHover" Value="False" />
+    </Style>
+
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
 
-    <!-- Padding follows the source anatomy: icons inset 8 from the leading edge, labels 16. -->
-    <Style Selector="^:has-icon, ^:filter:selected">
-      <Setter Property="Padding" Value="8,6,16,6" />
-    </Style>
-    <Style Selector="^:trailing">
-      <Setter Property="Padding" Value="16,6,8,6" />
-    </Style>
-    <Style Selector="^:has-icon:trailing, ^:filter:selected:trailing">
-      <Setter Property="Padding" Value="8,6,8,6" />
-    </Style>
-    <!-- Assist/Suggestion keep 8 DIP icon gaps; expressive Filter/Input use compact 4 DIP gaps. -->
-    <Style Selector="^:filter:has-icon /template/ StackPanel#Content, ^:input:has-icon /template/ StackPanel#Content, ^:input:has-avatar /template/ StackPanel#Content, ^:filter:selected /template/ StackPanel#Content, ^:trailing /template/ StackPanel#Content, ^:removable /template/ StackPanel#Content">
-      <Setter Property="Spacing" Value="4" />
-    </Style>
+    <!-- Base label padding: 16 DIP for Assist/Filter/Suggestion, 12 DIP for Input. Leading and
+         trailing slots animate their negative/positive margins together with their widths so 8 DIP
+         icon/avatar/caret/remove gaps open and collapse continuously with no step jump. -->
     <Style Selector="^:input">
       <Setter Property="Padding" Value="12,6" />
-    </Style>
-    <Style Selector="^:input:has-icon">
-      <Setter Property="Padding" Value="8,6,12,6" />
-    </Style>
-    <Style Selector="^:input:has-avatar">
-      <Setter Property="Padding" Value="4,4,12,4" />
-    </Style>
-    <Style Selector="^:input:removable">
-      <Setter Property="Padding" Value="12,6,8,6" />
-    </Style>
-    <Style Selector="^:input:has-icon:removable">
-      <Setter Property="Padding" Value="8,6,8,6" />
-    </Style>
-    <Style Selector="^:input:has-avatar:removable">
-      <Setter Property="Padding" Value="4,4,8,4" />
     </Style>
 
     <!-- Configuration and trailing/closing icon visibility. The control sets these retained slot
          classes from the source rememberRetainedState semantics: the outgoing child stays visible
          while its host shrinks/fades and is hidden only once the slot has fully collapsed. -->
-    <Style Selector="^:leading-icon /template/ ContentPresenter#PART_LeadingIcon">
+    <Style Selector="^:leading-icon /template/ Viewbox#LeadingIconBox,
+                     ^:leading-icon /template/ ContentPresenter#PART_LeadingIcon">
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:leading-avatar /template/ Border#AvatarHost">
@@ -256,6 +267,10 @@
     </Style>
     <Style Selector="^:leading-check /template/ Path#SelectedIcon">
       <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:rtl /template/ Path#SelectedIcon">
+      <Setter Property="RenderTransform" Value="scale(-1,1)" />
+      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
     </Style>
     <Style Selector="^:trailing-caret /template/ Path#TrailingIcon">
       <Setter Property="IsVisible" Value="True" />
@@ -271,9 +286,6 @@
     </Style>
     <Style Selector="^ /template/ Button#PART_RemoveButton">
       <Setter Property="HorizontalAlignment" Value="Right" />
-    </Style>
-    <Style Selector="^:rtl /template/ Button#PART_RemoveButton">
-      <Setter Property="HorizontalAlignment" Value="Left" />
     </Style>
 
     <!-- Disabled tokens: OnSurface container at 12 percent, OnSurface label/icons at 38 percent;
@@ -318,7 +330,8 @@
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type controls:MaterialChipGroup}" TargetType="controls:MaterialChipGroup">
-    <Setter Property="Padding" Value="0,8" />
+    <Setter Property="Padding" Value="6,8" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="ItemsPanel">
       <ItemsPanelTemplate>
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" />

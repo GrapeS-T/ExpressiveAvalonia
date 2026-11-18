@@ -218,7 +218,7 @@ public sealed class MaterialDatePickerField : TemplatedControl
             _input.KeyDown += OnInputKeyDown;
             _input.LostFocus += OnInputLostFocus;
             _input.TextChanged += OnInputTextChanged;
-            AutomationProperties.SetName(_input, Label ?? GetText("MaterialDatePickerDateText", "Date"));
+            UpdateInputAutomation();
         }
         if (_openButton is not null)
             _openButton.Click += OnOpenButtonClick;
@@ -226,7 +226,8 @@ public sealed class MaterialDatePickerField : TemplatedControl
         if (_popup is not null)
         {
             _popup.PlacementTarget = _input;
-            _popup.VerticalOffset = 4;
+            _popup.HorizontalOffset = -16;
+            _popup.VerticalOffset = -4;
             _popup.PropertyChanged += OnPopupPropertyChanged;
             _picker = new MaterialDatePicker
             {
@@ -282,10 +283,11 @@ public sealed class MaterialDatePickerField : TemplatedControl
             return;
         }
 
-        if (change.Property == LabelProperty)
+        if (change.Property == LabelProperty ||
+            change.Property == AutomationProperties.NameProperty ||
+            change.Property == AutomationProperties.HelpTextProperty)
         {
-            if (_input is not null)
-                AutomationProperties.SetName(_input, Label ?? GetText("MaterialDatePickerDateText", "Date"));
+            UpdateInputAutomation();
             return;
         }
 
@@ -303,7 +305,11 @@ public sealed class MaterialDatePickerField : TemplatedControl
         var popup = _popup;
         DetachParts();
         if (popup is not null)
+        {
+            if (popup.Child is Panel host)
+                host.Children.Clear();
             popup.Child = null;
+        }
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -314,6 +320,7 @@ public sealed class MaterialDatePickerField : TemplatedControl
             _input.KeyDown -= OnInputKeyDown;
             _input.LostFocus -= OnInputLostFocus;
             _input.TextChanged -= OnInputTextChanged;
+            DataValidationErrors.SetError(_input, null);
         }
         if (_openButton is not null)
             _openButton.Click -= OnOpenButtonClick;
@@ -336,16 +343,34 @@ public sealed class MaterialDatePickerField : TemplatedControl
         _sessionPrepared = false;
     }
 
-    private Control CreatePopupContent(MaterialDatePicker picker)
+    private static Control CreatePopupContent(MaterialDatePicker picker)
     {
-        var border = new Border
+        picker.Margin = new Thickness(16, 8, 16, 16);
+        return new Panel
         {
-            CornerRadius = new CornerRadius(16),
-            Child = picker,
+            ClipToBounds = false,
+            Children = { picker },
         };
-        border.Bind(Border.BackgroundProperty, border.GetResourceObservable("MaterialSurfaceContainerHighBrush"));
-        border.Bind(Border.BoxShadowProperty, border.GetResourceObservable("MaterialElevationLevel2Shadow"));
-        return border;
+    }
+
+    private void UpdateInputAutomation()
+    {
+        if (_input is null)
+            return;
+        var explicitName = AutomationProperties.GetName(this);
+        var label = Label;
+        var name = !string.IsNullOrEmpty(explicitName)
+            ? explicitName
+            : !string.IsNullOrEmpty(label)
+                ? label
+                : GetText("MaterialDatePickerDateText", "Date");
+        AutomationProperties.SetName(_input, name);
+
+        var explicitHelp = AutomationProperties.GetHelpText(this);
+        if (!string.IsNullOrEmpty(explicitHelp))
+            AutomationProperties.SetHelpText(_input, explicitHelp);
+        else
+            _input.ClearValue(AutomationProperties.HelpTextProperty);
     }
 
     private void SyncPickerOptions()
@@ -406,6 +431,13 @@ public sealed class MaterialDatePickerField : TemplatedControl
 
     private void UpdateError()
     {
+        if (_input is not null)
+        {
+            DataValidationErrors.SetError(_input,
+                string.IsNullOrEmpty(_validationMessage)
+                    ? null
+                    : new DataValidationException(_validationMessage));
+        }
         if (_error is not null)
         {
             _error.Text = _validationMessage;
@@ -499,18 +531,48 @@ public sealed class MaterialDatePickerField : TemplatedControl
 
         if (!_picker.TryParseDate(text, out var date))
         {
-            SetValidationMessage(GetText("MaterialDatePickerInvalidDateText", "Enter a valid date"));
+            if (IsCalendarDateOutsideRange(text))
+                SetValidationMessage(FormatOutOfRangeMessage());
+            else
+                SetValidationMessage(GetText("MaterialDatePickerInvalidDateText", "Enter a valid date"));
             return;
         }
         if (!_picker.IsDateAllowed(date))
         {
-            SetValidationMessage(GetText("MaterialDatePickerOutOfRangeText", "Date is outside the allowed range"));
+            SetValidationMessage(FormatOutOfRangeMessage());
             return;
         }
 
         SetValidationMessage(null);
         SetSelectedDate(MaterialDatePicker.ToDateTimeOffset(date));
         SelectionCommitted?.Invoke(this, EventArgs.Empty);
+    }
+
+    private string FormatOutOfRangeMessage()
+    {
+        var minYear = _picker is not null ? Math.Min(_picker.MinimumYear, _picker.MaximumYear) : 1900;
+        var maxYear = _picker is not null ? Math.Max(_picker.MinimumYear, _picker.MaximumYear) : 2100;
+        var minBound = MinimumDate?.Date ?? new DateTime(minYear, 1, 1);
+        var maxBound = MaximumDate?.Date ?? new DateTime(maxYear, 12, 31);
+        var pattern = GetText("MaterialDatePickerOutOfRangeText", "Enter a date between {0} and {1}");
+        return string.Format(EffectiveCulture, pattern, FormatValue(minBound), FormatValue(maxBound));
+    }
+
+    private bool IsCalendarDateOutsideRange(string text)
+    {
+        var trimmed = text.Trim();
+        var culture = EffectiveCulture;
+        string[] formats =
+        [
+            EffectiveDateFormat,
+            culture.DateTimeFormat.ShortDatePattern,
+            "yyyy-MM-dd",
+            "yyyy/MM/dd",
+            "yyyyMMdd",
+        ];
+        return DateTime.TryParseExact(trimmed, formats, culture,
+                   DateTimeStyles.AllowWhiteSpaces, out _) ||
+               DateTime.TryParse(trimmed, culture, DateTimeStyles.AllowWhiteSpaces, out _);
     }
 
     private void OnPickerSelectionChanged(object? sender, MaterialDateSelectionChangedEventArgs e)

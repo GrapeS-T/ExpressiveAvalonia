@@ -102,9 +102,12 @@ public class MaterialBottomAppBar : MaterialBarBase
     private MaterialBarArrangement _effectiveArrangement;
     private double _effectiveExpandedHeight = 80;
     private Thickness _effectiveFabMargin;
+    private MaterialFabBase? _observedFab;
+    private bool _fabRoleAdopted;
     private MaterialBarScrollAdapter? _adapter;
     private MaterialAppBarState? _state;
     private bool _dragging;
+    private Visual? _dragSpace;
     private double _dragLastY;
     private double _dragVelocity;
     private ulong _dragLastTimestamp;
@@ -224,6 +227,7 @@ public class MaterialBottomAppBar : MaterialBarBase
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        AttachEmbeddedFab();
         UpdateAdapter();
         SubscribeState();
     }
@@ -231,6 +235,8 @@ public class MaterialBottomAppBar : MaterialBarBase
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (_observedFab is not null)
+            _observedFab.PropertyChanged -= OnEmbeddedFabPropertyChanged;
         _adapter?.Dispose();
         _adapter = null;
         UnsubscribeState();
@@ -256,7 +262,8 @@ public class MaterialBottomAppBar : MaterialBarBase
         if (IsInteractiveSource(e.Source))
             return;
         _dragging = true;
-        _dragLastY = e.GetPosition(this).Y;
+        _dragSpace = (Visual?)TopLevel.GetTopLevel(this) ?? this.GetVisualParent() ?? this;
+        _dragLastY = e.GetPosition(_dragSpace).Y;
         _dragVelocity = 0;
         _dragLastTimestamp = e.Timestamp;
         e.Pointer.Capture(this);
@@ -268,7 +275,7 @@ public class MaterialBottomAppBar : MaterialBarBase
         base.OnPointerMoved(e);
         if (!_dragging || ScrollBehavior is not { } behavior)
             return;
-        var y = e.GetPosition(this).Y;
+        var y = e.GetPosition(_dragSpace ?? this).Y;
         var delta = y - _dragLastY;
         _dragLastY = y;
         var dt = Math.Max(1, e.Timestamp - _dragLastTimestamp) / 1000d;
@@ -286,6 +293,7 @@ public class MaterialBottomAppBar : MaterialBarBase
         if (!_dragging)
             return;
         _dragging = false;
+        _dragSpace = null;
         e.Pointer.Capture(null);
         ScrollBehavior?.OnPostFling(_dragVelocity, this);
         _dragVelocity = 0;
@@ -296,6 +304,7 @@ public class MaterialBottomAppBar : MaterialBarBase
     {
         base.OnPointerCaptureLost(e);
         _dragging = false;
+        _dragSpace = null;
     }
 
     private static bool IsInteractiveSource(object? source)
@@ -319,7 +328,56 @@ public class MaterialBottomAppBar : MaterialBarBase
         return Math.Max(0, _effectiveExpandedHeight + SafeAreaPadding.Top + SafeAreaPadding.Bottom + offset);
     }
 
-    private void UpdateFab() => HasFab = IsFabVisible && Fab is not null;
+    private void UpdateFab()
+    {
+        HasFab = IsFabVisible && Fab is not null;
+        AttachEmbeddedFab();
+    }
+
+    private void AttachEmbeddedFab()
+    {
+        var next = Fab as MaterialFabBase;
+        if (!ReferenceEquals(_observedFab, next))
+        {
+            if (_observedFab is not null)
+            {
+                _observedFab.PropertyChanged -= OnEmbeddedFabPropertyChanged;
+                if (_fabRoleAdopted)
+                    _observedFab.ClearValue(MaterialFabBase.ColorRoleProperty);
+            }
+            _observedFab = next;
+            _fabRoleAdopted = false;
+            if (_observedFab is not null && !_observedFab.IsSet(MaterialFabBase.ColorRoleProperty))
+            {
+                _fabRoleAdopted = true;
+                _observedFab.SetCurrentValue(MaterialFabBase.ColorRoleProperty,
+                    MaterialFabColorRole.SecondaryContainer);
+            }
+        }
+
+        if (_observedFab is not null)
+        {
+            _observedFab.PropertyChanged -= OnEmbeddedFabPropertyChanged;
+            _observedFab.PropertyChanged += OnEmbeddedFabPropertyChanged;
+            SuppressFabShadow(_observedFab);
+        }
+    }
+
+    private void OnEmbeddedFabPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == MaterialAssist.AnimatedShadowProperty && sender is MaterialFabBase fab)
+            SuppressFabShadow(fab);
+    }
+
+    private void SuppressFabShadow(MaterialFabBase fab)
+    {
+        var flat = this.TryFindResource("MaterialElevationLevel0Shadow", ActualThemeVariant, out var value)
+            && value is BoxShadows shadows
+            ? shadows
+            : default;
+        if (MaterialAssist.GetAnimatedShadow(fab) != flat)
+            fab.SetCurrentValue(MaterialAssist.AnimatedShadowProperty, flat);
+    }
 
     private void UpdateConfiguration()
     {
@@ -343,14 +401,11 @@ public class MaterialBottomAppBar : MaterialBarBase
             ?? (flexible ? MaterialBarArrangement.SpaceBetween : MaterialBarArrangement.Start);
 
         // FABVerticalPadding = 12 - BottomAppBarVerticalPadding (4); FABHorizontalPadding =
-        // 16 - BottomAppBarHorizontalPadding (4). The slot is a sibling of the padded row, so the
-        // content padding is folded into its margin. The slot follows the end edge, so the
-        // horizontal inset mirrors with the flow direction.
+        // 16 - BottomAppBarHorizontalPadding (4). Avalonia mirrors Thickness.Right to physical
+        // left in RTL automatically, so EffectiveFabMargin always places the 16dp inset on Right.
         var fabTop = _effectiveContentPadding.Top + 8;
         var fabInline = _effectiveContentPadding.Right + 12;
-        _effectiveFabMargin = FlowDirection == FlowDirection.RightToLeft
-            ? new Thickness(_effectiveContentPadding.Left + 12, fabTop, 0, 0)
-            : new Thickness(0, fabTop, fabInline, 0);
+        _effectiveFabMargin = new Thickness(0, fabTop, fabInline, 0);
 
         RaisePropertyChanged(EffectiveExpandedHeightProperty, 0d, _effectiveExpandedHeight);
         RaisePropertyChanged(EffectiveContentPaddingProperty, default(Thickness), _effectiveContentPadding);

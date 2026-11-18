@@ -282,17 +282,20 @@ public class MaterialCard : ContentControl
 
     private readonly EventHandler _canExecuteChangedHandler;
     private readonly List<CardInteraction> _interactions = new(4);
+    private readonly HashSet<Key> _activationKeys = [];
     private Border? _cardSurface;
     private MaterialMotion.TweenAnimation? _elevationTween;
     private double _targetElevation;
     private double _currentElevation;
     private bool _elevationInitialized;
     private bool _isPressed;
+    private bool _pointerPressed;
+    private IPointer? _pointerCapture;
     private bool _isDragging;
     private bool _commandCanExecute = true;
     private Point _pressPosition;
     private PointerPressedEventArgs? _pressArgs;
-    private CornerRadius _focusRingCornerRadius = new(14);
+    private CornerRadius _focusRingCornerRadius = new(17);
     private bool _hasHeader;
     private bool _hasAvatar;
     private bool _hasAvatarInitial;
@@ -524,7 +527,7 @@ public class MaterialCard : ContentControl
     /// <summary>Gets whether a drag operation that started from this card is running.</summary>
     public bool IsDragging => _isDragging;
 
-    /// <summary>Gets the corner radius of the focus ring: the card radius plus the 2 dp offset.</summary>
+    /// <summary>Gets the outer corner radius of the focus ring: the card radius plus the 2 dp gap and 3 dp stroke.</summary>
     public CornerRadius FocusRingCornerRadius => _focusRingCornerRadius;
 
     /// <summary>Gets whether the header row has anything to show.</summary>
@@ -606,7 +609,7 @@ public class MaterialCard : ContentControl
     protected override void OnLostFocus(FocusChangedEventArgs e)
     {
         base.OnLostFocus(e);
-        SetPressed(false);
+        CancelKeyboardPress();
         SetInteraction(CardInteraction.Focus, false);
     }
 
@@ -625,14 +628,17 @@ public class MaterialCard : ContentControl
         base.OnDetachedFromLogicalTree(e);
         if (Command is { } command)
             command.CanExecuteChanged -= _canExecuteChangedHandler;
-        SetPressed(false);
+        CancelInteraction();
     }
 
     /// <inheritdoc />
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        StopElevationTween();
+        CancelInteraction();
+        _interactions.Clear();
+        _elevationInitialized = false;
         base.OnDetachedFromVisualTree(e);
-        SetPressed(false);
     }
 
     /// <inheritdoc />
@@ -661,11 +667,13 @@ public class MaterialCard : ContentControl
             var interactive = change.GetNewValue<bool>();
             PseudoClasses.Set(":interactive", interactive);
             if (!interactive)
-                SetPressed(false);
+                CancelInteraction();
             UpdateElevation(snap: true);
         }
-        else if (change.Property == IsEnabledProperty)
+        else if (change.Property == IsEffectivelyEnabledProperty)
         {
+            if (!IsEffectivelyEnabled)
+                CancelInteraction();
             UpdateElevation(snap: false);
         }
         else if (change.Property == VariantProperty)
@@ -699,20 +707,14 @@ public class MaterialCard : ContentControl
     {
         base.OnKeyDown(e);
 
-        if (e.Handled || !IsInteractive || !IsEffectivelyEnabled || !IsFocused || e.KeyModifiers != KeyModifiers.None)
+        if (e.Handled || !IsInteractive || !IsEffectivelyEnabled || !IsFocused ||
+            e.KeyModifiers != KeyModifiers.None || e.Key is not (Key.Enter or Key.Space))
             return;
 
-        if (e.Key == Key.Enter)
-        {
-            OnClick();
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Space && IsFocused)
-        {
-            // Only the focused card claims Space; a nested text box keeps it for input.
-            SetPressed(true);
-            e.Handled = true;
-        }
+        // Only the focused card claims Enter/Space; auto-repeat downs do not re-trigger.
+        if (_activationKeys.Add(e.Key))
+            UpdatePressedState();
+        e.Handled = true;
     }
 
     /// <inheritdoc />
@@ -720,12 +722,16 @@ public class MaterialCard : ContentControl
     {
         base.OnKeyUp(e);
 
-        if (e.Handled || !IsInteractive || !IsEffectivelyEnabled || e.Key != Key.Space || !IsFocused || !_isPressed)
+        if (!_activationKeys.Remove(e.Key))
             return;
 
-        SetPressed(false);
-        OnClick();
+        UpdatePressedState();
+        if (e.Handled)
+            return;
+
         e.Handled = true;
+        if (IsInteractive && IsEffectivelyEnabled && IsFocused)
+            OnClick();
     }
 
     /// <inheritdoc />
@@ -733,7 +739,7 @@ public class MaterialCard : ContentControl
     {
         base.OnPointerPressed(e);
 
-        if (!IsInteractive || !IsEffectivelyEnabled)
+        if (!IsInteractive || !IsEffectivelyEnabled || _pointerPressed)
             return;
 
         var point = e.GetCurrentPoint(this);
@@ -742,7 +748,9 @@ public class MaterialCard : ContentControl
 
         _pressPosition = e.GetPosition(this);
         _pressArgs = e;
-        SetPressed(true);
+        _pointerPressed = true;
+        _pointerCapture = e.Pointer;
+        UpdatePressedState();
         // Capture so a drag that leaves the card is still detected and a release outside the
         // bounds does not report a click.
         e.Pointer.Capture(this);
@@ -754,7 +762,7 @@ public class MaterialCard : ContentControl
     {
         base.OnPointerMoved(e);
 
-        if (!_isPressed || _isDragging || !IsInteractive)
+        if (!_pointerPressed || _isDragging || !IsInteractive)
             return;
 
         if (DragData is not { } data || _pressArgs is not { } trigger)
@@ -765,8 +773,10 @@ public class MaterialCard : ContentControl
             return;
 
         // The gesture became a drag: it must not also report a click on release.
-        SetPressed(false);
+        _pointerPressed = false;
+        _pointerCapture = null;
         _pressArgs = null;
+        UpdatePressedState();
         BeginDrag(trigger, data);
     }
 
@@ -775,14 +785,17 @@ public class MaterialCard : ContentControl
     {
         base.OnPointerReleased(e);
 
-        if (!_isPressed)
+        if (!_pointerPressed || e.Pointer != _pointerCapture)
             return;
 
-        SetPressed(false);
+        _pointerPressed = false;
+        _pointerCapture = null;
+        _pressArgs = null;
+        UpdatePressedState();
         e.Pointer.Capture(null);
         e.Handled = true;
 
-        if (!_isDragging && new Rect(Bounds.Size).Contains(e.GetPosition(this)))
+        if (IsInteractive && IsEffectivelyEnabled && !_isDragging && new Rect(Bounds.Size).Contains(e.GetPosition(this)))
             OnClick();
     }
 
@@ -790,7 +803,10 @@ public class MaterialCard : ContentControl
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
-        SetPressed(false);
+        _pointerPressed = false;
+        _pointerCapture = null;
+        _pressArgs = null;
+        UpdatePressedState();
     }
 
     /// <summary>Raises <see cref="Click"/> and executes <see cref="Command"/>.</summary>
@@ -840,6 +856,29 @@ public class MaterialCard : ContentControl
 
         SetAndRaise(IsDraggingProperty, ref _isDragging, dragging);
         SetInteraction(CardInteraction.Drag, dragging);
+    }
+
+    private void UpdatePressedState() => SetPressed(_pointerPressed || _activationKeys.Count > 0);
+
+    private void CancelKeyboardPress()
+    {
+        if (_activationKeys.Count == 0)
+            return;
+
+        _activationKeys.Clear();
+        UpdatePressedState();
+    }
+
+    private void CancelInteraction()
+    {
+        _activationKeys.Clear();
+        var capture = _pointerCapture;
+        _pointerCapture = null;
+        _pointerPressed = false;
+        _pressArgs = null;
+        SetPressed(false);
+        if (capture?.Captured == this)
+            capture.Capture(null);
     }
 
     private void SetPressed(bool pressed)
@@ -1110,10 +1149,10 @@ public class MaterialCard : ContentControl
     {
         var radius = CornerRadius;
         var ring = new CornerRadius(
-            radius.TopLeft + 2,
-            radius.TopRight + 2,
-            radius.BottomRight + 2,
-            radius.BottomLeft + 2);
+            radius.TopLeft + 5,
+            radius.TopRight + 5,
+            radius.BottomRight + 5,
+            radius.BottomLeft + 5);
         SetAndRaise(FocusRingCornerRadiusProperty, ref _focusRingCornerRadius, ring);
     }
 

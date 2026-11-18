@@ -7,6 +7,7 @@ using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -107,10 +108,8 @@ public sealed class MaterialTabs : AvaloniaObject
         AvaloniaProperty.RegisterAttached<MaterialTabs, TabItem, string?>("BadgeText");
 
     /// <summary>
-    /// Whether a keyboard focus ring is drawn. Defaults to false, matching upstream: the source
-    /// focus indication is the 10% focus state layer, and this ring is a desktop preview
-    /// extension. Focus never changes the selection; Arrow/Home/End are a desktop extension that
-    /// moves focus and selection together, Space/Enter select the focused header.
+    /// Forces the keyboard focus ring visible for static previews. Keyboard focus (:focus-visible)
+    /// displays the 3 dp secondary focus ring automatically without setting this property.
     /// </summary>
     public static readonly AttachedProperty<bool> ShowFocusIndicatorProperty =
         AvaloniaProperty.RegisterAttached<MaterialTabs, Control, bool>(
@@ -129,12 +128,35 @@ public sealed class MaterialTabs : AvaloniaObject
         });
         Visual.FlowDirectionProperty.Changed.AddClassHandler<TabControl>(
             static (tabs, _) => QueueSelectedHeaderReveal(tabs));
+        TabControl.TabStripPlacementProperty.Changed.AddClassHandler<TabControl>(
+            static (tabs, _) => UpdateIndicator(tabs, animate: false));
+        InputElement.IsEffectivelyEnabledProperty.Changed.AddClassHandler<TabControl>(static (tabs, _) =>
+        {
+            UpdateRovingTabStops(tabs);
+            UpdateIndicator(tabs, animate: false);
+        });
         TabItem.IconProperty.Changed.AddClassHandler<TabItem>(static (item, _) => UpdateHeaderLayout(item));
         TabItem.HeaderProperty.Changed.AddClassHandler<TabItem>(static (item, _) => UpdateHeaderLayout(item));
         LayoutProperty.Changed.AddClassHandler<TabItem>(static (item, _) => UpdateHeaderLayout(item));
         ShowBadgeProperty.Changed.AddClassHandler<TabItem>(static (item, _) => UpdateHeaderLayout(item));
         BadgeTextProperty.Changed.AddClassHandler<TabItem>(static (item, _) => UpdateHeaderLayout(item));
         VariantProperty.Changed.AddClassHandler<TabItem>(static (item, _) => UpdateHeaderLayout(item));
+        InputElement.IsEffectivelyEnabledProperty.Changed.AddClassHandler<TabItem>(static (item, _) =>
+        {
+            if (item.FindAncestorOfType<TabControl>() is { } tabs)
+            {
+                UpdateRovingTabStops(tabs);
+                UpdateIndicator(tabs, animate: false);
+            }
+        });
+        Visual.IsVisibleProperty.Changed.AddClassHandler<TabItem>(static (item, _) =>
+        {
+            if (item.FindAncestorOfType<TabControl>() is { } tabs)
+            {
+                UpdateRovingTabStops(tabs);
+                UpdateIndicator(tabs, animate: false);
+            }
+        });
         VariantProperty.Changed.AddClassHandler<TabControl>(static (tabs, _) =>
         {
             UpdateContainers(tabs);
@@ -147,12 +169,16 @@ public sealed class MaterialTabs : AvaloniaObject
             UpdateHeaderLayout(item);
             UpdateScrollableState(item);
             AttachTint(item, e.NameScope.Find<Control>("HeaderArea"), settled: false);
+            if (item.FindAncestorOfType<TabControl>() is { } tabs)
+                UpdateRovingTabStops(tabs);
         });
         Control.LoadedEvent.AddClassHandler<TabItem>(static (item, _) =>
         {
             UpdateHeaderLayout(item);
             UpdateScrollableState(item);
             AttachTint(item, FindHeaderArea(item), settled: true);
+            if (item.FindAncestorOfType<TabControl>() is { } tabs)
+                UpdateRovingTabStops(tabs);
         });
         // Tab.kt's TabTransition animates the content colour between the selected and unselected
         // roles. The theme expresses those endpoints as the TabItem's effective Foreground, so a
@@ -166,8 +192,11 @@ public sealed class MaterialTabs : AvaloniaObject
             var state = IndicatorStates.GetOrCreateValue(tabs);
             state.LeftAnimation?.Dispose();
             state.WidthAnimation?.Dispose();
+            state.BrushBinding?.Dispose();
             state.LeftAnimation = null;
             state.WidthAnimation = null;
+            state.BrushBinding = null;
+            state.LastDisabled = null;
             state.HasValue = false;
             state.Layer = e.NameScope.Find<Canvas>("PART_IndicatorLayer");
             state.Indicator = e.NameScope.Find<Border>("PART_Indicator");
@@ -211,16 +240,40 @@ public sealed class MaterialTabs : AvaloniaObject
         item.Classes.Set("md-icon-only", effective == MaterialTabLayout.IconOnly);
         item.Classes.Set("md-icon-and-label", effective == MaterialTabLayout.IconAndLabel);
         item.Classes.Set("md-has-badge", GetShowBadge(item));
-        item.Classes.Set("md-badge-text", !string.IsNullOrEmpty(GetBadgeText(item)));
-        AutomationProperties.SetItemStatus(item, GetShowBadge(item)
-            ? !string.IsNullOrWhiteSpace(GetBadgeText(item)) ? GetBadgeText(item)
-                : item.TryFindResource("MaterialNavigationBarBadgeDotText", out var resource) && resource is string text
-                    ? text : "New notification"
-            : null);
+        item.Classes.Set("md-badge-text", !string.IsNullOrWhiteSpace(GetBadgeText(item)));
+        UpdateBadgeAutomation(item);
 
         var secondary = GetVariant(item) == MaterialTabVariant.Secondary;
         item.Classes.Set("md-primary", !secondary);
         item.Classes.Set("md-secondary", secondary);
+    }
+
+    private static void UpdateBadgeAutomation(TabItem item)
+    {
+        var state = TintStates.GetOrCreateValue(item);
+        if (!state.BadgeHooked)
+        {
+            state.BadgeHooked = true;
+            item.ResourcesChanged += (_, _) => UpdateBadgeAutomation(item);
+            item.AttachedToVisualTree += (_, _) => UpdateBadgeAutomation(item);
+        }
+
+        state.BadgeStatus?.Dispose();
+        state.BadgeStatus = null;
+        if (!GetShowBadge(item))
+            return;
+
+        var badgeText = GetBadgeText(item);
+        if (!string.IsNullOrWhiteSpace(badgeText))
+        {
+            state.BadgeStatus = item.SetValue(AutomationProperties.ItemStatusProperty, badgeText, BindingPriority.Style);
+            return;
+        }
+
+        var dotText = item.TryFindResource("MaterialNavigationBarBadgeDotText", out var resource) && resource is string text
+            ? text
+            : "New notification";
+        state.BadgeStatus = item.SetValue(AutomationProperties.ItemStatusProperty, dotText, BindingPriority.Style);
     }
 
     private static void UpdateContainers(TabControl tabs)
@@ -231,6 +284,48 @@ public sealed class MaterialTabs : AvaloniaObject
                 continue;
             UpdateHeaderLayout(item);
             UpdateScrollableState(item);
+        }
+        UpdateRovingTabStops(tabs);
+    }
+
+    private static void UpdateRovingTabStops(TabControl tabs)
+    {
+        TabItem? active = null;
+        if (tabs.SelectedIndex >= 0 &&
+            tabs.ContainerFromIndex(tabs.SelectedIndex) is TabItem
+            {
+                Focusable: true,
+                IsEffectivelyEnabled: true,
+                IsEffectivelyVisible: true
+            } selected)
+        {
+            active = selected;
+        }
+
+        if (active is null)
+        {
+            for (var i = 0; i < tabs.ItemCount; i++)
+            {
+                if (tabs.ContainerFromIndex(i) is TabItem
+                    {
+                        Focusable: true,
+                        IsEffectivelyEnabled: true,
+                        IsEffectivelyVisible: true
+                    } candidate)
+                {
+                    active = candidate;
+                    break;
+                }
+            }
+        }
+
+        foreach (var container in tabs.GetRealizedContainers())
+        {
+            if (container is not TabItem item)
+                continue;
+            var isStop = ReferenceEquals(item, active);
+            if (item.IsTabStop != isStop)
+                item.IsTabStop = isStop;
         }
     }
 
@@ -245,10 +340,12 @@ public sealed class MaterialTabs : AvaloniaObject
         public Control? HeaderArea;
         public SolidColorBrush? Brush;
         public MaterialColorAnimation? Animation;
+        public IDisposable? BadgeStatus;
         public Color Current;
         public bool HasValue;
         public bool Settled;
         public bool Hooked;
+        public bool BadgeHooked;
     }
 
     private static readonly ConditionalWeakTable<TabItem, TabTintState> TintStates = new();
@@ -385,6 +482,7 @@ public sealed class MaterialTabs : AvaloniaObject
         if (!ReferenceEquals(e.Source, tabs))
             return;
 
+        UpdateRovingTabStops(tabs);
         UpdateIndicator(tabs, animate: true);
         if (!GetIsScrollable(tabs) || tabs.SelectedIndex < 0)
             return;
@@ -570,6 +668,8 @@ public sealed class MaterialTabs : AvaloniaObject
         public Border? Indicator;
         public MaterialMotion.SpringAnimation? LeftAnimation;
         public MaterialMotion.SpringAnimation? WidthAnimation;
+        public IDisposable? BrushBinding;
+        public bool? LastDisabled;
         public bool Hooked;
         public bool HasValue;
     }
@@ -610,7 +710,24 @@ public sealed class MaterialTabs : AvaloniaObject
         var height = secondary ? 2d : 3d;
 
         state.Indicator.Height = height;
-        state.Indicator.CornerRadius = secondary ? default : new CornerRadius(3);
+        state.Indicator.CornerRadius = secondary
+            ? default
+            : tabs.TabStripPlacement == Dock.Bottom
+                ? new CornerRadius(0, 0, 3, 3)
+                : new CornerRadius(3, 3, 0, 0);
+
+        var disabled = !tabs.IsEffectivelyEnabled || !tab.IsEffectivelyEnabled;
+        if (state.LastDisabled != disabled)
+        {
+            state.LastDisabled = disabled;
+            state.BrushBinding?.Dispose();
+            state.BrushBinding = state.Indicator.Bind(
+                Border.BackgroundProperty,
+                state.Indicator.GetResourceObservable(disabled ? "MaterialOnSurfaceBrush" : "MaterialPrimaryBrush"),
+                BindingPriority.Style);
+            state.Indicator.Opacity = disabled ? 0.38d : 1d;
+        }
+
         var top = tabs.TabStripPlacement == Dock.Bottom
             ? origin.Y
             : origin.Y + tab.Bounds.Height - height;
@@ -664,10 +781,17 @@ public sealed class MaterialTabs : AvaloniaObject
         // event (resize, dynamic add/remove, font change). Re-aim the shared indicator.
         tabs.LayoutUpdated += (_, _) =>
         {
+            UpdateRovingTabStops(tabs);
             UpdateIndicator(tabs, animate: true);
             ObserveHeaderViewport(tabs);
         };
         tabs.SizeChanged += (_, _) => UpdateIndicator(tabs, animate: false);
+        tabs.DetachedFromVisualTree += (_, _) =>
+        {
+            state.BrushBinding?.Dispose();
+            state.BrushBinding = null;
+            state.LastDisabled = null;
+        };
     }
 
     private static void OnPointerWheelChanged(TabControl tabs, PointerWheelEventArgs e)

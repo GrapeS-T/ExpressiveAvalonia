@@ -50,9 +50,9 @@ public class MaterialMenuGroup : HeaderedItemsControl
         AvaloniaProperty.Register<MaterialMenuGroup, MaterialMenuGroupPosition>(nameof(Position));
 
     private Border? _surface;
-    private MaterialMotion.SpringAnimation? _morph;
-    private CornerRadius _morphFrom;
-    private CornerRadius _morphTo;
+    private readonly double[] _cornerValues = new double[4];
+    private readonly MaterialMotion.SpringAnimation?[] _cornerSprings = new MaterialMotion.SpringAnimation?[4];
+    private readonly Action<double>[] _cornerApply;
     private bool _hasBeenHovered;
     private bool _hovered;
 
@@ -64,6 +64,13 @@ public class MaterialMenuGroup : HeaderedItemsControl
 
     public MaterialMenuGroup()
     {
+        _cornerApply =
+        [
+            value => SetCorner(0, value),
+            value => SetCorner(1, value),
+            value => SetCorner(2, value),
+            value => SetCorner(3, value),
+        ];
         AddHandler(MenuItem.ClickEvent, OnMenuItemClick, RoutingStrategies.Bubble);
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
     }
@@ -99,6 +106,15 @@ public class MaterialMenuGroup : HeaderedItemsControl
         _hasBeenHovered = false;
         _hovered = false;
         UpdateGroupShape(animate: false);
+    }
+
+    /// <inheritdoc />
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        StopCornerSprings();
+        _hasBeenHovered = false;
+        _hovered = false;
+        base.OnDetachedFromVisualTree(e);
     }
 
     /// <inheritdoc />
@@ -231,7 +247,8 @@ public class MaterialMenuGroup : HeaderedItemsControl
 
     /// <summary>
     /// Resolves the source group shape for the current position and hover history. Hover leaves the
-    /// group at <c>InactiveContainerShape</c>; the morph uses MotionSchemeKeyTokens.FastSpatial.
+    /// group at <c>InactiveContainerShape</c> (8 DIP) across Leading, Trailing and Standalone
+    /// groups; the morph uses MotionSchemeKeyTokens.FastSpatial and preserves velocity on retarget.
     /// </summary>
     private void UpdateGroupShape(bool animate = true)
     {
@@ -241,38 +258,78 @@ public class MaterialMenuGroup : HeaderedItemsControl
         var expressive = MaterialMenu.GetSurfaceStyle(this) == MaterialMenuSurfaceStyle.Expressive;
         var target = !expressive
             ? default
-            : Position switch
-            {
-                MaterialMenuGroupPosition.Leading => new CornerRadius(16, 16, 8, 8),
-                MaterialMenuGroupPosition.Trailing => new CornerRadius(8, 8, 16, 16),
-                MaterialMenuGroupPosition.Middle => new CornerRadius(8),
-                _ => _hasBeenHovered && !_hovered ? new CornerRadius(8) : new CornerRadius(16),
-            };
+            : (_hasBeenHovered && !_hovered)
+                ? new CornerRadius(8)
+                : Position switch
+                {
+                    MaterialMenuGroupPosition.Leading => new CornerRadius(16, 16, 8, 8),
+                    MaterialMenuGroupPosition.Trailing => new CornerRadius(8, 8, 16, 16),
+                    MaterialMenuGroupPosition.Middle => new CornerRadius(8),
+                    _ => new CornerRadius(16),
+                };
 
-        _morph?.Dispose();
-        _morph = null;
-
-        if (!animate || MaterialMotion.GetIsReduced(this) || _surface.CornerRadius == target)
+        Span<double> targets = stackalloc double[4]
         {
+            target.TopLeft,
+            target.TopRight,
+            target.BottomRight,
+            target.BottomLeft,
+        };
+
+        if (!animate || !this.IsAttachedToVisualTree() || MaterialMotion.GetIsReduced(this))
+        {
+            StopCornerSprings();
+            for (var i = 0; i < 4; i++)
+                _cornerValues[i] = targets[i];
             _surface.CornerRadius = target;
             return;
         }
 
-        _morphFrom = _surface.CornerRadius;
-        _morphTo = target;
-        _morph = MaterialMotion.Animate(this, 0, 1, progress =>
+        for (var i = 0; i < 4; i++)
         {
-            if (_surface is not null)
-                _surface.CornerRadius = Interpolate(_morphFrom, _morphTo, progress);
-        }, MaterialSpring.SpatialFast, visibilityThreshold: 0.005);
+            var cornerTarget = targets[i];
+            var spring = _cornerSprings[i];
+            if (spring is not null)
+            {
+                spring.Retarget(cornerTarget);
+            }
+            else if (Math.Abs(_cornerValues[i] - cornerTarget) > 0.05)
+            {
+                _cornerSprings[i] = MaterialMotion.Animate(
+                    this, _cornerValues[i], cornerTarget, _cornerApply[i],
+                    MaterialSpring.SpatialFast, visibilityThreshold: 0.05);
+            }
+            else
+            {
+                _cornerValues[i] = cornerTarget;
+            }
+        }
+        ApplyCorners();
     }
 
-    private static CornerRadius Interpolate(CornerRadius from, CornerRadius to, double progress) =>
-        new(
-            from.TopLeft + (to.TopLeft - from.TopLeft) * progress,
-            from.TopRight + (to.TopRight - from.TopRight) * progress,
-            from.BottomRight + (to.BottomRight - from.BottomRight) * progress,
-            from.BottomLeft + (to.BottomLeft - from.BottomLeft) * progress);
+    private void SetCorner(int index, double value)
+    {
+        _cornerValues[index] = Math.Max(0, value);
+        ApplyCorners();
+    }
+
+    private void ApplyCorners()
+    {
+        if (_surface is not null)
+        {
+            _surface.CornerRadius = new CornerRadius(
+                _cornerValues[0], _cornerValues[1], _cornerValues[2], _cornerValues[3]);
+        }
+    }
+
+    private void StopCornerSprings()
+    {
+        for (var i = 0; i < _cornerSprings.Length; i++)
+        {
+            _cornerSprings[i]?.Dispose();
+            _cornerSprings[i] = null;
+        }
+    }
 
     private MenuItem[] ItemsInOrder() => Items.OfType<MenuItem>().ToArray();
 

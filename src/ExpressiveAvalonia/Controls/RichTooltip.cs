@@ -124,9 +124,14 @@ public sealed class RichTooltip : Flyout
     private DispatcherTimer? _durationTimer;
     private bool _exiting;
     private bool _skipExit;
+    private bool _horizontalOffsetOwned;
+    private bool _verticalOffsetOwned;
+    private bool _applyingDefaultOffset;
 
     // Tooltip.kt BasicTooltipDefaults.TooltipDuration: how long a non-persistent tooltip stays.
     private const int TooltipDurationMilliseconds = 1500;
+    // Tooltip.kt SpacingBetweenTooltipAndAnchor = 4.dp.
+    private const double AnchorSpacing = 4;
 
     static RichTooltip()
     {
@@ -138,6 +143,7 @@ public sealed class RichTooltip : Flyout
         Placement = PlacementMode.Bottom;
         ShowMode = FlyoutShowMode.Standard;
         FlyoutPresenterClasses.Add("material-rich-tooltip");
+        ApplyDefaultOffsets();
     }
 
     /// <summary>A localized heading, also used as the accessible name of the popup.</summary>
@@ -285,6 +291,8 @@ public sealed class RichTooltip : Flyout
         _actionsPresenter = new ContentControl
         {
             Name = "Actions",
+            Margin = new Thickness(8, 0, 8, 0),
+            ClipToBounds = false,
             HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             IsVisible = false
         };
@@ -296,7 +304,8 @@ public sealed class RichTooltip : Flyout
         _actionsPresenter.AttachedToVisualTree += (_, _) =>
             Dispatcher.UIThread.Post(ApplyActionStyling, DispatcherPriority.Loaded);
 
-        var root = new StackPanel { Spacing = 8 };
+        // Spacing is 0 because _contentPanel's 16 DIP bottom padding supplies the sole body-to-action gap.
+        var root = new StackPanel { Spacing = 0, ClipToBounds = false };
         root.Children.Add(_contentPanel);
         root.Children.Add(_actionsPresenter);
 
@@ -318,6 +327,7 @@ public sealed class RichTooltip : Flyout
     protected override void OnOpening(CancelEventArgs args)
     {
         CancelExit();
+        ApplyDefaultOffsets();
         _target = Target;
         if (FlyoutPresenterTheme is null && _target is { } resourceHost &&
             resourceHost.TryFindResource(PresenterThemeKey, out var value) && value is ControlTheme theme)
@@ -499,6 +509,19 @@ public sealed class RichTooltip : Flyout
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+        if (!_applyingDefaultOffset)
+        {
+            if (change.Property == HorizontalOffsetProperty)
+                _horizontalOffsetOwned = false;
+            else if (change.Property == VerticalOffsetProperty)
+                _verticalOffsetOwned = false;
+        }
+        if (change.Property == PlacementProperty || change.Property == ShowCaretProperty)
+        {
+            ApplyDefaultOffsets();
+            if (_presenter is not null && change.Property == PlacementProperty)
+                _presenter.Placement = Placement;
+        }
         if (change.Property == TitleProperty || change.Property == ShowTitleProperty)
         {
             if (_titlePresenter is not null)
@@ -521,12 +544,100 @@ public sealed class RichTooltip : Flyout
         }
     }
 
+    private void ApplyDefaultOffsets()
+    {
+        var caretExtent = ShowCaret ? TooltipCaretRenderer.DefaultCaretHeight : 0d;
+        var distance = AnchorSpacing - caretExtent;
+        _applyingDefaultOffset = true;
+        try
+        {
+            if (!TryGetDefaultOffset(Placement, distance, out var isHorizontal, out var offset))
+            {
+                if (_horizontalOffsetOwned)
+                {
+                    _horizontalOffsetOwned = false;
+                    ClearValue(HorizontalOffsetProperty);
+                }
+                if (_verticalOffsetOwned)
+                {
+                    _verticalOffsetOwned = false;
+                    ClearValue(VerticalOffsetProperty);
+                }
+                return;
+            }
+
+            if (isHorizontal)
+            {
+                if (_verticalOffsetOwned)
+                {
+                    _verticalOffsetOwned = false;
+                    ClearValue(VerticalOffsetProperty);
+                }
+                if (_horizontalOffsetOwned || !IsSet(HorizontalOffsetProperty))
+                {
+                    HorizontalOffset = offset;
+                    _horizontalOffsetOwned = true;
+                }
+            }
+            else
+            {
+                if (_horizontalOffsetOwned)
+                {
+                    _horizontalOffsetOwned = false;
+                    ClearValue(HorizontalOffsetProperty);
+                }
+                if (_verticalOffsetOwned || !IsSet(VerticalOffsetProperty))
+                {
+                    VerticalOffset = offset;
+                    _verticalOffsetOwned = true;
+                }
+            }
+        }
+        finally
+        {
+            _applyingDefaultOffset = false;
+        }
+    }
+
+    private static bool TryGetDefaultOffset(PlacementMode placement, double distance,
+        out bool isHorizontal, out double offset)
+    {
+        switch (placement)
+        {
+            case PlacementMode.Top or PlacementMode.TopEdgeAlignedLeft or PlacementMode.TopEdgeAlignedRight:
+                isHorizontal = false;
+                offset = -distance;
+                return true;
+            case PlacementMode.Bottom or PlacementMode.BottomEdgeAlignedLeft or PlacementMode.BottomEdgeAlignedRight:
+                isHorizontal = false;
+                offset = distance;
+                return true;
+            case PlacementMode.Left or PlacementMode.LeftEdgeAlignedTop or PlacementMode.LeftEdgeAlignedBottom:
+                isHorizontal = true;
+                offset = -distance;
+                return true;
+            case PlacementMode.Right or PlacementMode.RightEdgeAlignedTop or PlacementMode.RightEdgeAlignedBottom:
+                isHorizontal = true;
+                offset = distance;
+                return true;
+            default:
+                isHorizontal = false;
+                offset = 0;
+                return false;
+        }
+    }
+
     /// <summary>
     /// Builds the design's two text actions when no <see cref="Actions"/> object is supplied.
     /// </summary>
     private Control? BuildDefaultActions()
     {
-        var panel = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8 };
+        var panel = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            Spacing = 8,
+            ClipToBounds = false
+        };
         if (!string.IsNullOrEmpty(PrimaryActionText))
             panel.Children.Add(CreateActionButton(PrimaryActionText, PrimaryActionCommand, PrimaryActionCommandParameter));
         if (ShowSecondaryAction && !string.IsNullOrEmpty(SecondaryActionText))
@@ -541,15 +652,17 @@ public sealed class RichTooltip : Flyout
             Content = text,
             Command = command,
             CommandParameter = parameter,
-            // Tooltip.kt ActionLabelMinHeight = 36; the text button supplies a 20 px label.
-            MinHeight = 36,
-            Padding = new Thickness(16, 8),
+            // Tooltip.kt ActionLabelMinHeight = 36 inside a 48 DIP interactive hit target;
+            // ContainerInset 0,6 and Margin 0,-6 preserve both the 48 DIP target and 36 DIP layout height.
+            MinWidth = 48,
+            MinHeight = 48,
+            Margin = new Thickness(0, -6, 0, -6),
+            Padding = new Thickness(8, 8),
+            ClipToBounds = false,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
         };
-        // The Text variant supplies the primary label color and transparent container; the
-        // tooltip's own action row does not need the 48 px touch-target inset.
         MaterialAssist.SetButtonVariant(button, MaterialButtonVariant.Text);
-        MaterialAssist.SetContainerInset(button, default);
+        MaterialAssist.SetContainerInset(button, new Thickness(0, 6));
         AutomationProperties.SetName(button, text);
         button.Click += OnActionClick;
         return button;
@@ -639,21 +752,22 @@ public sealed class RichTooltip : Flyout
             return;
 
         var hasActions = _actionsPresenter.IsVisible;
-        var hasTitle = !string.IsNullOrWhiteSpace(Title);
-        // Tooltip.kt RichTooltipContent: 16 px horizontal; with a subhead or actions the body ends
-        // 16 px above the container bottom (and the subhead starts 28 px to its first baseline,
+        var hasVisibleTitle = ShowTitle && !string.IsNullOrWhiteSpace(Title);
+        var hasTitleText = !string.IsNullOrWhiteSpace(Title);
+        // Tooltip.kt RichTooltipContent: 16 px horizontal; with a visible subhead or actions the body
+        // ends 16 px above the container bottom (and the subhead starts 28 px to its first baseline,
         // ≈12 px box inset), otherwise the text has 4 px vertical padding.
         _presenter.Padding = new Thickness(0, 0, 0, hasActions ? 8 : 0);
-        _contentPanel.Padding = hasTitle || hasActions
+        _contentPanel.Padding = hasVisibleTitle || hasActions
             ? new Thickness(16, 12, 16, 16)
             : new Thickness(16, 4, 16, 4);
         _actionsPresenter.Padding = default;
 
         var body = Content as string;
-        AutomationProperties.SetName(_presenter, hasTitle ? Title : body);
+        AutomationProperties.SetName(_presenter, hasTitleText ? Title : body);
         // With no subhead the body already is the name; only add help text when it is distinct.
         AutomationProperties.SetHelpText(_presenter,
-            hasTitle && !string.IsNullOrWhiteSpace(body) ? body : null);
+            hasTitleText && !string.IsNullOrWhiteSpace(body) ? body : null);
     }
 
     private void PrepareEntrance()
@@ -888,7 +1002,7 @@ public sealed class MaterialRichTooltipPresenter : FlyoutPresenter
     {
         base.OnPropertyChanged(change);
         if (change.Property == ShowCaretProperty || change.Property == AnchorProperty ||
-            change.Property == PlacementProperty)
+            change.Property == PlacementProperty || change.Property == FlowDirectionProperty)
             UpdateCaret();
     }
 
@@ -901,17 +1015,20 @@ public sealed class MaterialRichTooltipPresenter : FlyoutPresenter
         _renderer.ShowCaret = ShowCaret;
         _renderer.Placement = Placement;
         _renderer.Fill = Background;
-        var side = _renderer.ResolveSide() ?? GuessSide(Placement);
-        var margin = ShowCaret ? TooltipCaretRenderer.MarginFor(side) : default;
+        var rightToLeft = FlowDirection == FlowDirection.RightToLeft;
+        var side = _renderer.ResolveSide() ?? GuessSide(Placement, rightToLeft);
+        var margin = ShowCaret ? TooltipCaretRenderer.MarginFor(side, rightToLeft) : default;
         if (SurfaceMargin != margin) SurfaceMargin = margin;
         _renderer.InvalidateVisual();
     }
 
-    private static TooltipCaretSide GuessSide(PlacementMode placement) => placement switch
+    private static TooltipCaretSide GuessSide(PlacementMode placement, bool rightToLeft) => placement switch
     {
-        PlacementMode.Top => TooltipCaretSide.Bottom,
-        PlacementMode.Left => TooltipCaretSide.Right,
-        PlacementMode.Right => TooltipCaretSide.Left,
+        PlacementMode.Top or PlacementMode.TopEdgeAlignedLeft or PlacementMode.TopEdgeAlignedRight => TooltipCaretSide.Bottom,
+        PlacementMode.Left or PlacementMode.LeftEdgeAlignedTop or PlacementMode.LeftEdgeAlignedBottom =>
+            rightToLeft ? TooltipCaretSide.Left : TooltipCaretSide.Right,
+        PlacementMode.Right or PlacementMode.RightEdgeAlignedTop or PlacementMode.RightEdgeAlignedBottom =>
+            rightToLeft ? TooltipCaretSide.Right : TooltipCaretSide.Left,
         _ => TooltipCaretSide.Top,
     };
 }

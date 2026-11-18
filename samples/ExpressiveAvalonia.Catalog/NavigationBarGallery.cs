@@ -133,13 +133,13 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
         Settings.Children.Add(_selected);
 
         foreach (var group in new[] { _axis, _kind, _arrangement, _badge })
-            group.SelectionChanged += (_, _) => Apply();
-        _itemOrientation.SelectionChanged += (_, _) => Apply();
+            group.SelectionChanged += (_, _) => { if (!_sync) Apply(); };
+        _itemOrientation.SelectionChanged += (_, _) => { if (!_sync) Apply(); };
         foreach (var toggle in new[] { _labels, _alwaysShowLabel, _rtl, _disabledLast })
-            toggle.IsCheckedChanged += (_, _) => Apply();
-        _count.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
-        _cardWidth.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
-        _badgeText.TextChanged += (_, _) => Apply();
+            toggle.IsCheckedChanged += (_, _) => { if (!_sync) Apply(); };
+        _count.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_sync) Apply(); };
+        _cardWidth.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_sync) Apply(); };
+        _badgeText.TextChanged += (_, _) => { if (!_sync) Apply(); };
         _selected.SelectionChanged += (_, _) =>
         {
             if (_sync || _selected.SelectedIndex < 0 || _selected.SelectedIndex >= _bar.ItemCount)
@@ -166,6 +166,7 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
     {
         var vertical = _axis.SelectedIndex == 1;
         var shortBar = _kind.SelectedIndex == 1;
+        var showLabels = _labels.IsChecked == true;
         _sync = true;
         try
         {
@@ -174,14 +175,20 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
                 ? MaterialShortNavigationBarArrangement.Centered
                 : MaterialShortNavigationBarArrangement.EqualWeight;
             _arrangement.IsEnabled = shortBar;
+            _itemOrientation.IsEnabled = shortBar;
+            if (!shortBar && _itemOrientation.SelectedIndex == 1)
+                _itemOrientation.SelectedIndex = 0;
+            _alwaysShowLabel.IsEnabled = !shortBar && showLabels;
             _bar.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
-            _bar.ItemIconPosition = _itemOrientation.SelectedIndex switch
-            {
-                1 => MaterialNavigationItemIconPosition.Start,
-                2 => MaterialNavigationItemIconPosition.Top,
-                _ => MaterialNavigationItemIconPosition.Auto,
-            };
-            _bar.FlowDirection = _rtl.IsChecked == true
+            _bar.ItemIconPosition = !shortBar
+                ? MaterialNavigationItemIconPosition.Top
+                : _itemOrientation.SelectedIndex switch
+                {
+                    1 => MaterialNavigationItemIconPosition.Start,
+                    2 => MaterialNavigationItemIconPosition.Top,
+                    _ => MaterialNavigationItemIconPosition.Auto,
+                };
+            _card.FlowDirection = _rtl.IsChecked == true
                 ? Avalonia.Media.FlowDirection.RightToLeft
                 : Avalonia.Media.FlowDirection.LeftToRight;
             DockPanel.SetDock(_bar, vertical ? Dock.Left : Dock.Bottom);

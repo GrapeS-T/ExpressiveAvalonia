@@ -77,6 +77,7 @@
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
@@ -97,7 +98,7 @@
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             RecognizesAccessKey="True" />
-          <Border Name="FocusRing" Margin="-2" CornerRadius="18"
+          <Border Name="FocusRing" Margin="-5" CornerRadius="21"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
@@ -141,6 +142,7 @@
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
@@ -160,7 +162,7 @@
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
                             RecognizesAccessKey="True" />
-          <Border Name="FocusRing" Margin="-2" CornerRadius="9999"
+          <Border Name="FocusRing" Margin="-5" CornerRadius="9999"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
@@ -187,6 +189,7 @@
     <Setter Property="MinHeight" Value="48" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
@@ -208,7 +211,7 @@
           <Path Name="Icon" Data="{TemplateBinding Icon}" Fill="{TemplateBinding Foreground}"
                 Width="20" Height="20" Stretch="Uniform"
                 HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
-          <Border Name="FocusRing" Margin="2" CornerRadius="9999"
+          <Border Name="FocusRing" Margin="-1" CornerRadius="9999"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
@@ -256,6 +259,7 @@
     <Setter Property="MinHeight" Value="48" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
@@ -280,7 +284,7 @@
           <Path Name="SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Fill="{TemplateBinding Foreground}"
                 Width="20" Height="20" Stretch="Uniform" IsVisible="False"
                 HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
-          <Border Name="FocusRing" Margin="2" CornerRadius="9999"
+          <Border Name="FocusRing" Margin="-1" CornerRadius="9999"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
@@ -352,6 +356,7 @@
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
@@ -382,10 +387,10 @@
                          LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
                          VerticalAlignment="Center" />
             </StackPanel>
+            <Border Name="FocusRing" Margin="-5" CornerRadius="9999"
+                    BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                    IsVisible="False" IsHitTestVisible="False" />
           </Grid>
-          <Border Name="FocusRing" Margin="2" CornerRadius="9999"
-                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
-                  IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
@@ -572,6 +577,7 @@
     <Setter Property="MinHeight" Value="56" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent" ClipToBounds="False">
@@ -742,8 +748,6 @@
                                CommandParameter="{TemplateBinding MenuCommandParameter}"
                                IsVisible="{TemplateBinding ShowMenu}" />
               <Button Name="PART_Fab" Theme="{StaticResource XrFabTheme}"
-                      Background="{DynamicResource MaterialTertiaryContainerBrush}"
-                      Foreground="{DynamicResource MaterialOnTertiaryFixedVariantBrush}"
                       IsVisible="{TemplateBinding ShowFab}"
                       Command="{TemplateBinding FabCommand}"
                       CommandParameter="{TemplateBinding FabCommandParameter}"
@@ -774,6 +778,10 @@
           </StackPanel>
         </ControlTemplate>
       </Setter>
+    </Style>
+    <Style Selector="^ /template/ Button#PART_Fab">
+      <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryFixedVariantBrush}" />
     </Style>
     <Style Selector="^:no-fab /template/ Border#GroupGap">
       <Setter Property="Height" Value="20" />
@@ -935,7 +943,7 @@
                             Width="24" Height="24" Stretch="Uniform"
                             HorizontalAlignment="Center" />
                     </Border>
-                    <TextBlock Text="{TemplateBinding Headline}"
+                    <TextBlock Name="HeadlineText" Text="{TemplateBinding Headline}"
                                Foreground="{TemplateBinding Foreground}"
                                FontSize="{DynamicResource MaterialHeadlineSmallFontSize}"
                                LineHeight="{DynamicResource MaterialHeadlineSmallLineHeight}"
@@ -978,6 +986,10 @@
     </Style>
     <Style Selector="^:with-icon /template/ Border#IconRow">
       <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:with-icon /template/ TextBlock#HeadlineText">
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="TextAlignment" Value="Center" />
     </Style>
   </ControlTheme>
 </ResourceDictionary>

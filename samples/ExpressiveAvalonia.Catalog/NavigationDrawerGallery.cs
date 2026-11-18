@@ -65,7 +65,8 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
         };
         MaterialTypography.SetStyle(body, MaterialTypeStyle.BodyMedium);
         MaterialTypography.SetStyle(_hostState, MaterialTypeStyle.BodySmall);
-        _hostState.Foreground = Brushes.Gray;
+        _hostState.Bind(TextBlock.ForegroundProperty,
+            _hostState.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         actions.Children.Add(_open);
@@ -112,7 +113,7 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
         _disabled = Toggle("«Корзина» недоступна", false);
         _width = Number("Ширина drawer", 280, 400, 360, 10);
         _scrim = Number("Плотность scrim", 0, 0.8, 0.32, 0.04);
-        _margin = Number("Отступ модального drawer", 0, 48, 12, 4);
+        _margin = Number("Отступ модального drawer", 0, 48, 0, 4);
 
         Settings.Children.Add(new TextBlock { Text = "Выбранный пункт" });
         _selected = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -233,7 +234,7 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
             _host.IsLightDismissEnabled = _lightDismiss.IsChecked == true;
             _host.CloseOnSelection = _closeOnSelection.IsChecked == true;
             _host.ScrimOpacity = _scrim.Value;
-            _host.DrawerMargin = new Thickness(_margin.Value);
+            _host.DrawerMargin = modal ? new Thickness(_margin.Value) : default;
             var width = _width.Value;
             _drawer.Width = width;
 
@@ -308,8 +309,8 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
     private static MaterialIcon IconOf(string sourceId) => new()
     {
         SourceId = sourceId,
-        Width = 20,
-        Height = 20,
+        Width = 24,
+        Height = 24,
         IsDecorative = true,
     };
 

@@ -26,17 +26,17 @@ public static class MaterialOpticalCenter
     public const double Coefficient = 0.11;
 
     /// <summary>
-    /// Computes the physical x offset for <paramref name="size"/> and its corner radii.
+    /// Computes the local horizontal offset for <paramref name="size"/> and its logical corner radii.
     /// </summary>
     /// <param name="size">The bounds of the shaped surface, not of the content.</param>
     /// <param name="corners">
-    /// Physical corner radii. For a logical shape, mirror them before calling when the layout is
-    /// right-to-left; <paramref name="flowDirection"/> then mirrors the resulting offset again.
+    /// Logical start/end corner radii (<see cref="CornerRadius.TopLeft"/>/<see cref="CornerRadius.BottomLeft"/>
+    /// for start, <see cref="CornerRadius.TopRight"/>/<see cref="CornerRadius.BottomRight"/> for end).
     /// </param>
-    /// <param name="flowDirection">The layout direction that mirrors the offset.</param>
-    /// <param name="maxStartOffset">Maximum correction toward the end, in DIPs; corresponds to the caller's start padding.</param>
-    /// <param name="maxEndOffset">Maximum correction toward the start, in DIPs; corresponds to the caller's end padding.</param>
-    /// <returns>The horizontal offset in DIPs, already clamped and mirrored for RTL.</returns>
+    /// <param name="flowDirection">The layout flow direction; Avalonia's visual mirror transform reflects RTL once.</param>
+    /// <param name="maxStartOffset">Maximum correction toward the start, in DIPs; corresponds to the caller's start padding.</param>
+    /// <param name="maxEndOffset">Maximum correction toward the end, in DIPs; corresponds to the caller's end padding.</param>
+    /// <returns>The local horizontal offset in DIPs, clamped to the start/end padding bounds.</returns>
     public static double ComputeOffset(
         Size size,
         CornerRadius corners,
@@ -44,6 +44,7 @@ public static class MaterialOpticalCenter
         double maxStartOffset = 0,
         double maxEndOffset = 0)
     {
+        _ = flowDirection;
         ArgumentOutOfRangeException.ThrowIfNegative(maxStartOffset);
         ArgumentOutOfRangeException.ThrowIfNegative(maxEndOffset);
         if (!double.IsFinite(maxStartOffset) || !double.IsFinite(maxEndOffset))
@@ -51,21 +52,13 @@ public static class MaterialOpticalCenter
         if (!double.IsFinite(size.Width) || !double.IsFinite(size.Height) || size.Width < 0 || size.Height < 0)
             return 0;
 
-        // CornerRadius is physical. A logical topStart is the left corner in LTR and the right
-        // corner in RTL, so resolve the start/end pair from the flow direction.
-        var rtl = flowDirection == FlowDirection.RightToLeft;
-        var startTop = rtl ? corners.TopRight : corners.TopLeft;
-        var startBottom = rtl ? corners.BottomRight : corners.BottomLeft;
-        var endTop = rtl ? corners.TopLeft : corners.TopRight;
-        var endBottom = rtl ? corners.BottomLeft : corners.BottomRight;
-
-        // CornerRadius values are already resolved in DIPs. The source's CornerSize.toPx does
-        // not clamp them here, so neither do we; the padding clamp below bounds the effect.
-        var averageStart = (startTop + startBottom) / 2;
-        var averageEnd = (endTop + endBottom) / 2;
+        // Avalonia's Visual.HasMirrorTransform reflects both Border.CornerRadius rendering and
+        // Decorator.ArrangeOverride X coordinates once at the RTL boundary, so start/end corners
+        // and the arrange offset stay in local start-to-end coordinates.
+        var averageStart = (corners.TopLeft + corners.BottomLeft) / 2;
+        var averageEnd = (corners.TopRight + corners.BottomRight) / 2;
         var correction = Coefficient * (averageStart - averageEnd);
-        var clamped = Math.Clamp(correction, -maxStartOffset, maxEndOffset);
-        return rtl ? -clamped : clamped;
+        return Math.Clamp(correction, -maxStartOffset, maxEndOffset);
     }
 }
 

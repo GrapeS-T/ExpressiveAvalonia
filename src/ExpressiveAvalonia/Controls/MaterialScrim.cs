@@ -56,6 +56,8 @@ public sealed class MaterialScrim : Control
     public MaterialScrim()
     {
         // A closed scrim must not paint at full alpha before IsOpen is first assigned.
+        // Transitions is cleared locally so no theme DoubleTransition competes with _fade.
+        Transitions = null;
         IsVisible = false;
         Opacity = 0;
     }

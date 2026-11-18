@@ -70,6 +70,7 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
     private readonly MaterialButtonGroup _mode;
     private readonly MaterialButtonGroup _variant;
     private readonly MaterialButtonGroup _configuration;
+    private readonly MaterialButtonGroup _alignment;
     private readonly Slider _width;
     private readonly TextBox _query;
     private readonly TextBox _placeholder;
@@ -125,6 +126,7 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         _mode = Choice("Расположение view", new[] { "Docked", "Full-screen" });
         _variant = Choice("Вариант", new[] { "Expressive", "Baseline" });
         _configuration = Choice("Поле", new[] { "Input text", "Supporting text" });
+        _alignment = Choice("Выравнивание текста", new[] { "Left aligned", "Centered" });
 
         var widthLabel = new TextBlock { Text = "Ширина: 480 dp" };
         Settings.Children.Add(widthLabel);
@@ -223,6 +225,7 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         _mode.SelectionChanged += (_, _) => Apply();
         _variant.SelectionChanged += (_, _) => Apply();
         _configuration.SelectionChanged += (_, _) => Apply();
+        _alignment.SelectionChanged += (_, _) => Apply();
         _width.PropertyChanged += (_, e) =>
         {
             if (e.Property != Avalonia.Controls.Primitives.RangeBase.ValueProperty)
@@ -265,7 +268,7 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         _appBarBar.SearchRequested += (_, _) =>
             _status.Text = $"Поиск: {_appBarBar.Text}";
         _appBarBar.TrailingIconInvoked += (_, _) =>
-            _status.Text = $"Поиск: {_appBarBar.Text}";
+            _status.Text = "Запрошен голосовой ввод (распознавание не подключено)";
         _appBarBar.ClearRequested += (_, _) => Filter();
         _bar.SearchRequested += (_, _) =>
         {
@@ -403,6 +406,7 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
             _mode.IsEnabled = showView || showAppBar;
             _variant.IsEnabled = showView;
             _configuration.IsEnabled = showView;
+            _alignment.IsEnabled = !showView;
             _showSuggestions.IsEnabled = showView || showAppBar;
             _scrim.IsEnabled = showView;
             _anchor.IsEnabled = showView;
@@ -414,6 +418,7 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
             _reverseLayout.IsEnabled = showAppBar;
             _reducedMotion.IsEnabled = showAppBar;
 
+            _host.ClipToBounds = showView || showAppBar;
             _host.Width = _width.Value;
             _host.Height = showView || showAppBar
                 ? (_mode.SelectedIndex == 1 ? 480 : 360)
@@ -434,6 +439,8 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
                 ? _appBarBar
                 : _anchor.IsChecked == true ? _bar : null;
 
+            var alignment = (MaterialSearchBarAlignment)_alignment.SelectedIndex;
+            _bar.Alignment = alignment;
             _bar.ShowLeadingIcon = _leading.IsChecked == true;
             _bar.ShowTrailingIcon = _trailing.IsChecked == true;
             _bar.ShowSecondaryIcon = _secondary.IsChecked == true;
@@ -442,6 +449,7 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
             _bar.PlaceholderText = _view.PlaceholderText = _placeholder.Text;
             _bar.Text = _query.Text;
 
+            _appBarBar.Alignment = alignment;
             _appBarBar.PlaceholderText = _placeholder.Text;
             _appBarBar.Text = _query.Text;
             _appBarBar.ShowLeadingIcon = _leading.IsChecked == true;
@@ -494,6 +502,11 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
             Content = BuildScrollContent(),
         };
 
+        _appBarBar.LeadingIcon = SearchGeometry;
+        _appBarBar.LeadingIconName = "Поиск";
+        _appBarBar.TrailingIcon = MicGeometry;
+        _appBarBar.TrailingIconName = "Голосовой ввод";
+
         _appBar.SearchBar = _appBarBar;
         _appBar.ScrollSource = _appBarScroll;
         _appBar.SearchView = _view;
@@ -503,13 +516,13 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         navigationButton.Click += (_, _) => _status.Text = "Меню";
         _appBar.NavigationContent = navigationButton;
 
-        _appBar.Actions.Add(new MaterialBarAction("Поиск", SearchGeometry,
-            new ActionCommand(() => _status.Text = $"Поиск: {_appBarBar.Text}")));
-        _appBarSecondaryAction = new MaterialBarAction("Голосовой ввод", MicGeometry,
-            new ActionCommand(() => _status.Text = "Запрошен голосовой ввод (распознавание не подключено)"));
+        _appBar.Actions.Add(new MaterialBarAction("Фильтры", FilterGeometry,
+            new ActionCommand(() => _status.Text = "Фильтры")));
+        _appBarSecondaryAction = new MaterialBarAction("Закладки", BookmarkGeometry,
+            new ActionCommand(() => _status.Text = "Закладки"));
         _appBar.Actions.Add(_appBarSecondaryAction);
-        _appBar.Actions.Add(new MaterialBarAction("Меню", MenuGeometry,
-            new ActionCommand(() => _status.Text = "Дополнительное меню")));
+        _appBar.Actions.Add(new MaterialBarAction("Уведомления", NotificationsGeometry,
+            new ActionCommand(() => _status.Text = "Уведомления")));
 
         _appBarStage = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
         _appBarStage.Children.Add(_appBar);
@@ -571,6 +584,21 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         "13.5625 8.4625 14.5375C9.4375 15.5125 10.6167 16 12 16C13.3833 16 14.5625 15.5125 " +
         "15.5375 14.5375C16.5125 13.5625 17 12.3833 17 11H19C19 12.75 18.4333 14.2833 17.3 " +
         "15.6C16.1667 16.9167 14.7333 17.6917 13 17.925V21H11Z");
+    private static readonly Geometry FilterGeometry = Geometry.Parse(
+        "M10 18V16H14V18H10ZM6 13V11H18V13H6ZM3 8V6H21V8H3Z");
+    private static readonly Geometry BookmarkGeometry = Geometry.Parse(
+        "M5 21V5C5 4.45 5.19583 3.97917 5.5875 3.5875C5.97917 3.19583 6.45 3 7 3H17C17.55 3 " +
+        "18.0208 3.19583 18.4125 3.5875C18.8042 3.97917 19 4.45 19 5V21L12 18L5 21ZM7 17.95L12 " +
+        "15.8L17 17.95V5H7V17.95Z");
+    private static readonly Geometry NotificationsGeometry = Geometry.Parse(
+        "M4 19V17H6V10C6 8.61667 6.41667 7.3875 7.25 6.3125C8.08333 5.2375 9.16667 4.53333 10.5 " +
+        "4.2V3.5C10.5 3.08333 10.6458 2.72917 10.9375 2.4375C11.2292 2.14583 11.5833 2 12 2C12.4167 " +
+        "2 12.7708 2.14583 13.0625 2.4375C13.3542 2.72917 13.5 3.08333 13.5 3.5V4.2C14.8333 " +
+        "4.53333 15.9167 5.2375 16.75 6.3125C17.5833 7.3875 18 8.61667 18 10V17H20V19H4ZM12 " +
+        "22C11.45 22 10.9792 21.8042 10.5875 21.4125C10.1958 21.0208 10 20.55 10 20H14C14 20.55 " +
+        "13.8042 21.0208 13.4125 21.4125C13.0208 21.8042 12.55 22 12 22ZM8 17H16V10C16 8.9 15.6083 " +
+        "7.95833 14.825 7.175C14.0417 6.39167 13.1 6 12 6C10.9 6 9.95833 6.39167 9.175 7.175C8.39167 " +
+        "7.95833 8 8.9 8 10V17Z");
     private sealed class ActionCommand(Action execute) : ICommand
     {
         public event EventHandler? CanExecuteChanged { add { } remove { } }

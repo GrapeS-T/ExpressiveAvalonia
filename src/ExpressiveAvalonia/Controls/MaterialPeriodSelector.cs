@@ -94,6 +94,7 @@ public sealed class MaterialPeriodSelector : TemplatedControl
         UpdateOrientation();
         UpdateCompact();
         UpdateVibrant();
+        UpdateCellShapes();
         UpdateSelection();
     }
 
@@ -108,6 +109,7 @@ public sealed class MaterialPeriodSelector : TemplatedControl
         else if (change.Property == OrientationProperty)
         {
             UpdateOrientation();
+            UpdateCellShapes();
         }
         else if (change.Property == IsCompactProperty)
         {
@@ -116,6 +118,11 @@ public sealed class MaterialPeriodSelector : TemplatedControl
         else if (change.Property == IsVibrantProperty)
         {
             UpdateVibrant();
+            UpdateCellShapes();
+        }
+        else if (change.Property == CornerRadiusProperty || change.Property == BorderThicknessProperty)
+        {
+            UpdateCellShapes();
         }
     }
 
@@ -135,10 +142,14 @@ public sealed class MaterialPeriodSelector : TemplatedControl
     private void OnSelectorKeyDown(object? sender, KeyEventArgs e)
     {
         if (!IsEffectivelyEnabled) return;
+        var invertHorizontal = Orientation == Orientation.Horizontal &&
+                               FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
         bool? requested = e.Key switch
         {
-            Key.Up or Key.Left => false,
-            Key.Down or Key.Right => true,
+            Key.Up => false,
+            Key.Down => true,
+            Key.Left => invertHorizontal,
+            Key.Right => !invertHorizontal,
             _ => null,
         };
 
@@ -180,6 +191,42 @@ public sealed class MaterialPeriodSelector : TemplatedControl
                 cell.Classes.Add("vibrant");
             else if (!IsVibrant && present)
                 cell.Classes.Remove("vibrant");
+        }
+    }
+
+    private void UpdateCellShapes()
+    {
+        var r = CornerRadius;
+        if (IsVibrant)
+        {
+            ApplyCellShape(_am, r);
+            ApplyCellShape(_pm, r);
+            return;
+        }
+
+        var bt = BorderThickness;
+        var tl = Math.Max(0, r.TopLeft - Math.Max(bt.Left, bt.Top));
+        var tr = Math.Max(0, r.TopRight - Math.Max(bt.Right, bt.Top));
+        var br = Math.Max(0, r.BottomRight - Math.Max(bt.Right, bt.Bottom));
+        var bl = Math.Max(0, r.BottomLeft - Math.Max(bt.Left, bt.Bottom));
+
+        if (Orientation == Orientation.Horizontal)
+        {
+            ApplyCellShape(_am, new CornerRadius(tl, 0, 0, bl));
+            ApplyCellShape(_pm, new CornerRadius(0, tr, br, 0));
+        }
+        else
+        {
+            ApplyCellShape(_am, new CornerRadius(tl, tr, 0, 0));
+            ApplyCellShape(_pm, new CornerRadius(0, 0, br, bl));
+        }
+
+        static void ApplyCellShape(ToggleButton? cell, CornerRadius radius)
+        {
+            if (cell is null) return;
+            cell.CornerRadius = radius;
+            Theming.MaterialAssist.SetFocusRingCornerRadius(cell, new CornerRadius(
+                radius.TopLeft + 5, radius.TopRight + 5, radius.BottomRight + 5, radius.BottomLeft + 5));
         }
     }
 }

@@ -47,12 +47,10 @@
         </Border>
       </ControlTemplate>
     </Setter>
-    <!-- Uncontained has no trailing inset in the source: the last card bleeds off the end. -->
+    <!-- Uncontained has no trailing inset in the source: the last card bleeds off the end.
+         Avalonia mirrors Padding once at the RTL boundary via Visual.HasMirrorTransform. -->
     <Style Selector="^:uncontained, ^:multi-aspect-ratio">
       <Setter Property="Padding" Value="16,8,0,8" />
-    </Style>
-    <Style Selector="^:uncontained[FlowDirection=RightToLeft], ^:multi-aspect-ratio[FlowDirection=RightToLeft]">
-      <Setter Property="Padding" Value="0,8,16,8" />
     </Style>
     <Style Selector="^:full-screen">
       <Setter Property="Padding" Value="0" />
@@ -118,13 +116,13 @@
                                       IsHitTestVisible="False" />
             </Panel>
           </Border>
-          <!-- The source has no selected card treatment; the ring exists so native selection,
-               which drives SelectionPattern and keyboard paging, stays visible. -->
+          <!-- Selection and focus rings follow MaskRect with clamped concentric radii in code so
+               non-focal/clipped cards retain all four edges. -->
           <Border Name="PART_SelectionRing" BorderBrush="{DynamicResource MaterialPrimaryBrush}"
-                  BorderThickness="2" CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderThickness="2" HorizontalAlignment="Left" VerticalAlignment="Top"
                   IsVisible="False" IsHitTestVisible="False" />
           <Border Name="PART_FocusRing" BorderBrush="{DynamicResource MaterialSecondaryBrush}"
-                  BorderThickness="3" Margin="3" CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderThickness="3" HorizontalAlignment="Left" VerticalAlignment="Top"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>

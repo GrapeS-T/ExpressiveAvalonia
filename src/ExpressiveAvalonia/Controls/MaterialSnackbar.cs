@@ -148,12 +148,14 @@ public sealed class MaterialSnackbar : TemplatedControl
     private MaterialSnackbarCloseReason? _lastCloseReason;
     private MaterialSnackbarCloseReason _exitReason;
     private DispatcherTimer? _autoDismissTimer;
+    private TextBlock? _textBlock;
     private Button? _actionButton;
     private Button? _closeButton;
     private StackPanel? _actionsPanel;
     private ScaleTransform? _scaleTransform;
     private MaterialSpringValue? _alpha;
     private MaterialSpringValue? _scale;
+    private bool _isMeasuredMultiline;
 
     public MaterialSnackbar()
     {
@@ -342,6 +344,8 @@ public sealed class MaterialSnackbar : TemplatedControl
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
+        if (_textBlock is not null)
+            _textBlock.SizeChanged -= OnTextBlockSizeChanged;
         if (_actionButton is not null)
             _actionButton.Click -= OnActionClick;
         if (_closeButton is not null)
@@ -349,10 +353,13 @@ public sealed class MaterialSnackbar : TemplatedControl
 
         base.OnApplyTemplate(e);
 
+        _textBlock = e.NameScope.Find<TextBlock>("PART_Text");
         _actionButton = e.NameScope.Find<Button>("PART_Action");
         _closeButton = e.NameScope.Find<Button>("PART_Close");
         _actionsPanel = e.NameScope.Find<StackPanel>("PART_Actions");
 
+        if (_textBlock is not null)
+            _textBlock.SizeChanged += OnTextBlockSizeChanged;
         if (_actionButton is not null)
             _actionButton.Click += OnActionClick;
         if (_closeButton is not null)
@@ -363,7 +370,9 @@ public sealed class MaterialSnackbar : TemplatedControl
         EnsureDrivers();
         JumpToOpenState(_showOnAttach ? false : _isOpen);
 
+        _isMeasuredMultiline = HasExplicitNewline(Text);
         UpdateVisualState();
+        RefreshMeasuredMultiline();
         if (_isOpen && !_showOnAttach && !_entrancePending)
             AnimateOpen();
     }
@@ -376,6 +385,12 @@ public sealed class MaterialSnackbar : TemplatedControl
             change.Property == IsCloseButtonVisibleProperty || change.Property == LineCountProperty ||
             change.Property == ActionPlacementProperty)
         {
+            if (change.Property == TextProperty)
+                _isMeasuredMultiline = HasExplicitNewline(Text);
+            else if (change.Property == LineCountProperty && LineCount == MaterialSnackbarLineCount.Auto)
+                _isMeasuredMultiline = (_textBlock is { Bounds.Width: > 0 } && _textBlock.TextLayout.TextLines.Count > 1) ||
+                                       HasExplicitNewline(Text);
+
             UpdateVisualState();
             if (change.Property == ActionContentProperty && _isOpen)
                 RestartAutoDismissTimer();
@@ -397,6 +412,7 @@ public sealed class MaterialSnackbar : TemplatedControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        LayoutUpdated += OnSnackbarLayoutUpdated;
         _detaching = false;
         if (_scaleTransform is null)
         {
@@ -451,6 +467,7 @@ public sealed class MaterialSnackbar : TemplatedControl
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        LayoutUpdated -= OnSnackbarLayoutUpdated;
         _detaching = true;
         StopAutoDismissTimer();
         _alpha?.Dispose();
@@ -528,15 +545,38 @@ public sealed class MaterialSnackbar : TemplatedControl
     private void OnCloseClick(object? sender, RoutedEventArgs e) =>
         Dismiss(MaterialSnackbarCloseReason.UserDismiss);
 
+    private void OnTextBlockSizeChanged(object? sender, SizeChangedEventArgs e) =>
+        RefreshMeasuredMultiline();
+
+    private void OnSnackbarLayoutUpdated(object? sender, EventArgs e) =>
+        RefreshMeasuredMultiline();
+
+    private void RefreshMeasuredMultiline()
+    {
+        if (LineCount != MaterialSnackbarLineCount.Auto || _textBlock is not { IsVisible: true, Bounds.Width: > 0 })
+            return;
+        var multiline = _textBlock.TextLayout.TextLines.Count > 1;
+        if (multiline == _isMeasuredMultiline)
+            return;
+        _isMeasuredMultiline = multiline;
+        UpdateVisualState();
+    }
+
+    private static bool HasExplicitNewline(string? text) =>
+        text?.Contains('\n', StringComparison.Ordinal) == true;
+
     private void UpdateVisualState()
     {
         var hasAction = ActionContent is not null;
         var lineCount = LineCount;
-        // Auto (the source measured layout) and the explicit TwoLines extension share the
-        // wrapping anatomy and its padding matrix; only the explicit caps change the text limit.
+        // Auto (the source measured layout) uses the 48 DIP single-line anatomy until the
+        // supporting text wraps onto two or more lines, while TwoLines always reserves both lines.
+        var isMultiline = lineCount == MaterialSnackbarLineCount.TwoLines ||
+                          (lineCount == MaterialSnackbarLineCount.Auto &&
+                           (_isMeasuredMultiline || (_textBlock is not { Bounds.Width: > 0 } && HasExplicitNewline(Text))));
         PseudoClasses.Set(":one-line", lineCount == MaterialSnackbarLineCount.OneLine);
         PseudoClasses.Set(":two-line", lineCount == MaterialSnackbarLineCount.TwoLines);
-        PseudoClasses.Set(":multi-line", lineCount != MaterialSnackbarLineCount.OneLine);
+        PseudoClasses.Set(":multi-line", isMultiline);
         PseudoClasses.Set(":with-action", hasAction);
         PseudoClasses.Set(":with-close", IsCloseButtonVisible);
         PseudoClasses.Set(":stacked-action", hasAction && ActionPlacement == MaterialSnackbarActionPlacement.Below);

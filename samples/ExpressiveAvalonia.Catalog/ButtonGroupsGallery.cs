@@ -89,6 +89,7 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
     private readonly StackPanel _densitySettings = new() { Spacing = 16 };
     private int _savedSelection;
     private bool _built;
+    private bool _syncing;
 
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
@@ -107,8 +108,6 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         // Split button anatomy: two independent halves, a real MenuFlyout on the trailing half,
         // hover/press seam-corner morphs and RTL mirroring.
         var splitIcon = new MaterialIcon { IconName = "share", IsDecorative = true };
-        splitIcon.Bind(TemplatedControl.ForegroundProperty,
-            _split.GetObservable(TemplatedControl.ForegroundProperty));
         _split.Icon = splitIcon;
         _split.Flyout = _splitMenu;
         _split.Click += (_, _) => _readout.Text = "Split: выполнено ведущее действие";
@@ -123,8 +122,6 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         // Checkable trailing variant without a popup: native activation toggles the trailing half,
         // morphs it to the full-round checked shape and paints the 10% content-colored layer.
         var toggleIcon = new MaterialIcon { IconName = "star", IsDecorative = true };
-        toggleIcon.Bind(TemplatedControl.ForegroundProperty,
-            _splitToggle.GetObservable(TemplatedControl.ForegroundProperty));
         _splitToggle.Icon = toggleIcon;
         _splitToggle.TrailingCheckedChanged += (_, _) =>
         {
@@ -207,18 +204,18 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         AutomationProperties.SetName(_labels, "Подписи элементов");
 
         foreach (var choice in new[] { _kind, _content, _shape, _selection, _orientation })
-            choice.SelectionChanged += (_, _) => Apply();
-        _variant.SelectionChanged += (_, _) => Apply();
-        _size.SelectionChanged += (_, _) => Apply();
+            choice.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _variant.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _size.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         foreach (var toggle in new[]
                  {
                      _check, _replace, _enabled, _rtl,
                      _splitPrimaryEnabled, _splitTrailingEnabled,
                  })
-            toggle.IsCheckedChanged += (_, _) => Apply();
+            toggle.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
         foreach (var slider in new[] { _density, _count })
-            slider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
-        _labels.TextChanged += (_, _) => Apply();
+            slider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_syncing) Apply(); };
+        _labels.TextChanged += (_, _) => { if (!_syncing) Apply(); };
         _group.SelectionChanged += (_, e) =>
         {
             if (e.SelectedIndex >= 0) _savedSelection = e.SelectedIndex;
@@ -241,18 +238,36 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         var variant = Variants[Math.Clamp(_variant.SelectedIndex, 0, Variants.Length - 1)];
         var size = (MaterialControlSize)Math.Clamp(_size.SelectedIndex, 0, 4);
         var shape = _shape.SelectedIndex == 1 ? MaterialButtonShape.Square : MaterialButtonShape.Round;
-        var mode = kind == MaterialButtonGroupKind.Segmented
-            ? MaterialButtonGroupSelectionMode.Single
-            : (MaterialButtonGroupSelectionMode)Math.Clamp(_selection.SelectedIndex, 0, 2);
+        if (_selection.Items[0] is MaterialButtonGroupItem noneOption)
+            noneOption.IsVisible = kind != MaterialButtonGroupKind.Segmented;
+        if (kind == MaterialButtonGroupKind.Segmented && _selection.SelectedIndex == 0)
+        {
+            _syncing = true;
+            _selection.SelectedIndex = 1;
+            _syncing = false;
+        }
+        var mode = (MaterialButtonGroupSelectionMode)Math.Clamp(
+            _selection.SelectedIndex,
+            kind == MaterialButtonGroupKind.Segmented ? 1 : 0,
+            2);
         var vertical = _orientation.SelectedIndex == 1;
-        var count = (int)Math.Round(_count.Value);
+        var maxCount = kind == MaterialButtonGroupKind.Segmented ? 5 : 6;
+        if (Math.Abs(_count.Maximum - maxCount) > 0.01)
+        {
+            _syncing = true;
+            if (_count.Value > maxCount)
+                _count.Value = maxCount;
+            _count.Maximum = maxCount;
+            _syncing = false;
+        }
+        var count = Math.Clamp((int)Math.Round(_count.Value), 2, maxCount);
         var labels = ParseLabels(count);
         var showIcon = content != 0;
         var showText = content != 1;
 
         _variantSettings.IsVisible = kind != MaterialButtonGroupKind.Segmented;
         _shapeSettings.IsVisible = kind != MaterialButtonGroupKind.Segmented;
-        _selectionSettings.IsVisible = kind != MaterialButtonGroupKind.Segmented;
+        _selectionSettings.IsVisible = true;
         _checkSettings.IsVisible = mode != MaterialButtonGroupSelectionMode.None;
         _replaceSettings.IsVisible = mode != MaterialButtonGroupSelectionMode.None &&
                                      _check.IsChecked == true && showIcon;
@@ -275,9 +290,10 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         _split.IsPrimaryEnabled = _splitPrimaryEnabled.IsChecked == true;
         _split.IsTrailingEnabled = _splitTrailingEnabled.IsChecked == true;
 
-        // The checkable variant shares the RTL and trailing-enabled controls so both splits show
+        // The checkable variant shares the RTL and segment-enabled controls so both splits show
         // the same mirrored seam and disabled composition; it deliberately has no popup.
         _splitToggle.FlowDirection = _split.FlowDirection;
+        _splitToggle.IsPrimaryEnabled = _split.IsPrimaryEnabled;
         _splitToggle.IsTrailingEnabled = _split.IsTrailingEnabled;
 
         SyncItems(count, labels, showText, showIcon);

@@ -88,7 +88,7 @@ public sealed class SheetValueChangeEventArgs(MaterialSheetValue value) : EventA
 /// when the spec stays the same.
 /// </para>
 /// </remarks>
-public abstract class MaterialSheet : ContentControl
+public abstract class MaterialSheet : ContentControl, IMaterialOverlayFocusChain
 {
     /// <summary>Identifies the <see cref="IsOpen"/> property.</summary>
     public static readonly StyledProperty<bool> IsOpenProperty =
@@ -453,6 +453,12 @@ public abstract class MaterialSheet : ContentControl
         SetScrimTarget(IsModal && value != MaterialSheetValue.Hidden ? 1 : 0);
     }
 
+    IInputElement? IMaterialOverlayFocusChain.RestoreFocusTarget
+    {
+        get => _previousFocus;
+        set => _previousFocus = value;
+    }
+
     /// <summary>Removes the overlay from the topmost-Escape registry when it is no longer visible.</summary>
     protected void UnregisterOverlay() => MaterialOverlayLifecycle.Unregister(_topLevel, this);
 
@@ -556,6 +562,8 @@ public abstract class MaterialSheet : ContentControl
         _position = null;
         _scrimAlpha?.Dispose();
         _scrimAlpha = null;
+        if (IsModal && _previousFocus is not null && _topLevel is not null)
+            MaterialOverlayLifecycle.RebaseFocusTargets(_topLevel, this, _previousFocus);
         UnregisterOverlay();
         _topLevel = null;
         _presenting = false;
@@ -681,7 +689,8 @@ public abstract class MaterialSheet : ContentControl
             _scrim.IsVisible = IsModal;
         SetScrimTarget(0);
         UpdateModalState();
-        MaterialOverlayLifecycle.Register(_topLevel, this);
+        if (IsModal)
+            MaterialOverlayLifecycle.Register(_topLevel, this);
 
         // The content must measure before the partial anchor and the sheet travel distance exist.
         await WaitForLayoutAsync();
@@ -929,6 +938,10 @@ public abstract class MaterialSheet : ContentControl
         _showTargetOverride = null;
         _showSpringOverride = null;
         staged?.TrySetResult(false);
+        var owner = _topLevel;
+        var wasTopmost = owner is null || !IsModal || MaterialOverlayLifecycle.IsTopmost(owner, this);
+        if (restoreFocus && IsModal && owner is not null)
+            MaterialOverlayLifecycle.RebaseFocusTargets(owner, this, _previousFocus);
         UnregisterOverlay();
         _scrimAlpha?.JumpTo(0);
 
@@ -945,7 +958,7 @@ public abstract class MaterialSheet : ContentControl
             _position.JumpTo(GetPosition(MaterialSheetValue.Hidden));
 
         var previous = _previousFocus;
-        var shouldRestore = restoreFocus && _restoreFocus;
+        var shouldRestore = restoreFocus && _restoreFocus && wasTopmost;
         _previousFocus = null;
         _restoreFocus = false;
 
@@ -954,7 +967,8 @@ public abstract class MaterialSheet : ContentControl
         Closed?.Invoke(this, EventArgs.Empty);
 
         if (shouldRestore && previous is Control { IsEffectivelyEnabled: true, IsEffectivelyVisible: true } control &&
-            control.IsAttachedToVisualTree())
+            control.IsAttachedToVisualTree() &&
+            (owner is null || ReferenceEquals(TopLevel.GetTopLevel(control), owner)))
             control.Focus(NavigationMethod.Unspecified);
     }
 
@@ -982,7 +996,10 @@ public abstract class MaterialSheet : ContentControl
         }
 
         UpdateModalState();
-        MaterialOverlayLifecycle.Register(_topLevel, this);
+        if (IsModal)
+            MaterialOverlayLifecycle.Register(_topLevel, this);
+        else
+            UnregisterOverlay();
 
         if (_openingRaised)
         {
@@ -1114,20 +1131,27 @@ public abstract class MaterialSheet : ContentControl
     {
         UpdateModalState();
 
-        if (_scrim is null)
-            return;
-
         if (IsModal && _presenting)
-        {
-            _scrim.IsVisible = true;
-            SetScrimTarget(_targetValue == MaterialSheetValue.Hidden ? 0 : 1);
-        }
+            MaterialOverlayLifecycle.Register(_topLevel, this);
         else
+            UnregisterOverlay();
+
+        if (_scrim is not null)
         {
-            _scrimAlpha?.JumpTo(0);
-            _scrim.Opacity = 0;
-            _scrim.IsVisible = false;
+            if (IsModal && _presenting)
+            {
+                _scrim.IsVisible = true;
+                SetScrimTarget(_targetValue == MaterialSheetValue.Hidden ? 0 : 1);
+            }
+            else
+            {
+                _scrimAlpha?.JumpTo(0);
+                _scrim.Opacity = 0;
+                _scrim.IsVisible = false;
+            }
         }
+
+        UpdatePositionFromState();
     }
 
     private void UpdateModalState()

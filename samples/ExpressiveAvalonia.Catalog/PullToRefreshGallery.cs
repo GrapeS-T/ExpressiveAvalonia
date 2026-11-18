@@ -1,8 +1,9 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Media;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
-using Avalonia.Media;
 using Avalonia.Threading;
 using ExpressiveAvalonia.Controls;
 
@@ -48,8 +49,16 @@ public static class PullToRefreshGallery
                 _refresh.GetObservable(MaterialPullToRefresh.DistanceFractionProperty));
             _customProgress.Bind(ProgressBar.IsIndeterminateProperty,
                 _refresh.GetObservable(MaterialPullToRefresh.IsRefreshingProperty));
+            var busy = new ToggleSwitch { Content = "Внешний IsRefreshing" };
+            var syncingBusy = false;
             _refresh.PropertyChanged += (_, e) =>
             {
+                if (e.Property == MaterialPullToRefresh.IsRefreshingProperty)
+                {
+                    syncingBusy = true;
+                    busy.IsChecked = _refresh.IsRefreshing;
+                    syncingBusy = false;
+                }
                 if (e.Property == MaterialPullToRefresh.DistanceFractionProperty ||
                     e.Property == MaterialPullToRefresh.IsRefreshingProperty)
                     UpdateReadout();
@@ -67,18 +76,33 @@ public static class PullToRefreshGallery
                 _status.Text = $"Обновлено: {++_refreshCount}";
             };
             DetachedFromVisualTree += (_, _) => { _completion.Stop(); _refresh.IsRefreshing = false; };
-            Children.Add(new Border
+            var frame = new Border
             {
-                Child = _refresh, CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1),
-                BorderBrush = Brushes.Gray, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
-            });
+                Child = _refresh,
+                CornerRadius = new CornerRadius(16),
+                BorderThickness = new Thickness(1),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            frame.Bind(Border.BorderBrushProperty, frame.GetResourceObservable("MaterialOutlineVariantBrush"));
+            Children.Add(frame);
             var mouse = new ToggleSwitch { Content = "Тянуть мышью (desktop extension)", IsChecked = true };
             mouse.IsCheckedChanged += (_, _) => _refresh.AllowMousePull = mouse.IsChecked == true;
-            var busy = new ToggleSwitch { Content = "Внешний IsRefreshing" };
-            busy.IsCheckedChanged += (_, _) => _refresh.IsRefreshing = busy.IsChecked == true;
+            busy.IsCheckedChanged += (_, _) =>
+            {
+                if (syncingBusy) return;
+                if (busy.IsChecked != true) _completion.Stop();
+                _refresh.IsRefreshing = busy.IsChecked == true;
+            };
             var finish = new Button { Content = "Завершить обновление" };
-            finish.Click += (_, _) => { _completion.Stop(); _refresh.IsRefreshing = false; busy.IsChecked = false; };
-            var indicator = new ComboBox { ItemsSource = new[] { "Circular arrow", "Expressive loading", "Custom linear progress" }, SelectedIndex = 1 };
+            finish.Click += (_, _) => { _completion.Stop(); _refresh.IsRefreshing = false; };
+            var indicator = new ComboBox
+            {
+                ItemsSource = new[] { "Circular arrow", "Expressive loading", "Custom linear progress" },
+                SelectedIndex = 1,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            AutomationProperties.SetName(indicator, "Тип индикатора обновления");
             indicator.SelectionChanged += (_, _) =>
             {
                 if (indicator.SelectedIndex == 2)
@@ -125,6 +149,7 @@ public static class PullToRefreshGallery
             {
                 Minimum = min, Maximum = max, Value = value, TickFrequency = 10, IsSnapToTickEnabled = true,
             };
+            AutomationProperties.SetName(slider, label);
             slider.PropertyChanged += (_, e) =>
             {
                 if (e.Property != RangeBase.ValueProperty) return;

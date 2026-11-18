@@ -171,7 +171,8 @@ public abstract class MaterialInteractionSurface : TemplatedControl
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Handled || !IsInteractive || !IsEffectivelyEnabled || !IsActivationKey(e.Key))
+        if (e.Handled || !IsFocused || e.KeyModifiers != KeyModifiers.None ||
+            !IsInteractive || !IsEffectivelyEnabled || !IsActivationKey(e.Key))
             return;
 
         // Auto-repeat sends more downs for the key already held; the source ignores them, so the
@@ -209,8 +210,12 @@ public abstract class MaterialInteractionSurface : TemplatedControl
     {
         base.OnPropertyChanged(change);
         // Disabling the surface or any ancestor cancels the pending gesture, including capture.
-        if (change.Property == InputElement.IsEffectivelyEnabledProperty && !IsEffectivelyEnabled)
-            CancelInteraction();
+        if (change.Property == InputElement.IsEffectivelyEnabledProperty)
+        {
+            UpdateCursor();
+            if (!IsEffectivelyEnabled)
+                CancelInteraction();
+        }
     }
 
     /// <inheritdoc />
@@ -258,7 +263,7 @@ public abstract class MaterialInteractionSurface : TemplatedControl
     {
         var interactive = IsInteractive;
         PseudoClasses.Set(":interactive", interactive);
-        Cursor = interactive ? s_hand : null;
+        UpdateCursor();
         // A control theme may declare the inert default (the avatar theme sets Focusable=False).
         // IsInteractive is usually set in a consumer initializer, before that theme is applied, and
         // SetCurrentValue keeps the priority the property had at that moment - which is Unset, so
@@ -270,4 +275,7 @@ public abstract class MaterialInteractionSurface : TemplatedControl
         if (!interactive)
             CancelInteraction();
     }
+
+    private void UpdateCursor() =>
+        SetValue(CursorProperty, IsInteractive && IsEffectivelyEnabled ? s_hand : null, BindingPriority.StyleTrigger);
 }

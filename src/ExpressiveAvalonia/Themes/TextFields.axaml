@@ -38,6 +38,7 @@
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     <Setter Property="CornerRadius" Value="20" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel>
@@ -50,15 +51,22 @@
                               ContentTemplate="{TemplateBinding ContentTemplate}"
                               HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
           </Border>
+          <ctrl:MaterialFocusIndicator Name="FocusRing" Margin="-1" UseLayoutRounding="False"
+                                       IsActive="True" IsVisible="False"
+                                       Stroke="{DynamicResource MaterialSecondaryBrush}"
+                                       StrokeThickness="3" CornerRadius="25"
+                                       IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^:focus-visible /template/ Border#ActionBorder">
-      <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
-      <Setter Property="BorderThickness" Value="2" />
+    <Style Selector="^:focus-visible /template/ ctrl|MaterialFocusIndicator#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ ctrl|MaterialFocusIndicator#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
   </ControlTheme>
 
@@ -70,6 +78,7 @@
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     <Setter Property="CornerRadius" Value="20" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel>
@@ -87,12 +96,22 @@
                     IsVisible="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" />
             </Panel>
           </Border>
+          <ctrl:MaterialFocusIndicator Name="FocusRing" Margin="-1" UseLayoutRounding="False"
+                                       IsActive="True" IsVisible="False"
+                                       Stroke="{DynamicResource MaterialSecondaryBrush}"
+                                       StrokeThickness="3" CornerRadius="25"
+                                       IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
     </Setter>
-    <Style Selector="^:focus-visible /template/ Border#RevealBorder">
-      <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
-      <Setter Property="BorderThickness" Value="2" />
+    <Style Selector="^:focus-visible /template/ ctrl|MaterialFocusIndicator#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ ctrl|MaterialFocusIndicator#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
   </ControlTheme>
 
@@ -148,6 +167,9 @@
           <Panel Name="FieldContainer" Grid.Row="1" MinHeight="{TemplateBinding MinHeight}">
             <Border Name="ContainerBackground" Background="{TemplateBinding Background}"
                     CornerRadius="{TemplateBinding CornerRadius}" />
+            <Border Name="StateLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
+                    CornerRadius="{TemplateBinding CornerRadius}" Opacity="0"
+                    IsHitTestVisible="False" />
             <Border Name="PART_BorderElement"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
@@ -266,7 +288,7 @@
                      FontSize="{DynamicResource MaterialBodySmallFontSize}"
                      LineHeight="{DynamicResource MaterialBodySmallLineHeight}"
                      LetterSpacing="{DynamicResource MaterialBodySmallLetterSpacing}"
-                     AutomationProperties.LiveSetting="Assertive"
+                     AutomationProperties.LiveSetting="Off"
                      IsVisible="{Binding (theming:MaterialTextField.EffectiveSupportingText), RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         </Grid>
       </ControlTemplate>
@@ -286,22 +308,29 @@
         <Setter Property="VerticalAlignment" Value="Top" />
       </Style>
     </Style>
+    <!-- A cutout label is centred on the border line and may render outside the container
+         while it crosses the outline, as the source does. An Inside label on an Outlined field
+         keeps the 24/8 vertical padding so input text clears the floating label. -->
     <Style Selector="^[(theming|MaterialTextField.Variant)=Outlined]">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="4" />
       <Setter Property="Padding" Value="16,16" />
-    </Style>
-    <!-- A cutout label is centred on the border line and may render outside the container
-         while it crosses the outline, as the source does. -->
-    <Style Selector="^[(theming|MaterialTextField.Variant)=Outlined]">
+      <Style Selector="^[(theming|MaterialTextField.HasInlineLabel)=True]">
+        <Style Selector="^[(theming|MaterialTextField.IsLabelCutout)=False]">
+          <Setter Property="Padding" Value="16,24,16,8" />
+        </Style>
+      </Style>
       <Style Selector="^[(theming|MaterialTextField.IsLabelCutout)=True]">
         <Setter Property="ClipToBounds" Value="False" />
       </Style>
     </Style>
     <Style Selector="^:pointerover:not(:disabled)">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^[(theming|MaterialTextField.Variant)=Filled]:pointerover:not(:disabled) /template/ Border#StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
     </Style>
     <!-- FilledTextFieldTokens.HoverLabelColor = OnSurfaceVariant (the resting label color),
          OutlinedTextFieldTokens.HoverLabelColor = OnSurface. -->
@@ -325,6 +354,7 @@
     </Style>
     <Style Selector="^:error:not(:disabled) /template/ TextBlock#SupportingText">
       <Setter Property="Foreground" Value="{DynamicResource MaterialErrorBrush}" />
+      <Setter Property="AutomationProperties.LiveSetting" Value="Assertive" />
     </Style>
     <Style Selector="^:error:not(:disabled) /template/ ContentPresenter#TrailingContent, ^:error:not(:disabled) /template/ ContentPresenter#InnerTrailingContent">
       <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialErrorBrush}" />
@@ -343,9 +373,9 @@
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnErrorContainerBrush}" />
     </Style>
     <!-- Disabled roles are composited into the color, never applied as control opacity.
-         The default filled field keeps its SurfaceContainerHighest container with a 1-DIP
-         OnSurface 38% indicator; the outlined field is transparent with an OnSurface 12%
-         1-DIP outline (Filled/OutlinedTextFieldTokens). -->
+         The default filled field uses OnSurface at 4% with a 1-DIP OnSurface 38% indicator;
+         the outlined field is transparent with an OnSurface 12% 1-DIP outline
+         (Filled/OutlinedTextFieldTokens). -->
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
       <Setter Property="PlaceholderForeground" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
@@ -356,7 +386,7 @@
       <Setter Property="theming:MaterialTextField.LabelBrush" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
     </Style>
     <Style Selector="^[(theming|MaterialTextField.Variant)=Filled]:disabled">
-      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialTextFieldDisabledContainerBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialTextFieldDisabledContentBrush}" />
       <Setter Property="BorderThickness" Value="0,0,0,1" />
     </Style>
@@ -391,7 +421,13 @@
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             Margin="{TemplateBinding Padding}"
-                            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center" />
+                            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center">
+            <ContentPresenter.Styles>
+              <Style Selector="ListBoxItem:not(:selected):not(:disabled) TextBlock#MenuSupportingText">
+                <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+              </Style>
+            </ContentPresenter.Styles>
+          </ContentPresenter>
           <Border Name="Divider" Height="1" VerticalAlignment="Bottom" Margin="12,0"
                   Background="{DynamicResource MaterialOutlineVariantBrush}" IsHitTestVisible="False" />
         </Panel>
@@ -401,19 +437,12 @@
       <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
     </Style>
-    <!-- The row content is a data template, so the colors are applied to the presenter's
-         content rather than as local values (which would win over these state setters). -->
-    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter TextBlock#MenuLabel">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    </Style>
-    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter TextBlock#MenuSupportingText">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-    </Style>
-    <Style Selector="^:selected /template/ ContentPresenter#PART_ContentPresenter TextBlock#MenuLabel, ^:selected /template/ ContentPresenter#PART_ContentPresenter TextBlock#MenuSupportingText">
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
-    </Style>
     <Style Selector="^:disabled">
-      <Setter Property="Opacity" Value="0.38" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#StateLayer">
+      <Setter Property="IsVisible" Value="False" />
+      <Setter Property="Opacity" Value="0" />
     </Style>
   </ControlTheme>
 
@@ -444,6 +473,7 @@
     <Setter Property="MinWidth" Value="200" />
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="PlaceholderText" Value="{DynamicResource MaterialSearchPlaceholderText}" />
     <Setter Property="Template">
       <ControlTemplate>
         <StackPanel>
@@ -473,5 +503,8 @@
         </StackPanel>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^:disabled /template/ TextBlock#PART_Empty">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
   </ControlTheme>
 </ResourceDictionary>

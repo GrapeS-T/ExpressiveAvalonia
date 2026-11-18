@@ -446,6 +446,8 @@ public sealed class MaterialTextField : AvaloniaObject
                 _clear.Click += OnClearClick;
             SetPresenter(args.NameScope.Find<TextPresenter>("PART_TextPresenter"));
             UpdateObfuscation();
+            UpdateReveal();
+            UpdateClear();
             ReadLabelType();
             _decorationReady = false;
             UpdateLabel();
@@ -546,8 +548,7 @@ public sealed class MaterialTextField : AvaloniaObject
             // placement; only the opacity changes between expanded and minimized label states.
             var hasPrefix = !string.IsNullOrEmpty(GetPrefix(_box));
             var hasSuffix = !string.IsNullOrEmpty(GetSuffix(_box));
-            var hasAction = (GetShowClearButton(_box) && !_box.IsReadOnly) ||
-                (GetShowPasswordReveal(_box) && _box.PasswordChar != '\0' && !_box.IsReadOnly && !_box.AcceptsReturn);
+            var hasAction = GetIsClearAvailable(_box) || GetIsRevealAvailable(_box);
             var actionOnly = GetTrailingContent(_box) is null && _box.InnerRightContent is null;
             var right = hasAction && actionOnly ? Math.Max(0, padding.Right - 12) : padding.Right;
             // A 24dp icon with 12dp outer space occupies 36dp. Retaining 16dp inner
@@ -740,9 +741,8 @@ public sealed class MaterialTextField : AvaloniaObject
             var trailing = _trailingSlot?.Bounds.Width ?? 0;
             var padding = _box.Padding;
             var cutout = GetIsLabelCutout(_box);
-            var rtl = _box.FlowDirection == FlowDirection.RightToLeft;
-            var expandedAlignment = Resolve(GetExpandedLabelAlignment(_box), rtl);
-            var minimizedAlignment = Resolve(GetMinimizedLabelAlignment(_box), rtl);
+            var expandedAlignment = Resolve(GetExpandedLabelAlignment(_box));
+            var minimizedAlignment = Resolve(GetMinimizedLabelAlignment(_box));
 
             var expandedLeft = leading + padding.Left;
             var expandedRight = trailing + padding.Right;
@@ -944,9 +944,7 @@ public sealed class MaterialTextField : AvaloniaObject
             if (property == TextBox.PaddingProperty || property == PrefixProperty || property == SuffixProperty ||
                 property == HasLabelProperty || property == IsLabelFloatingProperty ||
                 property == LabelPositionProperty ||
-                property == ShowPasswordRevealProperty || property == ShowClearButtonProperty ||
-                property == TextBox.PasswordCharProperty || property == TextBox.IsReadOnlyProperty ||
-                property == TextBox.AcceptsReturnProperty ||
+                property == IsRevealAvailableProperty || property == IsClearAvailableProperty ||
                 property == TrailingContentProperty || property == TextBox.InnerRightContentProperty)
             {
                 UpdateMargins();
@@ -1087,25 +1085,25 @@ public sealed class MaterialTextField : AvaloniaObject
         }
 
         // Source TextFieldLabelPosition.Alignment: minimized/expanded for Inside and Cutout,
-        // a single alignment for Above. Alignment.Start/End are flow-relative, so the resolved
-        // value flips with FlowDirection and the template only binds the horizontal result.
+        // a single alignment for Above. Avalonia mirrors the control's coordinate plane once for
+        // RightToLeft FlowDirection, so logical Start/End map to local Left/Right without a second
+        // manual inversion.
         private void UpdateAlignment()
         {
-            var rtl = _box.FlowDirection == FlowDirection.RightToLeft;
             var inline = GetIsLabelFloating(_box)
                 ? GetMinimizedLabelAlignment(_box)
                 : GetExpandedLabelAlignment(_box);
-            _box.SetCurrentValue(EffectiveLabelAlignmentProperty, Resolve(inline, rtl));
+            _box.SetCurrentValue(EffectiveLabelAlignmentProperty, Resolve(inline));
             _box.SetCurrentValue(EffectiveAboveLabelAlignmentProperty,
-                Resolve(GetAboveLabelAlignment(_box), rtl));
+                Resolve(GetAboveLabelAlignment(_box)));
         }
 
-        private static HorizontalAlignment Resolve(MaterialTextFieldLabelAlignment alignment, bool rtl) =>
+        private static HorizontalAlignment Resolve(MaterialTextFieldLabelAlignment alignment) =>
             alignment switch
             {
                 MaterialTextFieldLabelAlignment.Center => HorizontalAlignment.Center,
-                MaterialTextFieldLabelAlignment.End => rtl ? HorizontalAlignment.Left : HorizontalAlignment.Right,
-                _ => rtl ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+                MaterialTextFieldLabelAlignment.End => HorizontalAlignment.Right,
+                _ => HorizontalAlignment.Left,
             };
 
         private TextObfuscationMode ResolveObfuscationMode() => GetTextObfuscationMode(_box) switch

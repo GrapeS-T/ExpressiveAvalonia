@@ -131,7 +131,7 @@ public sealed class MaterialDialogClosedEventArgs(object? result) : EventArgs
 /// Avalonia modal semantics rather than a transcription of source scripts.
 /// </para>
 /// </remarks>
-[PseudoClasses(":open", ":icon", ":full-screen")]
+[PseudoClasses(":open", ":icon", ":full-screen", ":no-actions")]
 public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
 {
     /// <summary>Design source identity of the icon used by the source dialog family.</summary>
@@ -173,6 +173,7 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
     private readonly Dictionary<Button, MaterialButtonVariant> _buttonVariants = [];
     private readonly Dictionary<Button, IDisposable> _foregroundBindings = [];
     private MaterialDialogActionsPanel? _actionsPanel;
+    private Button? _closeButton;
     private INotifyCollectionChanged? _observedActions;
     private TopLevel? _owner;
     private OverlayLayer? _overlay;
@@ -198,11 +199,14 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
     private bool _inputSuppressed;
     private bool _previousIsEnabled;
     private bool _previousIsHitTestVisible;
+    private bool _isFullScreenActive;
 
     public MaterialDialog()
     {
         Actions = new AvaloniaList<MaterialDialogAction>();
         Focusable = true;
+        KeyboardNavigation.SetIsTabStop(this, false);
+        PseudoClasses.Set(":no-actions", true);
         AutomationProperties.SetControlTypeOverride(this, AutomationControlType.Pane);
     }
 
@@ -490,11 +494,18 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         base.OnApplyTemplate(e);
+        if (_closeButton is not null)
+            _closeButton.Click -= OnCloseButtonClick;
         _actionsPanel = e.NameScope.Find<MaterialDialogActionsPanel>("PART_Actions");
-        if (e.NameScope.Find<Button>("PART_CloseButton") is { } close)
-            close.Click += (_, _) => InvokeCancel();
+        _closeButton = e.NameScope.Find<Button>("PART_CloseButton");
+        if (_closeButton is not null)
+            _closeButton.Click += OnCloseButtonClick;
+        UpdateIconState();
+        UpdateFullScreenPresentation();
         UpdateActions();
     }
+
+    private void OnCloseButtonClick(object? sender, RoutedEventArgs e) => InvokeCancel();
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -516,13 +527,36 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
         {
             UpdateIconState();
         }
-        else if (change.Property == IsFullScreenProperty && _owner is not null)
+        else if (change.Property == IsFullScreenProperty)
         {
-            UpdateConstraints(_owner);
+            UpdateFullScreenPresentation();
+        }
+        else if (change.Property == BoundsProperty && _owner is null)
+        {
+            UpdateFullScreenPresentation();
         }
     }
 
     private void UpdateIconState() => PseudoClasses.Set(":icon", Icon is not null);
+
+    private void SetFullScreenActive(bool fullScreen)
+    {
+        if (_isFullScreenActive == fullScreen)
+            return;
+        _isFullScreenActive = fullScreen;
+        PseudoClasses.Set(":full-screen", fullScreen);
+        UpdateActionVisibility();
+    }
+
+    private void UpdateFullScreenPresentation()
+    {
+        if (_owner is not null)
+        {
+            UpdateConstraints(_owner);
+            return;
+        }
+        SetFullScreenActive(IsFullScreen && (Bounds.Width <= 0 || Bounds.Width < 600));
+    }
 
     private static OverlayLayer? FindOverlay(TopLevel owner)
     {
@@ -545,14 +579,15 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
 
     private void UpdateConstraints(TopLevel owner)
     {
-        var height = owner.ClientSize.Height;
-        if (height <= 0)
-            return;
-        var fullScreen = IsFullScreen && owner.ClientSize.Width < 600;
-        PseudoClasses.Set(":full-screen", fullScreen);
+        var width = owner.ClientSize.Width;
+        var fullScreen = IsFullScreen && (width <= 0 || width < 600);
+        SetFullScreenActive(fullScreen);
         HorizontalAlignment = fullScreen ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
         VerticalAlignment = fullScreen ? VerticalAlignment.Stretch : VerticalAlignment.Center;
         Margin = fullScreen ? default : new Thickness(24);
+        var height = owner.ClientSize.Height;
+        if (height <= 0)
+            return;
         if (!_appliedMaxHeight && double.IsPositiveInfinity(MaxHeight))
         {
             _previousMaxHeight = MaxHeight;
@@ -738,6 +773,7 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
     private void ApplyActionProperties(Button button, MaterialDialogAction action)
     {
         button.Content = action.Text;
+        button.IsVisible = !(_isFullScreenActive && action.IsCancel);
         button.IsEnabled = !_inputSuppressed && action.IsEnabled;
         button.Command = action.Command;
         button.CommandParameter = action.CommandParameter;
@@ -765,21 +801,61 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
     private void OnActionPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (sender is MaterialDialogAction action && _buttons.TryGetValue(action, out var button))
+        {
             ApplyActionProperties(button, action);
+            UpdateActionLayout();
+        }
     }
 
     private void OnActionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdateActions();
 
+    private void UpdateActionVisibility()
+    {
+        foreach (var pair in _buttons)
+            pair.Value.IsVisible = !(_isFullScreenActive && pair.Key.IsCancel);
+        UpdateActionLayout();
+    }
+
     private void UpdateActionLayout()
     {
+        var hasVisible = false;
         if (_actionsPanel is not null)
-            _actionsPanel.IsVisible = _actionsPanel.Children.Count > 0;
+        {
+            foreach (var child in _actionsPanel.Children)
+            {
+                if (child.IsVisible)
+                {
+                    hasVisible = true;
+                    break;
+                }
+            }
+            _actionsPanel.IsVisible = hasVisible;
+            _actionsPanel.InvalidateMeasure();
+        }
+        else if (Actions is not null)
+        {
+            foreach (var action in Actions)
+            {
+                if (!(_isFullScreenActive && action.IsCancel))
+                {
+                    hasVisible = true;
+                    break;
+                }
+            }
+        }
+        PseudoClasses.Set(":no-actions", !hasVisible);
     }
 
     private void FocusInitial()
     {
-        // Material dialogs move focus to the first focusable element: a field, the first list
-        // row, or the first action. The dialog itself is the fallback for text-only dialogs.
+        // Material dialogs move focus to the first tab-stoppable interactive element: a field, the
+        // first list row, or the first action. The dialog itself is the fallback for text-only dialogs.
+        foreach (var control in this.GetVisualDescendants().OfType<Control>())
+        {
+            if (control.Focusable && KeyboardNavigation.GetIsTabStop(control) &&
+                control.IsEffectivelyVisible && control.IsEffectivelyEnabled && control.Focus())
+                return;
+        }
         foreach (var control in this.GetVisualDescendants().OfType<Control>())
         {
             if (control.Focusable && control.IsEffectivelyVisible && control.IsEffectivelyEnabled && control.Focus())
@@ -939,6 +1015,7 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
             _previousMaxHeight = double.PositiveInfinity;
             _appliedMaxHeight = false;
         }
+        UpdateFullScreenPresentation();
 
         if (!_focusRestored && restoreFocus && wasTopmost && ownsFocus &&
             previous is Control { IsEffectivelyEnabled: true, IsVisible: true } control &&
@@ -972,7 +1049,10 @@ public sealed class MaterialDialogActionsPanel : Panel
             ? double.PositiveInfinity
             : Math.Max(0, maxWidth);
         foreach (var child in Children)
-            child.Measure(new Size(childConstraintWidth, availableSize.Height));
+        {
+            if (child.IsVisible)
+                child.Measure(new Size(childConstraintWidth, availableSize.Height));
+        }
 
         var lines = BuildLines(maxWidth);
         var width = 0d;
@@ -1038,6 +1118,8 @@ public sealed class MaterialDialogActionsPanel : Panel
 
         foreach (var child in Children)
         {
+            if (!child.IsVisible)
+                continue;
             var childWidth = child.DesiredSize.Width;
             var nextWidth = line.Count == 0 ? childWidth : lineWidth + ItemSpacing + childWidth;
             if (line.Count > 0 && !double.IsPositiveInfinity(maxWidth) && nextWidth > maxWidth)

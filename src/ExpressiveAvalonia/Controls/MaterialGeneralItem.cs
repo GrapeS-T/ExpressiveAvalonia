@@ -1,10 +1,12 @@
 using Avalonia;
-using Avalonia.Data;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -55,6 +57,8 @@ public sealed class MaterialGeneralItem : ContentControl
     public static readonly StyledProperty<CornerRadius> TileCornerRadiusProperty =
         AvaloniaProperty.Register<MaterialGeneralItem, CornerRadius>(nameof(TileCornerRadius), new CornerRadius(16));
 
+    private static readonly Cursor s_hand = new(StandardCursorType.Hand);
+
     private Border? _tile;
     private MaterialRipple? _stateLayer;
     private Border? _focusRing;
@@ -68,6 +72,7 @@ public sealed class MaterialGeneralItem : ContentControl
     static MaterialGeneralItem()
     {
         IsSelectedProperty.Changed.AddClassHandler<MaterialGeneralItem>(static (item, _) => item.UpdateVisualState());
+        TileCornerRadiusProperty.Changed.AddClassHandler<MaterialGeneralItem>(static (item, _) => item.UpdateCornerRadii());
         ShowCarouselTextProperty.Changed.AddClassHandler<MaterialGeneralItem>(static (item, _) => item.UpdateCaption());
         ShowSupportingTextProperty.Changed.AddClassHandler<MaterialGeneralItem>(static (item, _) => item.UpdateCaption());
         LabelProperty.Changed.AddClassHandler<MaterialGeneralItem>(static (item, _) => item.UpdateCaption());
@@ -76,8 +81,13 @@ public sealed class MaterialGeneralItem : ContentControl
 
     public MaterialGeneralItem()
     {
+        ClipToBounds = false;
         Focusable = true;
         IsTabStop = true;
+        Classes.CollectionChanged += (_, _) => UpdateVisualState();
+        ResourcesChanged += (_, _) => UpdateAutomationName();
+        UpdateAutomationName();
+        UpdateVisualState();
         Template = new FuncControlTemplate<MaterialGeneralItem>((item, _) => item.Build());
     }
 
@@ -92,7 +102,14 @@ public sealed class MaterialGeneralItem : ContentControl
     public CornerRadius TileCornerRadius { get => GetValue(TileCornerRadiusProperty); set => SetValue(TileCornerRadiusProperty, value); }
 
     /// <summary>Invokes the tile as if the user activated it.</summary>
-    public void Invoke() => Invoked?.Invoke(this, EventArgs.Empty);
+    public void Invoke()
+    {
+        if (!IsEffectivelyEnabled)
+            return;
+        Invoked?.Invoke(this, EventArgs.Empty);
+    }
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new MaterialGeneralItemAutomationPeer(this);
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -122,8 +139,19 @@ public sealed class MaterialGeneralItem : ContentControl
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == IsEffectivelyEnabledProperty && !IsEffectivelyEnabled)
-            CancelActivation();
+        if (change.Property == IsEffectivelyEnabledProperty)
+        {
+            if (!IsEffectivelyEnabled)
+                CancelActivation();
+            UpdateVisualState();
+        }
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        UpdateAutomationName();
+        UpdateVisualState();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -218,9 +246,9 @@ public sealed class MaterialGeneralItem : ContentControl
 
         _focusRing = new Border
         {
-            Margin = new Thickness(-3),
+            Margin = new Thickness(-5),
             BorderThickness = new Thickness(3),
-            CornerRadius = new CornerRadius(TileCornerRadius.TopLeft + 3),
+            CornerRadius = OffsetCornerRadius(TileCornerRadius, 5),
             IsVisible = false,
             IsHitTestVisible = false
         };
@@ -229,7 +257,7 @@ public sealed class MaterialGeneralItem : ContentControl
         _selectionRing = new Border
         {
             BorderThickness = new Thickness(3),
-            CornerRadius = new CornerRadius(TileCornerRadius.TopLeft + 1),
+            CornerRadius = TileCornerRadius,
             IsVisible = false,
             IsHitTestVisible = false
         };
@@ -249,19 +277,32 @@ public sealed class MaterialGeneralItem : ContentControl
         };
         _tile.Bind(Border.BackgroundProperty, _tile.GetResourceObservable("MaterialSurfaceContainerHighestBrush"));
 
-        _tile.PointerEntered += (_, _) => UpdateVisualState(pointerOver: true);
-        _tile.PointerExited += (_, _) => UpdateVisualState(pointerOver: false);
         _tile.SizeChanged += (_, _) => UpdateClip();
         GotFocus += (_, _) => UpdateVisualState();
         LostFocus += (_, _) => UpdateVisualState();
 
-        var outer = new Grid();
+        var outer = new Grid { ClipToBounds = false };
         outer.Children.Add(_tile);
         outer.Children.Add(_focusRing);
 
         UpdateCaption();
+        UpdateCornerRadii();
         UpdateVisualState();
         return outer;
+    }
+
+    private void UpdateCornerRadii()
+    {
+        var radius = TileCornerRadius;
+        if (_tile is not null)
+            _tile.CornerRadius = radius;
+        if (_stateLayer is not null)
+            _stateLayer.CornerRadius = radius;
+        if (_focusRing is not null)
+            _focusRing.CornerRadius = OffsetCornerRadius(radius, 5);
+        if (_selectionRing is not null)
+            _selectionRing.CornerRadius = radius;
+        UpdateClip();
     }
 
     private void UpdateClip()
@@ -269,29 +310,100 @@ public sealed class MaterialGeneralItem : ContentControl
         if (_tile is null) return;
         var size = _tile.Bounds.Size;
         if (size.Width <= 0 || size.Height <= 0) return;
-        var radius = TileCornerRadius.TopLeft;
-        _tile.Clip = new RectangleGeometry(new Rect(size), radius, radius);
+        _tile.Clip = CreateRoundedClip(size, TileCornerRadius);
     }
+
+    private static Geometry CreateRoundedClip(Size size, CornerRadius radius)
+    {
+        var max = Math.Min(size.Width, size.Height) / 2d;
+        if (radius.IsUniform)
+        {
+            var r = Math.Clamp(radius.TopLeft, 0d, max);
+            return new RectangleGeometry(new Rect(size), r, r);
+        }
+
+        var tl = Math.Clamp(radius.TopLeft, 0d, max);
+        var tr = Math.Clamp(radius.TopRight, 0d, max);
+        var br = Math.Clamp(radius.BottomRight, 0d, max);
+        var bl = Math.Clamp(radius.BottomLeft, 0d, max);
+        var geometry = new StreamGeometry();
+        using var ctx = geometry.Open();
+        ctx.BeginFigure(new Point(tl, 0), isFilled: true);
+        ctx.LineTo(new Point(size.Width - tr, 0));
+        if (tr > 0)
+            ctx.ArcTo(new Point(size.Width, tr), new Size(tr, tr), 0, false, SweepDirection.Clockwise);
+        ctx.LineTo(new Point(size.Width, size.Height - br));
+        if (br > 0)
+            ctx.ArcTo(new Point(size.Width - br, size.Height), new Size(br, br), 0, false, SweepDirection.Clockwise);
+        ctx.LineTo(new Point(bl, size.Height));
+        if (bl > 0)
+            ctx.ArcTo(new Point(0, size.Height - bl), new Size(bl, bl), 0, false, SweepDirection.Clockwise);
+        ctx.LineTo(new Point(0, tl));
+        if (tl > 0)
+            ctx.ArcTo(new Point(tl, 0), new Size(tl, tl), 0, false, SweepDirection.Clockwise);
+        ctx.EndFigure(isClosed: true);
+        return geometry;
+    }
+
+    private static CornerRadius OffsetCornerRadius(CornerRadius radius, double delta) =>
+        new(
+            Math.Max(0d, radius.TopLeft + delta),
+            Math.Max(0d, radius.TopRight + delta),
+            Math.Max(0d, radius.BottomRight + delta),
+            Math.Max(0d, radius.BottomLeft + delta));
 
     private void UpdateCaption()
     {
-        if (_caption is not Border { Child: StackPanel text }) return;
-        text.Children[0].IsVisible = !string.IsNullOrEmpty(Label);
-        if (text.Children[0] is TextBlock label) label.Text = Label;
-        text.Children[1].IsVisible = ShowSupportingText && !string.IsNullOrEmpty(SupportingText);
-        if (text.Children[1] is TextBlock supporting) supporting.Text = SupportingText;
-        _caption.IsVisible = ShowCarouselText && (!string.IsNullOrEmpty(Label) || !string.IsNullOrEmpty(SupportingText));
-        _autoAutomationName?.Dispose();
-        _autoAutomationName = SetValue(AutomationProperties.NameProperty,
-            Label ?? SupportingText ?? "Item", BindingPriority.Style);
+        if (_caption is Border { Child: StackPanel text })
+        {
+            text.Children[0].IsVisible = !string.IsNullOrEmpty(Label);
+            if (text.Children[0] is TextBlock label) label.Text = Label;
+            text.Children[1].IsVisible = ShowSupportingText && !string.IsNullOrEmpty(SupportingText);
+            if (text.Children[1] is TextBlock supporting) supporting.Text = SupportingText;
+            _caption.IsVisible = ShowCarouselText && (!string.IsNullOrEmpty(Label) || !string.IsNullOrEmpty(SupportingText));
+        }
+
+        UpdateAutomationName();
     }
 
-    private bool _pointerOver;
-
-    private void UpdateVisualState(bool? pointerOver = null)
+    private void UpdateAutomationName()
     {
-        if (pointerOver is { } value) _pointerOver = value;
-        if (_focusRing is not null) _focusRing.IsVisible = IsFocused;
-        if (_selectionRing is not null) _selectionRing.IsVisible = IsSelected;
+        var fallback = this.TryFindResource("MaterialGeneralItemText", ActualThemeVariant, out var resource)
+                       && resource is string text && !string.IsNullOrEmpty(text)
+            ? text
+            : "Item";
+        var name = !string.IsNullOrEmpty(Label) ? Label
+            : !string.IsNullOrEmpty(SupportingText) ? SupportingText
+            : fallback;
+        _autoAutomationName?.Dispose();
+        _autoAutomationName = SetValue(AutomationProperties.NameProperty, name, BindingPriority.Style);
+    }
+
+    private void UpdateVisualState()
+    {
+        var enabled = IsEffectivelyEnabled;
+        SetValue(CursorProperty, enabled ? s_hand : null, BindingPriority.StyleTrigger);
+        if (_tile is not null)
+            _tile.Opacity = enabled ? 1d : 0.38d;
+        if (_focusRing is not null)
+            _focusRing.IsVisible = enabled && IsFocused && Classes.Contains(":focus-visible");
+        if (_selectionRing is not null)
+            _selectionRing.IsVisible = enabled && IsSelected;
+    }
+
+    private sealed class MaterialGeneralItemAutomationPeer(MaterialGeneralItem owner)
+        : ContentControlAutomationPeer(owner), IInvokeProvider
+    {
+        protected override AutomationControlType GetAutomationControlTypeCore() =>
+            AutomationControlType.Button;
+
+        protected override string GetClassNameCore() => nameof(MaterialGeneralItem);
+
+        public void Invoke()
+        {
+            if (!IsEnabled())
+                throw new ElementNotEnabledException();
+            owner.Invoke();
+        }
     }
 }

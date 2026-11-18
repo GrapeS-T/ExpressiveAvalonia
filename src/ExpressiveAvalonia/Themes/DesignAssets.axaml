@@ -61,22 +61,24 @@
             <ContentPresenter Name="PART_LabelContent"
                               Content="{TemplateBinding Label}"
                               ContentTemplate="{TemplateBinding LabelTemplate}"
+                              LineHeight="{DynamicResource MaterialBodySmallLineHeight}"
+                              TextWrapping="Wrap"
                               TextElement.FontFamily="{DynamicResource MaterialFontFamily}"
                               TextElement.FontSize="{DynamicResource MaterialBodySmallFontSize}"
                               TextElement.FontWeight="{DynamicResource MaterialBodySmallFontWeight}"
                               TextElement.LetterSpacing="{DynamicResource MaterialBodySmallLetterSpacing}"
-                              TextElement.Foreground="{DynamicResource MaterialInverseOnSurfaceBrush}" />
+                              TextElement.Foreground="{DynamicResource MaterialInverseOnSurfaceBrush}">
+              <ContentPresenter.Styles>
+                <Style Selector="TextBlock">
+                  <Setter Property="LineHeight" Value="{DynamicResource MaterialBodySmallLineHeight}" />
+                  <Setter Property="TextWrapping" Value="Wrap" />
+                </Style>
+              </ContentPresenter.Styles>
+            </ContentPresenter>
           </Border>
         </controls:MaterialLabelPanel>
       </ControlTemplate>
     </Setter>
-    <!-- Plain tooltips use the body-small token, including its 16 unit line height, and wrap at
-         their 200 maximum width. The style targets the generated TextBlock because the
-         ContentPresenter itself does not carry a LineHeight attached property. -->
-    <Style Selector="^ /template/ ContentPresenter#PART_LabelContent TextBlock">
-      <Setter Property="LineHeight" Value="{DynamicResource MaterialBodySmallLineHeight}" />
-      <Setter Property="TextWrapping" Value="Wrap" />
-    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type controls:MaterialTonalSwatch}" TargetType="controls:MaterialTonalSwatch">

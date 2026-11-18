@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Media;
 
@@ -58,6 +60,7 @@ public sealed class MaterialDivider : TemplatedControl
         Focusable = false;
         IsTabStop = false;
         IsHitTestVisible = false;
+        UpdateSubheaderState();
     }
 
     /// <summary>Defines the <see cref="Orientation"/> property.</summary>
@@ -88,8 +91,18 @@ public sealed class MaterialDivider : TemplatedControl
 
     static MaterialDivider()
     {
-        SubheaderProperty.Changed.AddClassHandler<MaterialDivider>((divider, _) =>
-            divider.SetCurrentValue(HasSubheaderProperty, !string.IsNullOrEmpty(divider.Subheader)));
+        SubheaderProperty.Changed.AddClassHandler<MaterialDivider>(static (divider, _) => divider.UpdateSubheaderState());
+        OrientationProperty.Changed.AddClassHandler<MaterialDivider>(static (divider, _) => divider.UpdateSubheaderState());
+    }
+
+    private void UpdateSubheaderState()
+    {
+        var hasSubheader = !string.IsNullOrEmpty(Subheader);
+        SetCurrentValue(HasSubheaderProperty, hasSubheader);
+        SetValue(
+            AutomationProperties.AccessibilityViewProperty,
+            hasSubheader && Orientation == Orientation.Horizontal ? AccessibilityView.Content : AccessibilityView.Raw,
+            BindingPriority.StyleTrigger);
     }
 
     /// <summary>Gets or sets whether the line runs horizontally or vertically.</summary>

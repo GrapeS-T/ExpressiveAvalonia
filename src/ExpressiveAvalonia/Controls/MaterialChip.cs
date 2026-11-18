@@ -122,6 +122,10 @@ public class MaterialChip : Button
     public static readonly StyledProperty<double> LeadingSlotWidthProperty =
         AvaloniaProperty.Register<MaterialChip, double>(nameof(LeadingSlotWidth));
 
+    /// <summary>The animated margin of the leading content slot.</summary>
+    public static readonly StyledProperty<Thickness> LeadingSlotMarginProperty =
+        AvaloniaProperty.Register<MaterialChip, Thickness>(nameof(LeadingSlotMargin), new Thickness(0, -2, 0, -2));
+
     /// <summary>The animated opacity of the leading content slot.</summary>
     public static readonly StyledProperty<double> LeadingSlotOpacityProperty =
         AvaloniaProperty.Register<MaterialChip, double>(nameof(LeadingSlotOpacity));
@@ -130,9 +134,13 @@ public class MaterialChip : Button
     public static readonly StyledProperty<bool> IsLeadingSlotVisibleProperty =
         AvaloniaProperty.Register<MaterialChip, bool>(nameof(IsLeadingSlotVisible));
 
-    /// <summary>The animated width of the trailing content slot, 0, 7.5 or 18 DIP.</summary>
+    /// <summary>The animated width of the trailing content slot, 0 or 18 DIP.</summary>
     public static readonly StyledProperty<double> TrailingSlotWidthProperty =
         AvaloniaProperty.Register<MaterialChip, double>(nameof(TrailingSlotWidth));
+
+    /// <summary>The animated margin of the trailing content slot.</summary>
+    public static readonly StyledProperty<Thickness> TrailingSlotMarginProperty =
+        AvaloniaProperty.Register<MaterialChip, Thickness>(nameof(TrailingSlotMargin));
 
     /// <summary>The animated opacity of the trailing content slot.</summary>
     public static readonly StyledProperty<double> TrailingSlotOpacityProperty =
@@ -149,7 +157,7 @@ public class MaterialChip : Button
     private const double DragThreshold = 4;
     private const double IconSlotWidth = 18;
     private const double AvatarSlotWidth = 24;
-    private const double CaretSlotWidth = 7.5;
+    private const double CaretSlotWidth = IconSlotWidth;
 
     // ChipDefaults.shapes() at the pinned commit: ChipsTokens.UnselectedShape = CornerMedium
     // (12 DIP), PressedShape = CornerSmall (8 DIP) and SelectedShape = CornerFull. CornerFull is
@@ -177,8 +185,14 @@ public class MaterialChip : Button
     private MaterialMotion.SpringAnimation? _leadingOpacitySpring;
     private MaterialMotion.SpringAnimation? _trailingWidthSpring;
     private MaterialMotion.SpringAnimation? _trailingOpacitySpring;
+    private double _leadingFromWidth;
     private double _leadingWidthTarget;
+    private Thickness _leadingFromMargin;
+    private Thickness _leadingMarginTarget;
+    private double _trailingFromWidth;
     private double _trailingWidthTarget;
+    private Thickness _trailingFromMargin;
+    private Thickness _trailingMarginTarget;
     private bool _slotsReady;
 
     public MaterialChip()
@@ -189,6 +203,7 @@ public class MaterialChip : Button
         // DragInteraction.Start state, polled by the shared helper when this chip refreshes.
         _elevation = new MaterialElevationAnimation(
             this, ResolveElevationSpecs, () => IsDragging);
+        UpdateFocusRingCornerRadius();
         UpdateChipPseudoClasses();
         AddHandler(PointerPressedEvent, OnDragPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerMovedEvent, OnDragPointerMoved, RoutingStrategies.Tunnel);
@@ -209,9 +224,11 @@ public class MaterialChip : Button
     public object? LeadingSlotIcon { get => GetValue(LeadingSlotIconProperty); private set => SetValue(LeadingSlotIconProperty, value); }
     public object? LeadingSlotAvatar { get => GetValue(LeadingSlotAvatarProperty); private set => SetValue(LeadingSlotAvatarProperty, value); }
     public double LeadingSlotWidth { get => GetValue(LeadingSlotWidthProperty); private set => SetValue(LeadingSlotWidthProperty, value); }
+    public Thickness LeadingSlotMargin { get => GetValue(LeadingSlotMarginProperty); private set => SetValue(LeadingSlotMarginProperty, value); }
     public double LeadingSlotOpacity { get => GetValue(LeadingSlotOpacityProperty); private set => SetValue(LeadingSlotOpacityProperty, value); }
     public bool IsLeadingSlotVisible { get => GetValue(IsLeadingSlotVisibleProperty); private set => SetValue(IsLeadingSlotVisibleProperty, value); }
     public double TrailingSlotWidth { get => GetValue(TrailingSlotWidthProperty); private set => SetValue(TrailingSlotWidthProperty, value); }
+    public Thickness TrailingSlotMargin { get => GetValue(TrailingSlotMarginProperty); private set => SetValue(TrailingSlotMarginProperty, value); }
     public double TrailingSlotOpacity { get => GetValue(TrailingSlotOpacityProperty); private set => SetValue(TrailingSlotOpacityProperty, value); }
     public bool IsTrailingSlotVisible { get => GetValue(IsTrailingSlotVisibleProperty); private set => SetValue(IsTrailingSlotVisibleProperty, value); }
 
@@ -225,6 +242,12 @@ public class MaterialChip : Button
     /// <summary>Whether this chip family exposes selection.</summary>
     public bool IsSelectable =>
         Kind is MaterialChipKind.Filter or MaterialChipKind.Input;
+
+    private MaterialChipGroup? OwningGroup =>
+        Parent as MaterialChipGroup ?? this.FindAncestorOfType<MaterialChipGroup>();
+
+    internal bool EffectiveIsSelectable =>
+        IsSelectable && OwningGroup?.SelectionMode != MaterialChipSelectionMode.None;
 
     /// <summary>Whether the closing icon is actually shown for the current family.</summary>
     public bool CanRemove => IsRemovable && Kind == MaterialChipKind.Input;
@@ -257,6 +280,8 @@ public class MaterialChip : Button
         {
             UpdateChipPseudoClasses();
             UpdateSlots(animate: true);
+            if (change.Property == AvatarProperty)
+                UpdateShape(animate: true);
             if (change.Property == VariantProperty)
                 _elevation?.Refresh(snap: false);
         }
@@ -266,10 +291,15 @@ public class MaterialChip : Button
             _peer?.NotifySelectionChanged((bool)(change.OldValue ?? false), IsSelected);
             UpdateShape(animate: true);
             UpdateSlots(animate: true);
+            _elevation?.Refresh(snap: false);
         }
         else if (change.Property == IsPressedProperty)
         {
             UpdateShape(animate: true);
+        }
+        else if (change.Property == CornerRadiusProperty)
+        {
+            UpdateFocusRingCornerRadius();
         }
         else if (change.Property == Visual.FlowDirectionProperty)
         {
@@ -285,6 +315,13 @@ public class MaterialChip : Button
         }
     }
 
+    private void UpdateFocusRingCornerRadius()
+    {
+        var r = CornerRadius;
+        SetCurrentValue(MaterialAssist.FocusRingCornerRadiusProperty,
+            new CornerRadius(r.TopLeft + 5, r.TopRight + 5, r.BottomRight + 5, r.BottomLeft + 5));
+    }
+
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
@@ -296,6 +333,7 @@ public class MaterialChip : Button
     {
         EndDrag();
         DisposeAnimations();
+        PseudoClasses.Set(":remove-pointerover", false);
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -328,7 +366,7 @@ public class MaterialChip : Button
             ? MaterialAssist.CornerShape.All(StaticCornerRadius)
             : IsPressed
                 ? MaterialAssist.CornerShape.All(PressedCornerRadius)
-                : IsSelected
+                : IsSelected || (Kind == MaterialChipKind.Input && Avatar is not null)
                     ? MaterialAssist.CornerShape.Full
                     : MaterialAssist.CornerShape.All(UnselectedCornerRadius);
 
@@ -428,15 +466,15 @@ public class MaterialChip : Button
     }
 
     // Source ChipElevation/SelectableChipElevation defaults at the pinned commit. Elevated chips
-    // rest at Level1 and rise to Level2 on hover; flat chips stay at Level0 except the filter chip's
-    // default hovered elevation (Level1) and every family's DraggedContainerElevation (Level4).
+    // rest at Level1 and rise to Level2 on hover; flat chips stay at Level0 except a selected
+    // filter chip's hovered elevation (Level1) and every family's DraggedContainerElevation (Level4).
     // Disabled elevation is Level0 for all variants. Input chips have no elevated variant.
     private MaterialElevationSpecs ResolveElevationSpecs()
     {
         if (Kind != MaterialChipKind.Input && Variant == MaterialChipVariant.Elevated)
             return new MaterialElevationSpecs(
                 Default: 1, Pressed: 1, Focused: 1, Hovered: 2, Dragged: 4, Disabled: 0);
-        if (Kind == MaterialChipKind.Filter)
+        if (Kind == MaterialChipKind.Filter && IsSelected)
             return new MaterialElevationSpecs(
                 Default: 0, Pressed: 0, Focused: 0, Hovered: 1, Dragged: 4, Disabled: 0);
         return new MaterialElevationSpecs(
@@ -454,12 +492,24 @@ public class MaterialChip : Button
     //   closing button is painted but must not be interactive while it leaves.
     private void UpdateSlots(bool animate)
     {
-        var hasAvatar = Kind == MaterialChipKind.Input && Avatar is not null;
+        var isInput = Kind == MaterialChipKind.Input;
+        var hasAvatar = isInput && Avatar is not null;
         var hasCheck = Kind == MaterialChipKind.Filter && IsSelected;
         var hasIcon = !hasAvatar && ShowIcon && Icon is not null;
         var leading = hasAvatar ? AvatarSlotWidth : hasIcon || hasCheck ? IconSlotWidth : 0d;
+        var leadingMargin = hasAvatar
+            ? new Thickness(-8, -2, 8, -2)
+            : hasIcon || hasCheck
+                ? new Thickness(isInput ? -4 : -8, -2, 8, -2)
+                : new Thickness(0, -2, 0, -2);
+
         var trailing = CanRemove ? IconSlotWidth
             : Kind == MaterialChipKind.Filter && ShowTrailingIcon ? CaretSlotWidth : 0d;
+        var trailingMargin = CanRemove
+            ? new Thickness(8, 0, -4, 0)
+            : Kind == MaterialChipKind.Filter && ShowTrailingIcon
+                ? new Thickness(8, 0, -8, 0)
+                : default;
 
         var canAnimate = animate && _slotsReady && this.IsAttachedToVisualTree() &&
                          !MaterialMotion.GetIsReduced(this);
@@ -490,39 +540,20 @@ public class MaterialChip : Button
         // The retained closing button must not run a second removal while it fades out.
         if (_removeButton is not null)
             _removeButton.IsHitTestVisible = CanRemove;
-
-        AnimateSlot(ref _leadingWidthSpring, LeadingSlotWidthProperty, leading, canAnimate,
-            isLeading: true);
-        AnimateSlot(ref _trailingWidthSpring, TrailingSlotWidthProperty, trailing, canAnimate,
-            isLeading: false);
-
-        var leadingOpacity = leading > 0 ? 1d : 0d;
-        var trailingOpacity = trailing > 0 ? 1d : 0d;
-        AnimateOpacity(ref _leadingOpacitySpring, LeadingSlotOpacityProperty, leadingOpacity, canAnimate);
-        AnimateOpacity(ref _trailingOpacitySpring, TrailingSlotOpacityProperty, trailingOpacity, canAnimate);
+        UpdateRemoveButtonPointerOver();
 
         if (leading > 0)
             SetCurrentValue(IsLeadingSlotVisibleProperty, true);
         if (trailing > 0)
             SetCurrentValue(IsTrailingSlotVisibleProperty, true);
 
-        if (!canAnimate)
-        {
-            if (leading <= 0)
-            {
-                DisposeSpring(ref _leadingWidthSpring);
-                SetCurrentValue(LeadingSlotWidthProperty, 0d);
-                SetCurrentValue(IsLeadingSlotVisibleProperty, false);
-                ClearSlotClasses(LeadingClasses);
-            }
-            if (trailing <= 0)
-            {
-                DisposeSpring(ref _trailingWidthSpring);
-                SetCurrentValue(TrailingSlotWidthProperty, 0d);
-                SetCurrentValue(IsTrailingSlotVisibleProperty, false);
-                ClearSlotClasses(TrailingClasses);
-            }
-        }
+        AnimateSlot(ref _leadingWidthSpring, leading, leadingMargin, canAnimate, isLeading: true);
+        AnimateSlot(ref _trailingWidthSpring, trailing, trailingMargin, canAnimate, isLeading: false);
+
+        var leadingOpacity = leading > 0 ? 1d : 0d;
+        var trailingOpacity = trailing > 0 ? 1d : 0d;
+        AnimateOpacity(ref _leadingOpacitySpring, LeadingSlotOpacityProperty, leadingOpacity, canAnimate);
+        AnimateOpacity(ref _trailingOpacitySpring, TrailingSlotOpacityProperty, trailingOpacity, canAnimate);
 
         _slotsReady = true;
     }
@@ -545,52 +576,108 @@ public class MaterialChip : Button
             PseudoClasses.Set(name, false);
     }
 
-    private void AnimateSlot(ref MaterialMotion.SpringAnimation? spring, StyledProperty<double> property,
-        double target, bool animate, bool isLeading)
+    private void AnimateSlot(ref MaterialMotion.SpringAnimation? spring, double targetWidth,
+        Thickness targetMargin, bool animate, bool isLeading)
     {
-        if (isLeading)
-            _leadingWidthTarget = target;
-        else
-            _trailingWidthTarget = target;
+        var widthProperty = isLeading ? LeadingSlotWidthProperty : TrailingSlotWidthProperty;
+        var marginProperty = isLeading ? LeadingSlotMarginProperty : TrailingSlotMarginProperty;
 
         if (!animate)
         {
             DisposeSpring(ref spring);
-            if (Math.Abs(GetValue(property) - target) > 0.001)
-                SetCurrentValue(property, target);
+            if (isLeading)
+            {
+                _leadingFromWidth = _leadingWidthTarget = targetWidth;
+                _leadingFromMargin = _leadingMarginTarget = targetMargin;
+            }
+            else
+            {
+                _trailingFromWidth = _trailingWidthTarget = targetWidth;
+                _trailingFromMargin = _trailingMarginTarget = targetMargin;
+            }
+
+            SetCurrentValue(widthProperty, targetWidth);
+            SetCurrentValue(marginProperty, targetMargin);
+            if (targetWidth <= 0)
+            {
+                SetCurrentValue(isLeading ? IsLeadingSlotVisibleProperty : IsTrailingSlotVisibleProperty, false);
+                ClearSlotClasses(isLeading ? LeadingClasses : TrailingClasses);
+            }
             return;
         }
 
+        var prevTargetWidth = isLeading ? _leadingWidthTarget : _trailingWidthTarget;
+        var prevTargetMargin = isLeading ? _leadingMarginTarget : _trailingMarginTarget;
+        if (Math.Abs(prevTargetWidth - targetWidth) < 0.001 && prevTargetMargin == targetMargin)
+            return;
+
+        var currentWidth = GetValue(widthProperty);
+        var currentMargin = GetValue(marginProperty);
+        var initialVelocity = 0d;
         if (spring is { } running)
         {
-            running.Retarget(target);
+            var (_, velocity) = running.SampleState();
+            var prevDelta = prevTargetWidth - (isLeading ? _leadingFromWidth : _trailingFromWidth);
+            var nextDelta = targetWidth - currentWidth;
+            if (Math.Abs(nextDelta) > 0.1)
+                initialVelocity = (prevDelta * velocity) / nextDelta;
+            DisposeSpring(ref spring);
+        }
+
+        if (isLeading)
+        {
+            _leadingFromWidth = currentWidth;
+            _leadingWidthTarget = targetWidth;
+            _leadingFromMargin = currentMargin;
+            _leadingMarginTarget = targetMargin;
+        }
+        else
+        {
+            _trailingFromWidth = currentWidth;
+            _trailingWidthTarget = targetWidth;
+            _trailingFromMargin = currentMargin;
+            _trailingMarginTarget = targetMargin;
+        }
+
+        if (Math.Abs(currentWidth - targetWidth) < 0.001 && currentMargin == targetMargin)
+        {
+            ApplySlotProgress(1, isLeading);
             return;
         }
 
-        if (Math.Abs(GetValue(property) - target) < 0.001)
-            return;
-
-        spring = MaterialMotion.Animate(this, GetValue(property), target, value =>
-        {
-            SetCurrentValue(property, Math.Max(0, value));
-            // Read the latest target: an interrupted expansion retargets the same spring, and
-            // only a slot that is actually collapsing may leave the layout.
-            var currentTarget = isLeading ? _leadingWidthTarget : _trailingWidthTarget;
-            if (currentTarget <= 0 && value <= 0.05)
-            {
-                if (isLeading)
-                {
-                    SetCurrentValue(IsLeadingSlotVisibleProperty, false);
-                    ClearSlotClasses(LeadingClasses);
-                }
-                else
-                {
-                    SetCurrentValue(IsTrailingSlotVisibleProperty, false);
-                    ClearSlotClasses(TrailingClasses);
-                }
-            }
-        }, MaterialSpring.SpatialFast, 0.5);
+        spring = MaterialMotion.Animate(this, 0, 1,
+            progress => ApplySlotProgress(progress, isLeading),
+            MaterialSpring.SpatialFast, 0.005, initialVelocity);
     }
+
+    private void ApplySlotProgress(double progress, bool isLeading)
+    {
+        var fromWidth = isLeading ? _leadingFromWidth : _trailingFromWidth;
+        var targetWidth = isLeading ? _leadingWidthTarget : _trailingWidthTarget;
+        var fromMargin = isLeading ? _leadingFromMargin : _trailingFromMargin;
+        var targetMargin = isLeading ? _leadingMarginTarget : _trailingMarginTarget;
+        var widthProperty = isLeading ? LeadingSlotWidthProperty : TrailingSlotWidthProperty;
+        var marginProperty = isLeading ? LeadingSlotMarginProperty : TrailingSlotMarginProperty;
+
+        var width = Math.Max(0, fromWidth + (targetWidth - fromWidth) * progress);
+        if (targetWidth <= 0 && (width <= 0.05 || progress >= 1))
+        {
+            SetCurrentValue(widthProperty, 0d);
+            SetCurrentValue(marginProperty, isLeading ? new Thickness(0, -2, 0, -2) : default);
+            SetCurrentValue(isLeading ? IsLeadingSlotVisibleProperty : IsTrailingSlotVisibleProperty, false);
+            ClearSlotClasses(isLeading ? LeadingClasses : TrailingClasses);
+            return;
+        }
+
+        SetCurrentValue(widthProperty, width);
+        SetCurrentValue(marginProperty, LerpThickness(fromMargin, targetMargin, progress));
+    }
+
+    private static Thickness LerpThickness(Thickness from, Thickness to, double progress) => new(
+        from.Left + (to.Left - from.Left) * progress,
+        from.Top + (to.Top - from.Top) * progress,
+        from.Right + (to.Right - from.Right) * progress,
+        from.Bottom + (to.Bottom - from.Bottom) * progress);
 
     private void AnimateOpacity(ref MaterialMotion.SpringAnimation? spring,
         StyledProperty<double> property, double target, bool animate)
@@ -640,14 +727,14 @@ public class MaterialChip : Button
             _suppressClick = false;
             return;
         }
-        if (IsSelectable)
+        if (EffectiveIsSelectable)
             SetCurrentValue(IsSelectedProperty, !IsSelected);
         base.OnClick();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (CanRemove && e.Key is Key.Delete or Key.Back)
+        if (CanRemove && e.KeyModifiers == KeyModifiers.None && e.Key is Key.Delete or Key.Back)
         {
             RequestRemove();
             e.Handled = true;
@@ -659,14 +746,19 @@ public class MaterialChip : Button
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         if (_removeButton is not null)
+        {
             _removeButton.Click -= OnRemoveButtonClick;
+            _removeButton.PropertyChanged -= OnRemoveButtonPropertyChanged;
+        }
         base.OnApplyTemplate(e);
         _removeButton = e.NameScope.Find<Button>("PART_RemoveButton");
         if (_removeButton is not null)
         {
             _removeButton.Click += OnRemoveButtonClick;
+            _removeButton.PropertyChanged += OnRemoveButtonPropertyChanged;
             UpdateRemoveButtonName();
         }
+        UpdateRemoveButtonPointerOver();
 
         // The visual container paints the silhouette; its bounds, not the 48 DIP interaction
         // target reserved by the control, decide what CornerFull resolves to.
@@ -678,6 +770,22 @@ public class MaterialChip : Button
 
         UpdateShape(animate: false);
         UpdateSlots(animate: false);
+    }
+
+    private void OnRemoveButtonPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == IsPointerOverProperty ||
+            e.Property == IsVisibleProperty ||
+            e.Property == IsHitTestVisibleProperty)
+        {
+            UpdateRemoveButtonPointerOver();
+        }
+    }
+
+    private void UpdateRemoveButtonPointerOver()
+    {
+        var over = _removeButton is { IsPointerOver: true, IsVisible: true, IsHitTestVisible: true } && CanRemove;
+        PseudoClasses.Set(":remove-pointerover", over);
     }
 
     private void OnRemoveButtonClick(object? sender, RoutedEventArgs e)
@@ -714,6 +822,9 @@ public class MaterialChip : Button
     {
         _suppressClick = false;
         if (!IsDraggable || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
+        if (_removeButton is not null && e.Source is Visual source &&
+            (ReferenceEquals(_removeButton, source) || _removeButton.IsVisualAncestorOf(source)))
             return;
         _pointerDown = true;
         _pointerOrigin = e.GetPosition(this);
@@ -769,9 +880,9 @@ public class MaterialChip : Button
 
         public MaterialChipAutomationPeer(MaterialChip owner) : base(owner) => _chip = owner;
 
-        // The source sets role = Role.Checkbox for selectable chips; assist chips stay buttons.
+        // The source sets role = Role.Checkbox for selectable chips; action chips stay buttons.
         protected override AutomationControlType GetAutomationControlTypeCore() =>
-            _chip.IsSelectable ? AutomationControlType.CheckBox : AutomationControlType.Button;
+            _chip.EffectiveIsSelectable ? AutomationControlType.CheckBox : AutomationControlType.Button;
 
         protected override string GetClassNameCore() => nameof(MaterialChip);
 
@@ -783,13 +894,19 @@ public class MaterialChip : Button
             return _chip.Content as string ?? base.GetNameCore();
         }
 
+        protected override object? GetProviderCore(Type providerType) =>
+            !_chip.EffectiveIsSelectable &&
+            (providerType == typeof(IToggleProvider) || providerType == typeof(ISelectionItemProvider))
+                ? null
+                : base.GetProviderCore(providerType);
+
         public bool IsSelected => _chip.IsSelected;
 
         public ISelectionProvider SelectionContainer
         {
             get
             {
-                var group = _chip.FindAncestorOfType<MaterialChipGroup>();
+                var group = _chip.OwningGroup;
                 if (group is not null)
                     return (ControlAutomationPeer.CreatePeerForElement(group) as ISelectionProvider)!;
                 return EmptySelectionProvider.Instance;
@@ -800,6 +917,8 @@ public class MaterialChip : Button
         {
             if (!_chip.IsEffectivelyEnabled)
                 throw new InvalidOperationException("The chip is disabled.");
+            if (!_chip.EffectiveIsSelectable)
+                throw new InvalidOperationException("The chip is not selectable.");
             _chip.SetCurrentValue(MaterialChip.IsSelectedProperty, true);
         }
 
@@ -807,6 +926,8 @@ public class MaterialChip : Button
         {
             if (!_chip.IsEffectivelyEnabled)
                 throw new InvalidOperationException("The chip is disabled.");
+            if (!_chip.EffectiveIsSelectable)
+                throw new InvalidOperationException("The chip is not selectable.");
             _chip.SetCurrentValue(MaterialChip.IsSelectedProperty, false);
         }
 
@@ -814,6 +935,8 @@ public class MaterialChip : Button
         {
             if (!_chip.IsEffectivelyEnabled)
                 throw new InvalidOperationException("The chip is disabled.");
+            if (!_chip.EffectiveIsSelectable)
+                throw new InvalidOperationException("The chip is not selectable.");
             _chip.SetCurrentValue(MaterialChip.IsSelectedProperty, true);
         }
 
@@ -823,11 +946,15 @@ public class MaterialChip : Button
         {
             if (!_chip.IsEffectivelyEnabled)
                 throw new InvalidOperationException("The chip is disabled.");
+            if (!_chip.EffectiveIsSelectable)
+                throw new InvalidOperationException("The chip is not selectable.");
             _chip.SetCurrentValue(MaterialChip.IsSelectedProperty, !_chip.IsSelected);
         }
 
         public void NotifySelectionChanged(bool oldValue, bool newValue)
         {
+            if (!_chip.EffectiveIsSelectable)
+                return;
             RaisePropertyChangedEvent(SelectionItemPatternIdentifiers.IsSelectedProperty, oldValue, newValue);
             RaisePropertyChangedEvent(TogglePatternIdentifiers.ToggleStateProperty,
                 oldValue ? ToggleState.On : ToggleState.Off,

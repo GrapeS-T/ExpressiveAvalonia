@@ -363,7 +363,8 @@ public class MaterialChipGroup : ItemsControl
     {
         if (_chips.Count == 0)
             return;
-        var focused = _chips.FirstOrDefault(chip => chip.IsFocused && chip.IsEffectivelyEnabled);
+        var focused = _chips.FirstOrDefault(chip =>
+            (chip.IsFocused || chip.IsKeyboardFocusWithin) && chip.IsEffectivelyEnabled);
         var selected = _chips.FirstOrDefault(chip => chip.IsSelected && chip.IsEffectivelyEnabled);
         var first = _chips.FirstOrDefault(chip => chip.IsEffectivelyEnabled);
         SetRovingTabStop(focused ?? selected ?? first);
@@ -379,13 +380,13 @@ public class MaterialChipGroup : ItemsControl
 
     private void OnGroupKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled)
+        if (e.Handled || e.KeyModifiers != KeyModifiers.None)
             return;
 
         var chips = _chips.Where(chip => chip.IsEffectivelyEnabled).ToList();
         if (chips.Count == 0)
             return;
-        var focused = chips.FirstOrDefault(chip => chip.IsFocused);
+        var focused = chips.FirstOrDefault(chip => chip.IsFocused || chip.IsKeyboardFocusWithin);
         if (focused is null)
             return;
 

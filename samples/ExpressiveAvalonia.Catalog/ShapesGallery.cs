@@ -42,6 +42,10 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
     };
+    private readonly Border _shapeFrame;
+    private readonly Border _dividerStage;
+    private readonly MaterialDivider _liveDivider = new();
+    private readonly Border _liveDividerHost = new() { Width = 320, Height = 88 };
     private readonly TextBlock _caption = new()
     {
         HorizontalAlignment = HorizontalAlignment.Center,
@@ -49,6 +53,9 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
         TextWrapping = TextWrapping.Wrap,
         TextAlignment = TextAlignment.Center,
     };
+    private readonly ComboBox _mode;
+    private readonly StackPanel _shapeSettings = new() { Spacing = 16 };
+    private readonly StackPanel _dividerSettings = new() { Spacing = 16, IsVisible = false };
     private readonly MaterialButtonGroup _family;
     private readonly ComboBox _kind;
     private readonly Slider _size;
@@ -61,12 +68,18 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
     private readonly TextBlock _sizeCaption = new();
     private readonly TextBlock _heightCaption = new();
     private readonly TextBlock _thicknessCaption = new();
+    private readonly ComboBox _dividerOrientation;
+    private readonly ComboBox _dividerVariant;
+    private readonly Slider _dividerThickness;
+    private readonly TextBlock _dividerThicknessCaption = new();
+    private readonly TextBox _dividerSubheader;
+    private readonly ToggleSwitch _dividerRtl;
     private bool _syncing;
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
     internal ShapesPlayground()
     {
-        var frame = new Border
+        _shapeFrame = new Border
         {
             Width = 360,
             Height = 360,
@@ -75,7 +88,10 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
             VerticalAlignment = VerticalAlignment.Center,
             Child = _shape,
         };
-        frame.Bind(Border.BackgroundProperty, frame.GetResourceObservable("MaterialSurfaceContainerLowBrush"));
+        _shapeFrame.Bind(Border.BackgroundProperty, _shapeFrame.GetResourceObservable("MaterialSurfaceContainerLowBrush"));
+
+        _dividerStage = BuildDividerStage();
+        _dividerStage.IsVisible = false;
 
         var stage = new StackPanel
         {
@@ -84,34 +100,47 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        stage.Children.Add(frame);
+        stage.Children.Add(_shapeFrame);
+        stage.Children.Add(_dividerStage);
         stage.Children.Add(_caption);
         Children.Add(stage);
 
-        _family = Choice("Семейство", new[] { $"MaterialShapes ({Named.Length})", $"Расширения ({Extensions.Length})" }, 0);
+        Settings.Children.Add(new TextBlock { Text = "Режим" });
+        _mode = new ComboBox
+        {
+            ItemsSource = new[] { "Фигуры (MaterialShape)", "Разделители (MaterialDivider)" },
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_mode, "Режим страницы фигур и разделителей");
+        Settings.Children.Add(_mode);
+        Settings.Children.Add(_shapeSettings);
+        Settings.Children.Add(_dividerSettings);
 
-        Settings.Children.Add(new TextBlock { Text = "Геометрия" });
+        _family = Choice(_shapeSettings, "Семейство", new[] { $"MaterialShapes ({Named.Length})", $"Расширения ({Extensions.Length})" }, 0);
+
+        _shapeSettings.Children.Add(new TextBlock { Text = "Геометрия" });
         _kind = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
         AutomationProperties.SetName(_kind, "Геометрия фигуры");
-        Settings.Children.Add(_kind);
+        _shapeSettings.Children.Add(_kind);
 
         _sizeCaption.Text = "Размер: 96 dp";
-        Settings.Children.Add(_sizeCaption);
+        _shapeSettings.Children.Add(_sizeCaption);
         _size = new Slider { Minimum = 32, Maximum = 192, Value = 96, TickFrequency = 8, IsSnapToTickEnabled = true };
         MaterialAssist.SetControlSize(_size, MaterialControlSize.ExtraSmall);
         MaterialSlider.SetShowStops(_size, false);
         AutomationProperties.SetName(_size, "Размер фигуры");
-        Settings.Children.Add(_size);
+        _shapeSettings.Children.Add(_size);
 
         _heightCaption.Text = "Высота: ×1.0";
-        Settings.Children.Add(_heightCaption);
+        _shapeSettings.Children.Add(_heightCaption);
         _height = new Slider { Minimum = 0.5, Maximum = 1.5, Value = 1, TickFrequency = 0.1, IsSnapToTickEnabled = true };
         MaterialAssist.SetControlSize(_height, MaterialControlSize.ExtraSmall);
         MaterialSlider.SetShowStops(_height, false);
         AutomationProperties.SetName(_height, "Высота фигуры");
-        Settings.Children.Add(_height);
+        _shapeSettings.Children.Add(_height);
 
-        Settings.Children.Add(new TextBlock { Text = "Растяжение (Stretch)" });
+        _shapeSettings.Children.Add(new TextBlock { Text = "Растяжение (Stretch)" });
         _stretch = new ComboBox
         {
             ItemsSource = new[] { "Uniform", "Fill", "None" },
@@ -119,9 +148,9 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         AutomationProperties.SetName(_stretch, "Растяжение фигуры");
-        Settings.Children.Add(_stretch);
+        _shapeSettings.Children.Add(_stretch);
 
-        Settings.Children.Add(new TextBlock { Text = "Заливка" });
+        _shapeSettings.Children.Add(new TextBlock { Text = "Заливка" });
         _fill = new ComboBox
         {
             ItemsSource = new[] { "Как в источнике", "Primary", "Primary container", "Secondary", "Tertiary", "Error", "Outline" },
@@ -129,9 +158,9 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         AutomationProperties.SetName(_fill, "Заливка фигуры");
-        Settings.Children.Add(_fill);
+        _shapeSettings.Children.Add(_fill);
 
-        _outline = Toggle("Только обводка", false);
+        _outline = Toggle(_shapeSettings, "Только обводка", false);
         _thicknessPanel.Children.Add(_thicknessCaption);
         _thicknessCaption.Text = "Толщина обводки: 3 dp";
         _thickness = new Slider { Minimum = 1, Maximum = 8, Value = 3, TickFrequency = 1, IsSnapToTickEnabled = true };
@@ -139,9 +168,9 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
         MaterialSlider.SetShowStops(_thickness, false);
         AutomationProperties.SetName(_thickness, "Толщина обводки");
         _thicknessPanel.Children.Add(_thickness);
-        Settings.Children.Add(_thicknessPanel);
+        _shapeSettings.Children.Add(_thicknessPanel);
 
-        Settings.Children.Add(new TextBlock
+        _shapeSettings.Children.Add(new TextBlock
         {
             Text = "MaterialShape — настоящая Avalonia Shape: Kind выбирает исходную геометрию, Stretch и " +
                    "локальная заливка переопределяют тему. Без явной заливки Shape Set рисуется ролью primary, " +
@@ -150,6 +179,52 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
             FontSize = 13,
         });
 
+        _dividerSettings.Children.Add(new TextBlock { Text = "Ориентация" });
+        _dividerOrientation = new ComboBox
+        {
+            ItemsSource = new[] { "Horizontal", "Vertical" },
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_dividerOrientation, "Ориентация разделителя");
+        _dividerSettings.Children.Add(_dividerOrientation);
+
+        _dividerSettings.Children.Add(new TextBlock { Text = "Вариант отступа" });
+        _dividerVariant = new ComboBox
+        {
+            ItemsSource = new[] { "FullWidth", "Inset (16 dp)", "MiddleInset (16 dp × 2)" },
+            SelectedIndex = 2,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_dividerVariant, "Вариант отступа разделителя");
+        _dividerSettings.Children.Add(_dividerVariant);
+
+        _dividerThicknessCaption.Text = "Толщина линии: 1 dp";
+        _dividerSettings.Children.Add(_dividerThicknessCaption);
+        _dividerThickness = new Slider { Minimum = 1, Maximum = 4, Value = 1, TickFrequency = 1, IsSnapToTickEnabled = true };
+        MaterialAssist.SetControlSize(_dividerThickness, MaterialControlSize.ExtraSmall);
+        MaterialSlider.SetShowStops(_dividerThickness, false);
+        AutomationProperties.SetName(_dividerThickness, "Толщина разделителя");
+        _dividerSettings.Children.Add(_dividerThickness);
+
+        _dividerSettings.Children.Add(new TextBlock { Text = "Подзаголовок (Subheader)" });
+        _dividerSubheader = new TextBox { Text = "Раздел", HorizontalAlignment = HorizontalAlignment.Stretch };
+        MaterialTextField.SetVariant(_dividerSubheader, MaterialTextFieldVariant.Outlined);
+        MaterialTextField.SetLabel(_dividerSubheader, "Subheader");
+        AutomationProperties.SetName(_dividerSubheader, "Подзаголовок разделителя");
+        _dividerSettings.Children.Add(_dividerSubheader);
+
+        _dividerRtl = Toggle(_dividerSettings, "Right-to-left", false);
+        _dividerSettings.Children.Add(new TextBlock
+        {
+            Text = "MaterialDivider рисует линию 1 dp в роли outline-variant: FullWidth без отступов, " +
+                   "Inset — 16 dp с ведущего края, MiddleInset — по 16 dp с обоих краёв, Subheader — " +
+                   "подпись title-small через зазор 4 dp. Декоративные разделители исключены из дерева UIA.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+        });
+
+        _mode.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         _family.SelectionChanged += (_, _) => { if (!_syncing) PopulateKinds(); };
         _kind.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         _size.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_syncing) Apply(); };
@@ -158,6 +233,11 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
         _fill.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         _outline.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
         _thickness.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_syncing) Apply(); };
+        _dividerOrientation.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _dividerVariant.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _dividerThickness.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_syncing) Apply(); };
+        _dividerSubheader.TextChanged += (_, _) => { if (!_syncing) Apply(); };
+        _dividerRtl.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
 
         PopulateKinds();
     }
@@ -176,6 +256,31 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
 
     private void Apply()
     {
+        var dividerMode = _mode.SelectedIndex == 1;
+        _shapeFrame.IsVisible = !dividerMode;
+        _shapeSettings.IsVisible = !dividerMode;
+        _dividerStage.IsVisible = dividerMode;
+        _dividerSettings.IsVisible = dividerMode;
+
+        if (dividerMode)
+        {
+            var vertical = _dividerOrientation.SelectedIndex == 1;
+            var variant = (MaterialDividerVariant)Math.Clamp(_dividerVariant.SelectedIndex, 0, 2);
+            _liveDivider.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
+            _liveDivider.Variant = variant;
+            _liveDivider.LineThickness = _dividerThickness.Value;
+            _liveDivider.Subheader = vertical || string.IsNullOrWhiteSpace(_dividerSubheader.Text)
+                ? null
+                : _dividerSubheader.Text;
+            _dividerStage.FlowDirection = _dividerRtl.IsChecked == true
+                ? FlowDirection.RightToLeft
+                : FlowDirection.LeftToRight;
+            _dividerSubheader.IsEnabled = !vertical;
+            _dividerThicknessCaption.Text = $"Толщина линии: {_dividerThickness.Value:0} dp";
+            _caption.Text = $"MaterialDivider · {_liveDivider.Orientation} · {variant} · {_dividerThickness.Value:0} dp";
+            return;
+        }
+
         var kinds = CurrentKinds;
         var index = Math.Clamp(_kind.SelectedIndex, 0, kinds.Length - 1);
         var kind = kinds[index];
@@ -218,7 +323,61 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
         _caption.Text = $"{kind} · {origin}\n{_size.Value:0}×{_shape.Height:0} dp · {_shape.Stretch}";
     }
 
-    private MaterialButtonGroup Choice(string label, string[] options, int selected)
+    private Border BuildDividerStage()
+    {
+        _liveDividerHost.Child = _liveDivider;
+        _liveDividerHost.CornerRadius = new CornerRadius(12);
+        _liveDividerHost.BorderThickness = new Thickness(1);
+        _liveDividerHost.Bind(Border.BackgroundProperty, _liveDividerHost.GetResourceObservable("MaterialSurfaceBrush"));
+        _liveDividerHost.Bind(Border.BorderBrushProperty, _liveDividerHost.GetResourceObservable("MaterialOutlineVariantBrush"));
+
+        var verticalRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 24,
+            Height = 64,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Children =
+            {
+                new TextBlock { Text = "Full", VerticalAlignment = VerticalAlignment.Center },
+                new MaterialDivider { Orientation = Orientation.Vertical, Variant = MaterialDividerVariant.FullWidth },
+                new TextBlock { Text = "Inset", VerticalAlignment = VerticalAlignment.Center },
+                new MaterialDivider { Orientation = Orientation.Vertical, Variant = MaterialDividerVariant.Inset },
+                new TextBlock { Text = "Middle", VerticalAlignment = VerticalAlignment.Center },
+                new MaterialDivider { Orientation = Orientation.Vertical, Variant = MaterialDividerVariant.MiddleInset },
+                new TextBlock { Text = "End", VerticalAlignment = VerticalAlignment.Center },
+            },
+        };
+
+        var stack = new StackPanel
+        {
+            Width = 340,
+            Spacing = 14,
+            Children =
+            {
+                new TextBlock { Text = "Интерактивный экземпляр (слот 88 dp)", FontWeight = FontWeight.Medium },
+                _liveDividerHost,
+                new TextBlock { Text = "Варианты Horizontal и Vertical", FontWeight = FontWeight.Medium },
+                new MaterialDivider { Variant = MaterialDividerVariant.FullWidth },
+                new MaterialDivider { Variant = MaterialDividerVariant.Inset },
+                new MaterialDivider { Variant = MaterialDividerVariant.MiddleInset, Subheader = "Subheader · 16 dp inset" },
+                verticalRow,
+            },
+        };
+
+        var card = new Border
+        {
+            Padding = new Thickness(24),
+            CornerRadius = new CornerRadius(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = stack,
+        };
+        card.Bind(Border.BackgroundProperty, card.GetResourceObservable("MaterialSurfaceContainerLowBrush"));
+        return card;
+    }
+
+    private static MaterialButtonGroup Choice(StackPanel host, string label, string[] options, int selected)
     {
         var panel = new StackPanel { Spacing = 8 };
         panel.Children.Add(new TextBlock { Text = label });
@@ -234,14 +393,14 @@ internal sealed class ShapesPlayground : Grid, IComponentPlayground
             group.Items.Add(new MaterialButtonGroupItem { Content = option });
         group.SelectedIndex = selected;
         panel.Children.Add(group);
-        Settings.Children.Add(panel);
+        host.Children.Add(panel);
         return group;
     }
 
-    private ToggleSwitch Toggle(string label, bool value)
+    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
     {
         var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        Settings.Children.Add(toggle);
+        host.Children.Add(toggle);
         return toggle;
     }
 }

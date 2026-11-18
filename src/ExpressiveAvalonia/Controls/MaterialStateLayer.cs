@@ -302,13 +302,17 @@ public sealed class MaterialStateLayer : Control
         base.OnDetachedFromVisualTree(e);
         _opacityTween?.Dispose();
         _opacityTween = null;
+        _pointerOver = false;
+        _interactions.Clear();
+        _currentInteraction = null;
     }
 
     private void UpdateEffectiveState()
     {
         var enabled = IsEffectivelyEnabled;
+        var focusVisible = IsKeyboardFocusWithin && Classes.Contains(":focus-visible");
         SyncInteraction(MaterialStateLayerState.Hovered, IsInteractive && enabled && _pointerOver);
-        SyncInteraction(MaterialStateLayerState.Focused, IsInteractive && enabled && IsKeyboardFocusWithin);
+        SyncInteraction(MaterialStateLayerState.Focused, IsInteractive && enabled && focusVisible);
         SyncInteraction(MaterialStateLayerState.Dragged, enabled && IsDragging);
 
         MaterialStateLayerState? nextInteraction = null;

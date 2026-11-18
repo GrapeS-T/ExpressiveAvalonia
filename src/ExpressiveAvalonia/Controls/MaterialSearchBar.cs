@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
@@ -49,12 +48,13 @@ public enum MaterialSearchBarAlignment
 /// </para>
 /// </remarks>
 [TemplatePart("PART_Container", typeof(Border))]
+[TemplatePart("PART_StateLayer", typeof(Border))]
 [TemplatePart("PART_TextBox", typeof(TextBox))]
 [TemplatePart("PART_LeadingButton", typeof(Button))]
 [TemplatePart("PART_ClearButton", typeof(Button))]
 [TemplatePart("PART_TrailingButton", typeof(Button))]
 [TemplatePart("PART_SecondaryButton", typeof(Button))]
-[PseudoClasses(":centered", ":pressed")]
+[PseudoClasses(":centered", ":pressed", ":expanded")]
 public class MaterialSearchBar : TemplatedControl
 {
     /// <summary>Defines the <see cref="Text"/> property.</summary>
@@ -158,6 +158,7 @@ public class MaterialSearchBar : TemplatedControl
         AvaloniaProperty.Register<MaterialSearchBar, bool>(nameof(ClearFocusOnCollapse));
 
     private TextBox? _textBox;
+    private MaterialFocusIndicator? _focusRing;
     private bool _syncingSelection;
     private bool _selectionSeeded;
     private Button? _clearButton;
@@ -165,6 +166,15 @@ public class MaterialSearchBar : TemplatedControl
     private Button? _trailingButton;
     private Button? _secondaryButton;
     private IDisposable? _focusClearTimer;
+    private IDisposable? _helpTextOverride;
+    private bool _updatingAutomation;
+
+    public MaterialSearchBar()
+    {
+        AddHandler(PointerPressedEvent, OnBarPointerPressed, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(PointerReleasedEvent, OnBarPointerReleased, RoutingStrategies.Bubble, handledEventsToo: true);
+        ResourcesChanged += (_, _) => UpdateAutomationState();
+    }
 
     /// <summary>Raised when the user confirms the query with Enter.</summary>
     public event EventHandler? SearchRequested;
@@ -420,6 +430,9 @@ public class MaterialSearchBar : TemplatedControl
             _textBox.GotFocus -= OnTextBoxGotFocus;
         }
 
+        if (_focusRing is not null)
+            _focusRing.FocusTarget = null;
+
         if (_clearButton is not null)
             _clearButton.Click -= OnClearClick;
         if (_leadingButton is not null)
@@ -430,10 +443,14 @@ public class MaterialSearchBar : TemplatedControl
             _secondaryButton.Click -= OnSecondaryClick;
 
         _textBox = e.NameScope.Find<TextBox>("PART_TextBox");
+        _focusRing = e.NameScope.Find<MaterialFocusIndicator>("FocusRing");
         _clearButton = e.NameScope.Find<Button>("PART_ClearButton");
         _leadingButton = e.NameScope.Find<Button>("PART_LeadingButton");
         _trailingButton = e.NameScope.Find<Button>("PART_TrailingButton");
         _secondaryButton = e.NameScope.Find<Button>("PART_SecondaryButton");
+
+        if (_focusRing is not null)
+            _focusRing.FocusTarget = _textBox;
 
         if (_textBox is not null)
         {
@@ -467,6 +484,8 @@ public class MaterialSearchBar : TemplatedControl
             _secondaryButton.Click += OnSecondaryClick;
 
         UpdateAlignment();
+        UpdateExpandedState();
+        UpdateFocusRing();
         UpdateAutomationState();
         UpdateAutoFocus();
     }
@@ -477,6 +496,8 @@ public class MaterialSearchBar : TemplatedControl
         base.OnAttachedToVisualTree(e);
         // Resource lookup can fail during OnApplyTemplate when the control is not yet in a tree;
         // refresh the localized automation strings once resources resolve.
+        UpdateExpandedState();
+        UpdateFocusRing();
         UpdateAutomationState();
         UpdateAutoFocus();
     }
@@ -485,6 +506,7 @@ public class MaterialSearchBar : TemplatedControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        PseudoClasses.Set(":pressed", false);
         _focusClearTimer?.Dispose();
         _focusClearTimer = null;
     }
@@ -502,9 +524,22 @@ public class MaterialSearchBar : TemplatedControl
             QueryChanged?.Invoke(this, EventArgs.Empty);
         else if (change.Property == IsExpandedProperty)
         {
+            UpdateExpandedState();
+            if (change.GetNewValue<bool>())
+                PseudoClasses.Set(":pressed", false);
             UpdateAutomationState();
             if (!change.GetNewValue<bool>() && ClearFocusOnCollapse)
                 ClearFocusAfterCollapse();
+        }
+        else if (change.Property == PlaceholderTextProperty ||
+                 change.Property == AutomationProperties.NameProperty ||
+                 change.Property == AutomationProperties.HelpTextProperty)
+        {
+            UpdateAutomationState();
+        }
+        else if (change.Property == CornerRadiusProperty || change.Property == BoundsProperty)
+        {
+            UpdateFocusRing();
         }
         else if (change.Property == SelectionStartProperty || change.Property == SelectionEndProperty)
         {
@@ -513,23 +548,24 @@ public class MaterialSearchBar : TemplatedControl
         }
     }
 
-    /// <inheritdoc />
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    private void OnBarPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        base.OnPointerPressed(e);
-
-        // The pill itself is a press target: clicking anywhere that is not the text field, a
-        // button or the avatar focuses the field, which is the source's whole-bar interaction.
-        if (e.Handled || _textBox is null)
+        // The collapsed pill and its text field are one activation target: left-clicking anywhere
+        // other than an independent button/focusable child focuses the field and requests expansion,
+        // even after PART_TextBox handles PointerPressed for native caret placement.
+        if (!IsEffectivelyEnabled || _textBox is null)
             return;
-        if (e.Source is Visual source &&
-            (source == _textBox ||
-             source.GetSelfAndVisualAncestors().Any(ancestor => ancestor == _textBox || ancestor is Button)))
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
+        if (e.Source is not Visual source ||
+            (!ReferenceEquals(source, this) && !this.IsVisualAncestorOf(source)) ||
+            IsIndependentInteractiveSource(source, this, _textBox))
             return;
 
         // TemplatedControl has no built-in :pressed pseudo class; the source Pressed state is a
-        // 10% state layer, so the bar tracks the press itself.
-        PseudoClasses.Set(":pressed", true);
+        // 10% state layer on the collapsed search bar.
+        if (!IsExpanded && TemplatedParent is not MaterialSearchView)
+            PseudoClasses.Set(":pressed", true);
         if (!_textBox.IsFocused)
             FocusInput();
 
@@ -537,11 +573,22 @@ public class MaterialSearchBar : TemplatedControl
         RequestExpansion();
     }
 
-    /// <inheritdoc />
-    protected override void OnPointerReleased(PointerReleasedEventArgs e)
-    {
-        base.OnPointerReleased(e);
+    private void OnBarPointerReleased(object? sender, PointerReleasedEventArgs e) =>
         PseudoClasses.Set(":pressed", false);
+
+    private static bool IsIndependentInteractiveSource(Visual source, Control owner, TextBox textBox)
+    {
+        for (Visual? current = source;
+             current is not null && !ReferenceEquals(current, owner);
+             current = current.GetVisualParent())
+        {
+            if (ReferenceEquals(current, textBox))
+                return false;
+            if (current is Button or InputElement { Focusable: true })
+                return true;
+        }
+
+        return false;
     }
 
     /// <inheritdoc />
@@ -584,6 +631,24 @@ public class MaterialSearchBar : TemplatedControl
 
     private void UpdateAlignment() =>
         PseudoClasses.Set(":centered", Alignment == MaterialSearchBarAlignment.Centered);
+
+    private void UpdateExpandedState() =>
+        PseudoClasses.Set(":expanded", IsExpanded || TemplatedParent is MaterialSearchView);
+
+    private void UpdateFocusRing()
+    {
+        if (_focusRing is null)
+            return;
+        var r = CornerRadius;
+        var maxRadius = Bounds.Height > 0
+            ? Bounds.Height / 2
+            : (MinHeight > 0 ? MinHeight / 2 : double.PositiveInfinity);
+        _focusRing.CornerRadius = new CornerRadius(
+            Math.Min(r.TopLeft, maxRadius) + 5,
+            Math.Min(r.TopRight, maxRadius) + 5,
+            Math.Min(r.BottomRight, maxRadius) + 5,
+            Math.Min(r.BottomLeft, maxRadius) + 5);
+    }
 
     private void UpdateAutoFocus()
     {
@@ -682,26 +747,64 @@ public class MaterialSearchBar : TemplatedControl
 
     private void UpdateAutomationState()
     {
-        // Source semantics: the input field is described as "Search"; while expanded it also
-        // reports that suggestions are available. Avalonia has no state description, so the
-        // latter maps to HelpText.
-        var name = this.TryFindResource("MaterialSearchSearchText", out var nameValue) &&
-                   nameValue is string nameText
-            ? nameText
-            : "Search";
-        string? help = null;
-        if (IsExpanded &&
-            this.TryFindResource("MaterialSearchSuggestionsAvailableText", out var value) &&
-            value is string text)
+        if (_updatingAutomation)
+            return;
+        _updatingAutomation = true;
+        try
         {
-            help = text;
-        }
+            // Caller AutomationProperties.Name wins first, followed by visible PlaceholderText,
+            // and finally the localized MaterialSearchSearchText fallback.
+            var callerName = AutomationProperties.GetName(this);
+            string name;
+            if (!string.IsNullOrEmpty(callerName))
+            {
+                name = callerName;
+            }
+            else if (!string.IsNullOrEmpty(PlaceholderText))
+            {
+                name = PlaceholderText;
+            }
+            else if (this.TryFindResource("MaterialSearchSearchText", out var nameValue) &&
+                     nameValue is string nameText &&
+                     !string.IsNullOrEmpty(nameText))
+            {
+                name = nameText;
+            }
+            else
+            {
+                name = "Search";
+            }
 
-        AutomationProperties.SetHelpText(this, help);
-        if (_textBox is not null)
+            string? stateHelp = null;
+            if (IsExpanded &&
+                this.TryFindResource("MaterialSearchSuggestionsAvailableText", out var value) &&
+                value is string text &&
+                !string.IsNullOrEmpty(text))
+            {
+                stateHelp = text;
+            }
+
+            _helpTextOverride?.Dispose();
+            _helpTextOverride = null;
+            var callerHelp = AutomationProperties.GetHelpText(this);
+            if (stateHelp is not null)
+                _helpTextOverride = SetValue(AutomationProperties.HelpTextProperty, stateHelp, BindingPriority.Style);
+
+            var effectiveHelp = string.IsNullOrEmpty(callerHelp)
+                ? stateHelp
+                : string.IsNullOrEmpty(stateHelp)
+                    ? callerHelp
+                    : callerHelp + Environment.NewLine + stateHelp;
+
+            if (_textBox is not null)
+            {
+                AutomationProperties.SetName(_textBox, name);
+                AutomationProperties.SetHelpText(_textBox, effectiveHelp);
+            }
+        }
+        finally
         {
-            AutomationProperties.SetName(_textBox, name);
-            AutomationProperties.SetHelpText(_textBox, help);
+            _updatingAutomation = false;
         }
     }
 

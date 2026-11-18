@@ -75,7 +75,7 @@ public enum MaterialSwipeState
 /// </remarks>
 [TemplatePart("PART_SwipeBackground", typeof(ContentPresenter))]
 [TemplatePart("PART_SwipeContent", typeof(Border))]
-[PseudoClasses(":swipe-settled", ":swipe-start-to-end", ":swipe-end-to-start", ":swiping")]
+[PseudoClasses(":swipe-settled", ":swipe-start-to-end", ":swipe-end-to-start", ":swiping", ":swipe-offset")]
 public class MaterialSwipeListItem : ListBoxItem
 {
     /// <summary>Defines the <see cref="BackgroundContent"/> attached property.</summary>
@@ -148,6 +148,7 @@ public class MaterialSwipeListItem : ListBoxItem
     public MaterialSwipeListItem()
     {
         _actions.CollectionChanged += (_, _) => RebuildActionsBackground();
+        ResourcesChanged += (_, _) => UpdateActionButtons();
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerMovedEvent, OnPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerReleasedEvent, OnPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -352,12 +353,27 @@ public class MaterialSwipeListItem : ListBoxItem
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        UpdateActionButtons();
         // A container that was removed mid-transition reattaches with resolved anchors, not with a
         // partial offset left behind by the cancelled frame source.
         if (_dragging)
             SetOffsetImmediate(ClampToAnchors(_offset));
         else
             ReconcileAnchors();
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (!e.Handled && e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _keyboardActionsRevealed)
+        {
+            _keyboardActionsRevealed = false;
+            SetOffsetImmediate(0);
+            Focus(NavigationMethod.Directional);
+            e.Handled = true;
+            return;
+        }
+
+        base.OnKeyDown(e);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -396,6 +412,11 @@ public class MaterialSwipeListItem : ListBoxItem
             Spacing = 2,
         };
 
+        var swipeTheme = this.TryFindResource("MaterialSwipeActionButton", out var themeResource)
+            && themeResource is Avalonia.Styling.ControlTheme resolvedTheme
+                ? resolvedTheme
+                : null;
+
         for (var index = 0; index < _actions.Count; index++)
         {
             var action = _actions[index];
@@ -408,16 +429,24 @@ public class MaterialSwipeListItem : ListBoxItem
                 BorderThickness = default,
                 CornerRadius = default,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
-                Background = action.Background
-                    ?? ResolveBrush("MaterialErrorContainerBrush", Colors.DarkRed),
-                Foreground = action.Foreground
-                    ?? ResolveBrush("MaterialOnErrorContainerBrush", Colors.White),
                 Content = action.Icon is null
                     ? null
                     : new PathIcon { Data = action.Icon, Width = 24, Height = 24 },
                 Tag = index,
             };
-            AutomationProperties.SetName(button, action.Label ?? "Action");
+            MaterialAssist.SetContainerInset(button, default);
+            MaterialAssist.SetAnimateShape(button, false);
+            if (swipeTheme is not null)
+                button.Theme = swipeTheme;
+            if (action.Background is not null)
+                button.Background = action.Background;
+            else
+                button.Bind(TemplatedControl.BackgroundProperty, button.GetResourceObservable("MaterialErrorContainerBrush"));
+            if (action.Foreground is not null)
+                button.Foreground = action.Foreground;
+            else
+                button.Bind(TemplatedControl.ForegroundProperty, button.GetResourceObservable("MaterialOnErrorContainerBrush"));
+            ApplyActionButtonName(button, action);
             button.Click += OnActionClick;
             button.GotFocus += (_, _) =>
             {
@@ -454,10 +483,40 @@ public class MaterialSwipeListItem : ListBoxItem
         e.Handled = true;
     }
 
-    private IBrush ResolveBrush(string key, Color fallback) =>
-        this.TryFindResource(key, out var value) && value is IBrush brush
-            ? brush
-            : new SolidColorBrush(fallback);
+    private void ApplyActionButtonName(Button button, MaterialSwipeAction action)
+    {
+        if (!string.IsNullOrEmpty(action.Label))
+        {
+            AutomationProperties.SetName(button, action.Label);
+            return;
+        }
+
+        var fallback = this.TryFindResource("MaterialSwipeActionText", ActualThemeVariant, out var value)
+                       && value is string text && !string.IsNullOrEmpty(text)
+            ? text
+            : "Action";
+        button.SetValue(AutomationProperties.NameProperty, fallback, Avalonia.Data.BindingPriority.Style);
+    }
+
+    private void UpdateActionButtons()
+    {
+        if (_actionsBackground is not StackPanel panel)
+            return;
+
+        var swipeTheme = this.TryFindResource("MaterialSwipeActionButton", out var themeResource)
+            && themeResource is Avalonia.Styling.ControlTheme resolvedTheme
+                ? resolvedTheme
+                : null;
+
+        foreach (var child in panel.Children)
+        {
+            if (child is not Button { Tag: int index } button || index < 0 || index >= _actions.Count)
+                continue;
+            if (swipeTheme is not null && !ReferenceEquals(button.Theme, swipeTheme))
+                button.Theme = swipeTheme;
+            ApplyActionButtonName(button, _actions[index]);
+        }
+    }
 
     private void ResetForReuse()
     {
@@ -669,6 +728,7 @@ public class MaterialSwipeListItem : ListBoxItem
         _offset = offset;
         if (_translate is not null)
             _translate.X = offset;
+        PseudoClasses.Set(":swipe-offset", Math.Abs(offset) > 0.01);
     }
 
     private void AddSample(double x)

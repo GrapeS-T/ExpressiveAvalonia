@@ -89,7 +89,7 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
         _card.Bind(Border.BackgroundProperty, _card.GetResourceObservable("MaterialSurfaceContainerLowBrush"));
         _card.Bind(Border.BorderBrushProperty, _card.GetResourceObservable("MaterialOutlineVariantBrush"));
         MaterialTypography.SetStyle(_status, MaterialTypeStyle.BodyMedium);
-        _status.Foreground = Brushes.Gray;
+        _status.Bind(TextBlock.ForegroundProperty, _status.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
 
         var inner = new StackPanel { Spacing = 12 };
         inner.Children.Add(_stage);
@@ -113,7 +113,7 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
         _bounds = Toggle("Ограничить 14 днями", false);
         _actions = Toggle("Кнопки OK / Cancel", true);
         _clear = Toggle("Кнопка очистки", true);
-        _adjacent = Toggle("Соседние дни", true);
+        _adjacent = Toggle("Соседние дни", false);
         _yearRange = Toggle("Диапазон лет 2020–2030", false);
         _weekdaysOnly = Toggle("Только будни", false);
 
@@ -125,7 +125,7 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
         AutomationProperties.SetName(_culture, "Культура");
         Settings.Children.Add(_culture);
         _cultureSample.FontSize = 12;
-        _cultureSample.Foreground = Brushes.Gray;
+        _cultureSample.Bind(TextBlock.ForegroundProperty, _cultureSample.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
         Settings.Children.Add(_cultureSample);
 
         _label = new TextBox { Text = "Дата", HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -161,6 +161,23 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
         _picker.Confirmed += (_, _) => ShowStatus("Подтверждено");
         _picker.Cancelled += (_, _) => _status.Text = "Отменено без сохранения";
         _picker.Cleared += (_, _) => _status.Text = "Выбор очищен";
+        _picker.PropertyChanged += (_, e) =>
+        {
+            if (_sync || e.Property != MaterialDatePicker.IsInputModeProperty)
+                return;
+            if (_presentation.SelectedIndex is 1 or 2)
+            {
+                _sync = true;
+                try
+                {
+                    _input.IsChecked = _picker.IsInputMode;
+                }
+                finally
+                {
+                    _sync = false;
+                }
+            }
+        };
         _field.SelectionCommitted += (_, _) =>
         {
             _sync = true;
@@ -211,7 +228,14 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
                 _lastMode = mode;
             }
 
-            var range = _selection.SelectedIndex == 1;
+            var allowRange = mode is 2 or 3;
+            if (_selection.Items.Count > 1 && _selection.Items[1] is Control rangeOption)
+                rangeOption.IsEnabled = allowRange;
+            if (!allowRange && _selection.SelectedIndex == 1)
+                _selection.SelectedIndex = 0;
+            _input.IsEnabled = mode != 3;
+
+            var range = allowRange && _selection.SelectedIndex == 1;
             // Switch the mode first: single mode drops a bound end, so seeding the range end
             // before the switch would be discarded.
             _picker.SelectionMode = range ? MaterialDateSelectionMode.Range : MaterialDateSelectionMode.Single;
@@ -231,7 +255,7 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
             // The full-screen surface is a scrolling month range; the typed input presentation
             // belongs to the docked and modal surfaces.
             _picker.IsInputMode = _input.IsChecked == true && mode != 3;
-            _picker.AllowInputMode = true;
+            _picker.AllowInputMode = mode == 2;
             _picker.Label = label;
             _picker.Culture = culture;
             _picker.MinimumYear = _yearRange.IsChecked == true ? 2020 : 1900;
@@ -294,9 +318,12 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
                 return;
             }
 
+            var dialogMode = _presentation.SelectedIndex == 3
+                ? MaterialDatePickerMode.FullScreen
+                : MaterialDatePickerMode.Modal;
             var picker = new MaterialDatePicker
             {
-                Mode = MaterialDatePickerMode.Modal,
+                Mode = dialogMode,
                 SelectionMode = _picker.SelectionMode,
                 Label = _picker.Label,
                 SelectedDate = _picker.SelectedDate,
@@ -307,7 +334,7 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
                 MaximumYear = _picker.MaximumYear,
                 SelectableDates = _picker.SelectableDates,
                 Culture = _picker.Culture,
-                AllowInputMode = true,
+                AllowInputMode = dialogMode == MaterialDatePickerMode.Modal,
             };
             var result = await MaterialDatePickerDialog.ShowAsync(owner, picker);
             if (!result.IsConfirmed)

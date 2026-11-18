@@ -1,5 +1,8 @@
 using System;
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
@@ -71,9 +74,9 @@ public enum MaterialExtendedFabMode
 /// <c>:pointerover</c>, <c>:focus-visible</c> and <c>:pressed</c> states.
 /// </para>
 /// <para>
-/// <see cref="Content"/> is the icon; a <see cref="PathIcon"/> picks up the role's content
-/// color and is drawn at the source's 24, 24, 28 or 36 unit glyph size. The control is a
-/// <see cref="Button"/>, so <see cref="Button.Command"/>, access keys and Enter/Space activation
+/// <see cref="Content"/> is the icon; a <see cref="PathIcon"/> or <see cref="MaterialIcon"/> picks up
+/// the role's content color and is drawn at the source's 24, 24, 28 or 36 unit glyph size. The control
+/// is a <see cref="Button"/>, so <see cref="Button.Command"/>, access keys and Enter/Space activation
 /// are native. Set <c>AutomationProperties.Name</c> on icon-only FABs.
 /// </para>
 /// </remarks>
@@ -81,17 +84,30 @@ public class MaterialFab : MaterialFabBase
 {
     /// <summary>Defines the <see cref="Size"/> property.</summary>
     public static readonly StyledProperty<MaterialFabSize> SizeProperty =
-        AvaloniaProperty.Register<MaterialFab, MaterialFabSize>(nameof(Size));
+        AvaloniaProperty.Register<MaterialFab, MaterialFabSize>(nameof(Size), MaterialFabSize.Default);
 
     private IDisposable? _iconTheme;
     private IDisposable? _iconWidth;
     private IDisposable? _iconHeight;
+
+    internal MaterialFabMenu? OwnerMenu { get; set; }
 
     static MaterialFab()
     {
         ContentProperty.Changed.AddClassHandler<MaterialFab>((fab, _) => fab.UpdateContentIcon());
         SizeProperty.Changed.AddClassHandler<MaterialFab>((fab, _) => fab.UpdateContentIcon());
     }
+
+    internal void NotifyMenuExpandedStateChanged(bool expanded)
+    {
+        if (ControlAutomationPeer.FromElement(this) is MaterialFabMenuTriggerAutomationPeer peer)
+            peer.NotifyExpandedStateChanged(expanded);
+    }
+
+    protected override AutomationPeer OnCreateAutomationPeer() =>
+        OwnerMenu is not null
+            ? new MaterialFabMenuTriggerAutomationPeer(this)
+            : base.OnCreateAutomationPeer();
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
@@ -116,10 +132,12 @@ public class MaterialFab : MaterialFabBase
     private void UpdateContentIcon()
     {
         ClearContentIcon();
-        if (Content is not PathIcon icon || !this.IsAttachedToVisualTree())
+        if (Content is not (PathIcon or MaterialIcon) || !this.IsAttachedToVisualTree())
             return;
 
-        if (this.TryFindResource("MaterialFabPathIconTheme", out var resource) && resource is ControlTheme theme)
+        var icon = (Control)Content;
+        var key = icon is PathIcon ? "MaterialFabPathIconTheme" : "MaterialFabIconTheme";
+        if (this.TryFindResource(key, out var resource) && resource is ControlTheme theme)
             _iconTheme = icon.SetValue(ThemeProperty, theme, BindingPriority.Style);
 
         var size = Size switch { MaterialFabSize.Medium => 28d, MaterialFabSize.Large => 36d, _ => 24d };
@@ -132,6 +150,35 @@ public class MaterialFab : MaterialFabBase
     {
         get => GetValue(SizeProperty);
         set => SetValue(SizeProperty, value);
+    }
+
+    private sealed class MaterialFabMenuTriggerAutomationPeer(MaterialFab owner)
+        : ButtonAutomationPeer(owner), IExpandCollapseProvider
+    {
+        public ExpandCollapseState ExpandCollapseState =>
+            owner.OwnerMenu?.IsExpanded == true
+                ? ExpandCollapseState.Expanded
+                : ExpandCollapseState.Collapsed;
+
+        public bool ShowsMenu => true;
+
+        public void Expand()
+        {
+            EnsureEnabled();
+            owner.OwnerMenu?.ExpandFromAutomation();
+        }
+
+        public void Collapse()
+        {
+            EnsureEnabled();
+            owner.OwnerMenu?.CollapseFromAutomation();
+        }
+
+        public void NotifyExpandedStateChanged(bool expanded) =>
+            RaisePropertyChangedEvent(
+                ExpandCollapsePatternIdentifiers.ExpandCollapseStateProperty,
+                expanded ? ExpandCollapseState.Collapsed : ExpandCollapseState.Expanded,
+                expanded ? ExpandCollapseState.Expanded : ExpandCollapseState.Collapsed);
     }
 }
 
@@ -150,9 +197,8 @@ public class MaterialFab : MaterialFabBase
 /// The label is <see cref="Label"/> text. Setting <see cref="ContentControl.Content"/> (with an
 /// optional <see cref="ContentControl.ContentTemplate"/>) replaces the text with custom content,
 /// matching the source text-only overload that accepts arbitrary row content; <see cref="Label"/>
-/// then still supplies the accessible name. Both anatomies support an icon-less FAB: the classic
-/// text-only overload is 80 wide at minimum with 20 units of horizontal padding and never
-/// collapses, while the expressive sizes keep their icon gap and padding.
+/// then still supplies the accessible name. Both anatomies support an icon-less FAB with symmetric
+/// horizontal padding and no collapsed form.
 /// </para>
 /// <para>
 /// <see cref="IsExpanded"/> reproduces the Material collapsing behavior: when false the label
@@ -286,8 +332,8 @@ public class MaterialExtendedFab : MaterialFabBase
         private set => SetValue(LabelOpacityProperty, value);
     }
 
-    // A classic FAB without an icon is the source text-only overload, which has no collapsed form.
-    private bool IsCollapsible => Mode is MaterialExtendedFabMode.Expressive || Icon is not null;
+    // Text-only extended FABs (without an icon) have no collapsed icon-only form in either mode.
+    private bool IsCollapsible => Icon is not null;
 
     // Source motions. Classic AnimatedVisibility: expandHorizontally(FastSpatial) +
     // fadeIn(DefaultEffects) on enter, shrinkHorizontally(DefaultSpatial) + fadeOut(FastEffects)
@@ -583,7 +629,8 @@ public class MaterialExtendedFab : MaterialFabBase
             MaterialExtendedFabSize.Medium => (26d, 12d, 26d),
             _ => (28d, 16d, 30d)
         };
-        return new ExpansionGeometry(label + gap, gap, padding, padding, collapsed, collapsed,
+        var effectiveGap = Icon is not null ? gap : 0d;
+        return new ExpansionGeometry(label + effectiveGap, effectiveGap, padding, padding, collapsed, collapsed,
             padding, collapsed, 0, 0);
     }
 

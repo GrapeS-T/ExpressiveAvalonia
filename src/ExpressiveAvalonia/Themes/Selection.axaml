@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:ExpressiveAvalonia.Controls"
                     xmlns:theming="clr-namespace:ExpressiveAvalonia.Theming">
   <!-- Source families, pinned commit 77b2199d6f056c2fe829ce25523c34a905e769c1:
        Checkbox.kt (CheckboxImpl, drawCheck, CheckboxDefaults), RadioButton.kt (RadioButtonImpl),
@@ -69,17 +70,18 @@
     <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodyLargeLetterSpacing}" />
     <Setter Property="MinHeight" Value="48" />
     <Setter Property="MinWidth" Value="48" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Grid ColumnDefinitions="48,*" Background="{TemplateBinding Background}">
+        <Grid ColumnDefinitions="48,*" Background="{TemplateBinding Background}" ClipToBounds="False">
           <!-- 40-unit state layer inside the 48-unit target; the 18-unit box is centred in both.
                Layout rounding is off for the anatomy group: the glyph centred in the 40-unit halo
                otherwise lands on a half physical pixel at fractional scales and reads as an
                offset halo. Rounding off keeps the source DIP geometry exact. -->
           <Panel Width="40" Height="40" HorizontalAlignment="Center" VerticalAlignment="Center"
-                 UseLayoutRounding="False">
+                 UseLayoutRounding="False" ClipToBounds="False">
             <!-- Source ripple (unbounded, radius 20) also draws the hover/focus state layer, so
                  there is no second Border overlay. Press alpha is the source 0.10. -->
             <theming:MaterialRipple Name="Ripple" Width="40" Height="40"
@@ -97,7 +99,7 @@
                                          HorizontalAlignment="Left" VerticalAlignment="Top"
                                          IsHitTestVisible="False" />
             </Panel>
-            <Border Name="FocusRing" Width="44" Height="44" CornerRadius="22" BorderThickness="3"
+            <Border Name="FocusRing" Margin="-5" CornerRadius="25" BorderThickness="3"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsHitTestVisible="False" />
           </Panel>
           <!-- VerticalAlignment is what centres the label: a stretched presenter would hand the
@@ -111,7 +113,14 @@
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             TextWrapping="Wrap"
-                            RecognizesAccessKey="True" />
+                            RecognizesAccessKey="True">
+            <ContentPresenter.IsVisible>
+              <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                <Binding Path="Content" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                <Binding Path="ContentTemplate" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
+              </MultiBinding>
+            </ContentPresenter.IsVisible>
+          </ContentPresenter>
         </Grid>
       </ControlTemplate>
     </Setter>
@@ -122,6 +131,11 @@
       <Setter Property="BoxColor" Value="Transparent" />
       <Setter Property="BorderColor" Value="{DynamicResource MaterialOnSurfaceVariantColor}" />
       <Setter Property="ColorSpring" Value="EffectsFast" />
+    </Style>
+    <Style Selector="^:pointerover:not(:checked):not(:indeterminate):not(:error):not(:disabled) /template/ theming|MaterialSelectionBox#Box,
+                     ^:focus-visible:not(:checked):not(:indeterminate):not(:error):not(:disabled) /template/ theming|MaterialSelectionBox#Box,
+                     ^:pressed:not(:checked):not(:indeterminate):not(:error):not(:disabled) /template/ theming|MaterialSelectionBox#Box">
+      <Setter Property="BorderColor" Value="{DynamicResource MaterialOnSurfaceColor}" />
     </Style>
     <!-- Source mark: Progress follows checkDrawFraction and Gravitation follows
          crossCenterGravitation. MaterialCheckMark runs the source specs itself: DefaultSpatial
@@ -138,11 +152,11 @@
     <Style Selector="^ /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <!-- Source ripple: checkbox passes Color.Unspecified, so the local content colour (OnSurface)
-         is used for both the state layer and the wave; there is no press-scale animation in the
-         pinned Checkbox. -->
     <Style Selector="^ /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Fill" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:checked /template/ theming|MaterialRipple#Ripple, ^:indeterminate /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
 
     <!-- Selected and indeterminate share the filled 18-unit container with a 2-unit radius;
@@ -164,10 +178,8 @@
       <Setter Property="StrokeColor" Value="{DynamicResource MaterialOnPrimaryColor}" />
       <Setter Property="ColorSpring" Value="EffectsDefault" />
     </Style>
-    <!-- Hover/focus/press feedback is the ripple state layer above; the pinned default
-         CheckboxColors do not recolor the outline in those states. -->
-    <!-- Extension: error mapping. The pinned Checkbox has no error API; the DataValidationErrors
-         driven :error class reuses the source anatomy with the Error role. -->
+    <!-- Extension: error mapping. The DataValidationErrors driven :error class reuses the source
+         anatomy with the Error role and Error state layer. -->
     <Style Selector="^:error:not(:disabled):not(:checked):not(:indeterminate) /template/ theming|MaterialSelectionBox#Box">
       <Setter Property="BorderColor" Value="{DynamicResource MaterialErrorColor}" />
     </Style>
@@ -178,6 +190,9 @@
     </Style>
     <Style Selector="^:error:not(:disabled) /template/ theming|MaterialCheckMark#Check">
       <Setter Property="StrokeColor" Value="{DynamicResource MaterialOnErrorColor}" />
+    </Style>
+    <Style Selector="^:error:not(:disabled) /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Fill" Value="{DynamicResource MaterialErrorBrush}" />
     </Style>
     <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
 
@@ -215,15 +230,16 @@
     <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodyLargeLetterSpacing}" />
     <Setter Property="MinHeight" Value="48" />
     <Setter Property="MinWidth" Value="48" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Grid ColumnDefinitions="48,*" Background="{TemplateBinding Background}">
+        <Grid ColumnDefinitions="48,*" Background="{TemplateBinding Background}" ClipToBounds="False">
           <!-- Layout rounding off, as in the checkbox: the 20-unit glyph centred in the 40-unit halo
                otherwise lands on a half pixel at fractional scales and reads as a shifted glyph. -->
           <Panel Width="40" Height="40" HorizontalAlignment="Center" VerticalAlignment="Center"
-                 UseLayoutRounding="False">
+                 UseLayoutRounding="False" ClipToBounds="False">
             <theming:MaterialRipple Name="Ripple" Width="40" Height="40"
                                     CornerRadius="20" Radius="20" IsBounded="False"
                                     PressOpacity="0.1" IsHitTestVisible="False" />
@@ -235,7 +251,7 @@
                                           HorizontalAlignment="Center" VerticalAlignment="Center"
                                           IsHitTestVisible="False" />
             </Panel>
-            <Border Name="FocusRing" Width="44" Height="44" CornerRadius="22" BorderThickness="3"
+            <Border Name="FocusRing" Margin="-5" CornerRadius="25" BorderThickness="3"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsHitTestVisible="False" />
           </Panel>
           <!-- Same label contract as the checkbox: centre the presenter, not the stretched text. -->
@@ -248,7 +264,14 @@
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             TextWrapping="Wrap"
-                            RecognizesAccessKey="True" />
+                            RecognizesAccessKey="True">
+            <ContentPresenter.IsVisible>
+              <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                <Binding Path="Content" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                <Binding Path="ContentTemplate" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
+              </MultiBinding>
+            </ContentPresenter.IsVisible>
+          </ContentPresenter>
         </Grid>
       </ControlTemplate>
     </Setter>
@@ -260,19 +283,25 @@
       <Setter Property="DotRadius" Value="0" />
       <Setter Property="ColorSpring" Value="EffectsDefault" />
     </Style>
+    <Style Selector="^:pointerover:not(:checked):not(:disabled) /template/ theming|MaterialRadioGlyph#RadioGlyph,
+                     ^:focus-visible:not(:checked):not(:disabled) /template/ theming|MaterialRadioGlyph#RadioGlyph,
+                     ^:pressed:not(:checked):not(:disabled) /template/ theming|MaterialRadioGlyph#RadioGlyph">
+      <Setter Property="Color" Value="{DynamicResource MaterialOnSurfaceColor}" />
+    </Style>
     <Style Selector="^ /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="False" />
     </Style>
     <Style Selector="^ /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Fill" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     </Style>
+    <Style Selector="^:checked /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryBrush}" />
+    </Style>
 
     <Style Selector="^:checked /template/ theming|MaterialRadioGlyph#RadioGlyph">
       <Setter Property="Color" Value="{DynamicResource MaterialPrimaryColor}" />
       <Setter Property="DotRadius" Value="6" />
     </Style>
-    <!-- Hover/focus/press feedback is the ripple state layer above; RadioButtonColors
-         only depend on enabled/selected in the pinned source. -->
     <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
 
     <Style Selector="^:disabled"><Setter Property="Foreground" Value="{DynamicResource MaterialSelectionDisabledOnSurfaceBrush}" /></Style>
@@ -299,30 +328,31 @@
     <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodyLargeLetterSpacing}" />
     <Setter Property="MinHeight" Value="48" />
     <Setter Property="MinWidth" Value="52" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="OnContent" Value="{x:Null}" />
     <Setter Property="OffContent" Value="{x:Null}" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Template">
       <ControlTemplate>
-        <DockPanel Name="SwitchRoot" LastChildFill="True" Background="{TemplateBinding Background}">
+        <DockPanel Name="SwitchRoot" LastChildFill="True" Background="{TemplateBinding Background}" ClipToBounds="False">
           <!-- Layout rounding off so the 52x32 track, the 40-unit halo and the 16/24/28 handle keep
                the source DIP geometry at fractional scales; otherwise the centred pair snaps to
                different physical pixels (125% gave 24.4 vs 24) and the halo reads off-centre. -->
           <Panel Name="SwitchTrack" DockPanel.Dock="Left" Width="52" Height="48" HorizontalAlignment="Left" VerticalAlignment="Center"
-                 UseLayoutRounding="False">
+                 UseLayoutRounding="False" ClipToBounds="False">
             <!-- The disabled switch roles are resolved against Surface in SwitchTokens and drawn
                  opaquely, so no backdrop layer is needed. -->
             <Border Name="Track" Width="52" Height="32" VerticalAlignment="Center" CornerRadius="16" />
             <!-- Native ToggleSwitch writes Canvas.Left on PART_MovingKnobs for checked state and
                  drag. MaterialSwitchKnobTrack reads that as the target and paints the FastSpatial
                  spring offset (pressed/dragging snap), so no finite Canvas.Left transition is set. -->
-            <theming:MaterialSwitchKnobTrack Name="PART_SwitchKnob" Width="20" Height="48" HorizontalAlignment="Left">
-              <Grid Name="PART_MovingKnobs" Width="32" Height="48" Background="Transparent">
+            <theming:MaterialSwitchKnobTrack Name="PART_SwitchKnob" Width="20" Height="48" HorizontalAlignment="Left" ClipToBounds="False">
+              <Grid Name="PART_MovingKnobs" Width="32" Height="48" Background="Transparent" ClipToBounds="False">
                 <!-- Source ripple is unbounded with radius 20 centred on the handle, so the halo
                      overhangs the track by 4 exactly as the source component (clipsContent=false)
                      does. It also draws the hover/focus state layer; no second overlay. -->
-                <theming:MaterialRipple Name="Ripple" Width="40" Height="40"
+                <theming:MaterialRipple Name="Ripple" Width="40" Height="40" Margin="-4,0"
                                         CornerRadius="20" Radius="20" IsBounded="False"
                                         PressOpacity="0.1" IsHitTestVisible="False" />
                 <Border Name="Thumb" Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="14">
@@ -330,22 +360,46 @@
                     <!-- The 16-unit slot is centred in the handle: a 16-unit handle has no inset,
                          a 24-unit icon-bearing handle gives the source 4-unit inset. -->
                     <Panel Name="IconSlot" Width="16" Height="16">
+                      <Panel.Styles>
+                        <Style Selector="controls|MaterialIcon">
+                          <Setter Property="Theme" Value="{DynamicResource MaterialButtonIconTheme}" />
+                          <Setter Property="Width" Value="24" />
+                          <Setter Property="Height" Value="24" />
+                        </Style>
+                        <Style Selector="controls|MaterialIcon:rtl">
+                          <Setter Property="RenderTransform" Value="scale(-1,1)" />
+                          <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+                        </Style>
+                        <Style Selector="PathIcon">
+                          <Setter Property="Theme" Value="{DynamicResource MaterialButtonPathIconTheme}" />
+                          <Setter Property="Width" Value="24" />
+                          <Setter Property="Height" Value="24" />
+                        </Style>
+                        <Style Selector="PathIcon:rtl">
+                          <Setter Property="RenderTransform" Value="scale(-1,1)" />
+                          <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+                        </Style>
+                      </Panel.Styles>
                       <!-- Native OnContent/OffContent stay available as handle icons. -->
-                      <ContentPresenter Name="PART_OffContentPresenter"
-                                        Content="{TemplateBinding OffContent}" ContentTemplate="{TemplateBinding OffContentTemplate}"
-                                        TextElement.FontSize="16"
-                                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                        <ContentPresenter.IsVisible>
-                          <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                            <Binding Path="OffContent" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
-                            <Binding Path="OffContentTemplate" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
-                          </MultiBinding>
-                        </ContentPresenter.IsVisible>
-                      </ContentPresenter>
-                      <ContentPresenter Name="PART_OnContentPresenter"
-                                        Content="{TemplateBinding OnContent}" ContentTemplate="{TemplateBinding OnContentTemplate}"
-                                        TextElement.FontSize="16"
-                                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+                      <Viewbox Width="16" Height="16" Stretch="Uniform">
+                        <ContentPresenter Name="PART_OffContentPresenter"
+                                          Content="{TemplateBinding OffContent}" ContentTemplate="{TemplateBinding OffContentTemplate}"
+                                          TextElement.FontSize="16"
+                                          HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                          <ContentPresenter.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                              <Binding Path="OffContent" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                              <Binding Path="OffContentTemplate" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                            </MultiBinding>
+                          </ContentPresenter.IsVisible>
+                        </ContentPresenter>
+                      </Viewbox>
+                      <Viewbox Width="16" Height="16" Stretch="Uniform">
+                        <ContentPresenter Name="PART_OnContentPresenter"
+                                          Content="{TemplateBinding OnContent}" ContentTemplate="{TemplateBinding OnContentTemplate}"
+                                          TextElement.FontSize="16"
+                                          HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+                      </Viewbox>
                       <!-- Source "Icon=True": built-in check / close glyphs in the 16-unit icon slot.
                            MaterialSelection adds the switch-icons class only while OnContent,
                            OffContent and their templates are null, so consumer content wins. -->
@@ -362,7 +416,7 @@
                 </Border>
               </Grid>
             </theming:MaterialSwitchKnobTrack>
-            <Border Name="FocusRing" Width="56" Height="36" CornerRadius="18" BorderThickness="3"
+            <Border Name="FocusRing" Margin="-5,3" CornerRadius="21" BorderThickness="3"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsHitTestVisible="False" />
           </Panel>
           <!-- Same label contract: the presenter centres itself so the AccessText is exactly one
@@ -376,7 +430,14 @@
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             TextWrapping="Wrap"
-                            RecognizesAccessKey="True" />
+                            RecognizesAccessKey="True">
+            <ContentPresenter.IsVisible>
+              <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                <Binding Path="Content" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                <Binding Path="ContentTemplate" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNotNull}" />
+              </MultiBinding>
+            </ContentPresenter.IsVisible>
+          </ContentPresenter>
         </DockPanel>
       </ControlTemplate>
     </Setter>
@@ -394,8 +455,16 @@
     <Style Selector="^ /template/ Border#ThumbFill">
       <Setter Property="Background" Value="{DynamicResource MaterialOutlineBrush}" />
     </Style>
+    <Style Selector="^:pointerover:not(:checked):not(:disabled) /template/ Border#ThumbFill,
+                     ^:focus-visible:not(:checked):not(:disabled) /template/ Border#ThumbFill,
+                     ^:pressed:not(:checked):not(:disabled) /template/ Border#ThumbFill">
+      <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
     <Style Selector="^ /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Fill" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:checked /template/ theming|MaterialRipple#Ripple">
+      <Setter Property="Fill" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
     <Style Selector="^ /template/ ContentPresenter#PART_OffContentPresenter">
       <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
@@ -427,6 +496,11 @@
     <Style Selector="^:checked /template/ Border#ThumbFill">
       <Setter Property="Background" Value="{DynamicResource MaterialOnPrimaryBrush}" />
     </Style>
+    <Style Selector="^:checked:pointerover:not(:disabled) /template/ Border#ThumbFill,
+                     ^:checked:focus-visible:not(:disabled) /template/ Border#ThumbFill,
+                     ^:checked:pressed:not(:disabled) /template/ Border#ThumbFill">
+      <Setter Property="Background" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
+    </Style>
     <!-- The off presenter owns a MultiBinding for IsVisible, so the checked state hides it with
          opacity instead of fighting that binding. Both presenters occupy the same 16-unit slot. -->
     <Style Selector="^:checked /template/ ContentPresenter#PART_OffContentPresenter"><Setter Property="Opacity" Value="0" /></Style>
@@ -439,25 +513,12 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
 
-    <!-- Hover/focus/pressed feedback is the ripple state layer; the pinned SwitchDefaults
-         colors only vary with enabled and checked. Source pressed size/offset snap immediately and
-         spring back on release; MaterialSwitchKnobTrack owns both, so no pressed style remains. -->
     <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
 
-    <!-- RTL: the source lays the switch out from the start edge, so the track moves to the right
-         column and the handle origin mirrors. The mirrored Canvas 0/20 positions put the checked
-         handle at the RTL start (left); icons/content are counter-mirrored so text stays upright.
-         Pointer input is transformed by the same render transform. -->
-    <Style Selector="^[FlowDirection=RightToLeft] /template/ Panel#SwitchTrack">
-      <Setter Property="DockPanel.Dock" Value="Right" />
-      <Setter Property="HorizontalAlignment" Value="Right" />
-      <Setter Property="RenderTransform" Value="scale(-1,1)" />
-      <Setter Property="RenderTransformOrigin" Value="50%,50%" />
-    </Style>
-    <Style Selector="^[FlowDirection=RightToLeft] /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Margin" Value="0,8,12,8" />
-    </Style>
-    <Style Selector="^[FlowDirection=RightToLeft] /template/ Panel#ThumbIcons, ^[FlowDirection=RightToLeft] /template/ ContentPresenter#PART_OffContentPresenter, ^[FlowDirection=RightToLeft] /template/ ContentPresenter#PART_OnContentPresenter">
+    <!-- Avalonia mirrors ToggleSwitch once in RTL, placing SwitchTrack at the start (right) edge
+         and moving the handle from right (Off) to left (On). Only the non-directional checkmark
+         glyph is counter-mirrored so it remains upright. -->
+    <Style Selector="^:rtl /template/ Path#SwitchOnIcon">
       <Setter Property="RenderTransform" Value="scale(-1,1)" />
       <Setter Property="RenderTransformOrigin" Value="50%,50%" />
     </Style>

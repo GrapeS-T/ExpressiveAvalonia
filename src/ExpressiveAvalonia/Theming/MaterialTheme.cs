@@ -155,6 +155,18 @@ public sealed class MaterialTheme : Styles
         // own surface container; the stroke is that opaque result.
         Composited("MaterialCardOutlinedDisabledOutlineBrush", "MaterialOutline", .12,
             "MaterialSurfaceContainerLow");
+        Composited("MaterialCardElevatedDisabledContainerBrush", "MaterialSurface", .38,
+            "MaterialSurfaceContainerLow");
+        Translucent("MaterialCardDisabledSurfaceBrush", "MaterialSurface", .38);
+        Translucent("MaterialDisabledSurface10Brush", "MaterialOnSurface", .10);
+        Translucent("MaterialDisabledSurface12Brush", "MaterialOnSurface", .12);
+        Translucent("MaterialDatePickerDisabledDayContentBrush", "MaterialOnSurface", .38);
+        Translucent("MaterialDatePickerDisabledYearContentBrush", "MaterialOnSurfaceVariant", .38);
+        Translucent("MaterialDatePickerDisabledSelectedContentBrush", "MaterialOnPrimary", .38);
+        Translucent("MaterialDatePickerDisabledSelectedContainerBrush", "MaterialPrimary", .38);
+        Translucent("MaterialTimePickerDisabledContentBrush", "MaterialOnSurface", .38);
+        Translucent("MaterialTimePickerDisabledOutlineBrush", "MaterialOnSurface", .12);
+        Translucent("MaterialTimePickerDisabledContainerBrush", "MaterialOnSurface", .12);
         Composited("MaterialSliderDisabledHandleBrush", "MaterialOnSurface", .38);
         Translucent("MaterialTextFieldDisabledContentBrush", "MaterialOnSurface", .38);
         Translucent("MaterialTextFieldDisabledAffixBrush", "MaterialOnSurfaceVariant", .38);

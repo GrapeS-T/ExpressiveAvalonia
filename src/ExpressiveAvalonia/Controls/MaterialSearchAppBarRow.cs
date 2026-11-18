@@ -1,13 +1,17 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media;
 
 namespace ExpressiveAvalonia.Controls;
 
 /// <summary>Measures leading, trailing, managed actions and the responsive search field.</summary>
 public sealed class MaterialSearchAppBarRow : Panel
 {
+    private const double MinFieldWidth = 312;
+    private const double DefaultFieldWidth = 360;
+    private const double MaxFieldWidth = 720;
+    private const double FieldHorizontalMargins = 16;
+
     protected override Size MeasureOverride(Size availableSize)
     {
         if (Children.Count < 4)
@@ -23,13 +27,13 @@ public sealed class MaterialSearchAppBarRow : Panel
         trailing.Measure(new Size(remaining, availableSize.Height));
         remaining = Math.Max(0, remaining - trailing.DesiredSize.Width);
         var actionWidth = double.IsFinite(remaining)
-            ? Math.Max(0, remaining - Math.Min(328, Math.Max(0, remaining - 48)))
+            ? Math.Max(0, remaining - Math.Min(MinFieldWidth + FieldHorizontalMargins, Math.Max(0, remaining - 48)))
             : double.PositiveInfinity;
         actions.Measure(new Size(actionWidth, availableSize.Height));
         remaining = Math.Max(0, remaining - actions.DesiredSize.Width);
         var fieldWidth = double.IsFinite(remaining)
-            ? Math.Min(remaining, Math.Max(312, Math.Max(0, remaining - 16) / 2) + 16)
-            : double.PositiveInfinity;
+            ? ResolveFieldSlotWidth(remaining)
+            : DefaultFieldWidth + FieldHorizontalMargins;
         field.Measure(new Size(fieldWidth, availableSize.Height));
         return new Size(double.IsFinite(availableSize.Width) ? availableSize.Width :
             leading.DesiredSize.Width + field.DesiredSize.Width + actions.DesiredSize.Width + trailing.DesiredSize.Width,
@@ -48,13 +52,16 @@ public sealed class MaterialSearchAppBarRow : Panel
         var trailWidth = Math.Min(Math.Max(0, finalSize.Width - leadWidth), trailing.DesiredSize.Width);
         var actionWidth = Math.Min(Math.Max(0, finalSize.Width - leadWidth - trailWidth), actions.DesiredSize.Width);
         var available = Math.Max(0, finalSize.Width - leadWidth - trailWidth - actionWidth);
-        var fieldWidth = Math.Min(available, Math.Max(312, Math.Max(0, available - 16) / 2) + 16);
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
-        leading.Arrange(new Rect(rtl ? finalSize.Width - leadWidth : 0, 0, leadWidth, finalSize.Height));
-        trailing.Arrange(new Rect(rtl ? 0 : finalSize.Width - trailWidth, 0, trailWidth, finalSize.Height));
-        actions.Arrange(new Rect(rtl ? trailWidth : finalSize.Width - trailWidth - actionWidth, 0, actionWidth, finalSize.Height));
-        var start = rtl ? trailWidth + actionWidth : leadWidth;
-        field.Arrange(new Rect(start + (available - fieldWidth) / 2, 0, fieldWidth, finalSize.Height));
+        var fieldWidth = ResolveFieldSlotWidth(available);
+        leading.Arrange(new Rect(0, 0, leadWidth, finalSize.Height));
+        trailing.Arrange(new Rect(finalSize.Width - trailWidth, 0, trailWidth, finalSize.Height));
+        actions.Arrange(new Rect(finalSize.Width - trailWidth - actionWidth, 0, actionWidth, finalSize.Height));
+        field.Arrange(new Rect(leadWidth + (available - fieldWidth) / 2, 0, fieldWidth, finalSize.Height));
         return finalSize;
     }
+
+    private static double ResolveFieldSlotWidth(double available) =>
+        Math.Min(available,
+            Math.Clamp(Math.Max(0, available - FieldHorizontalMargins) / 2, MinFieldWidth, MaxFieldWidth) +
+            FieldHorizontalMargins);
 }

@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Metadata;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Path = Avalonia.Controls.Shapes.Path;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -114,7 +115,8 @@ public class MaterialNavigationRailItem : ListBoxItem
 
     private Geometry? _effectiveSelectedIcon;
     private string? _effectiveLabel;
-    private string? _appliedAutomationName;
+    private IDisposable? _automationNameValue;
+    private IDisposable? _badgeStatusValue;
     private bool _pressed;
     private MaterialNavigationRail? _rail;
     private MaterialNavigationItemLayout? _layout;
@@ -221,6 +223,7 @@ public class MaterialNavigationRailItem : ListBoxItem
         _label = e.NameScope.Find<TextBlock>("PART_Label");
         _labelHost = e.NameScope.Find<Panel>("PART_LabelHost");
         ApplyTintBrushes();
+        UpdateSelectedIcon();
         UpdateVisualClasses();
         UpdateIndicatorTargets(animate: false);
         UpdateNavigationLayout();
@@ -277,6 +280,11 @@ public class MaterialNavigationRailItem : ListBoxItem
         {
             UpdateVisualClasses();
             UpdateColorTargets(animate: true);
+            _rail?.UpdateRovingTabStop();
+        }
+        else if (change.Property == Visual.IsVisibleProperty)
+        {
+            _rail?.UpdateRovingTabStop();
         }
     }
 
@@ -312,17 +320,39 @@ public class MaterialNavigationRailItem : ListBoxItem
     private void UpdateSelectedIcon()
     {
         SetAndRaise(EffectiveSelectedIconProperty, ref _effectiveSelectedIcon, SelectedIcon ?? Icon);
+        ApplyIconViewport(_iconPath, Icon);
+        ApplyIconViewport(_selectedIconPath, _effectiveSelectedIcon);
+    }
+
+    private static void ApplyIconViewport(Path? path, Geometry? geometry)
+    {
+        if (path is null)
+            return;
+
+        var bounds = geometry?.Bounds ?? default;
+        var fitsViewport = geometry is null ||
+            (bounds.X >= -0.5 && bounds.Y >= -0.5 && bounds.Right <= 24.5 && bounds.Bottom <= 24.5);
+        if (fitsViewport)
+        {
+            path.Stretch = Stretch.None;
+            path.ClearValue(WidthProperty);
+            path.ClearValue(HeightProperty);
+        }
+        else
+        {
+            path.Stretch = Stretch.Uniform;
+            path.Width = 24;
+            path.Height = 24;
+        }
     }
 
     private void UpdateLabel()
     {
         SetAndRaise(EffectiveLabelProperty, ref _effectiveLabel, Label ?? Content as string);
-        var currentName = AutomationProperties.GetName(this);
-        if (string.IsNullOrEmpty(currentName) || currentName == _appliedAutomationName)
-        {
-            _appliedAutomationName = _effectiveLabel ?? string.Empty;
-            AutomationProperties.SetName(this, _appliedAutomationName);
-        }
+        _automationNameValue?.Dispose();
+        _automationNameValue = !string.IsNullOrEmpty(_effectiveLabel)
+            ? SetValue(AutomationProperties.NameProperty, _effectiveLabel, BindingPriority.Style)
+            : null;
         UpdateVisualClasses();
         UpdateNavigationLayout();
         _rail?.ScheduleExpandedWidthUpdate();
@@ -346,13 +376,27 @@ public class MaterialNavigationRailItem : ListBoxItem
         PseudoClasses.Set(":no-icon", !ShowIcon);
         PseudoClasses.Set(":force-focus", ShowFocusIndicator);
 
-        AutomationProperties.SetItemStatus(this, Badge switch
+        UpdateBadgeAutomation();
+    }
+
+    private void UpdateBadgeAutomation()
+    {
+        _badgeStatusValue?.Dispose();
+        _badgeStatusValue = null;
+
+        if (Badge == MaterialNavigationRailBadge.None)
+            return;
+
+        if (Badge == MaterialNavigationRailBadge.Large && !string.IsNullOrWhiteSpace(BadgeText))
         {
-            MaterialNavigationRailBadge.None => null,
-            MaterialNavigationRailBadge.Large when !string.IsNullOrWhiteSpace(BadgeText) => BadgeText,
-            _ => this.TryFindResource("MaterialNavigationBarBadgeDotText", out var text) && text is string label
-                ? label : "New notification"
-        });
+            _badgeStatusValue = SetValue(AutomationProperties.ItemStatusProperty, BadgeText, BindingPriority.Style);
+            return;
+        }
+
+        var dotText = this.TryFindResource("MaterialNavigationBarBadgeDotText", out var text) && text is string label
+            ? label
+            : "New notification";
+        _badgeStatusValue = SetValue(AutomationProperties.ItemStatusProperty, dotText, BindingPriority.Style);
     }
 
     private void UpdateIndicatorTargets(bool animate)
@@ -567,8 +611,11 @@ public class MaterialNavigationRailItem : ListBoxItem
             ? color
             : Colors.Transparent;
 
-    private void OnResourcesChanged(object? sender, ResourcesChangedEventArgs e) =>
+    private void OnResourcesChanged(object? sender, ResourcesChangedEventArgs e)
+    {
         UpdateColorTargets(animate: false);
+        UpdateBadgeAutomation();
+    }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e) =>
         UpdateColorTargets(animate: false);

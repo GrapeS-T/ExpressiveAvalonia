@@ -156,6 +156,14 @@ public sealed class MaterialList : AvaloniaObject
     public static readonly AttachedProperty<bool> SegmentedProperty =
         AvaloniaProperty.RegisterAttached<MaterialList, Control, bool>("Segmented", inherits: true);
 
+    /// <summary>
+    /// Inherited vertical density from 0 to -4, reducing row minimum height by 4 DIP per step
+    /// (clamped to the 48 DIP accessible target) and tightening vertical padding.
+    /// </summary>
+    public static readonly AttachedProperty<int> DensityProperty =
+        AvaloniaProperty.RegisterAttached<MaterialList, Control, int>("Density", 0, inherits: true,
+            validate: static value => value is >= -4 and <= 0);
+
     /// <summary>Bubbling notification raised after <see cref="AllowItemDragProperty"/> reorders an item.</summary>
     public static readonly RoutedEvent<MaterialListItemMovedEventArgs> ItemMovedEvent =
         RoutedEvent.Register<MaterialList, MaterialListItemMovedEventArgs>("ItemMoved", RoutingStrategies.Bubble);
@@ -182,11 +190,15 @@ public sealed class MaterialList : AvaloniaObject
             if (SupportingLineProbes.TryGetValue(control, out var probe))
                 probe.Refresh();
         });
-        SegmentedProperty.Changed.AddClassHandler<Control>(static (control, change) =>
-            OnSegmentedChanged(control, change.GetNewValue<bool>()));
-        // ListItemDefaults.segmentedShapes depends on the item's index and the list count, which
-        // both change at runtime (insert/remove/reorder), so the item classes are derived from the
-        // live containers rather than from a one-shot template state.
+        SegmentedProperty.Changed.AddClassHandler<Control>(static (control, _) =>
+            OnRowTrackingOwnerChanged(control));
+        ShowDividersProperty.Changed.AddClassHandler<Control>(static (control, _) =>
+            OnRowTrackingOwnerChanged(control));
+        DensityProperty.Changed.AddClassHandler<Control>(static (control, _) =>
+            UpdateDensityClasses(control));
+        // ListItemDefaults.segmentedShapes and trailing divider suppression depend on the item's
+        // index and the list count, which both change at runtime (insert/remove/reorder), so the
+        // item classes are derived from the live containers rather than from a one-shot template state.
         TemplatedControl.CornerRadiusProperty.Changed.AddClassHandler<ListBoxItem>(static (item, change) =>
             OnItemCornerRadiusChanged(item, change.GetNewValue<CornerRadius>()));
         TemplatedControl.TemplateAppliedEvent.AddClassHandler<ListBoxItem>(static (item, e) =>
@@ -197,7 +209,8 @@ public sealed class MaterialList : AvaloniaObject
         // rebuild it from the current target so no style change is missed after reattachment.
         Control.LoadedEvent.AddClassHandler<ListBoxItem>(static (item, _) => EnsureItemShapeMotion(item));
         Control.LoadedEvent.AddClassHandler<ListBoxItem>(static (item, _) => EnsureSupportingLineProbe(item));
-        Control.LoadedEvent.AddClassHandler<ListBox>(static (list, _) => OnListLoaded(list));
+        Control.LoadedEvent.AddClassHandler<ListBox>(static (list, _) => EnsureSegmentedRows(list));
+        Control.LoadedEvent.AddClassHandler<MaterialAccordion>(static (accordion, _) => EnsureSegmentedRows(accordion));
     }
 
     /// <summary>
@@ -218,6 +231,17 @@ public sealed class MaterialList : AvaloniaObject
         control.Classes.Set("md-list-3line", lines == 3);
         control.Classes.Set("md-list-overline", !string.IsNullOrEmpty(GetOverline(control)));
         control.Classes.Set("md-list-supporting", !string.IsNullOrEmpty(GetSupportingText(control)));
+    }
+
+    private static void UpdateDensityClasses(Control control)
+    {
+        if (control is not ListBoxItem)
+            return;
+        var density = GetDensity(control);
+        control.Classes.Set("md-list-density-1", density == -1);
+        control.Classes.Set("md-list-density-2", density == -2);
+        control.Classes.Set("md-list-density-3", density == -3);
+        control.Classes.Set("md-list-density-4", density == -4);
     }
 
     private static int DeriveLineCount(Control control)
@@ -279,6 +303,8 @@ public sealed class MaterialList : AvaloniaObject
     public static void SetAllowItemDrag(Control list, bool value) => list.SetValue(AllowItemDragProperty, value);
     public static bool GetSegmented(Control list) => list.GetValue(SegmentedProperty);
     public static void SetSegmented(Control list, bool value) => list.SetValue(SegmentedProperty, value);
+    public static int GetDensity(Control control) => control.GetValue(DensityProperty);
+    public static void SetDensity(Control control, int value) => control.SetValue(DensityProperty, value);
     public static void AddItemMovedHandler(Control control, EventHandler<MaterialListItemMovedEventArgs> handler) =>
         control.AddHandler(ItemMovedEvent, handler);
     public static void RemoveItemMovedHandler(Control control, EventHandler<MaterialListItemMovedEventArgs> handler) =>
@@ -286,7 +312,7 @@ public sealed class MaterialList : AvaloniaObject
 
     private static readonly ConditionalWeakTable<ListBoxItem, ItemShapeMotion> ItemShapeMotions = new();
     private static readonly ConditionalWeakTable<Control, SupportingLineProbe> SupportingLineProbes = new();
-    private static readonly ConditionalWeakTable<ListBox, SegmentedRows> SegmentedRowTrackers = new();
+    private static readonly ConditionalWeakTable<ItemsControl, SegmentedRows> SegmentedRowTrackers = new();
 
     /// <summary>
     /// Replaces the timed CornerRadius transition with the source FastSpatial shape spring
@@ -297,6 +323,9 @@ public sealed class MaterialList : AvaloniaObject
     /// </summary>
     private static void AttachItemShapeMotion(ListBoxItem item, TemplateAppliedEventArgs e)
     {
+        UpdateDensityClasses(item);
+        if (ItemsControl.ItemsControlFromItemContainer(item) is { } owner && owner is ListBox or MaterialAccordion)
+            EnsureSegmentedRows(owner);
         if (ItemShapeMotions.TryGetValue(item, out var previous))
         {
             previous.Dispose();
@@ -308,12 +337,16 @@ public sealed class MaterialList : AvaloniaObject
         if (surface is null)
             return;
         var layer = e.NameScope.Find<MaterialRipple>("StateLayer");
+        var focusRing = e.NameScope.Find<Border>("FocusRing");
         ItemShapeMotions.Remove(item);
-        ItemShapeMotions.Add(item, new ItemShapeMotion(item, surface, layer));
+        ItemShapeMotions.Add(item, new ItemShapeMotion(item, surface, layer, focusRing));
     }
 
     private static void EnsureItemShapeMotion(ListBoxItem item)
     {
+        UpdateDensityClasses(item);
+        if (ItemsControl.ItemsControlFromItemContainer(item) is { } owner && owner is ListBox or MaterialAccordion)
+            EnsureSegmentedRows(owner);
         if (ItemShapeMotions.TryGetValue(item, out _))
             return;
         var surface = item.GetVisualDescendants().OfType<Border>()
@@ -322,7 +355,9 @@ public sealed class MaterialList : AvaloniaObject
             return;
         var layer = item.GetVisualDescendants().OfType<MaterialRipple>()
             .FirstOrDefault(visual => visual.Name == "StateLayer");
-        ItemShapeMotions.Add(item, new ItemShapeMotion(item, surface, layer));
+        var focusRing = item.GetVisualDescendants().OfType<Border>()
+            .FirstOrDefault(visual => visual.Name == "FocusRing");
+        ItemShapeMotions.Add(item, new ItemShapeMotion(item, surface, layer, focusRing));
     }
 
     private static void OnItemCornerRadiusChanged(ListBoxItem item, CornerRadius target)
@@ -419,15 +454,17 @@ public sealed class MaterialList : AvaloniaObject
         private readonly ListBoxItem _item;
         private readonly Border _surface;
         private readonly MaterialRipple? _layer;
+        private readonly Border? _focusRing;
         private readonly MaterialCornerRadiusTransition _corners;
         private bool _disposed;
         private bool _initialized;
 
-        public ItemShapeMotion(ListBoxItem item, Border surface, MaterialRipple? layer)
+        public ItemShapeMotion(ListBoxItem item, Border surface, MaterialRipple? layer, Border? focusRing)
         {
             _item = item;
             _surface = surface;
             _layer = layer;
+            _focusRing = focusRing;
             _corners = new MaterialCornerRadiusTransition(item, item.CornerRadius, Apply,
                 MaterialSpring.SpatialFast);
             item.DetachedFromVisualTree += OnDetached;
@@ -444,6 +481,11 @@ public sealed class MaterialList : AvaloniaObject
         {
             _surface.SetCurrentValue(Border.CornerRadiusProperty, value);
             _layer?.SetCurrentValue(MaterialRipple.CornerRadiusProperty, value);
+            _focusRing?.SetCurrentValue(Border.CornerRadiusProperty, new CornerRadius(
+                value.TopLeft + 5,
+                value.TopRight + 5,
+                value.BottomRight + 5,
+                value.BottomLeft + 5));
         }
 
         private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e) => Dispose();
@@ -459,30 +501,13 @@ public sealed class MaterialList : AvaloniaObject
         }
     }
 
-    private static void OnSegmentedChanged(Control control, bool enabled)
+    private static void OnRowTrackingOwnerChanged(Control control)
     {
-        if (control is not ListBox list)
-            return;
-        if (enabled)
-        {
-            EnsureSegmentedRows(list);
-            return;
-        }
-        if (SegmentedRowTrackers.TryGetValue(list, out var tracker))
-            tracker.Dispose();
-        foreach (var container in list.GetRealizedContainers())
-            ClearSegmentClasses(container);
+        if (control is ListBox or MaterialAccordion)
+            EnsureSegmentedRows((ItemsControl)control);
     }
 
-    private static void OnListLoaded(ListBox list)
-    {
-        // Realization and recycling can happen before or after the Segmented flag; re-derive the
-        // first/last/single classes from the live containers on every load.
-        if (GetSegmented(list))
-            EnsureSegmentedRows(list);
-    }
-
-    private static void EnsureSegmentedRows(ListBox list)
+    private static void EnsureSegmentedRows(ItemsControl list)
     {
         if (!SegmentedRowTrackers.TryGetValue(list, out _))
             SegmentedRowTrackers.Add(list, new SegmentedRows(list));
@@ -490,12 +515,11 @@ public sealed class MaterialList : AvaloniaObject
     }
 
     /// <summary>
-    /// Mirrors <c>ListItemDefaults.segmentedShapes</c> (outer rest corners from
-    /// <c>ListTokens.ContainerShape</c> = corner-large on the first/last/single row). The middle
-    /// rows keep the source extra-small rest shape; interaction shapes are still applied by the
-    /// theme, so pressed/selected keep corner-large on every corner.
+    /// Tracks <c>md-list-first</c>/<c>md-list-last</c>/<c>md-list-single</c>/<c>md-list-middle</c>
+    /// on realized rows so segmented outer corners, inter-item gaps and trailing divider
+    /// suppression follow live index and count changes.
     /// </summary>
-    private static void UpdateSegmentClasses(ListBox list)
+    private static void UpdateSegmentClasses(ItemsControl list)
     {
         foreach (var container in list.GetRealizedContainers())
         {
@@ -505,10 +529,10 @@ public sealed class MaterialList : AvaloniaObject
         }
     }
 
-    private static void UpdateSegmentClass(ListBox list, Control item, int index)
+    private static void UpdateSegmentClass(ItemsControl list, Control item, int index)
     {
         var count = list.ItemCount;
-        if (!GetSegmented(list) || count == 0 || index < 0)
+        if (count == 0 || index < 0)
         {
             ClearSegmentClasses(item);
             return;
@@ -529,14 +553,14 @@ public sealed class MaterialList : AvaloniaObject
         item.Classes.Set("md-list-middle", false);
     }
 
-    /// <summary>Tracks one segmented ListBox: container realization plus live count changes.</summary>
+    /// <summary>Tracks one list/accordion: container realization plus live count changes.</summary>
     private sealed class SegmentedRows : IDisposable
     {
-        private readonly ListBox _list;
+        private readonly ItemsControl _list;
         private ItemsSourceView? _items;
         private bool _disposed;
 
-        public SegmentedRows(ListBox list)
+        public SegmentedRows(ItemsControl list)
         {
             _list = list;
             list.ContainerPrepared += OnContainerPrepared;
@@ -668,9 +692,9 @@ public sealed class MaterialList : AvaloniaObject
         }
         private void OnPressed(object? sender, PointerPressedEventArgs e)
         {
-            if (!e.GetCurrentPoint(_list).Properties.IsLeftButtonPressed)
+            if (!_list.IsEffectivelyEnabled || !e.GetCurrentPoint(_list).Properties.IsLeftButtonPressed)
                 return;
-            if (e.Source is not Visual source || FindItem(source) is not { } item)
+            if (e.Source is not Visual source || FindItem(source) is not { } item || !item.IsEffectivelyEnabled)
                 return;
             // Never steal a press that belongs to a nested interactive control.
             if (FindInteractive(source, item) is not null)
@@ -691,6 +715,16 @@ public sealed class MaterialList : AvaloniaObject
         {
             if (!_pressed || _item is null)
                 return;
+            if (!_list.IsEffectivelyEnabled || !_item.IsEffectivelyEnabled)
+            {
+                Reset(_item);
+                _pressed = false;
+                _dragging = false;
+                _item = null;
+                if (e.Pointer.Captured == _list)
+                    e.Pointer.Capture(null);
+                return;
+            }
             var point = e.GetPosition(_list);
             var dx = point.X - _start.X;
             var dy = point.Y - _start.Y;

@@ -837,9 +837,28 @@ public class MaterialSearchView : TemplatedControl
 
     private double ResolveCollapsedCornerRadius()
     {
-        if (_anchorBar is { } bar && bar.CornerRadius.TopLeft > 0)
-            return bar.CornerRadius.TopLeft;
-        return FieldCornerRadius.TopLeft > 0 ? FieldCornerRadius.TopLeft : 28;
+        if (ExpansionAnchor is { } anchor)
+        {
+            var anchorRadius = anchor switch
+            {
+                TemplatedControl templated => templated.CornerRadius.TopLeft,
+                Border border => border.CornerRadius.TopLeft,
+                _ => 0d,
+            };
+            if (anchorRadius > 0)
+            {
+                var anchorHeight = anchor.Bounds.Height > 0 ? anchor.Bounds.Height : anchor.MinHeight;
+                return anchorHeight > 0
+                    ? Math.Min(anchorRadius, anchorHeight / 2)
+                    : Math.Min(anchorRadius, 28);
+            }
+        }
+
+        var headerHeight = _searchBar is { } header
+            ? (header.Bounds.Height > 0 ? header.Bounds.Height : header.MinHeight)
+            : 56d;
+        var radius = FieldCornerRadius.TopLeft > 0 ? FieldCornerRadius.TopLeft : 28d;
+        return headerHeight > 0 ? Math.Min(radius, headerHeight / 2) : Math.Min(radius, 28);
     }
 
     // Docked expressive is the source two-card layout: ExpandedDockedSearchBarWithGap, whose

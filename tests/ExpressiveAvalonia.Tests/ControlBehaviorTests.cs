@@ -127,7 +127,10 @@ public class ControlBehaviorTests
             Assert.Equal(8, layout.Children[3].Bounds.X - layout.Children[2].Bounds.Right, 5);
             rail.FlowDirection = Avalonia.Media.FlowDirection.RightToLeft;
             window.UpdateLayout();
-            Assert.Equal(8, layout.Children[2].Bounds.X - layout.Children[3].Bounds.Right, 5);
+            Assert.Equal(8, layout.Children[3].Bounds.X - layout.Children[2].Bounds.Right, 5);
+            var iconLeft = layout.Children[2].TranslatePoint(new Point(layout.Children[2].Bounds.Width, 0), window)!.Value.X;
+            var labelRight = layout.Children[3].TranslatePoint(default, window)!.Value.X;
+            Assert.Equal(8, iconLeft - labelRight, 5);
         }
         finally { window.Close(); }
     }

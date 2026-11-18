@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -149,7 +150,11 @@ public class MaterialToolbar : MaterialBarBase
     private BoxShadows _toolbarShadow;
     private BoxShadows? _collapsedShadow;
     private BoxShadows? _expandedShadow;
+    private BoxShadows? _standaloneExpandedShadow;
     private bool _shadowTokensLoaded;
+    private MaterialFabBase? _observedFab;
+    private bool _fabRoleAdopted;
+    private bool _fabGeometryManaged;
     private Dock _overflowDock = Dock.Right;
     private double _expandedProgress = 1;
     private MaterialMotion.SpringAnimation? _expandAnimation;
@@ -166,6 +171,7 @@ public class MaterialToolbar : MaterialBarBase
     private double _lastThresholdOffset;
     private bool _dragging;
     private bool _draggingHorizontal;
+    private Visual? _dragSpace;
     private double _dragLast;
     private double _dragVelocity;
     private ulong _dragLastTimestamp;
@@ -174,7 +180,11 @@ public class MaterialToolbar : MaterialBarBase
     {
         ConfigurationProperty.Changed.AddClassHandler<MaterialToolbar>((toolbar, _) => toolbar.UpdateConfiguration());
         OrientationProperty.Changed.AddClassHandler<MaterialToolbar>((toolbar, _) => toolbar.UpdateOrientation());
-        ColorProperty.Changed.AddClassHandler<MaterialToolbar>((toolbar, _) => toolbar.UpdateShadow());
+        ColorProperty.Changed.AddClassHandler<MaterialToolbar>((toolbar, _) =>
+        {
+            toolbar.UpdateCompanionFab();
+            toolbar.UpdateShadow();
+        });
         IsExpandedProperty.Changed.AddClassHandler<MaterialToolbar>((toolbar, _) => toolbar.AnimateExpansion());
         FabProperty.Changed.AddClassHandler<MaterialToolbar>((toolbar, _) => toolbar.UpdateFab());
         ContentPaddingProperty.Changed.AddClassHandler<MaterialToolbar>((toolbar, _) => toolbar.UpdateConfiguration());
@@ -208,6 +218,7 @@ public class MaterialToolbar : MaterialBarBase
         UpdateExitAdapter();
         SubscribeState();
         AttachThresholdScroll();
+        UpdateCompanionFab();
         // The constructor can run before the theme resources are reachable from this control.
         RefreshShadowTokens();
         UpdateExitTransform();
@@ -227,6 +238,8 @@ public class MaterialToolbar : MaterialBarBase
     {
         base.OnDetachedFromVisualTree(e);
         LayoutUpdated -= OnLayoutUpdated;
+        if (_observedFab is not null)
+            _observedFab.AttachedToVisualTree -= OnCompanionFabAttached;
         _exitAdapter?.Dispose();
         _exitAdapter = null;
         UnsubscribeState();
@@ -260,7 +273,10 @@ public class MaterialToolbar : MaterialBarBase
         private set
         {
             if (SetAndRaise(ExpandedProgressProperty, ref _expandedProgress, value))
+            {
+                UpdateCompanionFab();
                 UpdateShadow();
+            }
         }
     }
 
@@ -348,6 +364,11 @@ public class MaterialToolbar : MaterialBarBase
         private set => SetAndRaise(OverflowDockProperty, ref _overflowDock, value);
     }
 
+    protected override Orientation CoerceOrientation(Orientation value) =>
+        Configuration == MaterialToolbarConfiguration.Docked
+            ? Avalonia.Layout.Orientation.Horizontal
+            : value;
+
     protected override PlacementMode GetOverflowPlacement() =>
         IsSet(OverflowPlacementProperty)
             ? base.GetOverflowPlacement()
@@ -369,7 +390,9 @@ public class MaterialToolbar : MaterialBarBase
         _draggingHorizontal = behavior.ExitDirection is MaterialFloatingToolbarExitDirection.Start
             or MaterialFloatingToolbarExitDirection.End;
         _dragging = true;
-        _dragLast = _draggingHorizontal ? e.GetPosition(this).X : e.GetPosition(this).Y;
+        _dragSpace = (Visual?)TopLevel.GetTopLevel(this) ?? this.GetVisualParent() ?? this;
+        var point = e.GetPosition(_dragSpace);
+        _dragLast = _draggingHorizontal ? point.X : point.Y;
         _dragVelocity = 0;
         _dragLastTimestamp = e.Timestamp;
         e.Pointer.Capture(this);
@@ -381,16 +404,19 @@ public class MaterialToolbar : MaterialBarBase
         base.OnPointerMoved(e);
         if (!_dragging || ScrollBehavior is not { } behavior)
             return;
-        var value = _draggingHorizontal ? e.GetPosition(this).X : e.GetPosition(this).Y;
+        var space = _dragSpace ?? this;
+        var point = e.GetPosition(space);
+        var value = _draggingHorizontal ? point.X : point.Y;
         var delta = value - _dragLast;
         _dragLast = value;
         var dt = Math.Max(1, e.Timestamp - _dragLastTimestamp) / 1000d;
         _dragLastTimestamp = e.Timestamp;
         _dragVelocity = delta / dt;
         behavior.CancelSettle();
-        // DraggableState inverts the horizontal delta in RTL, then applies delta to Start/Top and
-        // -delta to End/Bottom.
-        if (_draggingHorizontal && FlowDirection == FlowDirection.RightToLeft)
+        // Sample in the stationary TopLevel/parent space so translating _exitTransform on this
+        // never shifts the coordinate origin mid-drag; flip horizontal delta only when the
+        // reference visual's FlowDirection differs from this toolbar's FlowDirection.
+        if (_draggingHorizontal && space.FlowDirection != FlowDirection)
             delta = -delta;
         var sign = behavior.ExitDirection is MaterialFloatingToolbarExitDirection.Start
             or MaterialFloatingToolbarExitDirection.Top
@@ -406,6 +432,7 @@ public class MaterialToolbar : MaterialBarBase
         if (!_dragging)
             return;
         _dragging = false;
+        _dragSpace = null;
         e.Pointer.Capture(null);
         // FloatingToolbar.kt's draggable calls settleFloatingToolbar with the raw gesture
         // velocity; the exit direction only affects the drag delta and layout placement.
@@ -418,6 +445,7 @@ public class MaterialToolbar : MaterialBarBase
     {
         base.OnPointerCaptureLost(e);
         _dragging = false;
+        _dragSpace = null;
     }
 
     private static bool IsInteractiveSource(object? source)
@@ -435,6 +463,7 @@ public class MaterialToolbar : MaterialBarBase
 
     private void UpdateConfiguration()
     {
+        CoerceValue(OrientationProperty);
         var floating = Configuration == MaterialToolbarConfiguration.Floating;
         if (!floating)
         {
@@ -468,7 +497,66 @@ public class MaterialToolbar : MaterialBarBase
     private void UpdateFab()
     {
         HasFab = Configuration == MaterialToolbarConfiguration.Floating && Fab is not null;
+        UpdateCompanionFab();
         InvalidateMeasure();
+    }
+
+    private void OnCompanionFabAttached(object? sender, VisualTreeAttachmentEventArgs e) =>
+        UpdateCompanionFab();
+
+    private void UpdateCompanionFab()
+    {
+        var next = HasFab ? Fab as MaterialFabBase : null;
+        if (!ReferenceEquals(_observedFab, next))
+        {
+            if (_observedFab is not null)
+            {
+                _observedFab.AttachedToVisualTree -= OnCompanionFabAttached;
+                if (_fabRoleAdopted)
+                    _observedFab.ClearValue(MaterialFabBase.ColorRoleProperty);
+                if (_fabGeometryManaged && _observedFab is MaterialFab oldFab)
+                    RestoreCompanionFabGeometry(oldFab);
+            }
+            _observedFab = next;
+            _fabRoleAdopted = false;
+            _fabGeometryManaged = false;
+            if (_observedFab is not null && !_observedFab.IsSet(MaterialFabBase.ColorRoleProperty))
+                _fabRoleAdopted = true;
+        }
+
+        if (_observedFab is null)
+            return;
+
+        _observedFab.AttachedToVisualTree -= OnCompanionFabAttached;
+        _observedFab.AttachedToVisualTree += OnCompanionFabAttached;
+
+        if (_fabRoleAdopted)
+        {
+            var defaultRole = Color == MaterialToolbarColor.Vibrant
+                ? MaterialFabColorRole.TertiaryContainer
+                : MaterialFabColorRole.SecondaryContainer;
+            _observedFab.SetCurrentValue(MaterialFabBase.ColorRoleProperty, defaultRole);
+        }
+
+        if (_observedFab is MaterialFab materialFab
+            && (!materialFab.IsSet(MaterialFab.SizeProperty) || materialFab.Size == MaterialFabSize.Default))
+        {
+            _fabGeometryManaged = true;
+            MaterialFloatingToolbarLayout.ApplyCompanionFabMorph(materialFab, Math.Clamp(ExpandedProgress, 0d, 1d), 56d, 80d);
+        }
+    }
+
+    private static void RestoreCompanionFabGeometry(MaterialFab fab)
+    {
+        fab.ClearValue(WidthProperty);
+        fab.ClearValue(HeightProperty);
+        fab.ClearValue(CornerRadiusProperty);
+        fab.ClearValue(PaddingProperty);
+        if (fab.Content is Control icon)
+        {
+            icon.ClearValue(WidthProperty);
+            icon.ClearValue(HeightProperty);
+        }
     }
 
     private void AnimateExpansion()
@@ -508,30 +596,22 @@ public class MaterialToolbar : MaterialBarBase
             _shadowTokensLoaded = true;
             _collapsedShadow = FindElevationShadow(0);
             _expandedShadow = FindElevationShadow(1);
+            _standaloneExpandedShadow = FindElevationShadow(3);
         }
 
         var collapsed = _collapsedShadow ?? default;
-        if (!HasFab)
+        if (Configuration != MaterialToolbarConfiguration.Floating)
         {
-            // HorizontalFloatingToolbarLayout/VerticalFloatingToolbarLayout animate
-            // ContainerCollapsedElevation -> ContainerExpandedElevation, and both defaults are
-            // ElevationTokens.Level0, so the shadow stays on the collapsed token. Docked toolbars
-            // are a library extension and also keep Level0.
             ToolbarShadow = collapsed;
             return;
         }
 
-        // HorizontalFloatingToolbarWithFabLayout/VerticalFloatingToolbarWithFabLayout place the
-        // toolbar with shadowElevation = lerp(ContainerCollapsedElevation (Level0),
-        // ContainerExpandedElevation (Level1), expandedProgress), driven by the same
-        // FloatingToolbarDefaults.animationSpec() (FastSpatial) transition that expands the
-        // toolbar. Blending the two token shadows from that progress keeps the elevation
-        // continuous, so a reversal retargets the spring and the shadow follows it back instead of
-        // flipping at a threshold. The source clamps the animated fraction at the expanded end,
-        // and Avalonia cannot express an elevation below the collapsed endpoint while a spring
-        // undershoots, so the fraction is clamped to the token pair.
-        ToolbarShadow = LerpShadow(collapsed, _expandedShadow ?? collapsed,
-            Math.Clamp(ExpandedProgress, 0d, 1d));
+        // Standalone Floating Toolbars float at Level 3 (md.comp.toolbar.floating.container.elevation);
+        // Floating Toolbars paired with a FAB interpolate Level 0 (collapsed) -> Level 1 (expanded).
+        var target = HasFab
+            ? (_expandedShadow ?? collapsed)
+            : (_standaloneExpandedShadow ?? collapsed);
+        ToolbarShadow = LerpShadow(collapsed, target, Math.Clamp(ExpandedProgress, 0d, 1d));
     }
 
     private BoxShadows? FindElevationShadow(int level) =>
@@ -722,15 +802,16 @@ public class MaterialToolbar : MaterialBarBase
             return;
         }
         var offset = behavior.State.HeightOffset;
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
+        // RenderTransform already operates in MaterialToolbar's local coordinate space (mirrored
+        // automatically in RTL), so Start is always +offset (<= 0) and End is always -offset (>= 0).
         switch (behavior.ExitDirection)
         {
             case MaterialFloatingToolbarExitDirection.Start:
-                _exitTransform.X = rtl ? -offset : offset;
+                _exitTransform.X = offset;
                 _exitTransform.Y = 0;
                 break;
             case MaterialFloatingToolbarExitDirection.End:
-                _exitTransform.X = rtl ? offset : -offset;
+                _exitTransform.X = -offset;
                 _exitTransform.Y = 0;
                 break;
             case MaterialFloatingToolbarExitDirection.Top:
@@ -763,17 +844,18 @@ public class MaterialToolbar : MaterialBarBase
             return;
         var parentSize = parent.Bounds.Size;
         var position = Bounds.Position;
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
+        var flipHorizontal = parent.FlowDirection != FlowDirection;
         var limit = behavior.ExitDirection switch
         {
             MaterialFloatingToolbarExitDirection.Start =>
-                rtl ? parentSize.Width - position.X : Bounds.Width + position.X,
+                flipHorizontal ? parentSize.Width - position.X : Bounds.Width + position.X,
             MaterialFloatingToolbarExitDirection.End =>
-                rtl ? Bounds.Width + position.X : parentSize.Width - position.X,
+                flipHorizontal ? Bounds.Width + position.X : parentSize.Width - position.X,
             MaterialFloatingToolbarExitDirection.Top => Bounds.Height + position.Y,
             _ => parentSize.Height - position.Y
         };
-        behavior.State.HeightOffsetLimit = -(limit - behavior.State.HeightOffset);
+        if (limit > 0)
+            behavior.State.HeightOffsetLimit = -limit;
     }
 
     private void AttachThresholdScroll()
@@ -876,8 +958,6 @@ public sealed class MaterialFloatingToolbarLayout : Panel
         AvaloniaProperty.Register<MaterialFloatingToolbarLayout, double>(nameof(FabMaxSize), 80d);
 
     private double _intrinsicContent;
-    private double _intrinsicLeading;
-    private double _intrinsicTrailing;
     private readonly SlotAccessState _leadingAccess = new();
     private readonly SlotAccessState _trailingAccess = new();
 
@@ -970,6 +1050,7 @@ public sealed class MaterialFloatingToolbarLayout : Panel
         if (ShowFab && fab is not null)
         {
             var fabSize = FabMaxSize + (FabMinSize - FabMaxSize) * progress;
+            SyncCompanionFab(fab, progress, FabMinSize, FabMaxSize);
             fab.Measure(new Size(fabSize, fabSize));
 
             var intrinsic = MeasureIntrinsic(content, horizontal, size);
@@ -993,8 +1074,6 @@ public sealed class MaterialFloatingToolbarLayout : Panel
         var leadingIntrinsic = leading is null ? 0 : MainIntrinsic(leading, horizontal);
         var trailingIntrinsic = trailing is null ? 0 : MainIntrinsic(trailing, horizontal);
         var contentIntrinsic = MainIntrinsic(content, horizontal);
-        _intrinsicLeading = leadingIntrinsic;
-        _intrinsicTrailing = trailingIntrinsic;
         _intrinsicContent = contentIntrinsic;
         var leadingMain = leadingIntrinsic * progress;
         var trailingMain = trailingIntrinsic * progress;
@@ -1032,10 +1111,11 @@ public sealed class MaterialFloatingToolbarLayout : Panel
 
         var progress = Math.Clamp(ExpandedProgress, 0, 1);
         var horizontal = Orientation == Orientation.Horizontal;
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
+        var clipAnimatedSlots = progress < 0.999;
 
         if (ShowFab && fab is not null)
         {
+            content.ClipToBounds = clipAnimatedSlots;
             var fabSize = FabMaxSize + (FabMinSize - FabMaxSize) * progress;
             var intrinsic = _intrinsicContent;
             var toolbarMain = content.DesiredSize.Width;
@@ -1043,6 +1123,8 @@ public sealed class MaterialFloatingToolbarLayout : Panel
             if (!horizontal)
                 (toolbarMain, toolbarCross) = (content.DesiredSize.Height, content.DesiredSize.Width);
 
+            // Avalonia mirrors the X-coordinate plane in RTL, so logical coordinates place the
+            // toolbar at Start and the companion FAB at End (or vice versa) without overlap.
             if (horizontal)
             {
                 var toolbarX = FabPosition == MaterialFloatingToolbarFabPosition.End
@@ -1051,8 +1133,6 @@ public sealed class MaterialFloatingToolbarLayout : Panel
                 var fabX = FabPosition == MaterialFloatingToolbarFabPosition.End
                     ? finalSize.Width - fabSize
                     : 0;
-                if (rtl)
-                    fabX = finalSize.Width - fabX - fabSize;
                 background?.Arrange(new Rect(toolbarX, (finalSize.Height - ContainerSize) / 2,
                     toolbarMain, ContainerSize));
                 content.Arrange(new Rect(toolbarX, (finalSize.Height - toolbarCross) / 2,
@@ -1090,26 +1170,29 @@ public sealed class MaterialFloatingToolbarLayout : Panel
             return finalSize;
         }
 
+        content.ClipToBounds = false;
+        if (leading is not null)
+            leading.ClipToBounds = clipAnimatedSlots;
+        if (trailing is not null)
+            trailing.ClipToBounds = clipAnimatedSlots;
+
         if (horizontal)
         {
             var leadingW = (leading?.DesiredSize.Width ?? 0) * progress;
             var trailingW = (trailing?.DesiredSize.Width ?? 0) * progress;
             var contentW = Math.Max(0, finalSize.Width - leadingW - trailingW);
-            var leadingX = rtl ? finalSize.Width - leadingW : 0;
-            var trailingX = rtl ? 0 : finalSize.Width - trailingW;
             background?.Arrange(new Rect(finalSize));
             if (leading is not null)
             {
                 leading.Opacity = progress;
-                leading.Arrange(new Rect(leadingX, 0, leadingW, finalSize.Height));
+                leading.Arrange(new Rect(0, 0, leadingW, finalSize.Height));
             }
             if (trailing is not null)
             {
                 trailing.Opacity = progress;
-                trailing.Arrange(new Rect(trailingX, 0, trailingW, finalSize.Height));
+                trailing.Arrange(new Rect(finalSize.Width - trailingW, 0, trailingW, finalSize.Height));
             }
-            var contentX = rtl ? trailingW : leadingW;
-            content.Arrange(new Rect(contentX, 0, contentW, finalSize.Height));
+            content.Arrange(new Rect(leadingW, 0, contentW, finalSize.Height));
         }
         else
         {
@@ -1143,6 +1226,40 @@ public sealed class MaterialFloatingToolbarLayout : Panel
         if (fab is not null)
             fab.Arrange(default);
         return finalSize;
+    }
+
+    internal static void ApplyCompanionFabMorph(MaterialFab materialFab, double progress,
+        double fabMinSize, double fabMaxSize)
+    {
+        var fabSize = fabMaxSize + (fabMinSize - fabMaxSize) * progress;
+        var radius = 20d + (16d - 20d) * progress;
+        var iconSize = 28d + (24d - 28d) * progress;
+        var padding = Math.Max(0d, (fabSize - iconSize) / 2d);
+        materialFab.SetCurrentValue(WidthProperty, fabSize);
+        materialFab.SetCurrentValue(HeightProperty, fabSize);
+        materialFab.SetCurrentValue(TemplatedControl.CornerRadiusProperty, new CornerRadius(radius));
+        materialFab.SetCurrentValue(TemplatedControl.PaddingProperty, new Thickness(padding));
+        if (materialFab.Content is Control iconControl)
+        {
+            iconControl.SetCurrentValue(WidthProperty, iconSize);
+            iconControl.SetCurrentValue(HeightProperty, iconSize);
+        }
+    }
+
+    private static void SyncCompanionFab(Control fabSlot, double progress,
+        double fabMinSize, double fabMaxSize)
+    {
+        var target = fabSlot switch
+        {
+            MaterialFab direct => direct,
+            ContentPresenter { Content: MaterialFab hosted } => hosted,
+            _ => null
+        };
+        if (target is not null
+            && (!target.IsSet(MaterialFab.SizeProperty) || target.Size == MaterialFabSize.Default))
+        {
+            ApplyCompanionFabMorph(target, progress, fabMinSize, fabMaxSize);
+        }
     }
 
     /// <summary>

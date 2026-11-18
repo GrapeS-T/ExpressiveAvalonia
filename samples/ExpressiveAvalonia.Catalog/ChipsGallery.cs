@@ -46,6 +46,7 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _avatar;
     private readonly ToggleSwitch _trailing;
     private readonly ToggleSwitch _remove;
+    private readonly ToggleSwitch _draggable;
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _rtl;
     private readonly Slider _width;
@@ -56,6 +57,8 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
     private readonly StackPanel _trailingSettings = new() { Spacing = 16 };
     private readonly StackPanel _removeSettings = new() { Spacing = 16 };
     private readonly StackPanel _selectionSettings = new() { Spacing = 16 };
+    private readonly HashSet<int> _savedSelection = new();
+    private bool _wasSelectionEnabled;
     private bool _built;
     private bool _syncing;
 
@@ -109,14 +112,15 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
         });
         MaterialTextField.SetVariant(_labels, MaterialTextFieldVariant.Outlined);
         MaterialTextField.SetLabel(_labels, "Подписи");
+        _draggable = Toggle(Settings, "Перетаскивание (IsDraggable)", false);
         _enabled = Toggle(Settings, "Доступны", true);
         _rtl = Toggle(Settings, "Справа налево (RTL)", false);
         Settings.Children.Add(new TextBlock
         {
             Text = "Assist и Suggestion только выполняют действие; Filter и Input переключают IsSelected. " +
                    "Tab входит в группу одним шагом, стрелки и Home/End двигают фокус, Space/Enter " +
-                   "переключают, Delete или крестик удаляют Input-чип. Смена вида, иконки, ширины или " +
-                   "раскладки не сбрасывает выбор и не пересоздаёт чипы; Assist и Suggestion не хранят выбор.",
+                   "переключают, Delete или крестик удаляют Input-чип. Смена семейства, вида, иконки, " +
+                   "ширины или раскладки сохраняет выбор и не пересоздаёт чипы.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
         });
@@ -126,7 +130,7 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
         foreach (var choice in new[] { _variant, _selection, _layout })
             choice.SelectionChanged += (_, _) => Apply();
         _kind.SelectionChanged += (_, _) => Apply();
-        foreach (var toggle in new[] { _icon, _avatar, _trailing, _remove, _enabled, _rtl })
+        foreach (var toggle in new[] { _icon, _avatar, _trailing, _remove, _draggable, _enabled, _rtl })
             toggle.IsCheckedChanged += (_, _) => Apply();
         foreach (var slider in new[] { _width, _count })
             slider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
@@ -138,16 +142,31 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
             var index = _group.Items.IndexOf(e.Chip);
             _icons.Remove(e.Chip);
             _avatars.Remove(e.Chip);
+            if (index >= 0)
+            {
+                var adjusted = _savedSelection
+                    .Where(i => i != index)
+                    .Select(i => i > index ? i - 1 : i)
+                    .ToList();
+                _savedSelection.Clear();
+                foreach (var i in adjusted)
+                    _savedSelection.Add(i);
+            }
             _syncing = true;
-            var remaining = (_labels.Text ?? string.Empty)
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            var remaining = _group.Items.OfType<MaterialChip>()
+                .Where(chip => !ReferenceEquals(chip, e.Chip))
+                .Select(chip => chip.Content?.ToString() ?? string.Empty)
+                .Where(text => !string.IsNullOrWhiteSpace(text))
                 .ToList();
-            if (index >= 0 && index < remaining.Count)
-                remaining.RemoveAt(index);
             _labels.Text = string.Join(", ", remaining);
-            _count.Value = Math.Max(0, _group.Items.Count - 1);
+            _count.Value = remaining.Count;
             _syncing = false;
-            _readout.Text = $"Удалён чип «{label}» · выбрано: {SelectedText()}";
+            var selected = _group.Items.OfType<MaterialChip>()
+                .Where(chip => !ReferenceEquals(chip, e.Chip) && chip.IsSelected)
+                .Select(chip => chip.Content?.ToString() ?? "чип")
+                .ToList();
+            var selectedText = selected.Count == 0 ? "—" : string.Join(", ", selected);
+            _readout.Text = $"Удалён чип «{label}» · выбрано: {selectedText}";
         };
 
         _built = true;
@@ -159,11 +178,31 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
         if (!_built || _syncing) return;
 
         var kind = (MaterialChipKind)Math.Clamp(_kind.SelectedIndex, 0, 3);
+        var noneOption = (MaterialButtonGroupItem)_selection.Items[0]!;
+        noneOption.IsVisible = kind == MaterialChipKind.Input;
+        if (kind == MaterialChipKind.Filter && _selection.SelectedIndex == 0)
+        {
+            _syncing = true;
+            _selection.SelectedIndex = 2;
+            _syncing = false;
+        }
+
         var variant = _variant.SelectedIndex == 1 ? MaterialChipVariant.Elevated : MaterialChipVariant.Outlined;
         var selectable = kind is MaterialChipKind.Filter or MaterialChipKind.Input;
         var selectionMode = selectable
-            ? (MaterialChipSelectionMode)Math.Clamp(_selection.SelectedIndex, 0, 2)
+            ? (MaterialChipSelectionMode)Math.Clamp(_selection.SelectedIndex, kind == MaterialChipKind.Filter ? 1 : 0, 2)
             : MaterialChipSelectionMode.None;
+        var selectionEnabled = selectable && selectionMode != MaterialChipSelectionMode.None;
+        if (_wasSelectionEnabled && !selectionEnabled)
+        {
+            _savedSelection.Clear();
+            for (var i = 0; i < _group.Items.Count; i++)
+            {
+                if (_group.Items[i] is MaterialChip { IsSelected: true })
+                    _savedSelection.Add(i);
+            }
+        }
+
         var layout = (MaterialChipGroupLayout)Math.Clamp(_layout.SelectedIndex, 0, 1);
         var count = (int)Math.Round(_count.Value);
         var labels = ParseLabels(count);
@@ -183,6 +222,19 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
         _group.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
 
         SyncChips(count, labels, kind, variant, showIcon, showAvatar);
+        if (!_wasSelectionEnabled && selectionEnabled && _savedSelection.Count > 0)
+        {
+            foreach (var index in _savedSelection.OrderBy(i => i))
+            {
+                if (index >= 0 && index < _group.Items.Count && _group.Items[index] is MaterialChip chip)
+                {
+                    _group.SelectChip(chip, true);
+                    if (selectionMode == MaterialChipSelectionMode.Single)
+                        break;
+                }
+            }
+        }
+        _wasSelectionEnabled = selectionEnabled;
         UpdateReadout();
     }
 
@@ -205,6 +257,7 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
         while (_group.Items.Count < count)
             AddChip();
 
+        var draggable = _draggable.IsChecked == true;
         for (var i = 0; i < count; i++)
         {
             var chip = (MaterialChip)_group.Items[i]!;
@@ -226,6 +279,7 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
             chip.ShowIcon = showIcon;
             chip.ShowTrailingIcon = kind == MaterialChipKind.Filter && _trailing.IsChecked == true;
             chip.IsRemovable = kind == MaterialChipKind.Input && _remove.IsChecked == true;
+            chip.IsDraggable = draggable;
             chip.RemoveButtonAccessibleName = $"Удалить {labels[i]}";
             AutomationProperties.SetName(chip, labels[i]);
         }
