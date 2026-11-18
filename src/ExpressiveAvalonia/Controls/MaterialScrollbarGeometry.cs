@@ -51,7 +51,8 @@ internal static class MaterialScrollbarGeometry
         thumb = default;
 
         // Source: contentSize <= viewportSize || viewportSize == 0f || contentSize == 0f
-        if (contentSize <= viewportSize || viewportSize == 0 || contentSize == 0)
+        if (contentSize <= viewportSize || viewportSize <= 0 || contentSize <= 0 ||
+            !double.IsFinite(contentSize) || !double.IsFinite(viewportSize))
             return false;
 
         var vertical = orientation == Orientation.Vertical;
@@ -71,8 +72,11 @@ internal static class MaterialScrollbarGeometry
             trackLength * thumbLengthFraction, Math.Min(thumbMinLength, maxThumbLength), maxThumbLength);
 
         var maxOffset = contentSize - viewportSize;
+        var clampedOffset = maxOffset > 0 && double.IsFinite(scrollOffset)
+            ? Math.Clamp(scrollOffset, 0, maxOffset)
+            : 0;
         var thumbOffset = maxOffset > 0
-            ? scrollOffset / maxOffset * (trackLength - thumbLength)
+            ? clampedOffset / maxOffset * (trackLength - thumbLength)
             : 0;
 
         if (vertical)

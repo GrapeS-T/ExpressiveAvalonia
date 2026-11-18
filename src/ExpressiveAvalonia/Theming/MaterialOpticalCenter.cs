@@ -47,19 +47,31 @@ public static class MaterialOpticalCenter
         _ = flowDirection;
         ArgumentOutOfRangeException.ThrowIfNegative(maxStartOffset);
         ArgumentOutOfRangeException.ThrowIfNegative(maxEndOffset);
-        if (!double.IsFinite(maxStartOffset) || !double.IsFinite(maxEndOffset))
+        if (!double.IsFinite(maxStartOffset))
             throw new ArgumentOutOfRangeException(nameof(maxStartOffset));
-        if (!double.IsFinite(size.Width) || !double.IsFinite(size.Height) || size.Width < 0 || size.Height < 0)
+        if (!double.IsFinite(maxEndOffset))
+            throw new ArgumentOutOfRangeException(nameof(maxEndOffset));
+        if (!double.IsFinite(size.Width) || !double.IsFinite(size.Height) || size.Width <= 0 || size.Height <= 0)
             return 0;
+
+        var maxRadius = Math.Max(0, Math.Min(size.Width, size.Height) / 2);
+        var topLeft = ClampCorner(corners.TopLeft, maxRadius);
+        var bottomLeft = ClampCorner(corners.BottomLeft, maxRadius);
+        var topRight = ClampCorner(corners.TopRight, maxRadius);
+        var bottomRight = ClampCorner(corners.BottomRight, maxRadius);
 
         // Avalonia's Visual.HasMirrorTransform reflects both Border.CornerRadius rendering and
         // Decorator.ArrangeOverride X coordinates once at the RTL boundary, so start/end corners
         // and the arrange offset stay in local start-to-end coordinates.
-        var averageStart = (corners.TopLeft + corners.BottomLeft) / 2;
-        var averageEnd = (corners.TopRight + corners.BottomRight) / 2;
+        var averageStart = (topLeft + bottomLeft) / 2;
+        var averageEnd = (topRight + bottomRight) / 2;
         var correction = Coefficient * (averageStart - averageEnd);
-        return Math.Clamp(correction, -maxStartOffset, maxEndOffset);
+        var offset = Math.Clamp(correction, -maxStartOffset, maxEndOffset);
+        return double.IsFinite(offset) ? offset : 0;
     }
+
+    private static double ClampCorner(double radius, double maxRadius) =>
+        double.IsFinite(radius) ? Math.Clamp(radius, 0, maxRadius) : 0;
 }
 
 /// <summary>

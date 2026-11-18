@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
@@ -131,13 +134,21 @@ public sealed class MaterialStateLayer : Control
     private bool _pointerOver;
     private double _currentOpacity;
     private MaterialMotion.TweenAnimation? _opacityTween;
+    private IDisposable? _interactiveFocusable;
+    private IDisposable? _interactiveTabStop;
 
     static MaterialStateLayer()
     {
         AffectsRender<MaterialStateLayer>(
-            StateProperty, IsDraggingProperty, BackgroundProperty, CornerRadiusProperty,
+            BoundsProperty, StateProperty, IsDraggingProperty, BackgroundProperty, CornerRadiusProperty,
             SurfaceFillProperty, ShadowProperty, HoverOpacityProperty, FocusOpacityProperty,
             PressedOpacityProperty, DraggedOpacityProperty, IsInteractiveProperty);
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="MaterialStateLayer"/> class.</summary>
+    public MaterialStateLayer()
+    {
+        Classes.CollectionChanged += (_, _) => UpdateEffectiveState();
     }
 
     /// <summary>Gets or sets the resting state used when no interaction is active.</summary>
@@ -265,6 +276,22 @@ public sealed class MaterialStateLayer : Control
             return;
         }
 
+        if (change.Property == IsInteractiveProperty)
+        {
+            _interactiveFocusable?.Dispose();
+            _interactiveTabStop?.Dispose();
+            if (change.GetNewValue<bool>())
+            {
+                _interactiveFocusable = SetValue(FocusableProperty, true, BindingPriority.StyleTrigger);
+                _interactiveTabStop = SetValue(KeyboardNavigation.IsTabStopProperty, true, BindingPriority.StyleTrigger);
+            }
+            else
+            {
+                _interactiveFocusable = null;
+                _interactiveTabStop = null;
+            }
+        }
+
         if (change.Property == StateProperty
             || change.Property == IsDraggingProperty
             || change.Property == IsInteractiveProperty
@@ -297,14 +324,23 @@ public sealed class MaterialStateLayer : Control
     }
 
     /// <inheritdoc />
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _pointerOver = IsPointerOver;
+        UpdateEffectiveState();
+    }
+
+    /// <inheritdoc />
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
         _opacityTween?.Dispose();
         _opacityTween = null;
         _pointerOver = false;
         _interactions.Clear();
         _currentInteraction = null;
+        base.OnDetachedFromVisualTree(e);
+        UpdateEffectiveState();
     }
 
     private void UpdateEffectiveState()
@@ -393,7 +429,7 @@ public sealed class MaterialStateLayer : Control
 
     private void AnimateOpacity(double target, double duration)
     {
-        if (MaterialMotion.GetIsReduced(this))
+        if (MaterialMotion.GetIsReduced(this) || !this.IsAttachedToVisualTree())
         {
             SnapOpacity(target);
             return;

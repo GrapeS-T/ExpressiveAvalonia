@@ -206,15 +206,16 @@ public class MaterialAccordion : ItemsControl
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (e.Key is Key.Up or Key.Down or Key.Home or Key.End)
+        if (!e.Handled && e.Key is Key.Up or Key.Down or Key.Home or Key.End)
         {
-            var items = this.GetVisualDescendants().OfType<MaterialAccordionItem>().ToList();
+            var items = this.GetVisualDescendants().OfType<MaterialAccordionItem>()
+                .Where(item => ReferenceEquals(item.FindAncestorOfType<MaterialAccordion>(), this))
+                .ToList();
             if (items.Count > 0)
             {
-                var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual;
-                var current = focused as MaterialAccordionItem
-                    ?? focused?.FindAncestorOfType<MaterialAccordionItem>();
-                if (current is not null || focused is null)
+                var focused = (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() ?? e.Source) as Visual;
+                MaterialAccordionItem? current = null;
+                if (focused is null || ReferenceEquals(focused, this) || IsHeaderFocus(focused, out current))
                 {
                     var index = current is null ? -1 : items.IndexOf(current);
                     var target = e.Key switch
@@ -232,9 +233,34 @@ public class MaterialAccordion : ItemsControl
         base.OnKeyDown(e);
     }
 
+    private bool IsHeaderFocus(Visual focused, out MaterialAccordionItem? current)
+    {
+        current = focused as MaterialAccordionItem ?? focused.FindAncestorOfType<MaterialAccordionItem>();
+        if (current is null || !ReferenceEquals(current.FindAncestorOfType<MaterialAccordion>(), this))
+        {
+            current = null;
+            return false;
+        }
+
+        if (ReferenceEquals(focused, current))
+            return true;
+
+        var headerToggle = FindHeaderToggle(current);
+        return headerToggle is not null &&
+            (ReferenceEquals(focused, headerToggle) || headerToggle.IsVisualAncestorOf(focused));
+    }
+
+    private static ToggleButton? FindHeaderToggle(MaterialAccordionItem item)
+    {
+        var expandedHost = item.GetVisualDescendants().OfType<Border>()
+            .FirstOrDefault(border => border.Name == "ExpandedHost");
+        return item.GetVisualDescendants().OfType<ToggleButton>()
+            .FirstOrDefault(toggle => expandedHost is null || !expandedHost.IsVisualAncestorOf(toggle));
+    }
+
     private static void FocusHeader(MaterialAccordionItem item)
     {
-        var toggle = item.GetVisualDescendants().OfType<ToggleButton>().FirstOrDefault();
+        var toggle = FindHeaderToggle(item);
         (toggle as Control ?? item).Focus();
     }
 }

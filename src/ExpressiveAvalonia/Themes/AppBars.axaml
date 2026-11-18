@@ -188,7 +188,7 @@
                                         FontWeight="{DynamicResource MaterialTitleLargeFontWeight}"
                                         LineHeight="{DynamicResource MaterialTitleLargeLineHeight}"
                                         LetterSpacing="{DynamicResource MaterialTitleLargeLetterSpacing}" />
-                      <ContentPresenter Name="PART_TopSubtitle" Content="{TemplateBinding Subtitle}"
+                      <ContentPresenter Name="PART_TopSubtitle" Content="{TemplateBinding CollapsedSubtitleContent}"
                                         TextAlignment="{TemplateBinding TitleAlignment}"
                                         TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                                         HorizontalAlignment="Stretch"
@@ -275,7 +275,7 @@
                                       FontWeight="{DynamicResource MaterialHeadlineSmallFontWeight}"
                                       LineHeight="{DynamicResource MaterialHeadlineSmallLineHeight}"
                                       LetterSpacing="{DynamicResource MaterialHeadlineSmallLetterSpacing}" />
-                    <ContentPresenter Name="PART_ExpandedSubtitle" Content="{TemplateBinding Subtitle}"
+                    <ContentPresenter Name="PART_ExpandedSubtitle" Content="{TemplateBinding ExpandedSubtitleContent}"
                                       TextAlignment="{TemplateBinding TitleAlignment}"
                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                                       Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"

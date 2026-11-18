@@ -33,11 +33,12 @@ public sealed class MaterialTextAutoSize
         {
             // Animation priority is temporary measurement only. Disposal restores every original binding.
             using var font = text.SetValue(TextBlock.FontSizeProperty, Math.Max(size, double.Epsilon), BindingPriority.Animation);
+            using var margin = text.SetValue(Control.MarginProperty, default, BindingPriority.Animation);
             using var height = text.SetValue(Control.HeightProperty, double.NaN, BindingPriority.Animation);
             using var maxHeight = text.SetValue(Control.MaxHeightProperty, double.PositiveInfinity, BindingPriority.Animation);
             using var lines = text.SetValue(TextBlock.MaxLinesProperty, 0, BindingPriority.Animation);
             text.InvalidateMeasure();
-            text.Measure(new Size(constraint.Width + text.Padding.Left + text.Padding.Right, double.PositiveInfinity));
+            text.Measure(new Size(Math.Max(0, constraint.Width + text.Padding.Left + text.Padding.Right), double.PositiveInfinity));
             var layout = text.TextLayout;
             if (layout.WidthIncludingTrailingWhitespace > constraint.Width + .000001 || layout.Height > constraint.Height + .000001)
                 return false;

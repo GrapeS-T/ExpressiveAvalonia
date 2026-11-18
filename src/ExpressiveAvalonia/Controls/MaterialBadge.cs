@@ -297,5 +297,5 @@ public sealed class MaterialBadgedBox : ContentControl
     /// content unchanged. Returning no peer keeps the anchor's automation node intact instead of
     /// inserting a group node around it.
     /// </remarks>
-    protected override AutomationPeer OnCreateAutomationPeer() => null!;
+    protected override AutomationPeer OnCreateAutomationPeer() => new NoneAutomationPeer(this);
 }

@@ -130,10 +130,17 @@ public sealed class MaterialGeneralItem : ContentControl
         e.Handled = true;
     }
 
+    protected override void OnGotFocus(FocusChangedEventArgs e)
+    {
+        base.OnGotFocus(e);
+        UpdateVisualState();
+    }
+
     protected override void OnLostFocus(FocusChangedEventArgs e)
     {
         base.OnLostFocus(e);
         _activationKey = null;
+        UpdateVisualState();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -172,7 +179,7 @@ public sealed class MaterialGeneralItem : ContentControl
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (!IsEffectivelyEnabled || e.Handled || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (_pressed || !IsEffectivelyEnabled || e.Handled || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         e.Pointer.Capture(this);
         _pressed = true;
         _pressedPointer = e.Pointer;
@@ -182,7 +189,9 @@ public sealed class MaterialGeneralItem : ContentControl
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (!_pressed) return;
+        if (!_pressed || e.Pointer != _pressedPointer ||
+            e.InitialPressMouseButton is not (MouseButton.Left or MouseButton.None))
+            return;
         _pressed = false;
         _pressedPointer = null;
         e.Pointer.Capture(null);
@@ -278,8 +287,6 @@ public sealed class MaterialGeneralItem : ContentControl
         _tile.Bind(Border.BackgroundProperty, _tile.GetResourceObservable("MaterialSurfaceContainerHighestBrush"));
 
         _tile.SizeChanged += (_, _) => UpdateClip();
-        GotFocus += (_, _) => UpdateVisualState();
-        LostFocus += (_, _) => UpdateVisualState();
 
         var outer = new Grid { ClipToBounds = false };
         outer.Children.Add(_tile);

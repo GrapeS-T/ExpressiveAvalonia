@@ -77,7 +77,7 @@ public sealed partial class MaterialMotion : AvaloniaObject
         }
         for (var i = Active.Count - 1; i >= 0; i--)
         {
-            if (!Active[i].TryGetTarget(out var animation)) Active.RemoveAt(i);
+            if (!Active[i].TryGetTarget(out var animation) || !animation.IsRunning) Active.RemoveAt(i);
             else if (GetIsReduced(animation.Owner)) animation.Finish();
         }
         StopSettingsTimerIfIdle();
@@ -273,7 +273,10 @@ public sealed partial class MaterialMotion : AvaloniaObject
                 if (!Active[i].TryGetTarget(out var candidate) || ReferenceEquals(candidate, this)) Active.RemoveAt(i);
             StopSettingsTimerIfIdle();
         }
-        private void Detached(object? sender, VisualTreeAttachmentEventArgs e) { if (!_disposed) Finish(); }
+        private void Detached(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            if (_running && !_disposed) Finish();
+        }
         private void OwnerChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
         {
             if (_disposed) return;
@@ -283,8 +286,9 @@ public sealed partial class MaterialMotion : AvaloniaObject
                 SchemeChanged();
                 return;
             }
-            if (e.Property == IsReducedProperty || e.Property == Visual.IsVisibleProperty)
-                if (GetIsReduced(Owner) || !Owner.IsEffectivelyVisible) Finish();
+            if (_running && (e.Property == IsReducedProperty || e.Property == Visual.IsVisibleProperty)
+                && (GetIsReduced(Owner) || !Owner.IsEffectivelyVisible))
+                Finish();
         }
 
         public void Dispose()

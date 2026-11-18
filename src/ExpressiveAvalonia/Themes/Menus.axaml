@@ -1168,13 +1168,6 @@
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
       <Setter Property="CornerRadius" Value="12" />
-      <Style Selector="^ ContentControl#Actions Button">
-        <Setter Property="md:MaterialAssist.ButtonVariant" Value="Text" />
-        <!-- RichTooltipTokens.ActionLabelTextColor = Primary, unlike the neutral text button. -->
-        <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
-        <Setter Property="MinHeight" Value="36" />
-      </Style>
-      <Style Selector="^ ContentControl TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
     </Style>
   </ControlTheme>
 
@@ -1231,92 +1224,6 @@
         </Panel>
       </ControlTemplate>
     </Setter>
-  </ControlTheme>
-
-  <!-- Searchable menu field (N04.5). A standalone composition around the shared TextBox and
-       ListBox: the TextBox keeps native editing, IME, selection and clipboard behavior, and typing
-       never dismisses the menu because the field and its rows share one surface. Keyboard: Up/Down
-       move the highlight, Enter invokes, Escape clears the query. Focus stays in the field, which
-       is the source "don't close on input" policy. -->
-  <ControlTheme x:Key="{x:Type controls:MaterialMenuTextField}" TargetType="controls:MaterialMenuTextField">
-    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
-    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
-    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
-    <Setter Property="MinWidth" Value="200" />
-    <Setter Property="Template">
-      <ControlTemplate>
-        <StackPanel Spacing="4">
-          <TextBlock Name="LabelText" Text="{TemplateBinding Label}"
-                     FontSize="{DynamicResource MaterialBodySmallFontSize}"
-                     Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                     Margin="16,0,0,0"
-                     IsVisible="{Binding Label, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static str:StringConverters.IsNotNullOrEmpty}}" />
-          <TextBox Name="PART_Input"
-                   Text="{TemplateBinding Text, Mode=TwoWay}"
-                   AutomationProperties.Name="{TemplateBinding (AutomationProperties.Name)}"
-                   AutomationProperties.LabeledBy="{Binding #LabelText}"
-                   MinHeight="48" MinWidth="0" Padding="16,12" />
-          <TextBlock Name="Supporting"
-                     Text="{TemplateBinding SupportingText}"
-                     FontSize="{DynamicResource MaterialBodySmallFontSize}"
-                     Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                     Margin="16,0,0,0"
-                     IsVisible="{Binding SupportingText, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static str:StringConverters.IsNotNullOrEmpty}}" />
-          <Border Background="{TemplateBinding Background}" CornerRadius="16" Padding="0,8"
-                  Margin="0,4,0,0" BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
-            <Panel>
-              <ScrollViewer MaxHeight="{TemplateBinding MaxMenuHeight}"
-                            HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                <ListBox Name="PART_List" Background="Transparent" BorderThickness="0"
-                         Padding="0" MinWidth="0"
-                         AutomationProperties.Name="{DynamicResource MaterialTextFieldMenuItemsText}">
-                  <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="controls:MaterialMenuTextFieldItem">
-                      <Grid ColumnDefinitions="Auto,*">
-                        <ContentPresenter Grid.Column="0" Width="20" Height="20" Margin="0,0,12,0"
-                                          VerticalAlignment="Center" Content="{Binding Icon}"
-                                          IsVisible="{Binding Icon, Converter={x:Static data:ObjectConverters.IsNotNull}}" />
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                          <TextBlock Text="{Binding Label}" MaxLines="1" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Text="{Binding SupportingText}" MaxLines="1" TextTrimming="CharacterEllipsis"
-                                     FontSize="{DynamicResource MaterialBodySmallFontSize}"
-                                     Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                                     IsVisible="{Binding SupportingText, Converter={x:Static str:StringConverters.IsNotNullOrEmpty}}" />
-                        </StackPanel>
-                      </Grid>
-                    </DataTemplate>
-                  </ListBox.ItemTemplate>
-                </ListBox>
-              </ScrollViewer>
-              <TextBlock Name="PART_Empty"
-                         Text="{DynamicResource MaterialTextFieldNoResultsText}"
-                         AutomationProperties.LiveSetting="Polite"
-                         Margin="16,12"
-                         FontSize="{DynamicResource MaterialBodyMediumFontSize}"
-                         Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
-                         IsVisible="False" />
-            </Panel>
-          </Border>
-        </StackPanel>
-      </ControlTemplate>
-    </Setter>
-    <Style Selector="^ /template/ ListBoxItem">
-      <Setter Property="MinHeight" Value="44" />
-      <Setter Property="Padding" Value="16,10" />
-      <Setter Property="Margin" Value="4,0" />
-      <Setter Property="CornerRadius" Value="4" />
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-      <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
-      <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
-    </Style>
-    <Style Selector="^ /template/ ListBoxItem:selected">
-      <Setter Property="Background" Value="{DynamicResource MaterialTertiaryContainerBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource MaterialOnTertiaryContainerBrush}" />
-      <Setter Property="CornerRadius" Value="12" />
-    </Style>
   </ControlTheme>
 
   <!-- Exposed dropdown anchor (N04.4). This is a keyed theme over the shared ComboBox so it never

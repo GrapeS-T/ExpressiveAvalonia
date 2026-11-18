@@ -705,7 +705,7 @@ public sealed class MaterialTabs : AvaloniaObject
         var secondary = GetVariant(tabs) == MaterialTabVariant.Secondary;
         var indicatorWidth = secondary
             ? tabWidth
-            : Math.Clamp(HeaderContentWidth(tab), 24, tabWidth);
+            : Math.Clamp(HeaderContentWidth(tab), Math.Min(24d, tabWidth), Math.Max(0d, tabWidth));
         var left = origin.X + (secondary ? 0 : (tabWidth - indicatorWidth) / 2);
         var height = secondary ? 2d : 3d;
 
@@ -798,7 +798,7 @@ public sealed class MaterialTabs : AvaloniaObject
     {
         if (e.Handled || !GetIsScrollable(tabs))
             return;
-        if (FindHeaderScroller(tabs) is not { } scroller || !IsWithin(e.Source as Visual, scroller))
+        if (FindHeaderScroller(tabs) is not { } scroller || !IsWithinHeaderScroller(e.Source as Visual, scroller))
             return;
 
         var vertical = tabs.TabStripPlacement is Dock.Left or Dock.Right;
@@ -836,17 +836,24 @@ public sealed class MaterialTabs : AvaloniaObject
     {
         foreach (var container in tabs.GetRealizedContainers())
         {
-            if (container.FindAncestorOfType<ScrollViewer>() is { } scroller)
-                return scroller;
+            for (var visual = container.GetVisualParent();
+                 visual is not null && !ReferenceEquals(visual, tabs);
+                 visual = visual.GetVisualParent())
+            {
+                if (visual is ScrollViewer scroller)
+                    return scroller;
+            }
         }
         return null;
     }
 
-    private static bool IsWithin(Visual? source, Visual ancestor)
+    private static bool IsWithinHeaderScroller(Visual? source, ScrollViewer scroller)
     {
         for (var visual = source; visual is not null; visual = visual.GetVisualParent())
         {
-            if (ReferenceEquals(visual, ancestor))
+            if (visual.Name == "PART_SelectedContentHost")
+                return false;
+            if (ReferenceEquals(visual, scroller))
                 return true;
         }
         return false;

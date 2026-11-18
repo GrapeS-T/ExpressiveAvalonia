@@ -148,6 +148,7 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
     private bool _dragging;
     private bool _dragCandidate;
     private double _dragStartX;
+    private double _dragStartY;
     private double _dragStartProgress;
     private double _lastX;
     private ulong _lastTime;
@@ -179,7 +180,7 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
         AddHandler(PointerPressedEvent, OnHostPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerMovedEvent, OnHostPointerMoved, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnHostPointerReleased, RoutingStrategies.Tunnel);
-        AddHandler(PointerCaptureLostEvent, OnHostPointerCaptureLost, RoutingStrategies.Tunnel);
+        AddHandler(PointerCaptureLostEvent, OnHostPointerCaptureLost, RoutingStrategies.Direct);
     }
 
     public event EventHandler? DrawerOpened;
@@ -302,6 +303,13 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
     {
         _progressSpring?.Dispose();
         _progressSpring = null;
+        _dragCandidate = false;
+        if (_dragging)
+        {
+            _dragging = false;
+            PseudoClasses.Set(":dragging", false);
+        }
+        _previousFocus = null;
         UnregisterOverlay();
         UpdateDrawerSubscription();
         base.OnDetachedFromVisualTree(e);
@@ -688,6 +696,25 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
         return result;
     }
 
+    private const double DragSlop = 6;
+
+    private bool IsInteractiveDragDescendant(Visual source)
+    {
+        for (Visual? visual = source; visual is not null && !ReferenceEquals(visual, this); visual = visual.GetVisualParent())
+        {
+            if (visual is TextBox or RangeBase or Thumb)
+                return true;
+
+            for (var type = visual.GetType(); type is not null && type != typeof(Control); type = type.BaseType)
+            {
+                if (type.Name is "MaterialRangeSlider" or "MaterialCarousel"
+                    or "MaterialSwipeListItem" or "MaterialScrollField")
+                    return true;
+            }
+        }
+        return false;
+    }
+
     private void OnHostPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!IsLightDismissEnabled ||
@@ -706,10 +733,14 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
             return;
         if (IsOpenTarget && !IsWithinDrawer(source))
             return;
+        if (!IsOpenTarget && _progress <= 0.001 && IsInteractiveDragDescendant(source))
+            return;
 
+        var start = e.GetPosition(this);
         _dragCandidate = true;
         _dragging = false;
-        _dragStartX = _lastX = e.GetPosition(this).X;
+        _dragStartX = _lastX = start.X;
+        _dragStartY = start.Y;
         _dragStartProgress = _progress;
         _lastTime = e.Timestamp;
         _openingVelocity = 0;
@@ -720,12 +751,35 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
         if (!_dragCandidate && !_dragging)
             return;
 
-        var x = e.GetPosition(this).X;
+        var position = e.GetPosition(this);
+        var x = position.X;
         var dx = x - _dragStartX;
+        var dy = position.Y - _dragStartY;
         if (!_dragging)
         {
-            if (Math.Abs(dx) < 6)
+            if (e.Pointer.Captured is not null && !ReferenceEquals(e.Pointer.Captured, this) &&
+                ((e.Source is Visual v && IsInteractiveDragDescendant(v)) ||
+                 (e.Pointer.Captured is Visual captured && IsInteractiveDragDescendant(captured))))
+            {
+                _dragCandidate = false;
                 return;
+            }
+
+            if (Math.Abs(dy) > Math.Abs(dx) && Math.Abs(dy) >= DragSlop)
+            {
+                _dragCandidate = false;
+                return;
+            }
+
+            if (Math.Abs(dx) < DragSlop || Math.Abs(dy) > Math.Abs(dx))
+                return;
+
+            if (_dragStartProgress <= 0.001 && dx <= 0)
+            {
+                _dragCandidate = false;
+                return;
+            }
+
             _dragging = true;
             _progressSpring?.Dispose();
             _progressSpring = null;
@@ -751,6 +805,10 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
     private void OnHostPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (!_dragCandidate && !_dragging)
+            return;
+
+        if (e.InitialPressMouseButton is MouseButton.Right or MouseButton.Middle
+            or MouseButton.XButton1 or MouseButton.XButton2)
             return;
 
         _dragCandidate = false;
@@ -799,10 +857,10 @@ public sealed class MaterialNavigationDrawerHost : ContentControl
 
     private void OnHostPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
+        _dragCandidate = false;
         if (!_dragging)
             return;
         _dragging = false;
-        _dragCandidate = false;
         PseudoClasses.Set(":dragging", false);
         if (IsOpenTarget)
             AnimateProgress(1, opening: true);

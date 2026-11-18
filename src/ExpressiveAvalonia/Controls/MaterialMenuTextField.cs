@@ -8,6 +8,7 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
 using Avalonia.Data;
@@ -175,6 +176,7 @@ public class MaterialMenuTextField : TemplatedControl
             _list.ItemsSource = _visible;
             _list.SelectionChanged += OnListSelectionChanged;
             _list.ContainerPrepared += OnContainerPrepared;
+            _list.ContainerClearing += OnContainerClearing;
             _list.AddHandler(PointerReleasedEvent, OnListPointerReleased, RoutingStrategies.Bubble, handledEventsToo: true);
         }
         UpdateLeadingIcon();
@@ -236,8 +238,10 @@ public class MaterialMenuTextField : TemplatedControl
             _input.KeyDown -= OnInputKeyDown;
         if (_list is not null)
         {
+            DetachAllContainerIcons(_list);
             _list.SelectionChanged -= OnListSelectionChanged;
             _list.ContainerPrepared -= OnContainerPrepared;
+            _list.ContainerClearing -= OnContainerClearing;
             _list.RemoveHandler(PointerReleasedEvent, OnListPointerReleased);
         }
         _leadingSubscription?.Dispose();
@@ -299,17 +303,59 @@ public class MaterialMenuTextField : TemplatedControl
         _updatingSelection = true;
         try
         {
-            _visible.Clear();
+            var matches = new List<MaterialMenuTextFieldItem>(_items.Count);
+            var matchSet = new HashSet<MaterialMenuTextFieldItem>();
             foreach (var item in _items)
             {
                 if (item.Matches(query))
-                    _visible.Add(item);
+                {
+                    matches.Add(item);
+                    matchSet.Add(item);
+                }
             }
+
+            for (var i = _visible.Count - 1; i >= 0; i--)
+            {
+                if (!matchSet.Contains(_visible[i]))
+                    _visible.RemoveAt(i);
+            }
+
+            for (var i = 0; i < matches.Count; i++)
+            {
+                var expected = matches[i];
+                if (i < _visible.Count && ReferenceEquals(_visible[i], expected))
+                    continue;
+
+                var existingIndex = -1;
+                for (var j = i + 1; j < _visible.Count; j++)
+                {
+                    if (ReferenceEquals(_visible[j], expected))
+                    {
+                        existingIndex = j;
+                        break;
+                    }
+                }
+
+                if (existingIndex >= 0)
+                    _visible.RemoveAt(existingIndex);
+
+                _visible.Insert(i, expected);
+            }
+
+            while (_visible.Count > matches.Count)
+                _visible.RemoveAt(_visible.Count - 1);
+
             if (_list is not null)
             {
+                for (var i = 0; i < _visible.Count; i++)
+                {
+                    if (_list.ContainerFromIndex(i) is ListBoxItem realized)
+                        realized.SetCurrentValue(IsEnabledProperty, _visible[i].IsEnabled);
+                }
+
                 // Keep the highlight on the same row while it still matches; otherwise start clean
                 // so the menu matches the source composition until the user navigates by keyboard.
-                _list.SelectedItem = previous is not null && previous.IsEnabled && _visible.Contains(previous) ? previous : null;
+                _list.SelectedItem = previous is not null && previous.IsEnabled && matchSet.Contains(previous) ? previous : null;
                 SetCurrentValue(SelectedItemProperty, _list.SelectedItem as MaterialMenuTextFieldItem);
             }
         }
@@ -362,7 +408,39 @@ public class MaterialMenuTextField : TemplatedControl
     {
         // Disabled rows stay in the list but cannot be selected; the container follows the model.
         if (e.Container is ListBoxItem container && e.Index >= 0 && e.Index < _visible.Count)
-            container.IsEnabled = _visible[e.Index].IsEnabled;
+        {
+            var item = _visible[e.Index];
+            container.SetCurrentValue(IsEnabledProperty, item.IsEnabled);
+            if (item.Icon is Control iconControl &&
+                iconControl.GetVisualParent() is ContentPresenter oldHost &&
+                !container.IsVisualAncestorOf(oldHost))
+            {
+                if (oldHost.GetVisualParent() is Control oldRoot)
+                    oldRoot.DataContext = null;
+                oldHost.UpdateChild();
+            }
+            if (container.Presenter?.Child is Control root && !ReferenceEquals(root.DataContext, item))
+                root.DataContext = item;
+        }
+    }
+
+    private static void OnContainerClearing(object? sender, ContainerClearingEventArgs e) =>
+        DetachContainerIcons(e.Container);
+
+    private static void DetachAllContainerIcons(ListBox list)
+    {
+        foreach (var container in list.GetRealizedContainers())
+            DetachContainerIcons(container);
+    }
+
+    private static void DetachContainerIcons(Control container)
+    {
+        if ((container as ListBoxItem)?.Presenter?.Child is not Control root)
+            return;
+
+        root.DataContext = null;
+        foreach (var presenter in root.GetVisualDescendants().OfType<ContentPresenter>())
+            presenter.UpdateChild();
     }
 
     private void OnInputKeyDown(object? sender, KeyEventArgs e)

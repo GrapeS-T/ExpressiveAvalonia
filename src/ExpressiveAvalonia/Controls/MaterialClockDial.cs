@@ -205,6 +205,7 @@ public sealed class MaterialClockDial : Control
 
     public MaterialClockDial()
     {
+        CoerceValue(ValueProperty);
         Classes.CollectionChanged += (_, _) => InvalidateVisual();
         ResourcesChanged += (_, _) => InvalidateVisual();
         ActualThemeVariantChanged += (_, _) => InvalidateVisual();
@@ -310,11 +311,11 @@ public sealed class MaterialClockDial : Control
             change.Property == Is24HourProperty || change.Property == MinuteIncrementProperty)
         {
             if (change.Property == SelectionProperty || change.Property == Is24HourProperty)
+            {
                 _automationPeer?.FaceChanged();
-            if (change.Property == SelectionProperty)
                 CoerceValue(ValueProperty);
-            if (change.Property == SelectionProperty || change.Property == Is24HourProperty)
                 BeginFaceTransition();
+            }
             if (change.Property == ValueProperty)
                 ValueChanged?.Invoke(this, EventArgs.Empty);
             MoveSelectionIndicator();
@@ -352,7 +353,9 @@ public sealed class MaterialClockDial : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (!IsEffectivelyEnabled) return;
+        if (!IsEffectivelyEnabled || _capturedPointer is not null ||
+            Math.Min(Bounds.Width, Bounds.Height) <= 0)
+            return;
         var point = e.GetCurrentPoint(this);
         if (!point.Properties.IsLeftButtonPressed) return;
         Focus(NavigationMethod.Pointer);
@@ -371,6 +374,7 @@ public sealed class MaterialClockDial : Control
         if (!IsEffectivelyEnabled) return;
         if (_isDragging)
         {
+            if (e.Pointer != _capturedPointer) return;
             var position = e.GetPosition(this);
             if (!_dragMoved)
             {
@@ -394,7 +398,8 @@ public sealed class MaterialClockDial : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (!_isDragging) return;
+        if (!_isDragging || e.Pointer != _capturedPointer) return;
+        if (e.Pointer.Type == PointerType.Mouse && e.InitialPressMouseButton != MouseButton.Left) return;
         // Source detectTapGestures snaps a minute tap to the nearest five-minute label; a drag
         // tracks the pointer continuously (toMinute has one-minute precision).
         var isTap = !_dragMoved;
@@ -409,8 +414,11 @@ public sealed class MaterialClockDial : Control
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
-        _isDragging = false;
+        if (e.Pointer != _capturedPointer) return;
+        _gestureVersion++;
         _capturedPointer = null;
+        _isDragging = false;
+        _dragMoved = false;
         MoveSelectionIndicator();
     }
 
@@ -806,9 +814,18 @@ public sealed class MaterialClockDial : Control
         return wrapped + 1;
     }
 
-    private int CoerceDialValue(int value) => Selection == MaterialClockDialSelection.Minute
-        ? Math.Clamp(value, 0, 59)
-        : Math.Clamp(value, 0, 23);
+    private int CoerceDialValue(int value)
+    {
+        if (Selection == MaterialClockDialSelection.Minute)
+            return Math.Clamp(value, 0, 59);
+        if (Is24Hour)
+            return Math.Clamp(value, 0, 23);
+        if (value == 0)
+            return 12;
+        if (value is >= 13 and <= 23)
+            return value - 12;
+        return Math.Clamp(value, 1, 12);
+    }
 
     /// <summary>The clockwise angle, from 12 o'clock, at which <paramref name="value"/> sits.</summary>
     private double TargetAngle(int value)
@@ -875,13 +892,12 @@ public sealed class MaterialClockDial : Control
 
     private void EndDrag()
     {
-        if (_capturedPointer is { } pointer)
-        {
-            pointer.Capture(null);
-            _capturedPointer = null;
-        }
-
+        var pointer = _capturedPointer;
+        _capturedPointer = null;
         _isDragging = false;
+        _dragMoved = false;
+        if (pointer?.Captured == this)
+            pointer.Capture(null);
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() =>
@@ -971,10 +987,13 @@ public sealed class MaterialClockDial : Control
         {
             if (owner.Selection != selection || owner.Is24Hour != is24Hour || TopLevel.GetTopLevel(owner) is not Visual root)
                 return default;
+            var radius = Math.Min(owner.Bounds.Width, owner.Bounds.Height) / 2;
+            if (radius <= 0)
+                return default;
             var transform = owner.TransformToVisual(root);
             if (transform is null) return default;
             var center = new Point(owner.Bounds.Width / 2, owner.Bounds.Height / 2);
-            foreach (var cell in owner.BuildCells(center, Math.Min(owner.Bounds.Width, owner.Bounds.Height) / 2))
+            foreach (var cell in owner.BuildCells(center, radius))
                 if (cell.Value == value)
                     return new Rect(cell.Center.X - CellRadius, cell.Center.Y - CellRadius, CellRadius * 2, CellRadius * 2).TransformToAABB(transform.Value);
             return default;

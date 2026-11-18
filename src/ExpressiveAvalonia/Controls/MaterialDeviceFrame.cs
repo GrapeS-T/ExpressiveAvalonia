@@ -82,6 +82,7 @@ public sealed class MaterialDeviceFrame : ContentControl
     private MaterialStatusBar? _statusBar;
     private Control? _gestureBar;
     private Border? _screen;
+    private Border? _frame;
     private ContentPresenter? _topHost;
     private ContentPresenter? _bottomHost;
 
@@ -100,9 +101,9 @@ public sealed class MaterialDeviceFrame : ContentControl
             if (frame._statusBar is not null) frame._statusBar.TimeText = frame.TimeText;
         });
         FrameThicknessProperty.Changed.AddClassHandler<MaterialDeviceFrame>(
-            static (frame, _) => frame.UpdateScreenClip());
+            static (frame, _) => frame.UpdateFrameGeometry());
         ScreenCornerRadiusProperty.Changed.AddClassHandler<MaterialDeviceFrame>(
-            static (frame, _) => frame.UpdateScreenClip());
+            static (frame, _) => frame.UpdateFrameGeometry());
         IsScrollableProperty.Changed.AddClassHandler<MaterialDeviceFrame>(
             static (frame, _) => frame.UpdateContentHost());
         TopContentProperty.Changed.AddClassHandler<MaterialDeviceFrame>(
@@ -200,13 +201,13 @@ public sealed class MaterialDeviceFrame : ContentControl
 
         var frame = new Border
         {
-            BorderThickness = new Thickness(FrameThickness),
-            CornerRadius = new CornerRadius(ScreenCornerRadius.TopLeft + FrameThickness),
             Child = _screen
         };
+        _frame = frame;
         frame.Bind(Border.BorderBrushProperty, frame.GetResourceObservable("MaterialOutlineVariantBrush"));
         frame.Bind(Border.BackgroundProperty, frame.GetResourceObservable("MaterialSurfaceBrush"));
 
+        UpdateFrameGeometry();
         UpdateChrome();
         return frame;
     }
@@ -259,6 +260,24 @@ public sealed class MaterialDeviceFrame : ContentControl
             _screenHost.Children.Clear();
             _screenHost.Children.Add(_presenter);
         }
+    }
+
+    private void UpdateFrameGeometry()
+    {
+        var thickness = FrameThickness;
+        var radius = ScreenCornerRadius;
+        if (_screen is not null)
+            _screen.CornerRadius = radius;
+        if (_frame is not null)
+        {
+            _frame.BorderThickness = new Thickness(thickness);
+            _frame.CornerRadius = new CornerRadius(
+                radius.TopLeft + thickness,
+                radius.TopRight + thickness,
+                radius.BottomRight + thickness,
+                radius.BottomLeft + thickness);
+        }
+        UpdateScreenClip();
     }
 
     private void UpdateScreenClip()

@@ -165,6 +165,7 @@ public class MaterialCarousel : ListBox
     private readonly List<ScrollBar> _hostScrollBars = [];
     private CarouselAutomationPeer? _automationPeer;
     private IPointer? _activeScrollPointer;
+    private IInputElement? _capturedScrollElement;
     private bool _gestureRestorePending;
     private bool _userScrollGuardApplied;
     private double? _scrollOffsetBeforeWheel;
@@ -381,6 +382,11 @@ public class MaterialCarousel : ListBox
 
         card.Invoked -= OnCardInvoked;
         card.Invoked += OnCardInvoked;
+        card.RemoveHandler(InputElement.PointerCaptureLostEvent,
+            (EventHandler<PointerCaptureLostEventArgs>)OnScrollHostPointerCaptureLost);
+        card.AddHandler(InputElement.PointerCaptureLostEvent,
+            (EventHandler<PointerCaptureLostEventArgs>)OnScrollHostPointerCaptureLost,
+            RoutingStrategies.Direct, handledEventsToo: true);
         ApplyDefaultAspectRatio(card, index);
         card.PropertyChanged -= OnCardPropertyChanged;
         card.PropertyChanged += OnCardPropertyChanged;
@@ -391,6 +397,8 @@ public class MaterialCarousel : ListBox
         if (container is MaterialCarouselItem card)
         {
             card.Invoked -= OnCardInvoked;
+            card.RemoveHandler(InputElement.PointerCaptureLostEvent,
+                (EventHandler<PointerCaptureLostEventArgs>)OnScrollHostPointerCaptureLost);
             card.PropertyChanged -= OnCardPropertyChanged;
             card.SetParallax(0);
             card.UpdateItemInfo(0, 0, 0, default);
@@ -434,7 +442,14 @@ public class MaterialCarousel : ListBox
         LayoutUpdated -= OnLayoutUpdatedForPanel;
         _offsetAnimation?.Dispose();
         _offsetAnimation = null;
+        ClearActiveScrollPointer();
         base.OnDetachedFromVisualTree(e);
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        OnScrollHostPointerCaptureLost(this, e);
     }
 
     private void OnSystemReducedMotionChanged(object? sender, EventArgs e) => InvalidateStripMeasure();
@@ -452,6 +467,12 @@ public class MaterialCarousel : ListBox
             return;
         }
 
+        if (_scrollPresenter is not null)
+        {
+            _scrollPresenter.RemoveHandler(InputElement.PointerCaptureLostEvent,
+                (EventHandler<PointerCaptureLostEventArgs>)OnScrollHostPointerCaptureLost);
+        }
+
         if (_scrollViewer is not null)
         {
             _scrollViewer.RemoveHandler(InputElement.PointerWheelChangedEvent,
@@ -462,6 +483,8 @@ public class MaterialCarousel : ListBox
                 (EventHandler<PointerPressedEventArgs>)OnScrollHostPointerPressed);
             _scrollViewer.RemoveHandler(InputElement.PointerReleasedEvent,
                 (EventHandler<PointerReleasedEventArgs>)OnScrollHostPointerReleased);
+            _scrollViewer.RemoveHandler(InputElement.PointerCaptureLostEvent,
+                (EventHandler<PointerCaptureLostEventArgs>)OnScrollHostPointerCaptureLost);
             _scrollViewer.TemplateApplied -= OnScrollHostTemplateApplied;
         }
 
@@ -469,6 +492,7 @@ public class MaterialCarousel : ListBox
         _scrollPresenter = null;
         _detachedScrollGestures.Clear();
         _hostScrollBars.Clear();
+        DetachCapturedScrollElement();
         _activeScrollPointer = null;
         _gestureRestorePending = false;
         _scrollOffsetBeforeWheel = null;
@@ -487,6 +511,9 @@ public class MaterialCarousel : ListBox
                 (EventHandler<PointerPressedEventArgs>)OnScrollHostPointerPressed, RoutingStrategies.Tunnel);
             _scrollViewer.AddHandler(InputElement.PointerReleasedEvent,
                 (EventHandler<PointerReleasedEventArgs>)OnScrollHostPointerReleased, RoutingStrategies.Tunnel,
+                handledEventsToo: true);
+            _scrollViewer.AddHandler(InputElement.PointerCaptureLostEvent,
+                (EventHandler<PointerCaptureLostEventArgs>)OnScrollHostPointerCaptureLost, RoutingStrategies.Direct,
                 handledEventsToo: true);
             _scrollViewer.TemplateApplied += OnScrollHostTemplateApplied;
             ResolveScrollPresenter();
@@ -515,9 +542,22 @@ public class MaterialCarousel : ListBox
 
         if (!ReferenceEquals(presenter, _scrollPresenter))
         {
+            if (_scrollPresenter is not null)
+            {
+                _scrollPresenter.RemoveHandler(InputElement.PointerCaptureLostEvent,
+                    (EventHandler<PointerCaptureLostEventArgs>)OnScrollHostPointerCaptureLost);
+            }
+
             // A re-templated host brings its own recognizers and bars; the references from the old
             // template cannot be restored.
             _scrollPresenter = presenter;
+            if (_scrollPresenter is not null)
+            {
+                _scrollPresenter.AddHandler(InputElement.PointerCaptureLostEvent,
+                    (EventHandler<PointerCaptureLostEventArgs>)OnScrollHostPointerCaptureLost,
+                    RoutingStrategies.Direct, handledEventsToo: true);
+            }
+
             _detachedScrollGestures.Clear();
             _hostScrollBars.Clear();
             _gestureRestorePending = false;
@@ -615,11 +655,24 @@ public class MaterialCarousel : ListBox
         if (_gestureRestorePending && _scrollPresenter is { } presenter)
             RestoreUserScroll(presenter);
 
-        if (_activeScrollPointer is null && _scrollViewer is not null &&
+        if (_scrollViewer is not null &&
             e.Pointer.Type is PointerType.Touch or PointerType.Pen &&
             e.GetCurrentPoint(_scrollViewer).Properties.IsLeftButtonPressed)
         {
+            DetachCapturedScrollElement();
             _activeScrollPointer = e.Pointer;
+            var target = e.Pointer.Captured ?? e.Source as IInputElement;
+            if (target is not null &&
+                !ReferenceEquals(target, this) &&
+                !ReferenceEquals(target, _scrollViewer) &&
+                !ReferenceEquals(target, _scrollPresenter) &&
+                target is not MaterialCarouselItem)
+            {
+                _capturedScrollElement = target;
+                _capturedScrollElement.AddHandler(InputElement.PointerCaptureLostEvent,
+                    (EventHandler<PointerCaptureLostEventArgs>)OnScrollHostPointerCaptureLost,
+                    RoutingStrategies.Direct, handledEventsToo: true);
+            }
         }
     }
 
@@ -628,9 +681,40 @@ public class MaterialCarousel : ListBox
         if (!ReferenceEquals(e.Pointer, _activeScrollPointer))
             return;
 
+        ClearActiveScrollPointer();
+    }
+
+    private void OnScrollHostPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (!ReferenceEquals(e.Pointer, _activeScrollPointer))
+            return;
+
+        if (e.Pointer.Captured is Visual captured &&
+            _scrollViewer is not null &&
+            (ReferenceEquals(captured, _scrollViewer) || _scrollViewer.IsVisualAncestorOf(captured)))
+        {
+            return;
+        }
+
+        ClearActiveScrollPointer();
+    }
+
+    private void ClearActiveScrollPointer()
+    {
+        DetachCapturedScrollElement();
         _activeScrollPointer = null;
         if (_gestureRestorePending && _scrollPresenter is { } presenter)
             RestoreUserScroll(presenter);
+    }
+
+    private void DetachCapturedScrollElement()
+    {
+        if (_capturedScrollElement is null)
+            return;
+
+        _capturedScrollElement.RemoveHandler(InputElement.PointerCaptureLostEvent,
+            (EventHandler<PointerCaptureLostEventArgs>)OnScrollHostPointerCaptureLost);
+        _capturedScrollElement = null;
     }
 
     private void OnScrollHostPointerWheelTunnel(object? sender, PointerWheelEventArgs e)
@@ -1075,13 +1159,14 @@ public class MaterialCarousel : ListBox
                 _ => SnapPointsType.None,
             };
 
-        SetCurrentValue(ScrollViewer.HorizontalSnapPointsTypeProperty, type);
-        SetCurrentValue(ScrollViewer.HorizontalSnapPointsAlignmentProperty, SnapPointsAlignment.Near);
-        SetCurrentValue(ScrollViewer.VerticalSnapPointsTypeProperty, Layout == MaterialCarouselLayout.FullScreen ? SnapPointsType.MandatorySingle : SnapPointsType.None);
-        SetCurrentValue(ScrollViewer.VerticalSnapPointsAlignmentProperty, SnapPointsAlignment.Near);
         PseudoClasses.Set(":snap-single", type == SnapPointsType.MandatorySingle);
         PseudoClasses.Set(":snap-velocity", type == SnapPointsType.Mandatory);
         PseudoClasses.Set(":no-snap", type == SnapPointsType.None);
+
+        SetCurrentValue(ScrollViewer.HorizontalSnapPointsTypeProperty, type);
+        SetCurrentValue(ScrollViewer.HorizontalSnapPointsAlignmentProperty, SnapPointsAlignment.Near);
+        SetCurrentValue(ScrollViewer.VerticalSnapPointsTypeProperty, Layout == MaterialCarouselLayout.FullScreen ? type : SnapPointsType.None);
+        SetCurrentValue(ScrollViewer.VerticalSnapPointsAlignmentProperty, SnapPointsAlignment.Near);
     }
 
     private MaterialCarouselPanel? FindPanel()

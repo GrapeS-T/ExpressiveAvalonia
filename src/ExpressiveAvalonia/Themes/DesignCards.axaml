@@ -56,7 +56,7 @@
             <Border Name="PART_Header" Grid.Row="0" Padding="16,12,4,12"
                     IsVisible="{TemplateBinding HasHeader}">
               <Grid ColumnDefinitions="Auto,*,Auto">
-                <Border Name="PART_Avatar" Width="40" Height="40" CornerRadius="999"
+                <Border Name="PART_Avatar" Width="40" Height="40" Margin="0,0,16,0" CornerRadius="999"
                         Background="{DynamicResource MaterialPrimaryContainerBrush}"
                         VerticalAlignment="Center"
                         IsVisible="{TemplateBinding HasAvatar}">
@@ -76,8 +76,9 @@
                                       VerticalContentAlignment="Center" />
                   </Panel>
                 </Border>
-                <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
                   <TextBlock Text="{TemplateBinding Header}"
+                             IsVisible="{Binding Header, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                              Foreground="{TemplateBinding Foreground}"
                              FontSize="{DynamicResource MaterialTitleMediumFontSize}"
                              FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
@@ -85,6 +86,7 @@
                              LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
                              TextTrimming="CharacterEllipsis" />
                   <TextBlock Text="{TemplateBinding Subhead}"
+                             IsVisible="{Binding Subhead, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                              Foreground="{TemplateBinding Foreground}"
                              FontSize="{DynamicResource MaterialBodyMediumFontSize}"
                              FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
@@ -111,6 +113,7 @@
             <StackPanel Name="PART_TextContent" Grid.Row="2" Margin="16" Spacing="32">
               <StackPanel Name="PART_Headline" IsVisible="{TemplateBinding HasHeadline}">
                 <TextBlock Text="{TemplateBinding Title}"
+                           IsVisible="{Binding Title, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                            Foreground="{TemplateBinding Foreground}"
                            FontSize="{DynamicResource MaterialBodyLargeFontSize}"
                            FontWeight="{DynamicResource MaterialBodyLargeFontWeight}"
@@ -119,6 +122,7 @@
                            TextWrapping="Wrap" />
                 <TextBlock Name="PART_Subtitle"
                            Text="{TemplateBinding Subtitle}"
+                           IsVisible="{Binding Subtitle, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                            Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                            FontSize="{DynamicResource MaterialBodyMediumFontSize}"
                            FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
@@ -202,7 +206,7 @@
             <Border Name="PART_Header" Grid.Column="0" Padding="16"
                     IsVisible="{TemplateBinding HasHeader}">
               <Grid ColumnDefinitions="Auto,*">
-                <Border Name="PART_Avatar" Width="40" Height="40" CornerRadius="999"
+                <Border Name="PART_Avatar" Width="40" Height="40" Margin="0,0,16,0" CornerRadius="999"
                         Background="{DynamicResource MaterialPrimaryContainerBrush}"
                         VerticalAlignment="Center"
                         IsVisible="{TemplateBinding HasAvatar}">
@@ -222,8 +226,9 @@
                                       VerticalContentAlignment="Center" />
                   </Panel>
                 </Border>
-                <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
                   <TextBlock Text="{TemplateBinding Header}"
+                             IsVisible="{Binding Header, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                              Foreground="{TemplateBinding Foreground}"
                              FontSize="{DynamicResource MaterialTitleMediumFontSize}"
                              FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
@@ -231,6 +236,7 @@
                              LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
                              TextTrimming="CharacterEllipsis" />
                   <TextBlock Text="{TemplateBinding Subhead}"
+                             IsVisible="{Binding Subhead, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                              Foreground="{TemplateBinding Foreground}"
                              FontSize="{DynamicResource MaterialBodyMediumFontSize}"
                              FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
@@ -388,6 +394,10 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:disabled /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <Style Selector="^[HasHeadline=False][HasSupportingText=False][HasActions=False] /template/ StackPanel#PART_TextContent">
       <Setter Property="IsVisible" Value="False" />
     </Style>
 

@@ -14,6 +14,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
@@ -293,6 +294,7 @@ public class MaterialCard : ContentControl
     private IPointer? _pointerCapture;
     private bool _isDragging;
     private bool _commandCanExecute = true;
+    private ICommand? _subscribedCommand;
     private Point _pressPosition;
     private PointerPressedEventArgs? _pressArgs;
     private CornerRadius _focusRingCornerRadius = new(17);
@@ -561,6 +563,9 @@ public class MaterialCard : ContentControl
     public bool HasSecondaryAction => _hasSecondaryAction;
 
     /// <inheritdoc />
+    protected override bool IsEnabledCore => base.IsEnabledCore && (!IsInteractive || _commandCanExecute);
+
+    /// <inheritdoc />
     protected override AutomationPeer OnCreateAutomationPeer() => new MaterialCardAutomationPeer(this);
 
     /// <inheritdoc />
@@ -579,6 +584,8 @@ public class MaterialCard : ContentControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        SyncCommandSubscription();
+        UpdateCommandCanExecute();
         // Theme brushes and shadow resources resolve once attached. Applying again also picks up
         // a theme variant switch that happened while the card was detached.
         UpdateElevation(snap: true);
@@ -617,8 +624,7 @@ public class MaterialCard : ContentControl
     protected override void OnAttachedToLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
         base.OnAttachedToLogicalTree(e);
-        if (Command is { } command)
-            command.CanExecuteChanged += _canExecuteChangedHandler;
+        SyncCommandSubscription();
         UpdateCommandCanExecute();
     }
 
@@ -626,8 +632,7 @@ public class MaterialCard : ContentControl
     protected override void OnDetachedFromLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromLogicalTree(e);
-        if (Command is { } command)
-            command.CanExecuteChanged -= _canExecuteChangedHandler;
+        SyncCommandSubscription();
         CancelInteraction();
     }
 
@@ -639,6 +644,7 @@ public class MaterialCard : ContentControl
         _interactions.Clear();
         _elevationInitialized = false;
         base.OnDetachedFromVisualTree(e);
+        SyncCommandSubscription();
     }
 
     /// <inheritdoc />
@@ -648,14 +654,7 @@ public class MaterialCard : ContentControl
 
         if (change.Property == CommandProperty)
         {
-            var (oldCommand, newCommand) = change.GetOldAndNewValue<ICommand?>();
-            if (((ILogical)this).IsAttachedToLogicalTree)
-            {
-                if (oldCommand is not null)
-                    oldCommand.CanExecuteChanged -= _canExecuteChangedHandler;
-                if (newCommand is not null)
-                    newCommand.CanExecuteChanged += _canExecuteChangedHandler;
-            }
+            SyncCommandSubscription();
             UpdateCommandCanExecute();
         }
         else if (change.Property == CommandParameterProperty)
@@ -666,6 +665,7 @@ public class MaterialCard : ContentControl
         {
             var interactive = change.GetNewValue<bool>();
             PseudoClasses.Set(":interactive", interactive);
+            UpdateIsEffectivelyEnabled();
             if (!interactive)
                 CancelInteraction();
             UpdateElevation(snap: true);
@@ -785,7 +785,8 @@ public class MaterialCard : ContentControl
     {
         base.OnPointerReleased(e);
 
-        if (!_pointerPressed || e.Pointer != _pointerCapture)
+        if (!_pointerPressed || e.Pointer != _pointerCapture ||
+            e.InitialPressMouseButton is not (MouseButton.Left or MouseButton.None))
             return;
 
         _pointerPressed = false;
@@ -1140,9 +1141,24 @@ public class MaterialCard : ContentControl
         (byte)Math.Round(Lerp(from.G, to.G, progress)),
         (byte)Math.Round(Lerp(from.B, to.B, progress)));
 
+    private void SyncCommandSubscription()
+    {
+        var desired = ((ILogical)this).IsAttachedToLogicalTree || this.IsAttachedToVisualTree()
+            ? Command
+            : null;
+        if (ReferenceEquals(_subscribedCommand, desired))
+            return;
+        if (_subscribedCommand is not null)
+            _subscribedCommand.CanExecuteChanged -= _canExecuteChangedHandler;
+        _subscribedCommand = desired;
+        if (_subscribedCommand is not null)
+            _subscribedCommand.CanExecuteChanged += _canExecuteChangedHandler;
+    }
+
     private void UpdateCommandCanExecute()
     {
         _commandCanExecute = Command?.CanExecute(CommandParameter) ?? true;
+        UpdateIsEffectivelyEnabled();
     }
 
     private void UpdateFocusRingCornerRadius()

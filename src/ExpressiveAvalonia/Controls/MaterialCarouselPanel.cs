@@ -156,10 +156,10 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
     /// main-axis inset (the content padding lives in the shifted keyline steps); the aspect-ratio
     /// extension, which has no strategy, keeps the padding as a real inset.
     /// </summary>
-    private double ContentStart => IsAspectLayout ? PhysicalStartPadding : 0;
+    private double ContentStart => IsAspectLayout && !IsVertical ? PhysicalStartPadding : 0;
 
     /// <summary>Scrollable length of the strip, matching the strategy's own scroll range.</summary>
-    private double MainAxisExtent => IsAspectLayout
+    private double MainAxisExtent => IsAspectLayout && !IsVertical
         ? PhysicalStartPadding + _contentWidth + PhysicalEndPadding
         : _contentWidth;
 
@@ -500,10 +500,10 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
             var keylineBefore = keylines.GetKeylineBefore(unadjustedCenter);
             var keylineAfter = keylines.GetKeylineAfter(unadjustedCenter);
             var isOutOfKeylineBounds = keylineBefore.Equals(keylineAfter);
-            var progress = isOutOfKeylineBounds
+            var keylineSpan = keylineAfter.UnadjustedOffset - keylineBefore.UnadjustedOffset;
+            var progress = isOutOfKeylineBounds || Math.Abs(keylineSpan) < 1e-9
                 ? 1
-                : (unadjustedCenter - keylineBefore.UnadjustedOffset) /
-                  (keylineAfter.UnadjustedOffset - keylineBefore.UnadjustedOffset);
+                : (unadjustedCenter - keylineBefore.UnadjustedOffset) / keylineSpan;
             var interpolated = CarouselKeylineList.Interpolate(keylineBefore, keylineAfter, progress);
 
             var maskWidth = interpolated.Size;
@@ -511,7 +511,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
             var maskRight = (itemMainSize / 2) + (maskWidth / 2);
 
             var translation = interpolated.Offset - unadjustedCenter;
-            if (isOutOfKeylineBounds)
+            if (isOutOfKeylineBounds && interpolated.Size > 0)
             {
                 // Past the first/last keyline the item keeps moving so it can leave the viewport.
                 translation += (unadjustedCenter - interpolated.UnadjustedOffset) / interpolated.Size;
@@ -606,8 +606,6 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
                 own.SetValue(RecycleKeyProperty, ItemIsItsOwnContainer);
                 generator.ItemContainerPrepared(own, own, index);
             }
-
-            own.IsVisible = true;
         }
         else
         {
@@ -654,7 +652,11 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         var recycleKey = container.GetValue(RecycleKeyProperty);
         var generator = ItemContainerGenerator;
         if (generator is null)
+        {
+            container.ClearValue(RecycleKeyProperty);
+            RemoveInternalChild(container);
             return;
+        }
 
         if (recycleKey is null)
         {
@@ -663,7 +665,9 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         }
         else if (ReferenceEquals(recycleKey, ItemIsItsOwnContainer))
         {
-            container.IsVisible = false;
+            generator.ClearItemContainer(container);
+            RemoveInternalChild(container);
+            container.ClearValue(RecycleKeyProperty);
         }
         else
         {
@@ -942,12 +946,18 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
             CapturePreferences(owner));
     }
 
-    private static ItemPreferences CapturePreferences(MaterialCarousel owner) =>
-        new(
+    private static ItemPreferences CapturePreferences(MaterialCarousel owner)
+    {
+        var minSmallWidth = double.IsFinite(owner.MinSmallItemWidth) ? Math.Max(0, owner.MinSmallItemWidth) : CarouselDefaults.MinSmallItemSize;
+        var maxSmallWidth = double.IsFinite(owner.MaxSmallItemWidth) ? Math.Max(0, owner.MaxSmallItemWidth) : CarouselDefaults.MaxSmallItemSize;
+        var minSmall = Math.Max(1d, Math.Min(minSmallWidth, maxSmallWidth));
+        var maxSmall = Math.Max(minSmall, maxSmallWidth);
+        return new(
             double.IsFinite(owner.PreferredItemWidth) ? Math.Max(0, owner.PreferredItemWidth) : double.NaN,
             double.IsFinite(owner.ItemWidth) ? Math.Max(0, owner.ItemWidth) : double.NaN,
-            double.IsFinite(owner.MinSmallItemWidth) ? Math.Max(0, owner.MinSmallItemWidth) : CarouselDefaults.MinSmallItemSize,
-            double.IsFinite(owner.MaxSmallItemWidth) ? Math.Max(0, owner.MaxSmallItemWidth) : CarouselDefaults.MaxSmallItemSize);
+            minSmall,
+            maxSmall);
+    }
 
     private double ResolveCrossSize(MaterialCarousel owner, Size availableSize)
     {

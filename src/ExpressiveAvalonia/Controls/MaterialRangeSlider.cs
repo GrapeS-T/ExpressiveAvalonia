@@ -72,6 +72,7 @@ public sealed class MaterialRangeSlider : TemplatedControl
     private bool _dragStarted;
     private bool _verticalCancelled;
     private bool _pressNearCoincidentEndpoints;
+    private bool _keyChangeActive;
 
     public double Minimum { get => GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
     public double Maximum { get => GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
@@ -169,7 +170,10 @@ public sealed class MaterialRangeSlider : TemplatedControl
         // A drag must stop when the slider or any ancestor is disabled, not only when the
         // slider's own IsEnabled changes.
         if (change.Property == InputElement.IsEffectivelyEnabledProperty && !IsEffectivelyEnabled)
+        {
+            _keyChangeActive = false;
             _capturedPointer?.Capture(null);
+        }
         (_lowerThumb as MaterialRangeThumb)?.NotifyRangeChanged(change);
         (_upperThumb as MaterialRangeThumb)?.NotifyRangeChanged(change);
     }
@@ -364,6 +368,8 @@ public sealed class MaterialRangeSlider : TemplatedControl
         if (e.Pointer != _capturedPointer)
             return;
         var mouse = e.Pointer.Type == PointerType.Mouse;
+        if (mouse && e.InitialPressMouseButton != MouseButton.Left)
+            return;
         var wasDrag = _dragStarted;
         var cancelled = _verticalCancelled;
         // A touch/pen press that never crossed the slop is a tap, matching the source's
@@ -392,6 +398,7 @@ public sealed class MaterialRangeSlider : TemplatedControl
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        _keyChangeActive = false;
         _capturedPointer?.Capture(null);
         base.OnDetachedFromVisualTree(e);
     }
@@ -417,6 +424,8 @@ public sealed class MaterialRangeSlider : TemplatedControl
     internal void RaiseValueChangeCompleted() =>
         RaiseEvent(new RoutedEventArgs(ValueChangeCompletedEvent, this));
 
+    internal void NotifyThumbLostFocus() => _keyChangeActive = false;
+
     /// <summary>
     /// The source finishes a keyboard interaction on the key-up of the keys that change an
     /// endpoint. This control is horizontal-only, so those are the arrow, page, Home and End keys.
@@ -427,6 +436,9 @@ public sealed class MaterialRangeSlider : TemplatedControl
             return;
         if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown))
             return;
+        if (!_keyChangeActive)
+            return;
+        _keyChangeActive = false;
         RaiseValueChangeCompleted();
         e.Handled = true;
     }
@@ -463,6 +475,7 @@ public sealed class MaterialRangeSlider : TemplatedControl
         else
             return;
         SetEndpoint(upper, value);
+        _keyChangeActive = true;
         e.Handled = true;
     }
 
@@ -505,6 +518,7 @@ internal sealed class MaterialRangeThumb : Thumb
     {
         base.OnLostFocus(e);
         IsFocusVisible = false;
+        _slider?.NotifyThumbLostFocus();
         _slider?.InvalidateTrack();
     }
 

@@ -496,7 +496,7 @@
                       Width="24" Height="24" Stretch="Uniform" IsVisible="False" />
                 <Border Name="BadgeLarge" MinWidth="16" Height="16" CornerRadius="8" Padding="4,0"
                         Background="{DynamicResource MaterialErrorBrush}"
-                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-4,0"
+                        HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12,-2,-36,0"
                         IsVisible="False">
                   <TextBlock Text="{TemplateBinding BadgeText}" FontSize="11" LineHeight="16"
                              Foreground="{DynamicResource MaterialOnErrorBrush}"
@@ -604,7 +604,7 @@
                         Width="24" Height="24" Stretch="Uniform" IsVisible="False" />
                   <Border Name="BadgeLarge" MinWidth="16" Height="16" CornerRadius="8" Padding="4,0"
                           Background="{DynamicResource MaterialErrorBrush}"
-                          HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-4,0"
+                          HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12,-2,-36,0"
                           IsVisible="False">
                     <TextBlock Text="{TemplateBinding BadgeText}" FontSize="11" LineHeight="16"
                                Foreground="{DynamicResource MaterialOnErrorBrush}"
@@ -870,17 +870,24 @@
       <ControlTemplate>
         <Border Background="{TemplateBinding Background}" CornerRadius="36" Padding="{TemplateBinding Padding}">
           <Panel>
-            <!-- The centered configuration centers the headline in the whole bar, not in the
-                 middle column between unequal side slots, so it is a separate overlay. -->
-            <TextBlock Name="HeadlineCenter"
-                       Text="{TemplateBinding Headline}"
-                       Foreground="{TemplateBinding Foreground}"
-                       FontSize="{DynamicResource MaterialTitleLargeFontSize}"
-                       LineHeight="{DynamicResource MaterialTitleLargeLineHeight}"
-                       FontWeight="{DynamicResource MaterialTitleLargeFontWeight}"
-                       Margin="48,0" HorizontalAlignment="Center" VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis"
-                       AutomationProperties.HeadingLevel="1" />
+            <!-- The centered configuration centers the headline in the whole bar while clamping
+                 symmetrically against whichever side slot is wider, so multi-icon trailing slots
+                 never collide with the title. -->
+            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center" IsHitTestVisible="False">
+              <Border Grid.Column="0" MinWidth="48" Width="{Binding #PART_Leading.Bounds.Width}" />
+              <Border Grid.Column="0" Width="{Binding #PART_Trailing.Bounds.Width}" />
+              <TextBlock Name="HeadlineCenter" Grid.Column="1"
+                         Text="{TemplateBinding Headline}"
+                         Foreground="{TemplateBinding Foreground}"
+                         FontSize="{DynamicResource MaterialTitleLargeFontSize}"
+                         LineHeight="{DynamicResource MaterialTitleLargeLineHeight}"
+                         FontWeight="{DynamicResource MaterialTitleLargeFontWeight}"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis"
+                         AutomationProperties.HeadingLevel="1" />
+              <Border Grid.Column="2" MinWidth="48" Width="{Binding #PART_Leading.Bounds.Width}" />
+              <Border Grid.Column="2" Width="{Binding #PART_Trailing.Bounds.Width}" />
+            </Grid>
             <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
               <ContentPresenter Name="PART_Leading" Grid.Column="0"
                                 Content="{TemplateBinding LeadingContent}"
@@ -944,6 +951,7 @@
                             HorizontalAlignment="Center" />
                     </Border>
                     <TextBlock Name="HeadlineText" Text="{TemplateBinding Headline}"
+                               IsVisible="{Binding Headline, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                                Foreground="{TemplateBinding Foreground}"
                                FontSize="{DynamicResource MaterialHeadlineSmallFontSize}"
                                LineHeight="{DynamicResource MaterialHeadlineSmallLineHeight}"
@@ -951,6 +959,7 @@
                                TextWrapping="Wrap"
                                AutomationProperties.HeadingLevel="1" />
                     <TextBlock Text="{TemplateBinding SupportingText}"
+                               IsVisible="{Binding SupportingText, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                                Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                                FontSize="{DynamicResource MaterialBodyMediumFontSize}"
                                LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
@@ -965,13 +974,9 @@
                   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="24,24,24,8">
                     <Button Name="PART_Secondary" Theme="{StaticResource XrDialogActionTheme}"
                             Content="{TemplateBinding SecondaryActionText}"
-                            Command="{TemplateBinding SecondaryCommand}"
-                            CommandParameter="{TemplateBinding SecondaryCommandParameter}"
                             IsVisible="{TemplateBinding ShowSecondaryAction}" />
                     <Button Name="PART_Primary" Theme="{StaticResource XrDialogActionTheme}"
                             Content="{TemplateBinding PrimaryActionText}"
-                            Command="{TemplateBinding PrimaryCommand}"
-                            CommandParameter="{TemplateBinding PrimaryCommandParameter}"
                             IsDefault="True" />
                   </StackPanel>
                 </StackPanel>

@@ -348,6 +348,11 @@ public class MaterialSwipeListItem : ListBoxItem
         {
             SnapTo(MaterialSwipeState.Settled);
         }
+        else if (change.Property == BackgroundContentProperty)
+        {
+            if (BackgroundContent is null && _actionsBackground is not null)
+                BackgroundContent = _actionsBackground;
+        }
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -378,26 +383,28 @@ public class MaterialSwipeListItem : ListBoxItem
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
         _tracking = false;
         _dragging = false;
+        _keyboardActionsRevealed = false;
         PseudoClasses.Set(":swiping", false);
         _samples.Clear();
         _velocity = 0;
         _pressX = 0;
         _pressOffset = 0;
-        // Removal leaves no frame source; carry an interrupted settle to its target anchor so a
-        // retained container never resumes from a partial offset.
+        // Removal leaves no frame source; carry an interrupted settle to its target anchor before
+        // base raises DetachedFromVisualTree (which would finish active tweens/decays with raise: true).
         CompleteInterruptedSettle();
+        base.OnDetachedFromVisualTree(e);
     }
 
     private void RebuildActionsBackground()
     {
         if (_actions.Count == 0)
         {
-            if (ReferenceEquals(BackgroundContent, _actionsBackground))
-                BackgroundContent = null;
+            var oldActions = _actionsBackground;
             _actionsBackground = null;
+            if (ReferenceEquals(BackgroundContent, oldActions))
+                BackgroundContent = null;
             return;
         }
 
@@ -468,8 +475,10 @@ public class MaterialSwipeListItem : ListBoxItem
             panel.Children.Add(button);
         }
 
+        var previousActions = _actionsBackground;
         _actionsBackground = panel;
-        BackgroundContent = panel;
+        if (BackgroundContent is null || ReferenceEquals(BackgroundContent, previousActions))
+            BackgroundContent = panel;
     }
 
     private void OnActionClick(object? sender, RoutedEventArgs e)
@@ -523,6 +532,7 @@ public class MaterialSwipeListItem : ListBoxItem
         StopAnimations();
         _tracking = false;
         _dragging = false;
+        _keyboardActionsRevealed = false;
         PseudoClasses.Set(":swiping", false);
         _samples.Clear();
         _velocity = 0;
@@ -546,6 +556,11 @@ public class MaterialSwipeListItem : ListBoxItem
             return;
 
         StopAnimations();
+        if (_keyboardActionsRevealed)
+        {
+            _keyboardActionsRevealed = false;
+            SetOffsetImmediate(0);
+        }
         _tracking = true;
         _dragging = false;
         _pressX = e.GetPosition(this).X;

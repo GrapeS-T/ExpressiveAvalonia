@@ -116,16 +116,16 @@ public sealed partial class MaterialMotion
         private void Detached(object? sender, VisualTreeAttachmentEventArgs e)
         {
             // Event invocation snapshots can still contain this handler after an earlier owner
-            // handler disposed the tween. Cancellation must not finish or apply its old target.
-            if (!_disposed) Finish();
+            // handler disposed the tween. Cancellation or an already idle tween must not finish or apply its old target.
+            if (_running && !_disposed) Finish();
         }
         private void ReducedChanged(object? sender, EventArgs e)
         {
-            if (!_disposed && GetIsReduced(_owner)) Finish();
+            if (_running && !_disposed && GetIsReduced(_owner)) Finish();
         }
         private void Changed(object? sender, AvaloniaPropertyChangedEventArgs e)
         {
-            if (!_disposed && (e.Property == IsReducedProperty || e.Property == Visual.IsVisibleProperty) &&
+            if (_running && !_disposed && (e.Property == IsReducedProperty || e.Property == Visual.IsVisibleProperty) &&
                 (GetIsReduced(_owner) || !_owner.IsEffectivelyVisible)) Finish();
         }
 

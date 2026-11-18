@@ -9,6 +9,7 @@ using Avalonia.Automation.Peers;
 using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
@@ -264,6 +265,8 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
             Actions = actions;
         }
         actions.Add(action);
+        if (_observedActions is null)
+            UpdateActionLayout();
         return action;
     }
 
@@ -343,7 +346,8 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
 
         // Attach first so resource lookups resolve through the owner's theme, then build the
         // scrim and transitions from the actual tokens of that theme.
-        host.AddHandler(InputElement.KeyDownEvent, OnHostKeyDown, RoutingStrategies.Tunnel);
+        host.AddHandler(InputElement.KeyDownEvent, OnHostKeyDownTunnel, RoutingStrategies.Tunnel);
+        host.AddHandler(InputElement.KeyDownEvent, OnHostKeyDownBubble, RoutingStrategies.Bubble);
         host.AddHandler(InputElement.KeyUpEvent, OnHostKeyUp, RoutingStrategies.Tunnel);
         host.AddHandler(InputElement.TextInputEvent, OnHostTextInput, RoutingStrategies.Tunnel);
         host.AddHandler(InputElement.PointerPressedEvent, OnHostPointerPressed, RoutingStrategies.Tunnel);
@@ -507,16 +511,30 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
 
     private void OnCloseButtonClick(object? sender, RoutedEventArgs e) => InvokeCancel();
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        ObserveActions();
+        if (_actionsPanel is not null)
+            UpdateActions();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        UnobserveActions();
+        ReleaseActionButtons();
+        base.OnDetachedFromVisualTree(e);
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
         if (change.Property == ActionsProperty)
         {
-            if (_observedActions is not null)
-                _observedActions.CollectionChanged -= OnActionsCollectionChanged;
-            _observedActions = Actions as INotifyCollectionChanged;
-            if (_observedActions is not null)
-                _observedActions.CollectionChanged += OnActionsCollectionChanged;
+            if (this.IsAttachedToVisualTree())
+                ObserveActions();
+            else
+                UnobserveActions();
             UpdateActions();
         }
         else if (change.Property == TitleProperty)
@@ -626,15 +644,26 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
 
     private void OnOwnerClosed(object? sender, EventArgs e) => Abort();
 
-    private void OnHostKeyDown(object? sender, KeyEventArgs e)
+    private void OnHostKeyDownTunnel(object? sender, KeyEventArgs e)
     {
         if (_inputSuppressed)
         {
             // Suppression applies from the focused element's tunnel through the host, before any
             // native button or editor can act on the key.
             e.Handled = true;
+        }
+    }
+
+    private void OnHostKeyDownBubble(object? sender, KeyEventArgs e)
+    {
+        if (_inputSuppressed)
+        {
+            e.Handled = true;
             return;
         }
+        if (e.Handled || e.KeyModifiers != KeyModifiers.None)
+            return;
+
         if (e.Key == Key.Escape)
         {
             // A popup opened from inside the dialog (combo box, menu) owns Escape while it is up.
@@ -707,8 +736,12 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
     {
         if (_closing || !action.IsEnabled)
             return;
-        if (executeCommand && action.Command is { } command && command.CanExecute(action.CommandParameter))
+        if (executeCommand && action.Command is { } command)
+        {
+            if (!command.CanExecute(action.CommandParameter))
+                return;
             command.Execute(action.CommandParameter);
+        }
         if (action.CloseOnInvoke)
             Close(action.Result);
     }
@@ -723,20 +756,60 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
         return null;
     }
 
-    private void UpdateActions()
+    private void ObserveActions()
     {
-        foreach (var action in _buttons.Keys)
+        UnobserveActions();
+        _observedActions = Actions as INotifyCollectionChanged;
+        if (_observedActions is not null)
+            _observedActions.CollectionChanged += OnActionsCollectionChanged;
+    }
+
+    private void UnobserveActions()
+    {
+        if (_observedActions is null)
+            return;
+        _observedActions.CollectionChanged -= OnActionsCollectionChanged;
+        _observedActions = null;
+    }
+
+    private static void DetachButtonIcon(Button button)
+    {
+        var icon = MaterialAssist.GetIcon(button);
+        MaterialAssist.SetIcon(button, null);
+        MaterialAssist.SetShowIcon(button, false);
+        if (icon is not Control)
+            return;
+
+        foreach (var presenter in button.GetVisualDescendants().OfType<ContentPresenter>())
+            presenter.UpdateChild();
+    }
+
+    private void ReleaseActionButtons()
+    {
+        foreach (var (action, button) in _buttons)
+        {
             action.PropertyChanged -= OnActionPropertyChanged;
+            DetachButtonIcon(button);
+        }
         foreach (var binding in _foregroundBindings.Values)
             binding.Dispose();
         _foregroundBindings.Clear();
         _buttons.Clear();
         _buttonVariants.Clear();
+        _actionsPanel?.Children.Clear();
+    }
+
+    private void UpdateActions()
+    {
+        ReleaseActionButtons();
 
         if (_actionsPanel is null)
+        {
+            UpdateActionLayout();
             return;
+        }
 
-        _actionsPanel.Children.Clear();
+        var attached = this.IsAttachedToVisualTree();
         if (Actions is not null)
         {
             // AlertDialogFlowRow lays the source's [confirm, dismiss] items out with a flipped
@@ -750,7 +823,8 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
                 var button = CreateActionButton(action);
                 _buttons[action] = button;
                 _actionsPanel.Children.Add(button);
-                action.PropertyChanged += OnActionPropertyChanged;
+                if (attached)
+                    action.PropertyChanged += OnActionPropertyChanged;
             }
         }
         UpdateActionLayout();
@@ -777,6 +851,8 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
         button.IsEnabled = !_inputSuppressed && action.IsEnabled;
         button.Command = action.Command;
         button.CommandParameter = action.CommandParameter;
+        if (MaterialAssist.GetIcon(button) is Control previousIcon && !ReferenceEquals(previousIcon, action.Icon))
+            DetachButtonIcon(button);
         MaterialAssist.SetIcon(button, action.Icon);
         MaterialAssist.SetShowIcon(button, action.Icon is not null);
         MaterialAssist.SetButtonVariant(button, action.Variant);
@@ -788,11 +864,18 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
             // Dialog actions use the primary role for text buttons, as in the source family;
             // filled and tonal variants keep the foreground their own variant defines.
             if (action.Variant is MaterialButtonVariant.Text or MaterialButtonVariant.Standard)
-                _foregroundBindings[button] = button.Bind(
-                    Button.ForegroundProperty,
-                    button.GetResourceObservable("MaterialPrimaryBrush"));
+            {
+                if (this.IsAttachedToVisualTree())
+                {
+                    _foregroundBindings[button] = button.Bind(
+                        Button.ForegroundProperty,
+                        button.GetResourceObservable("MaterialPrimaryBrush"));
+                }
+            }
             else
+            {
                 button.ClearValue(Button.ForegroundProperty);
+            }
         }
         if (!string.IsNullOrEmpty(action.Text))
             AutomationProperties.SetName(button, action.Text);
@@ -992,7 +1075,8 @@ public class MaterialDialog : ContentControl, IMaterialOverlayFocusChain
         }
         if (host is not null)
         {
-            host.RemoveHandler(InputElement.KeyDownEvent, OnHostKeyDown);
+            host.RemoveHandler(InputElement.KeyDownEvent, OnHostKeyDownTunnel);
+            host.RemoveHandler(InputElement.KeyDownEvent, OnHostKeyDownBubble);
             host.RemoveHandler(InputElement.KeyUpEvent, OnHostKeyUp);
             host.RemoveHandler(InputElement.TextInputEvent, OnHostTextInput);
             host.RemoveHandler(InputElement.PointerPressedEvent, OnHostPointerPressed);

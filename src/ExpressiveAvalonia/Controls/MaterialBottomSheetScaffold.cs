@@ -223,6 +223,17 @@ public sealed class MaterialBottomSheetScaffold : ContentControl
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
+        if (_sheetHost is not null)
+        {
+            _sheetHost.Content = null;
+            _sheetHost.UpdateChild();
+        }
+        if (_snackbarHost is not null)
+        {
+            _snackbarHost.Content = null;
+            _snackbarHost.UpdateChild();
+        }
+
         base.OnApplyTemplate(e);
 
         _topBar = e.NameScope.Find<ContentControl>("PART_TopBar");

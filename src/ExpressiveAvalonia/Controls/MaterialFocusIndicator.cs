@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -52,12 +53,13 @@ public sealed class MaterialFocusIndicator : Control
 
     private readonly Pen _pen = new();
     private Control? _target;
+    private Control? _focusedDescendant;
     private bool _targetFocused;
 
     static MaterialFocusIndicator()
     {
         AffectsRender<MaterialFocusIndicator>(
-            IsActiveProperty, StrokeProperty, StrokeThicknessProperty, CornerRadiusProperty);
+            BoundsProperty, IsActiveProperty, StrokeProperty, StrokeThicknessProperty, CornerRadiusProperty);
     }
 
     /// <summary>Gets or sets whether the ring is shown regardless of focus.</summary>
@@ -126,7 +128,18 @@ public sealed class MaterialFocusIndicator : Control
     {
         base.OnPropertyChanged(change);
         if (change.Property == FocusTargetProperty)
-            Subscribe(change.GetNewValue<Control?>());
+        {
+            if (this.IsAttachedToVisualTree())
+            {
+                Subscribe(change.GetNewValue<Control?>());
+            }
+            else
+            {
+                Unsubscribe();
+                _targetFocused = false;
+                InvalidateVisual();
+            }
+        }
     }
 
     /// <inheritdoc />
@@ -140,35 +153,68 @@ public sealed class MaterialFocusIndicator : Control
     /// <inheritdoc />
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
         Unsubscribe();
+        _targetFocused = false;
+        base.OnDetachedFromVisualTree(e);
     }
 
     private void Subscribe(Control? target)
     {
         Unsubscribe();
+        if (!this.IsAttachedToVisualTree())
+            return;
+
         _target = target;
         if (_target is not null)
         {
             _target.PropertyChanged += OnTargetPropertyChanged;
+            _target.Classes.CollectionChanged += OnTargetClassesChanged;
             _target.AddHandler(InputElement.GotFocusEvent, OnTargetFocusEvent, RoutingStrategies.Bubble, true);
             _target.AddHandler(InputElement.LostFocusEvent, OnTargetFocusEvent, RoutingStrategies.Bubble, true);
         }
 
+        SyncFocusedDescendant();
         _targetFocused = HasKeyboardFocusVisible(_target);
         InvalidateVisual();
     }
 
     private void Unsubscribe()
     {
+        DetachFocusedDescendant();
         if (_target is null)
             return;
 
         _target.PropertyChanged -= OnTargetPropertyChanged;
+        _target.Classes.CollectionChanged -= OnTargetClassesChanged;
         _target.RemoveHandler(InputElement.GotFocusEvent, OnTargetFocusEvent);
         _target.RemoveHandler(InputElement.LostFocusEvent, OnTargetFocusEvent);
         _target = null;
     }
+
+    private void SyncFocusedDescendant()
+    {
+        var next = _target is { IsKeyboardFocusWithin: true, IsFocused: false } target
+            ? target.GetVisualDescendants().OfType<Control>().FirstOrDefault(child => child.IsFocused)
+            : null;
+        if (ReferenceEquals(_focusedDescendant, next))
+            return;
+
+        DetachFocusedDescendant();
+        _focusedDescendant = next;
+        if (_focusedDescendant is not null)
+            _focusedDescendant.Classes.CollectionChanged += OnTargetClassesChanged;
+    }
+
+    private void DetachFocusedDescendant()
+    {
+        if (_focusedDescendant is null)
+            return;
+
+        _focusedDescendant.Classes.CollectionChanged -= OnTargetClassesChanged;
+        _focusedDescendant = null;
+    }
+
+    private void OnTargetClassesChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdateTargetFocus();
 
     private void OnTargetFocusEvent(object? sender, RoutedEventArgs e) => UpdateTargetFocus();
 
@@ -180,6 +226,7 @@ public sealed class MaterialFocusIndicator : Control
 
     private void UpdateTargetFocus()
     {
+        SyncFocusedDescendant();
         var focused = HasKeyboardFocusVisible(_target);
         if (focused == _targetFocused)
             return;

@@ -9,6 +9,7 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.VisualTree;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
@@ -122,9 +123,11 @@ public sealed class MaterialDragHandle : TemplatedControl
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        base.OnDetachedFromVisualTree(e);
+        if (_dragging)
+            EndDrag(_last - _origin, canceled: true);
         _backgroundBinding?.Dispose();
         _backgroundBinding = null;
-        base.OnDetachedFromVisualTree(e);
     }
 
     private void ApplyHandleState(bool pressed)
@@ -147,10 +150,14 @@ public sealed class MaterialDragHandle : TemplatedControl
         }
 
         _backgroundBinding?.Dispose();
-        _backgroundBinding = _handle.Bind(Border.BackgroundProperty,
-            _handle.GetResourceObservable(pressed
-                ? "MaterialOnSurfaceBrush"
-                : "MaterialOutlineBrush"));
+        _backgroundBinding = null;
+        if (this.IsAttachedToVisualTree())
+        {
+            _backgroundBinding = _handle.Bind(Border.BackgroundProperty,
+                _handle.GetResourceObservable(pressed
+                    ? "MaterialOnSurfaceBrush"
+                    : "MaterialOutlineBrush"));
+        }
     }
 
     /// <summary>Raised when a drag gesture starts.</summary>
@@ -180,7 +187,7 @@ public sealed class MaterialDragHandle : TemplatedControl
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (e.Handled || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        if (e.Handled || _dragging || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             return;
 
         _origin = _last = e.GetPosition(this);
@@ -212,6 +219,8 @@ public sealed class MaterialDragHandle : TemplatedControl
     {
         base.OnPointerReleased(e);
         if (!_dragging)
+            return;
+        if (e.Pointer.Type == PointerType.Mouse && e.InitialPressMouseButton != MouseButton.Left)
             return;
 
         EndDrag(e.GetPosition(this) - _origin, canceled: false);

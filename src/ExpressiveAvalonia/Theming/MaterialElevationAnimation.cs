@@ -67,6 +67,8 @@ internal sealed class MaterialElevationAnimation : IDisposable
     private bool _enterPressed;
     private bool _initialized;
     private bool _disposed;
+    private WindowBase? _window;
+    private KeyEventArgs? _lastTunnelKeyDown;
 
     internal MaterialElevationAnimation(
         Button owner,
@@ -78,11 +80,14 @@ internal sealed class MaterialElevationAnimation : IDisposable
         _isDragging = isDragging;
 
         owner.PropertyChanged += OnPropertyChanged;
+        owner.ResourcesChanged += OnResourcesChanged;
         owner.AttachedToVisualTree += OnAttached;
         owner.DetachedFromVisualTree += OnDetached;
         owner.ActualThemeVariantChanged += OnThemeVariantChanged;
-        owner.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
+        owner.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         owner.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Bubble, handledEventsToo: true);
+        if (owner.IsAttachedToVisualTree())
+            AttachWindow();
         Refresh(snap: true);
     }
 
@@ -101,6 +106,8 @@ internal sealed class MaterialElevationAnimation : IDisposable
         var specs = _resolveSpecs();
         var interaction = LastInteraction;
         var target = enabled ? TargetFor(interaction, specs) : specs.Disabled;
+        if (!double.IsFinite(target) || target < 0)
+            target = 0;
         var previousTarget = _target;
         var previousInteraction = _lastInteraction;
         _target = target;
@@ -162,22 +169,74 @@ internal sealed class MaterialElevationAnimation : IDisposable
     // keyboard activation as well.
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter || _enterPressed || !_owner.IsEffectivelyEnabled)
+        if (e.Key != Key.Enter)
             return;
+
+        if (ReferenceEquals(e, _lastTunnelKeyDown))
+        {
+            _lastTunnelKeyDown = null;
+            return;
+        }
+
+        if (e.Route == RoutingStrategies.Tunnel)
+        {
+            _lastTunnelKeyDown = e;
+            if (e.Handled)
+                return;
+        }
+
+        if (e.KeyModifiers != KeyModifiers.None
+            || _enterPressed
+            || !_owner.IsEffectivelyEnabled
+            || MaterialAssist.IsNestedInteractiveSource(_owner, e.Source))
+        {
+            return;
+        }
+
         _enterPressed = true;
         Refresh(snap: false);
     }
 
     private void OnKeyUp(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter || !_enterPressed)
+        if (e.Key != Key.Enter)
+            return;
+        _lastTunnelKeyDown = null;
+        if (!_enterPressed)
             return;
         _enterPressed = false;
         Refresh(snap: false);
     }
 
+    private void OnWindowDeactivated(object? sender, EventArgs e)
+    {
+        if (!_enterPressed)
+            return;
+        _enterPressed = false;
+        Refresh(snap: false);
+    }
+
+    private void AttachWindow()
+    {
+        DetachWindow();
+        if (TopLevel.GetTopLevel(_owner) is WindowBase window)
+        {
+            _window = window;
+            window.Deactivated += OnWindowDeactivated;
+        }
+    }
+
+    private void DetachWindow()
+    {
+        if (_window is null)
+            return;
+        _window.Deactivated -= OnWindowDeactivated;
+        _window = null;
+    }
+
     private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
     {
+        AttachWindow();
         // The constructor can run before theme resources are reachable; retry the elevation
         // tokens once the control is in a tree, as the source's initial load snaps.
         _levelShadows = null;
@@ -186,11 +245,19 @@ internal sealed class MaterialElevationAnimation : IDisposable
 
     private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e)
     {
+        DetachWindow();
+        _lastTunnelKeyDown = null;
         _enterPressed = false;
         // Cancel the in-flight segment: the shared tween skips its own detach callback once
         // disposed, so a detach does not apply the cancelled target.
         Stop();
         _initialized = false;
+    }
+
+    private void OnResourcesChanged(object? sender, ResourcesChangedEventArgs e)
+    {
+        _levelShadows = null;
+        Apply(_value);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
@@ -258,7 +325,7 @@ internal sealed class MaterialElevationAnimation : IDisposable
 
     private static BoxShadows InterpolateShadow(BoxShadows?[] shadows, double level)
     {
-        if (level <= 0)
+        if (!double.IsFinite(level) || level <= 0)
             return shadows[0] ?? default;
         var last = shadows.Length - 1;
         if (level >= last)
@@ -337,8 +404,11 @@ internal sealed class MaterialElevationAnimation : IDisposable
         if (_disposed)
             return;
         _disposed = true;
+        DetachWindow();
+        _lastTunnelKeyDown = null;
         Stop();
         _owner.PropertyChanged -= OnPropertyChanged;
+        _owner.ResourcesChanged -= OnResourcesChanged;
         _owner.AttachedToVisualTree -= OnAttached;
         _owner.DetachedFromVisualTree -= OnDetached;
         _owner.ActualThemeVariantChanged -= OnThemeVariantChanged;

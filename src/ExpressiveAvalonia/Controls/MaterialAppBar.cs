@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -107,8 +108,23 @@ public sealed class MaterialAppBarState : AvaloniaObject
 
     public MaterialAppBarState()
     {
-        PropertyChanged += (_, _) => UpdateFractions();
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property == HeightOffsetLimitProperty)
+            {
+                var coerced = CoerceOffset(_heightOffset, HeightOffsetLimit);
+                if (Math.Abs(coerced - _heightOffset) > 1e-9)
+                {
+                    SetAndRaise(HeightOffsetProperty, ref _heightOffset, coerced);
+                    return;
+                }
+            }
+            UpdateFractions();
+        };
     }
+
+    private static double CoerceOffset(double value, double limit) =>
+        Math.Clamp(value, Math.Min(limit, 0d), 0d);
 
     /// <summary>The bar's collapse limit in DIPs, normally <c>-expandedHeight</c>.</summary>
     public double HeightOffsetLimit
@@ -123,7 +139,7 @@ public sealed class MaterialAppBarState : AvaloniaObject
         get => _heightOffset;
         set
         {
-            var coerced = Math.Clamp(value, HeightOffsetLimit, 0);
+            var coerced = CoerceOffset(value, HeightOffsetLimit);
             if (SetAndRaise(HeightOffsetProperty, ref _heightOffset, coerced))
                 UpdateFractions();
         }
@@ -176,8 +192,8 @@ public sealed class MaterialAppBarState : AvaloniaObject
 
     private void UpdateFractions()
     {
-        var limit = HeightOffsetLimit;
-        CollapsedFraction = limit != 0 ? HeightOffset / limit : 0;
+        var limit = Math.Min(HeightOffsetLimit, 0d);
+        CollapsedFraction = limit != 0 ? Math.Clamp(HeightOffset / limit, 0d, 1d) : 0;
         if (!IsScrollingContentAtStart && ContentOffset == 0)
             OverlappedFraction = 1;
         else if (limit != 0)
@@ -409,10 +425,16 @@ public sealed class MaterialAppBarScrollBehavior
     private void Snap(Control owner)
     {
         _snap?.Dispose();
+        _snap = null;
         var fraction = State.CollapsedFraction;
         if (fraction < 0.01 || fraction >= 1)
             return;
         var target = fraction < 0.5 ? 0 : State.HeightOffsetLimit;
+        if (!owner.IsAttachedToVisualTree())
+        {
+            State.HeightOffset = target;
+            return;
+        }
         // settleAppBar starts the snap from the current offset without carrying the fling
         // velocity (AnimationState(initialValue = heightOffset).animateTo).
         _snap = MaterialMotion.Animate(owner, State.HeightOffset, target,
@@ -560,9 +582,8 @@ public sealed class MaterialTopAppBarRow : Panel
         {
             VerticalAlignment.Bottom => height - titleH - Math.Max(0, TitleBottomPadding),
             VerticalAlignment.Top => 0,
-            _ => (height - titleH) / 2
+            _ => Math.Max(0, (height - titleH) / 2)
         };
-        titleY = Math.Max(0, titleY);
         _title.Arrange(new Rect(titleX, titleY, titleW, titleH));
         return finalSize;
     }
@@ -703,7 +724,7 @@ internal sealed class MaterialBarScrollAdapter : IDisposable
 {
     private const double WheelStep = 40d;
 
-    private static readonly ConditionalWeakTable<ScrollViewer, MaterialBarScrollAdapter> Adapters = new();
+    private static readonly ConditionalWeakTable<ScrollViewer, List<MaterialBarScrollAdapter>> Adapters = new();
 
     static MaterialBarScrollAdapter()
     {
@@ -713,9 +734,15 @@ internal sealed class MaterialBarScrollAdapter : IDisposable
                 return;
             for (Visual? visual = source; visual is not null; visual = visual.GetVisualParent())
             {
-                if (visual is ScrollViewer viewer && Adapters.TryGetValue(viewer, out var adapter))
+                if (visual is ScrollViewer viewer && Adapters.TryGetValue(viewer, out var adapters))
                 {
-                    adapter.OnGesturePre(e);
+                    var snapshot = adapters.ToArray();
+                    for (var i = 0; i < snapshot.Length; i++)
+                    {
+                        snapshot[i].OnGesturePre(e);
+                        if (e.Handled)
+                            break;
+                    }
                     break;
                 }
             }
@@ -751,7 +778,12 @@ internal sealed class MaterialBarScrollAdapter : IDisposable
             _scroller.RemoveHandler(InputElement.ScrollGestureEvent, OnGesturePost);
             _scroller.RemoveHandler(InputElement.ScrollGestureEndedEvent, OnGestureEnded);
             _scroller.RemoveHandler(InputElement.PointerWheelChangedEvent, OnPointerWheelPre);
-            Adapters.Remove(_scroller);
+            if (Adapters.TryGetValue(_scroller, out var existing))
+            {
+                existing.Remove(this);
+                if (existing.Count == 0)
+                    Adapters.Remove(_scroller);
+            }
         }
 
         _scroller = scroller;
@@ -768,8 +800,9 @@ internal sealed class MaterialBarScrollAdapter : IDisposable
             RoutingStrategies.Bubble, true);
         scroller.AddHandler(InputElement.PointerWheelChangedEvent, OnPointerWheelPre,
             RoutingStrategies.Tunnel, true);
-        Adapters.Remove(scroller);
-        Adapters.Add(scroller, this);
+        var list = Adapters.GetOrCreateValue(scroller);
+        if (!list.Contains(this))
+            list.Add(this);
 
         _lastOffset = scroller.Offset.Y;
         _behavior.State.IsScrollingContentAtStart = _lastOffset <= 0.001;
@@ -781,6 +814,7 @@ internal sealed class MaterialBarScrollAdapter : IDisposable
     {
         Attach(null);
         _flingTimer.Stop();
+        _behavior.CancelSettle();
     }
 
     /// <summary>
@@ -855,7 +889,7 @@ internal sealed class MaterialBarScrollAdapter : IDisposable
     /// </summary>
     private void OnPointerWheelPre(object? sender, PointerWheelEventArgs e)
     {
-        if (_scroller is null || e.Delta.Y == 0)
+        if (e.Handled || _scroller is null || e.Delta.Y == 0)
             return;
         if (e.Source is not Visual source ||
             (!ReferenceEquals(source, _scroller) && !_scroller.IsVisualAncestorOf(source)))
@@ -1186,6 +1220,10 @@ public partial class MaterialAppBar : MaterialBarBase
         AvaloniaProperty.RegisterDirect<MaterialAppBar, object?>(nameof(CollapsedTitleContent), bar => bar.CollapsedTitleContent);
     public static readonly DirectProperty<MaterialAppBar, object?> ExpandedTitleContentProperty =
         AvaloniaProperty.RegisterDirect<MaterialAppBar, object?>(nameof(ExpandedTitleContent), bar => bar.ExpandedTitleContent);
+    public static readonly DirectProperty<MaterialAppBar, object?> CollapsedSubtitleContentProperty =
+        AvaloniaProperty.RegisterDirect<MaterialAppBar, object?>(nameof(CollapsedSubtitleContent), bar => bar.CollapsedSubtitleContent);
+    public static readonly DirectProperty<MaterialAppBar, object?> ExpandedSubtitleContentProperty =
+        AvaloniaProperty.RegisterDirect<MaterialAppBar, object?>(nameof(ExpandedSubtitleContent), bar => bar.ExpandedSubtitleContent);
 
     private bool _isScrolled;
     private bool _isSingleRowLayout = true;
@@ -1194,6 +1232,8 @@ public partial class MaterialAppBar : MaterialBarBase
     private bool _hasFlexibleTextTitle;
     private object? _collapsedTitleContent;
     private object? _expandedTitleContent;
+    private object? _collapsedSubtitleContent;
+    private object? _expandedSubtitleContent;
     private bool _hasSmallTitle = true;
     private bool _isSearchLayout;
     private bool _hasSubtitle;
@@ -1236,6 +1276,10 @@ public partial class MaterialAppBar : MaterialBarBase
     }
     private Control? _topTitlePresenter;
     private Control? _bottomTitlePresenter;
+    private ContentPresenter? _topTitleTextPresenter;
+    private ContentPresenter? _expandedTitleTextPresenter;
+    private ContentPresenter? _topSubtitlePresenter;
+    private ContentPresenter? _expandedSubtitlePresenter;
     private bool _dragging;
     private Visual? _dragSpace;
     private double _dragLastY;
@@ -1543,6 +1587,8 @@ public partial class MaterialAppBar : MaterialBarBase
     public IBrush? RenderedBackground => _renderedBackground;
     public object? CollapsedTitleContent => _collapsedTitleContent;
     public object? ExpandedTitleContent => _expandedTitleContent;
+    public object? CollapsedSubtitleContent => _collapsedSubtitleContent;
+    public object? ExpandedSubtitleContent => _expandedSubtitleContent;
 
     /// <summary>
     /// Vertical drag on the bar itself, ported from the source's <c>appBarDragModifier</c>. The
@@ -1639,6 +1685,11 @@ public partial class MaterialAppBar : MaterialBarBase
 
         _topTitlePresenter = e.NameScope.Find<Control>("PART_Title");
         _bottomTitlePresenter = e.NameScope.Find<Control>("PART_ExpandedTitle");
+        _topTitleTextPresenter = e.NameScope.Find<ContentPresenter>("PART_TitleText");
+        _expandedTitleTextPresenter = e.NameScope.Find<ContentPresenter>("PART_ExpandedTitleText");
+        _topSubtitlePresenter = e.NameScope.Find<ContentPresenter>("PART_TopSubtitle");
+        _expandedSubtitlePresenter = e.NameScope.Find<ContentPresenter>("PART_ExpandedSubtitle");
+        UpdateTitleContents();
         UpdateTitleAccessibility();
         UpdateSearchClipState();
     }
@@ -1663,6 +1714,7 @@ public partial class MaterialAppBar : MaterialBarBase
         _scrollColorSubscription = null;
         _adapter?.Dispose();
         _adapter = null;
+        ScrollBehavior?.CancelSettle();
         UnsubscribeState();
         _containerAnimation?.Dispose();
         _containerAnimation = null;
@@ -1801,6 +1853,8 @@ public partial class MaterialAppBar : MaterialBarBase
         HasNavigation = HasLeadingIcon || LeadingContent is not null;
         UpdateSearchClipState();
 
+        var oldExpanded = _effectiveExpandedHeight;
+        var oldCollapsed = _effectiveCollapsedHeight;
         _effectiveCollapsedHeight = double.IsFinite(CollapsedHeight)
             ? Math.Max(0, CollapsedHeight)
             : 64;
@@ -1812,15 +1866,17 @@ public partial class MaterialAppBar : MaterialBarBase
             MaterialAppBarConfiguration.LargeFlexible => HasSubtitle ? 152 : 120,
             _ => 64
         };
-        _effectiveExpandedHeight = double.IsFinite(ExpandedHeight)
+        var rawExpanded = double.IsFinite(ExpandedHeight)
             ? Math.Max(0, ExpandedHeight)
             : defaultExpanded;
         if (!IsTwoRowLayout)
-            _effectiveCollapsedHeight = _effectiveExpandedHeight;
-        if (_effectiveExpandedHeight < _effectiveCollapsedHeight)
         {
-            throw new ArgumentOutOfRangeException(nameof(ExpandedHeight),
-                "The expanded height is expected to be greater or equal to the collapsed height.");
+            _effectiveExpandedHeight = rawExpanded;
+            _effectiveCollapsedHeight = _effectiveExpandedHeight;
+        }
+        else
+        {
+            _effectiveExpandedHeight = Math.Max(_effectiveCollapsedHeight, rawExpanded);
         }
 
         _measuredCollapsedPart = _effectiveCollapsedHeight;
@@ -1828,8 +1884,8 @@ public partial class MaterialAppBar : MaterialBarBase
             ? _effectiveExpandedHeight - _effectiveCollapsedHeight
             : _effectiveExpandedHeight + SafeAreaPadding.Top + SafeAreaPadding.Bottom;
 
-        RaisePropertyChanged(EffectiveExpandedHeightProperty, 0d, _effectiveExpandedHeight);
-        RaisePropertyChanged(EffectiveCollapsedHeightProperty, 0d, _effectiveCollapsedHeight);
+        RaisePropertyChanged(EffectiveExpandedHeightProperty, oldExpanded, _effectiveExpandedHeight);
+        RaisePropertyChanged(EffectiveCollapsedHeightProperty, oldCollapsed, _effectiveCollapsedHeight);
         InvalidateMeasure();
     }
 
@@ -1927,16 +1983,40 @@ public partial class MaterialAppBar : MaterialBarBase
     private void UpdateTitleContents()
     {
         var title = Title;
-        var top = title is not Control || !IsTwoRowLayout || CollapsedFraction >= 0.5;
-        var expanded = title is not Control || IsTwoRowLayout && CollapsedFraction < 0.5;
-        if (!top)
+        var topTitle = title is not Control || !IsTwoRowLayout || CollapsedFraction >= 0.5;
+        var expandedTitle = title is not Control || IsTwoRowLayout && CollapsedFraction < 0.5;
+        if (!topTitle)
+        {
             SetAndRaise(CollapsedTitleContentProperty, ref _collapsedTitleContent, null);
-        if (!expanded)
+            _topTitleTextPresenter?.UpdateChild();
+        }
+        if (!expandedTitle)
+        {
             SetAndRaise(ExpandedTitleContentProperty, ref _expandedTitleContent, null);
-        if (top)
+            _expandedTitleTextPresenter?.UpdateChild();
+        }
+        if (topTitle)
             SetAndRaise(CollapsedTitleContentProperty, ref _collapsedTitleContent, title);
-        if (expanded)
+        if (expandedTitle)
             SetAndRaise(ExpandedTitleContentProperty, ref _expandedTitleContent, title);
+
+        var subtitle = Subtitle;
+        var topSubtitle = subtitle is not Control || !IsTwoRowLayout || CollapsedFraction >= 0.5;
+        var expandedSubtitle = subtitle is not Control || IsTwoRowLayout && CollapsedFraction < 0.5;
+        if (!topSubtitle)
+        {
+            SetAndRaise(CollapsedSubtitleContentProperty, ref _collapsedSubtitleContent, null);
+            _topSubtitlePresenter?.UpdateChild();
+        }
+        if (!expandedSubtitle)
+        {
+            SetAndRaise(ExpandedSubtitleContentProperty, ref _expandedSubtitleContent, null);
+            _expandedSubtitlePresenter?.UpdateChild();
+        }
+        if (topSubtitle)
+            SetAndRaise(CollapsedSubtitleContentProperty, ref _collapsedSubtitleContent, subtitle);
+        if (expandedSubtitle)
+            SetAndRaise(ExpandedSubtitleContentProperty, ref _expandedSubtitleContent, subtitle);
     }
 
     private void UpdateTitleAccessibility()

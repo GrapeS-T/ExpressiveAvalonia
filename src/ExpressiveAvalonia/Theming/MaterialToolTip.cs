@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -169,8 +170,11 @@ public sealed class TooltipCaretRenderer : Control
         var surface = Surface;
         var anchor = Anchor;
         if (!ShowCaret || Fill is null || surface is null || anchor is null) return;
+        if (!this.IsAttachedToVisualTree() || !surface.IsAttachedToVisualTree() || !anchor.IsAttachedToVisualTree())
+            return;
 
         var scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
+        if (scale <= 0) return;
         var localSurfaceRect = LocalRect(surface, this);
         if (localSurfaceRect is null) return;
 
@@ -469,13 +473,7 @@ public sealed class MaterialToolTip : AvaloniaObject
 
     static MaterialToolTip()
     {
-        KeyboardEnabledProperty.Changed.AddClassHandler<Control>((control, args) =>
-        {
-            if (args.NewValue is true)
-                Behaviors.GetValue(control, static owner => new Behavior(owner)).Attach();
-            else if (Behaviors.TryGetValue(control, out var behavior))
-                behavior.Detach();
-        });
+        KeyboardEnabledProperty.Changed.AddClassHandler<Control>((control, _) => SyncBehavior(control));
         ExposeHelpTextProperty.Changed.AddClassHandler<Control>((control, _) =>
         {
             if (Behaviors.TryGetValue(control, out var behavior)) behavior.SyncHelpText();
@@ -488,10 +486,15 @@ public sealed class MaterialToolTip : AvaloniaObject
         {
             if (Behaviors.TryGetValue(control, out var behavior)) behavior.UpdatePlacement();
         });
-        ShowCaretProperty.Changed.AddClassHandler<Control>((control, _) =>
-        {
-            if (Behaviors.TryGetValue(control, out var behavior)) behavior.UpdateCaret();
-        });
+        ShowCaretProperty.Changed.AddClassHandler<Control>((control, _) => SyncBehavior(control));
+    }
+
+    private static void SyncBehavior(Control control)
+    {
+        if (GetKeyboardEnabled(control) || GetShowCaret(control))
+            Behaviors.GetValue(control, static owner => new Behavior(owner)).AttachOrUpdate();
+        else if (Behaviors.TryGetValue(control, out var behavior))
+            behavior.Detach();
     }
 
     public static bool GetKeyboardEnabled(Control control) => control.GetValue(KeyboardEnabledProperty);
@@ -543,6 +546,7 @@ public sealed class MaterialToolTip : AvaloniaObject
         private bool _pressed;
         private bool _openedByLongPress;
         private bool _attached;
+        private bool _keyboardAttached;
         private bool _helpTextOwned;
         private string? _helpTextWritten;
         private bool _placementApplied;
@@ -557,30 +561,27 @@ public sealed class MaterialToolTip : AvaloniaObject
 
         public Behavior(Control control) => _control = control;
 
-        public void Attach()
+        public void AttachOrUpdate()
         {
-            if (_attached) return;
-            _attached = true;
-            _control.GotFocus += GotFocus;
-            _control.LostFocus += LostFocus;
-            _control.AddHandler(InputElement.KeyDownEvent, KeyDown, RoutingStrategies.Tunnel);
-            _control.AttachedToVisualTree += AttachedToTree;
-            _control.DetachedFromVisualTree += DetachedFromTree;
-            _control.PropertyChanged += ControlPropertyChanged;
+            if (!_attached)
+            {
+                _attached = true;
+                _control.AttachedToVisualTree += AttachedToTree;
+                _control.DetachedFromVisualTree += DetachedFromTree;
+                _control.PropertyChanged += ControlPropertyChanged;
+            }
+            UpdateKeyboardHandlers();
             UpdatePointerHandlers();
             UpdateCaret();
             ApplyPlacement();
             SyncHelpText();
-            if (_control.IsAttachedToVisualTree()) HookWindow();
         }
 
         public void Detach()
         {
             if (!_attached) return;
             _attached = false;
-            _control.GotFocus -= GotFocus;
-            _control.LostFocus -= LostFocus;
-            _control.RemoveHandler(InputElement.KeyDownEvent, KeyDown);
+            UpdateKeyboardHandlers();
             UpdatePointerHandlers();
             _control.AttachedToVisualTree -= AttachedToTree;
             _control.DetachedFromVisualTree -= DetachedFromTree;
@@ -595,13 +596,35 @@ public sealed class MaterialToolTip : AvaloniaObject
             ReleaseHelpText();
         }
 
+        private void UpdateKeyboardHandlers()
+        {
+            var wanted = _attached && GetKeyboardEnabled(_control);
+            if (wanted == _keyboardAttached) return;
+            _keyboardAttached = wanted;
+            if (wanted)
+            {
+                _control.GotFocus += GotFocus;
+                _control.LostFocus += LostFocus;
+                _control.AddHandler(InputElement.KeyDownEvent, KeyDown, RoutingStrategies.Tunnel);
+                if (_control.IsAttachedToVisualTree()) HookWindow();
+            }
+            else
+            {
+                _control.GotFocus -= GotFocus;
+                _control.LostFocus -= LostFocus;
+                _control.RemoveHandler(InputElement.KeyDownEvent, KeyDown);
+                UnhookWindow();
+                CancelAutoHide();
+            }
+        }
+
         /// <summary>
         /// Pointer tracking is only needed for the opt-in touch long press; attaching it to every
         /// themed control would put a pointer-move handler on each one.
         /// </summary>
         public void UpdatePointerHandlers()
         {
-            var wanted = _attached && GetLongPressEnabled(_control);
+            var wanted = _keyboardAttached && GetLongPressEnabled(_control);
             if (wanted == _pointerAttached) return;
             _pointerAttached = wanted;
             if (wanted)
@@ -709,9 +732,23 @@ public sealed class MaterialToolTip : AvaloniaObject
             if (change.Property == ToolTip.TipProperty)
             {
                 if (_syncingTip) return;
-                if (_tipWrapped && !ReferenceEquals(ToolTip.GetTip(_control), _caretHost))
+                var newTip = ToolTip.GetTip(_control);
+                if (_tipWrapped && !ReferenceEquals(newTip, _caretHost))
                 {
-                    // Another author replaced the tip; the old wrapper no longer owns it.
+                    if (GetShowCaret(_control) && _caretHost is not null && newTip is not (null or ToolTip))
+                    {
+                        DetachHostControlContent(_caretHost, keep: newTip);
+                        _originalTip = newTip;
+                        _caretHost.Content = newTip;
+                        _caretHost.ShowCaret = true;
+                        SetTipSilently(_caretHost);
+                        ApplyPlacement();
+                        SyncHelpText();
+                        return;
+                    }
+
+                    // The tip became null or a consumer-authored ToolTip; the old wrapper no longer owns it.
+                    DetachHostControlContent(_caretHost, keep: null);
                     _tipWrapped = false;
                     _originalTip = null;
                     _caretHost = null;
@@ -743,8 +780,10 @@ public sealed class MaterialToolTip : AvaloniaObject
 
         private void AttachedToTree(object? sender, VisualTreeAttachmentEventArgs args)
         {
+            UpdateCaret();
             ApplyPlacement();
-            HookWindow();
+            if (_keyboardAttached)
+                HookWindow();
         }
 
         private void DetachedFromTree(object? sender, VisualTreeAttachmentEventArgs args)
@@ -882,8 +921,22 @@ public sealed class MaterialToolTip : AvaloniaObject
             _tipWrapped = false;
             _originalTip = null;
             _caretHost = null;
+            DetachHostControlContent(host, keep: null);
             SetTipSilently(original);
-            if (host is not null) host.ShowCaret = false;
+        }
+
+        private static void DetachHostControlContent(MaterialPlainToolTip? host, object? keep)
+        {
+            if (host is null)
+                return;
+            if (keep is null)
+                host.ShowCaret = false;
+            if (host.Content is Control previousControl && !ReferenceEquals(previousControl, keep))
+            {
+                host.Content = null;
+                foreach (var presenter in host.GetVisualDescendants().OfType<ContentPresenter>())
+                    presenter.UpdateChild();
+            }
         }
 
         private void SetTipSilently(object? tip)
@@ -891,7 +944,7 @@ public sealed class MaterialToolTip : AvaloniaObject
             _syncingTip = true;
             try
             {
-                ToolTip.SetTip(_control, tip);
+                _control.SetCurrentValue(ToolTip.TipProperty, tip);
             }
             finally
             {
@@ -1004,7 +1057,7 @@ public sealed class MaterialToolTip : AvaloniaObject
 
         public void SyncHelpText()
         {
-            if (!_attached)
+            if (!_attached || !_keyboardAttached)
             {
                 ReleaseHelpText();
                 return;

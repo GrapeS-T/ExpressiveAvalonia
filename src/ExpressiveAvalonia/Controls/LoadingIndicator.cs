@@ -5,6 +5,7 @@ using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using ExpressiveAvalonia.Shapes;
 using ExpressiveAvalonia.Theming;
 
@@ -98,15 +99,14 @@ public sealed class LoadingIndicator : TemplatedControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        if (_containerShapeSource is { } source)
-            source.PropertyChanged += ContainerShapeChanged;
+        _containerShapeSource = ContainerShape;
+        AttachContainerShape(_containerShapeSource);
         _containerShapeFrame = null;
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        if (_containerShapeSource is { } source)
-            source.PropertyChanged -= ContainerShapeChanged;
+        DetachContainerShape(_containerShapeSource);
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -118,11 +118,10 @@ public sealed class LoadingIndicator : TemplatedControl
         _peer?.NotifyChanged(change);
         if (change.Property == ContainerShapeProperty)
         {
-            if (_containerShapeSource is { } previous)
-                previous.PropertyChanged -= ContainerShapeChanged;
+            DetachContainerShape(_containerShapeSource);
             _containerShapeSource = ContainerShape;
-            if (VisualRoot is not null && _containerShapeSource is { } source)
-                source.PropertyChanged += ContainerShapeChanged;
+            if (this.IsAttachedToVisualTree())
+                AttachContainerShape(_containerShapeSource);
             _containerShapeFrame = null;
         }
         else if (change.Property == ContainerShapeStretchProperty)
@@ -254,7 +253,31 @@ public sealed class LoadingIndicator : TemplatedControl
         return _containerShapeFrame;
     }
 
-    private void ContainerShapeChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
+    private void AttachContainerShape(Geometry? shape)
+    {
+        if (shape is null)
+            return;
+        shape.Changed -= OnContainerShapeChanged;
+        shape.Changed += OnContainerShapeChanged;
+        shape.PropertyChanged -= OnContainerShapePropertyChanged;
+        shape.PropertyChanged += OnContainerShapePropertyChanged;
+    }
+
+    private void DetachContainerShape(Geometry? shape)
+    {
+        if (shape is null)
+            return;
+        shape.Changed -= OnContainerShapeChanged;
+        shape.PropertyChanged -= OnContainerShapePropertyChanged;
+    }
+
+    private void OnContainerShapeChanged(object? sender, EventArgs e)
+    {
+        _containerShapeFrame = null;
+        InvalidateVisual();
+    }
+
+    private void OnContainerShapePropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
     {
         _containerShapeFrame = null;
         InvalidateVisual();

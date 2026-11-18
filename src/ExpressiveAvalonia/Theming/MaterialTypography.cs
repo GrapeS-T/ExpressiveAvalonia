@@ -14,7 +14,8 @@ public enum MaterialTypeStyle
 /// <summary>Applies dynamic type tokens without replacing content or templates.</summary>
 public sealed partial class MaterialTypography : AvaloniaObject
 {
-    public static readonly AttachedProperty<MaterialTypeStyle> StyleProperty = AvaloniaProperty.RegisterAttached<MaterialTypography, Control, MaterialTypeStyle>("Style", MaterialTypeStyle.BodyLarge);
+    public static readonly AttachedProperty<MaterialTypeStyle?> StyleProperty =
+        AvaloniaProperty.RegisterAttached<MaterialTypography, Control, MaterialTypeStyle?>("Style");
     public static readonly AttachedProperty<bool> EmphasizedProperty = AvaloniaProperty.RegisterAttached<MaterialTypography, Control, bool>("Emphasized");
     private static readonly AttachedProperty<IDisposable[]?> BindingsProperty = AvaloniaProperty.RegisterAttached<MaterialTypography, Control, IDisposable[]?>("Bindings");
 
@@ -25,23 +26,28 @@ public sealed partial class MaterialTypography : AvaloniaObject
         AutoSizeProperty.Changed.AddClassHandler<TextBlock>((text, _) => UpdateAutoSize(text));
     }
 
-    public static MaterialTypeStyle GetStyle(Control control) => control.GetValue(StyleProperty);
+    public static MaterialTypeStyle GetStyle(Control control) =>
+        control.GetValue(StyleProperty) ?? MaterialTypeStyle.BodyLarge;
+
     /// <summary>Applies the type role. Safe to call repeatedly; existing token bindings are replaced.</summary>
-    public static void SetStyle(Control control, MaterialTypeStyle value)
-    {
+    public static void SetStyle(Control control, MaterialTypeStyle? value) =>
         control.SetValue(StyleProperty, value);
-        // Setting the default value raises no change notification, so a fresh control that
-        // keeps BodyLarge still needs its first binding set.
-        if (control.GetValue(BindingsProperty) is null)
-            Apply(control);
-    }
+
     public static bool GetEmphasized(Control control) => control.GetValue(EmphasizedProperty);
     public static void SetEmphasized(Control control, bool value) => control.SetValue(EmphasizedProperty, value);
 
     private static void Apply(Control control)
     {
         if (control.GetValue(BindingsProperty) is { } previous)
-            foreach (var binding in previous) binding.Dispose();
+        {
+            foreach (var binding in previous)
+                binding.Dispose();
+            control.SetValue(BindingsProperty, null);
+        }
+
+        if (control.GetValue(StyleProperty) is null && !GetEmphasized(control))
+            return;
+
         var prefix = $"Material{GetStyle(control)}{(GetEmphasized(control) ? "Emphasized" : "")}";
         var bindings = new List<IDisposable>
         {

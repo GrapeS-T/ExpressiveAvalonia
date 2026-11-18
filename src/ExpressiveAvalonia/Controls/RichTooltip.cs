@@ -324,17 +324,45 @@ public sealed class RichTooltip : Flyout
         return presenter;
     }
 
+    protected override bool ShowAtCore(Control placementTarget, bool showAtPointer = false)
+    {
+        if (_exiting && ReferenceEquals(Target, placementTarget) && !showAtPointer)
+        {
+            ReverseExit();
+            return true;
+        }
+
+        if (_exiting)
+        {
+            _skipExit = true;
+            try
+            {
+                CancelExit();
+                return base.ShowAtCore(placementTarget, showAtPointer);
+            }
+            finally
+            {
+                _skipExit = false;
+            }
+        }
+
+        return base.ShowAtCore(placementTarget, showAtPointer);
+    }
+
     protected override void OnOpening(CancelEventArgs args)
     {
         CancelExit();
         ApplyDefaultOffsets();
-        _target = Target;
-        if (FlyoutPresenterTheme is null && _target is { } resourceHost &&
+        var nextTarget = Target;
+        if (FlyoutPresenterTheme is null && nextTarget is { } resourceHost &&
             resourceHost.TryFindResource(PresenterThemeKey, out var value) && value is ControlTheme theme)
             FlyoutPresenterTheme = theme;
 
         base.OnOpening(args);
         if (args.Cancel) return;
+
+        DetachOwner();
+        _target = nextTarget;
 
         // Source TooltipBox: only an actionable tooltip takes focus and traps Tab; a tooltip
         // without actions must never steal focus from the owning control.
@@ -352,8 +380,11 @@ public sealed class RichTooltip : Flyout
             target.DetachedFromVisualTree += OnTargetDetached;
             target.PointerEntered -= OnTargetPointerEntered;
             target.PointerEntered += OnTargetPointerEntered;
+            target.PointerExited -= OnTargetPointerExited;
             target.PointerExited += OnTargetPointerExited;
+            target.GotFocus -= OnTargetFocusChanged;
             target.GotFocus += OnTargetFocusChanged;
+            target.LostFocus -= OnTargetFocusChanged;
             target.LostFocus += OnTargetFocusChanged;
         }
         if (_presenter is { } presenter)
@@ -405,18 +436,16 @@ public sealed class RichTooltip : Flyout
         StopEntrance(keepVisualState: true);
         presenter.IsHitTestVisible = false;
 
-        _exitScale = new ScaleTransform(currentScale, currentScale);
-        presenter.RenderTransform = _exitScale;
+        var exitScale = new ScaleTransform(currentScale, currentScale);
+        _exitScale = exitScale;
+        presenter.RenderTransform = exitScale;
         presenter.RenderTransformOrigin = RelativePoint.Center;
         _exitOpacityAnimation = MaterialMotion.Animate(presenter, currentOpacity, 0,
             value => presenter.Opacity = value, MaterialSpring.EffectsFast);
         _exitScaleAnimation = MaterialMotion.Animate(presenter, currentScale, 0.8, value =>
         {
-            if (_exitScale is { } scale)
-            {
-                scale.ScaleX = value;
-                scale.ScaleY = value;
-            }
+            exitScale.ScaleX = value;
+            exitScale.ScaleY = value;
         }, MaterialSpring.SpatialFast);
 
         _exitTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) =>
@@ -439,16 +468,7 @@ public sealed class RichTooltip : Flyout
         StopDurationTimer();
         var previous = _previousFocus;
         var restore = _restoreFocus;
-        if (_keyboardOwner is { } owner)
-        {
-            owner.RemoveHandler(InputElement.KeyDownEvent, OnPresenterKeyDown);
-            owner.DetachedFromVisualTree -= OnTargetDetached;
-            owner.PointerEntered -= OnTargetPointerEntered;
-            owner.PointerExited -= OnTargetPointerExited;
-            owner.GotFocus -= OnTargetFocusChanged;
-            owner.LostFocus -= OnTargetFocusChanged;
-        }
-        _keyboardOwner = null;
+        DetachOwner();
         _target = null;
         _previousFocus = null;
         _restoreFocus = false;
@@ -462,6 +482,19 @@ public sealed class RichTooltip : Flyout
             control.Focus(NavigationMethod.Unspecified);
     }
 
+    private void DetachOwner()
+    {
+        if (_keyboardOwner is not { } owner)
+            return;
+        owner.RemoveHandler(InputElement.KeyDownEvent, OnPresenterKeyDown);
+        owner.DetachedFromVisualTree -= OnTargetDetached;
+        owner.PointerEntered -= OnTargetPointerEntered;
+        owner.PointerExited -= OnTargetPointerExited;
+        owner.GotFocus -= OnTargetFocusChanged;
+        owner.LostFocus -= OnTargetFocusChanged;
+        _keyboardOwner = null;
+    }
+
     /// <summary>
     /// Re-entering the owner during the exit retargets the running springs to the visible state.
     /// The springs preserve their velocity, so the tooltip reverses without snapping.
@@ -472,6 +505,11 @@ public sealed class RichTooltip : Flyout
         if (!_exiting)
             return;
 
+        ReverseExit();
+    }
+
+    private void ReverseExit()
+    {
         _exitTimer?.Stop();
         _exitTimer = null;
         _exiting = false;
@@ -930,6 +968,8 @@ public sealed class RichTooltip : Flyout
 /// </summary>
 public sealed class MaterialRichTooltipPresenter : FlyoutPresenter
 {
+    protected override Type StyleKeyOverride => typeof(MaterialRichTooltipPresenter);
+
     /// <summary>Enables the caret; false is the source <c>caretShape = null</c> default.</summary>
     public static readonly StyledProperty<bool> ShowCaretProperty =
         AvaloniaProperty.Register<MaterialRichTooltipPresenter, bool>(nameof(ShowCaret));

@@ -509,7 +509,9 @@ public sealed class MaterialList : AvaloniaObject
 
     private static void EnsureSegmentedRows(ItemsControl list)
     {
-        if (!SegmentedRowTrackers.TryGetValue(list, out _))
+        if (SegmentedRowTrackers.TryGetValue(list, out var tracker))
+            tracker.AttachItems();
+        else
             SegmentedRowTrackers.Add(list, new SegmentedRows(list));
         UpdateSegmentClasses(list);
     }
@@ -564,11 +566,13 @@ public sealed class MaterialList : AvaloniaObject
         {
             _list = list;
             list.ContainerPrepared += OnContainerPrepared;
+            list.ContainerClearing += OnContainerClearing;
+            list.PropertyChanged += OnListPropertyChanged;
             list.DetachedFromVisualTree += OnDetached;
             AttachItems();
         }
 
-        private void AttachItems()
+        internal void AttachItems()
         {
             var items = _list.ItemsView;
             if (ReferenceEquals(items, _items))
@@ -580,10 +584,26 @@ public sealed class MaterialList : AvaloniaObject
                 _items.CollectionChanged += OnItemsChanged;
         }
 
+        private void OnListPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property == ItemsControl.ItemsSourceProperty || e.Property == ItemsControl.ItemCountProperty)
+            {
+                AttachItems();
+                UpdateSegmentClasses(_list);
+            }
+        }
+
         private void OnContainerPrepared(object? sender, ContainerPreparedEventArgs e)
         {
+            AttachItems();
             if (e.Container is Control container)
                 UpdateSegmentClass(_list, container, e.Index);
+            UpdateSegmentClasses(_list);
+        }
+
+        private void OnContainerClearing(object? sender, ContainerClearingEventArgs e)
+        {
+            ClearSegmentClasses(e.Container);
         }
 
         private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -600,6 +620,8 @@ public sealed class MaterialList : AvaloniaObject
                 return;
             _disposed = true;
             _list.ContainerPrepared -= OnContainerPrepared;
+            _list.ContainerClearing -= OnContainerClearing;
+            _list.PropertyChanged -= OnListPropertyChanged;
             _list.DetachedFromVisualTree -= OnDetached;
             if (_items is not null)
             {
@@ -676,7 +698,6 @@ public sealed class MaterialList : AvaloniaObject
     {
         private readonly ListBox _list;
         private ListBoxItem? _item;
-        private int _startIndex;
         private Point _start;
         private double _delta;
         private bool _pressed;
@@ -699,13 +720,9 @@ public sealed class MaterialList : AvaloniaObject
             // Never steal a press that belongs to a nested interactive control.
             if (FindInteractive(source, item) is not null)
                 return;
-            _item = item;
-            _startIndex = _list.IndexFromContainer(item);
-            if (_startIndex < 0)
-            {
-                _item = null;
+            if (_list.IndexFromContainer(item) < 0)
                 return;
-            }
+            _item = item;
             _start = e.GetPosition(_list);
             _delta = 0;
             _pressed = true;
@@ -746,7 +763,7 @@ public sealed class MaterialList : AvaloniaObject
         }
         private void OnReleased(object? sender, PointerReleasedEventArgs e)
         {
-            if (!_pressed)
+            if (!_pressed || e.InitialPressMouseButton is not (MouseButton.Left or MouseButton.None))
                 return;
             var item = _item;
             var dragged = _dragging;
@@ -757,9 +774,13 @@ public sealed class MaterialList : AvaloniaObject
                 return;
             e.Pointer.Capture(null);
             Reset(item);
-            var target = TargetIndex(item, _delta);
-            if (target != _startIndex)
-                Move(_startIndex, target);
+            var from = _list.IndexFromContainer(item);
+            if (from >= 0)
+            {
+                var target = TargetIndex(item, from, _delta);
+                if (target != from)
+                    Move(from, target);
+            }
             e.Handled = true;
         }
         private void OnCaptureLost(object? sender, PointerCaptureLostEventArgs e)
@@ -776,22 +797,24 @@ public sealed class MaterialList : AvaloniaObject
             item.ZIndex = _originalZIndex;
             SetIsDragged(item, false);
         }
-        private int TargetIndex(ListBoxItem item, double delta)
+        private int TargetIndex(ListBoxItem item, int fromIndex, double delta)
         {
             var height = item.Bounds.Height;
             if (!double.IsFinite(height) || height <= 0)
-                return _startIndex;
+                return fromIndex;
             var count = _list.ItemCount;
             if (count <= 1)
-                return _startIndex;
+                return fromIndex;
             // Translate the drag distance into whole item slots, then clamp to the list.
             var offset = (int)Math.Round(delta / height, MidpointRounding.AwayFromZero);
-            return Math.Clamp(_startIndex + offset, 0, count - 1);
+            return Math.Clamp(fromIndex + offset, 0, count - 1);
         }
         private void Move(int from, int to)
         {
             var source = _list.ItemsSource as IList ?? _list.Items as IList;
             if (source is null || source.IsReadOnly || source.IsFixedSize)
+                return;
+            if (from < 0 || from >= source.Count || to < 0 || to >= source.Count || from == to)
                 return;
             var item = source[from];
             source.RemoveAt(from);

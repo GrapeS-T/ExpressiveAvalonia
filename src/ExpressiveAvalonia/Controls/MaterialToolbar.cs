@@ -242,6 +242,7 @@ public class MaterialToolbar : MaterialBarBase
             _observedFab.AttachedToVisualTree -= OnCompanionFabAttached;
         _exitAdapter?.Dispose();
         _exitAdapter = null;
+        ScrollBehavior?.CancelSettle();
         UnsubscribeState();
         DetachThresholdScroll();
         _expandAnimation?.Dispose();
@@ -840,11 +841,16 @@ public class MaterialToolbar : MaterialBarBase
     {
         if (ScrollBehavior is not { } behavior)
             return;
-        if (Parent is not Control parent || !parent.IsAttachedToVisualTree())
+        if (ResolveExitHost() is not { } host || !host.IsAttachedToVisualTree())
             return;
-        var parentSize = parent.Bounds.Size;
-        var position = Bounds.Position;
-        var flipHorizontal = parent.FlowDirection != FlowDirection;
+        var parentSize = host.Bounds.Size;
+        if (parentSize.Width <= 0 && parentSize.Height <= 0)
+            return;
+        var visualParent = this.GetVisualParent();
+        var position = visualParent is not null && !ReferenceEquals(visualParent, host)
+            ? visualParent.TranslatePoint(Bounds.Position, host) ?? Bounds.Position
+            : Bounds.Position;
+        var flipHorizontal = host.FlowDirection != FlowDirection;
         var limit = behavior.ExitDirection switch
         {
             MaterialFloatingToolbarExitDirection.Start =>
@@ -854,8 +860,19 @@ public class MaterialToolbar : MaterialBarBase
             MaterialFloatingToolbarExitDirection.Top => Bounds.Height + position.Y,
             _ => parentSize.Height - position.Y
         };
-        if (limit > 0)
+        if (limit > 0 && Math.Abs(behavior.State.HeightOffsetLimit + limit) > 1e-6)
+        {
             behavior.State.HeightOffsetLimit = -limit;
+            behavior.State.HeightOffset = behavior.State.HeightOffset;
+        }
+    }
+
+    private Control? ResolveExitHost()
+    {
+        var current = this.GetVisualParent() as Control;
+        while (current is ContentPresenter && current.GetVisualParent() is Control next)
+            current = next;
+        return current ?? Parent as Control;
     }
 
     private void AttachThresholdScroll()

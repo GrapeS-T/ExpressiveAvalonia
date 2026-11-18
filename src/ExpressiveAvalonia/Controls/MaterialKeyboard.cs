@@ -9,6 +9,7 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
@@ -336,6 +337,7 @@ public sealed class MaterialKeyboard : TemplatedControl
         grid.PointerPressed += OnDragStart;
         grid.PointerMoved += OnDragMove;
         grid.PointerReleased += OnDragEnd;
+        grid.AddHandler(PointerCaptureLostEvent, OnDragCaptureLost, RoutingStrategies.Direct);
         return grid;
     }
 
@@ -581,7 +583,7 @@ public sealed class MaterialKeyboard : TemplatedControl
         }
         else
         {
-            Text += text;
+            Text = (Text ?? string.Empty) + text;
         }
         TextEntered?.Invoke(this, new MaterialKeyboardTextEventArgs(text));
     }
@@ -611,9 +613,10 @@ public sealed class MaterialKeyboard : TemplatedControl
             return;
         }
 
-        if (Text.Length == 0) return;
-        var count = Text.Length >= 2 && char.IsLowSurrogate(Text[^1]) ? 2 : 1;
-        Text = Text[..^count];
+        var current = Text ?? string.Empty;
+        if (current.Length == 0) return;
+        var count = current.Length >= 2 && char.IsLowSurrogate(current[^1]) ? 2 : 1;
+        Text = current[..^count];
     }
 
     private void Enter()
@@ -634,9 +637,20 @@ public sealed class MaterialKeyboard : TemplatedControl
         if (action is MaterialKeyboardChrome.Collapse or MaterialKeyboardChrome.Hide) Dismiss();
     }
 
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _dragging = false;
+        base.OnDetachedFromVisualTree(e);
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (e.Handled) return;
+        if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Meta)) != 0)
+        {
+            base.OnKeyDown(e);
+            return;
+        }
         switch (e.Key)
         {
             case Key.Left:
@@ -733,6 +747,7 @@ public sealed class MaterialKeyboard : TemplatedControl
     private void OnDragStart(object? sender, PointerPressedEventArgs e)
     {
         if (Presentation != MaterialKeyboardStyle.Floating) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         // Chrome keys are buttons; only the empty part of the bar starts a drag.
         if (e.Source is Visual visual && visual.FindAncestorOfType<Button>(includeSelf: true) is not null) return;
         _dragging = true;
@@ -751,8 +766,21 @@ public sealed class MaterialKeyboard : TemplatedControl
 
     private void OnDragEnd(object? sender, PointerReleasedEventArgs e)
     {
+        if (!_dragging) return;
         _dragging = false;
         e.Pointer.Capture(null);
+        ClampDragPosition();
+    }
+
+    private void OnDragCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (!_dragging) return;
+        _dragging = false;
+        ClampDragPosition();
+    }
+
+    private void ClampDragPosition()
+    {
         if (_drag is null || _surface is null || VisualRoot is null) return;
         // Keep the floating card inside the host area; the keyboard's own bounds are that area.
         var host = Bounds.Size;

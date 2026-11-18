@@ -46,7 +46,18 @@ public class MaterialMenuButton : ToggleButton
         if (change.Property == ContentProperty)
             UpdateAutomationName();
         else if (change.Property == FlyoutProperty)
-            RewireFlyout(change.GetOldValue<FlyoutBase?>(), change.GetNewValue<FlyoutBase?>());
+        {
+            if (this.IsAttachedToVisualTree())
+                RewireFlyout(change.GetOldValue<FlyoutBase?>(), change.GetNewValue<FlyoutBase?>());
+            SetCurrentValue(IsCheckedProperty, change.GetNewValue<FlyoutBase?>()?.IsOpen == true);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void Toggle()
+    {
+        // IsChecked mirrors Flyout's open state via OnFlyoutOpened / OnFlyoutClosed rather than
+        // flipping unconditionally before Flyout opening/closing (which may be null or canceled).
     }
 
     /// <inheritdoc />
@@ -54,18 +65,19 @@ public class MaterialMenuButton : ToggleButton
     {
         base.OnAttachedToVisualTree(e);
         RewireFlyout(null, Flyout);
+        SetCurrentValue(IsCheckedProperty, Flyout?.IsOpen == true);
     }
 
     /// <inheritdoc />
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        RewireFlyout(Flyout, null);
+        RewireFlyout(_flyout, null);
         base.OnDetachedFromVisualTree(e);
     }
 
     private void RewireFlyout(FlyoutBase? oldFlyout, FlyoutBase? newFlyout)
     {
-        if (ReferenceEquals(oldFlyout, newFlyout))
+        if (ReferenceEquals(_flyout, newFlyout) && ReferenceEquals(oldFlyout, newFlyout))
             return;
 
         if (_flyout is not null)

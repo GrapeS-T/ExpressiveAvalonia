@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Avalonia;
@@ -287,6 +288,11 @@ public sealed class MaterialSearchBarScrollBehavior
             return;
 
         var target = fraction < 0.5 ? 0d : State.ScrollOffsetLimit;
+        if (!owner.IsAttachedToVisualTree())
+        {
+            State.ScrollOffset = target;
+            return;
+        }
         // AnimationState(initialValue = scrollOffset).animateTo(...) starts from the current
         // offset without carrying the decay velocity.
         _snap = MaterialMotion.Animate(owner, State.ScrollOffset, target,
@@ -449,6 +455,7 @@ public class MaterialSearchAppBar : MaterialBarBase
     private bool _isScrolled;
     private bool _settingDerived;
     private bool _dragging;
+    private Visual? _dragSpace;
     private double _dragVelocity;
     private double _dragLastY;
     private long _dragLastTimestamp;
@@ -639,13 +646,15 @@ public class MaterialSearchAppBar : MaterialBarBase
         // SearchBar.kt's behavior modifier is draggable: the bar itself can be dragged down to
         // reveal and up to hide. Interactive content (the field, the slots) keeps its own input.
         if (e.Handled || ScrollBehavior is not { } behavior || !behavior.CanScrollNow() ||
+            !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed ||
             IsInteractiveSource(e.Source))
             return;
 
         behavior.CancelSettle();
         _dragging = true;
+        _dragSpace = (Visual?)TopLevel.GetTopLevel(this) ?? this.GetVisualParent() ?? this;
         _dragVelocity = 0;
-        _dragLastY = e.GetPosition(this).Y;
+        _dragLastY = e.GetPosition(_dragSpace).Y;
         _dragLastTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         e.Pointer.Capture(this);
     }
@@ -658,7 +667,7 @@ public class MaterialSearchAppBar : MaterialBarBase
         if (!_dragging || ScrollBehavior is not { } behavior)
             return;
 
-        var y = e.GetPosition(this).Y;
+        var y = e.GetPosition(_dragSpace ?? this).Y;
         var delta = y - _dragLastY;
         _dragLastY = y;
         if (Math.Abs(delta) < 1e-6)
@@ -683,7 +692,12 @@ public class MaterialSearchAppBar : MaterialBarBase
         if (!_dragging)
             return;
 
+        if (e.InitialPressMouseButton is MouseButton.Right or MouseButton.Middle
+            or MouseButton.XButton1 or MouseButton.XButton2)
+            return;
+
         _dragging = false;
+        _dragSpace = null;
         e.Pointer.Capture(null);
         // A pause before release means no fling (the source's draggable reports the current
         // velocity, not the last movement's).
@@ -701,6 +715,7 @@ public class MaterialSearchAppBar : MaterialBarBase
     {
         base.OnPointerCaptureLost(e);
         _dragging = false;
+        _dragSpace = null;
     }
 
     private static bool IsInteractiveSource(object? source)
@@ -1332,7 +1347,7 @@ internal sealed class MaterialBarSearchScrollAdapter : IDisposable
 {
     private const double WheelStep = 50d;
 
-    private static readonly ConditionalWeakTable<ScrollViewer, MaterialBarSearchScrollAdapter> Adapters = new();
+    private static readonly ConditionalWeakTable<ScrollViewer, List<MaterialBarSearchScrollAdapter>> Adapters = new();
 
     static MaterialBarSearchScrollAdapter()
     {
@@ -1342,9 +1357,15 @@ internal sealed class MaterialBarSearchScrollAdapter : IDisposable
                 return;
             for (Visual? visual = source; visual is not null; visual = visual.GetVisualParent())
             {
-                if (visual is ScrollViewer viewer && Adapters.TryGetValue(viewer, out var adapter))
+                if (visual is ScrollViewer viewer && Adapters.TryGetValue(viewer, out var adapters))
                 {
-                    adapter.OnGesturePre(e);
+                    var snapshot = adapters.ToArray();
+                    for (var i = 0; i < snapshot.Length; i++)
+                    {
+                        snapshot[i].OnGesturePre(e);
+                        if (e.Handled)
+                            break;
+                    }
                     break;
                 }
             }
@@ -1380,7 +1401,12 @@ internal sealed class MaterialBarSearchScrollAdapter : IDisposable
         {
             _scroller.ScrollChanged -= OnScrollChanged;
             _scroller.RemoveHandler(InputElement.PointerWheelChangedEvent, OnPointerWheelPre);
-            Adapters.Remove(_scroller);
+            if (Adapters.TryGetValue(_scroller, out var existing))
+            {
+                existing.Remove(this);
+                if (existing.Count == 0)
+                    Adapters.Remove(_scroller);
+            }
         }
 
         _scroller = scroller;
@@ -1397,8 +1423,9 @@ internal sealed class MaterialBarSearchScrollAdapter : IDisposable
         scroller.ScrollChanged += OnScrollChanged;
         scroller.AddHandler(InputElement.PointerWheelChangedEvent, OnPointerWheelPre,
             RoutingStrategies.Tunnel, true);
-        Adapters.Remove(scroller);
-        Adapters.Add(scroller, this);
+        var list = Adapters.GetOrCreateValue(scroller);
+        if (!list.Contains(this))
+            list.Add(this);
         _lastOffset = scroller.Offset.Y;
     }
 
@@ -1441,7 +1468,7 @@ internal sealed class MaterialBarSearchScrollAdapter : IDisposable
 
     private void OnPointerWheelPre(object? sender, PointerWheelEventArgs e)
     {
-        if (_scroller is null || e.Delta.Y == 0)
+        if (e.Handled || _scroller is null || e.Delta.Y == 0)
             return;
         if (e.Source is not Visual source ||
             (!ReferenceEquals(source, _scroller) && !_scroller.IsVisualAncestorOf(source)))

@@ -536,10 +536,10 @@ public sealed class MaterialTonalPalette : TemplatedControl
                 targetColumn += rightToLeft ? -1 : 1;
                 break;
             case Key.Up:
-                targetRow--;
+                targetRow = FindNonEmptyRow(row - 1, -1);
                 break;
             case Key.Down:
-                targetRow++;
+                targetRow = FindNonEmptyRow(row + 1, 1);
                 break;
             case Key.Home:
                 targetColumn = 0;
@@ -548,22 +548,32 @@ public sealed class MaterialTonalPalette : TemplatedControl
                 targetColumn = _rows[row].Count - 1;
                 break;
             case Key.PageUp:
-                targetRow = 0;
+                targetRow = FindNonEmptyRow(0, 1);
                 break;
             case Key.PageDown:
-                targetRow = _rows.Count - 1;
+                targetRow = FindNonEmptyRow(_rows.Count - 1, -1);
                 break;
             default:
                 return;
         }
 
-        if (targetRow < 0 || targetRow >= _rows.Count)
+        if (targetRow < 0 || targetRow >= _rows.Count || _rows[targetRow].Count == 0)
             return;
         targetColumn = Math.Clamp(targetColumn, 0, _rows[targetRow].Count - 1);
         if (targetRow == row && targetColumn == column)
             return;
         if (_rows[targetRow][targetColumn].Focus(NavigationMethod.Directional))
             e.Handled = true;
+    }
+
+    private int FindNonEmptyRow(int start, int step)
+    {
+        for (var r = start; r >= 0 && r < _rows.Count; r += step)
+        {
+            if (_rows[r].Count > 0)
+                return r;
+        }
+        return -1;
     }
 
     private (int Row, int Column) IndexOf(MaterialTonalSwatch cell)

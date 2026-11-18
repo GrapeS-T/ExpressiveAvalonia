@@ -166,12 +166,18 @@ public class XrNavigationRail : ListBox
         base.PrepareContainerForItemOverride(container, item, index);
         if (container is XrNavigationRailItem destination)
         {
-            if (destination.Label is null && item is string text)
-                destination.Label = text;
+            destination.SyncLabelFromText(item as string);
             destination.SetRailState(
                 Variant == XrNavigationRailVariant.Wide,
                 Variant == XrNavigationRailVariant.Wide && IsExpanded);
         }
+    }
+
+    protected override void ClearContainerForItemOverride(Control container)
+    {
+        if (container is XrNavigationRailItem destination)
+            destination.SyncLabelFromText(null);
+        base.ClearContainerForItemOverride(container);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

@@ -198,6 +198,8 @@ public sealed class RoundedPolygon
         var width = bounds.Width;
         var height = bounds.Height;
         var side = Math.Max(width, height);
+        if (!(side > 0) || !double.IsFinite(side))
+            return this;
         var offsetX = (side - width) / 2 - bounds.Left;
         var offsetY = (side - height) / 2 - bounds.Top;
         return Transformed(point => new ShapePoint((point.X + offsetX) / side,
@@ -370,7 +372,7 @@ public sealed class RoundedPolygon
                 _smoothing = rounding.Smoothing;
 
                 CosAngle = D1.DotProduct(D2);
-                SinAngle = Math.Sqrt(1 - ShapeMath.Square(CosAngle));
+                SinAngle = Math.Sqrt(Math.Max(0, 1 - ShapeMath.Square(CosAngle)));
 
                 // tan(A/2) = sinA / (1 + cosA) gives the distance along an edge at which the
                 // rounding circle touches it.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using Avalonia;
 using Avalonia.Automation.Peers;
@@ -12,6 +13,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 
 namespace ExpressiveAvalonia.Controls;
@@ -72,7 +74,11 @@ public enum MaterialNavigationDrawerVariant
 [TemplatePart("PART_ItemsPresenter", typeof(ItemsPresenter))]
 public sealed class MaterialNavigationDrawer : ItemsControl
 {
-    public MaterialNavigationDrawer() => ApplyVariant();
+    public MaterialNavigationDrawer()
+    {
+        Items.CollectionChanged += OnItemsCollectionChanged;
+        ApplyVariant();
+    }
     /// <summary>Defines the <see cref="SelectedItem"/> property.</summary>
     public static readonly StyledProperty<MaterialNavigationItem?> SelectedItemProperty =
         AvaloniaProperty.Register<MaterialNavigationDrawer, MaterialNavigationItem?>(
@@ -97,6 +103,7 @@ public sealed class MaterialNavigationDrawer : ItemsControl
     private readonly List<MaterialNavigationItem> _registered = [];
     private MaterialNavigationItem? _selected;
     private MaterialNavigationItem? _pendingItem;
+    private Control? _clearingContainer;
     private int _pendingIndex = -1;
     private bool _updatingSelection;
 
@@ -195,14 +202,73 @@ public sealed class MaterialNavigationDrawer : ItemsControl
 
         if (ReferenceEquals(_selected, item))
         {
-            _selected = null;
-            SetSelectionCoreProperties(null, -1);
-            RaiseEvent(new MaterialNavigationSelectionChangedEventArgs(SelectionChangedEvent, item, null));
+            if (!this.IsAttachedToVisualTree() || BelongsToDrawer(item))
+                return;
+
+            ClearRemovedSelection(item);
         }
         else if (_pendingIndex >= 0)
         {
             ApplyPendingIndex();
         }
+    }
+
+    protected override void ClearContainerForItemOverride(Control container)
+    {
+        _clearingContainer = container;
+        try
+        {
+            base.ClearContainerForItemOverride(container);
+            if (_selected is { } selected &&
+                (ReferenceEquals(container, selected) || container.IsVisualAncestorOf(selected)))
+            {
+                ClearRemovedSelection(selected);
+            }
+        }
+        finally
+        {
+            _clearingContainer = null;
+        }
+    }
+
+    private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_selected is { } selected && !BelongsToDrawer(selected))
+            ClearRemovedSelection(selected);
+    }
+
+    private void ClearRemovedSelection(MaterialNavigationItem item)
+    {
+        if (!ReferenceEquals(_selected, item))
+            return;
+
+        _selected = null;
+        SetSelectionCoreProperties(null, -1);
+        RaiseEvent(new MaterialNavigationSelectionChangedEventArgs(SelectionChangedEvent, item, null));
+    }
+
+    private bool BelongsToDrawer(MaterialNavigationItem item)
+    {
+        if (_clearingContainer is not null &&
+            (ReferenceEquals(_clearingContainer, item) || _clearingContainer.IsVisualAncestorOf(item)))
+            return false;
+
+        if (Items.Contains(item))
+            return true;
+
+        for (var logical = (ILogical?)item; logical is not null; logical = logical.LogicalParent)
+        {
+            if (ReferenceEquals(logical, this))
+                return true;
+        }
+
+        foreach (var container in GetRealizedContainers())
+        {
+            if (ReferenceEquals(container, item) || container.IsVisualAncestorOf(item))
+                return true;
+        }
+
+        return false;
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)

@@ -56,9 +56,9 @@ public class MaterialDialogList : ListBox
     {
         // Native ListBox arrow navigation writes the selection, which in a checkbox list would
         // tick every row the caret passes. Move focus only; Space toggles the focused row.
-        if (e.KeyModifiers == KeyModifiers.None && e.Key is Key.Up or Key.Down or Key.Home or Key.End &&
-            MoveFocusWithoutSelection(e.Key))
+        if (!e.Handled && e.KeyModifiers == KeyModifiers.None && e.Key is Key.Up or Key.Down or Key.Home or Key.End)
         {
+            MoveFocusWithoutSelection(e.Key);
             e.Handled = true;
             return;
         }
@@ -67,34 +67,66 @@ public class MaterialDialogList : ListBox
 
     private bool MoveFocusWithoutSelection(Key key)
     {
-        if (ItemCount == 0)
+        var count = ItemCount;
+        if (count == 0)
             return false;
 
         var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control;
-        var index = focused is not null ? IndexOfContainer(focused) : -1;
-        if (index < 0)
-            index = SelectedIndex >= 0 ? SelectedIndex : 0;
+        var currentIndex = focused is not null ? IndexOfContainer(focused) : -1;
+        var baseIndex = currentIndex >= 0
+            ? currentIndex
+            : (SelectedIndex >= 0 ? SelectedIndex : 0);
 
-        var target = key switch
+        var (start, step) = key switch
         {
-            Key.Up => index - 1,
-            Key.Down => index + 1,
-            Key.Home => 0,
-            Key.End => ItemCount - 1,
-            _ => index,
+            Key.Up => (currentIndex >= 0 ? currentIndex - 1 : Math.Clamp(baseIndex - 1, 0, count - 1), -1),
+            Key.Down => (currentIndex >= 0 ? currentIndex + 1 : Math.Clamp(baseIndex + 1, 0, count - 1), 1),
+            Key.Home => (0, 1),
+            Key.End => (count - 1, -1),
+            _ => (baseIndex, 0),
         };
-        target = Math.Clamp(target, 0, ItemCount - 1);
 
-        ScrollIntoView(target);
-        var container = ContainerFromIndex(target);
-        if (container is null)
+        if (step == 0)
+            return false;
+
+        var scrolledDuringSearch = false;
+        for (var i = start; i >= 0 && i < count; i += step)
         {
-            // Virtualization may not have realized the row yet; scrolling first then retrying
-            // keeps keyboard navigation working in a long scrollable dialog list.
-            UpdateLayout();
-            container = ContainerFromIndex(target);
+            if (ItemsView[i] is Control itemControl &&
+                (!itemControl.IsEnabled || !itemControl.IsVisible || !itemControl.Focusable))
+                continue;
+
+            var container = ContainerFromIndex(i);
+            if (container is not null)
+            {
+                if (!container.IsEffectivelyEnabled || !container.IsEffectivelyVisible || !container.Focusable)
+                    continue;
+
+                ScrollIntoView(i);
+                if (container.Focus())
+                    return true;
+                continue;
+            }
+
+            ScrollIntoView(i);
+            scrolledDuringSearch = true;
+            container = ContainerFromIndex(i);
+            if (container is null)
+            {
+                // Virtualization may not have realized the row yet; scrolling first then retrying
+                // keeps keyboard navigation working in a long scrollable dialog list.
+                UpdateLayout();
+                container = ContainerFromIndex(i);
+            }
+            if (container is { IsEffectivelyEnabled: true, IsEffectivelyVisible: true, Focusable: true } &&
+                container.Focus())
+                return true;
         }
-        return container?.Focus() ?? false;
+
+        if (scrolledDuringSearch && currentIndex >= 0)
+            ScrollIntoView(currentIndex);
+
+        return false;
     }
 
     private int IndexOfContainer(Control control)

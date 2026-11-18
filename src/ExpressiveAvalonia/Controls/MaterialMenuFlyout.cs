@@ -34,6 +34,8 @@ public class MaterialMenuFlyout : MenuFlyout
     /// <inheritdoc />
     protected override void OnOpened()
     {
+        _framePending = false;
+        _exiting = false;
         base.OnOpened();
         if (_presenter is not { } presenter)
             return;
@@ -125,6 +127,7 @@ public class MaterialMenuFlyout : MenuFlyout
     /// <inheritdoc />
     protected override void OnClosed()
     {
+        _framePending = false;
         _exiting = false;
         StopAnimations();
         if (_presenter is { } presenter)

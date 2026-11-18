@@ -711,6 +711,13 @@ public sealed class MaterialScrollField : Control
             InvalidateVisual();
             InvalidateArrange();
         }
+        else
+        {
+            SyncSlots(animate: false);
+            InvalidateVisual();
+            if (ItemTemplate is not null)
+                InvalidateArrange();
+        }
         state.SetPages(CurrentPage, page, false);
     }
 
@@ -1271,7 +1278,15 @@ public sealed class MaterialScrollField : Control
                 if (animate)
                     AnimateSlot(slot, selected ? 1 : 0);
                 else
+                {
+                    slot.Animation?.Dispose();
+                    slot.Animation = null;
                     slot.Fraction = selected ? 1 : 0;
+                }
+            }
+            else if (!animate && slot.Animation is null)
+            {
+                slot.Fraction = selected ? 1 : 0;
             }
         }
     }
@@ -1488,6 +1503,9 @@ public sealed class MaterialScrollField : Control
         {
             slot.Animation?.Dispose();
             slot.Animation = null;
+            slot.Fraction = slot.Selected ? 1 : 0;
+            slot.ColorAnimation?.Dispose();
+            slot.ColorAnimation = null;
         }
         _pressed = false;
         _dragging = false;

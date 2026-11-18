@@ -170,7 +170,10 @@ public sealed class MaterialAssist : AvaloniaObject
         {
             var radius = args.NewValue is CornerRadius value ? value : default;
             button.SetCurrentValue(FocusRingCornerRadiusProperty, new CornerRadius(
-                radius.TopLeft + 5, radius.TopRight + 5, radius.BottomRight + 5, radius.BottomLeft + 5));
+                ClampNonNegative(radius.TopLeft + 5),
+                ClampNonNegative(radius.TopRight + 5),
+                ClampNonNegative(radius.BottomRight + 5),
+                ClampNonNegative(radius.BottomLeft + 5)));
         });
 
         // Icon selection is resolved on the control instead of in the template so a checked
@@ -179,6 +182,28 @@ public sealed class MaterialAssist : AvaloniaObject
         SelectedIconProperty.Changed.AddClassHandler<Control>((control, _) => UpdateIcon(control));
         ShowIconProperty.Changed.AddClassHandler<Control>((control, _) => UpdateIcon(control));
         ToggleButton.IsCheckedProperty.Changed.AddClassHandler<ToggleButton>((toggle, _) => UpdateIcon(toggle));
+    }
+
+    private static double ClampNonNegative(double value) =>
+        double.IsFinite(value) && value > 0 ? value : 0;
+
+    internal static bool IsNestedInteractiveSource(Visual host, object? source)
+    {
+        for (var visual = source as Visual;
+             visual is not null && !ReferenceEquals(visual, host);
+             visual = visual.GetVisualParent())
+        {
+            if (visual is Button or TextBox or ComboBox or Slider or ScrollBar
+                or MenuItem or ListBoxItem)
+                return true;
+
+            // A nested card is an independent action only when it is itself clickable; a plain
+            // nested surface stays part of this target.
+            if (visual is MaterialCard { IsInteractive: true })
+                return true;
+        }
+
+        return false;
     }
 
     private static void UpdateIcon(Control control)
@@ -374,7 +399,7 @@ public sealed class MaterialAssist : AvaloniaObject
         /// </summary>
         public static CornerRadius ClampToContainer(CornerRadius corners, double minDimension)
         {
-            if (minDimension <= 0)
+            if (!double.IsFinite(minDimension) || minDimension <= 0)
                 return default;
 
             var topLeft = ClampPx(corners.TopLeft);
@@ -397,14 +422,18 @@ public sealed class MaterialAssist : AvaloniaObject
 
             return new CornerRadius(topLeft, topRight, bottomRight, bottomLeft);
 
-            double ClampPx(double value) => value >= FullCornerThreshold
-                ? minDimension / 2
-                : value <= 0 ? 0 : value;
+            double ClampPx(double value) => !double.IsFinite(value) || value <= 0
+                ? 0
+                : value >= FullCornerThreshold
+                    ? minDimension / 2
+                    : value;
         }
 
-        private static CornerTerm Term(double value) => value >= FullCornerThreshold
-            ? CornerTerm.Full
-            : new FixedTerm(value <= 0 ? 0 : value);
+        private static CornerTerm Term(double value) => !double.IsFinite(value) || value <= 0
+            ? new FixedTerm(0)
+            : value >= FullCornerThreshold
+                ? CornerTerm.Full
+                : new FixedTerm(value);
 
         public static CornerShape Lerp(CornerShape from, CornerShape to, double progress)
         {
@@ -426,13 +455,13 @@ public sealed class MaterialAssist : AvaloniaObject
         /// </summary>
         public CornerRadius Resolve(CornerShape target, double progress, double minDimension, bool rightToLeft)
         {
-            if (minDimension <= 0)
+            if (!double.IsFinite(minDimension) || minDimension <= 0)
                 return default;
 
-            var topStart = LerpToPx(_topStart, target._topStart, progress, minDimension);
-            var topEnd = LerpToPx(_topEnd, target._topEnd, progress, minDimension);
-            var bottomEnd = LerpToPx(_bottomEnd, target._bottomEnd, progress, minDimension);
-            var bottomStart = LerpToPx(_bottomStart, target._bottomStart, progress, minDimension);
+            var topStart = ClampNonNegative(LerpToPx(_topStart, target._topStart, progress, minDimension));
+            var topEnd = ClampNonNegative(LerpToPx(_topEnd, target._topEnd, progress, minDimension));
+            var bottomEnd = ClampNonNegative(LerpToPx(_bottomEnd, target._bottomEnd, progress, minDimension));
+            var bottomStart = ClampNonNegative(LerpToPx(_bottomStart, target._bottomStart, progress, minDimension));
 
             if (topStart + bottomStart > minDimension)
             {
@@ -549,6 +578,8 @@ public sealed class MaterialAssist : AvaloniaObject
         private bool _shapeInitialized;
         private bool _enterPressed;
         private bool _disposed;
+        private WindowBase? _window;
+        private KeyEventArgs? _lastTunnelKeyDown;
         private IconPresentation _leadingIcon;
         private IconPresentation _contentIcon;
 
@@ -578,11 +609,14 @@ public sealed class MaterialAssist : AvaloniaObject
             ];
             _elevation = new MaterialElevationAnimation(button, ResolveElevationSpecs);
             button.PropertyChanged += OnPropertyChanged;
+            button.ResourcesChanged += OnResourcesChanged;
             button.Classes.CollectionChanged += OnClassesChanged;
             button.AttachedToVisualTree += OnAttached;
             button.DetachedFromVisualTree += OnDetached;
-            button.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
+            button.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
             button.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Bubble, handledEventsToo: true);
+            if (button.IsAttachedToVisualTree())
+                AttachWindow();
             Refresh(snap: true);
             UpdateContentIcons();
         }
@@ -592,22 +626,77 @@ public sealed class MaterialAssist : AvaloniaObject
         // silhouette and elevation react to keyboard activation as well.
         private void OnKeyDown(object? sender, KeyEventArgs e)
         {
-            if (e.Key != Key.Enter || _enterPressed || !_button.IsEffectivelyEnabled)
+            if (e.Key != Key.Enter)
                 return;
+
+            if (ReferenceEquals(e, _lastTunnelKeyDown))
+            {
+                _lastTunnelKeyDown = null;
+                return;
+            }
+
+            if (e.Route == RoutingStrategies.Tunnel)
+            {
+                _lastTunnelKeyDown = e;
+                if (e.Handled)
+                    return;
+            }
+
+            if (e.KeyModifiers != KeyModifiers.None
+                || _enterPressed
+                || !_button.IsEffectivelyEnabled
+                || IsNestedInteractiveSource(_button, e.Source))
+            {
+                return;
+            }
+
             _enterPressed = true;
             Refresh(snap: false);
         }
 
         private void OnKeyUp(object? sender, KeyEventArgs e)
         {
-            if (e.Key != Key.Enter || !_enterPressed)
+            if (e.Key != Key.Enter)
+                return;
+            _lastTunnelKeyDown = null;
+            if (!_enterPressed)
                 return;
             _enterPressed = false;
             Refresh(snap: false);
         }
 
+        private void OnWindowDeactivated(object? sender, EventArgs e)
+        {
+            if (!_enterPressed)
+                return;
+            _enterPressed = false;
+            Refresh(snap: false);
+        }
+
+        private void AttachWindow()
+        {
+            DetachWindow();
+            if (TopLevel.GetTopLevel(_button) is WindowBase window)
+            {
+                _window = window;
+                window.Deactivated += OnWindowDeactivated;
+            }
+        }
+
+        private void DetachWindow()
+        {
+            if (_window is null)
+                return;
+            _window.Deactivated -= OnWindowDeactivated;
+            _window = null;
+        }
+
+        private void OnResourcesChanged(object? sender, ResourcesChangedEventArgs e) =>
+            UpdateContentIcons();
+
         private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
         {
+            AttachWindow();
             // The first Refresh in the constructor can run before the theme resources are
             // reachable; the shared elevation helper retries its tokens on attach as well.
             Refresh(snap: true);
@@ -616,6 +705,8 @@ public sealed class MaterialAssist : AvaloniaObject
 
         private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e)
         {
+            DetachWindow();
+            _lastTunnelKeyDown = null;
             _enterPressed = false;
             StopShape();
             StopOutline();
@@ -705,7 +796,7 @@ public sealed class MaterialAssist : AvaloniaObject
             public void Update(Button owner, object? content, double size)
             {
                 var icon = content is PathIcon or MaterialIcon ? (Control)content : null;
-                if (ReferenceEquals(icon, _icon) && size == _size)
+                if (ReferenceEquals(icon, _icon) && size == _size && _theme is not null)
                     return;
                 Clear();
                 if (icon is null)
@@ -873,10 +964,10 @@ public sealed class MaterialAssist : AvaloniaObject
         private void UpdateOutline(bool snap)
         {
             var thickness = _button.BorderThickness;
-            _outlineTargets[0] = thickness.Left;
-            _outlineTargets[1] = thickness.Top;
-            _outlineTargets[2] = thickness.Right;
-            _outlineTargets[3] = thickness.Bottom;
+            _outlineTargets[0] = ClampNonNegative(thickness.Left);
+            _outlineTargets[1] = ClampNonNegative(thickness.Top);
+            _outlineTargets[2] = ClampNonNegative(thickness.Right);
+            _outlineTargets[3] = ClampNonNegative(thickness.Bottom);
 
             var brush = _button.BorderBrush;
             var targetColor = brush switch
@@ -958,14 +1049,18 @@ public sealed class MaterialAssist : AvaloniaObject
 
         private void SetOutlineWidth(int index, double value)
         {
-            _outlineWidths[index] = value;
+            _outlineWidths[index] = ClampNonNegative(value);
             ApplyOutlineWidths();
         }
 
         private void ApplyOutlineWidths()
         {
             _button.SetCurrentValue(AnimatedOutlineThicknessProperty,
-                new Thickness(_outlineWidths[0], _outlineWidths[1], _outlineWidths[2], _outlineWidths[3]));
+                new Thickness(
+                    ClampNonNegative(_outlineWidths[0]),
+                    ClampNonNegative(_outlineWidths[1]),
+                    ClampNonNegative(_outlineWidths[2]),
+                    ClampNonNegative(_outlineWidths[3])));
         }
 
         private void ApplyOutlineColor()
@@ -1026,12 +1121,15 @@ public sealed class MaterialAssist : AvaloniaObject
             if (_disposed)
                 return;
             _disposed = true;
+            DetachWindow();
+            _lastTunnelKeyDown = null;
             StopShape();
             StopOutline();
             _leadingIcon.Clear();
             _contentIcon.Clear();
             _elevation.Dispose();
             _button.PropertyChanged -= OnPropertyChanged;
+            _button.ResourcesChanged -= OnResourcesChanged;
             _button.Classes.CollectionChanged -= OnClassesChanged;
             _button.AttachedToVisualTree -= OnAttached;
             _button.DetachedFromVisualTree -= OnDetached;
@@ -1155,6 +1253,9 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
     private readonly System.Diagnostics.Stopwatch _clock = new();
     private Control? _host;
     private Button? _buttonHost;
+    private InputElement? _capturedSource;
+    private WindowBase? _window;
+    private KeyEventArgs? _lastTunnelKeyDown;
     private PressRipple? _pointerPress;
     private readonly Dictionary<Key, PressRipple> _keyPresses = new(2);
     private PressRipple? _unknownPress;
@@ -1177,7 +1278,17 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
         InteractionTargetProperty.Changed.AddClassHandler<MaterialRipple>(
             static (ripple, _) => ripple.RebindHost());
         IsDraggingProperty.Changed.AddClassHandler<MaterialRipple>(
-            static (ripple, _) => ripple.UpdateStateLayer());
+            static (ripple, _) =>
+            {
+                if (ripple.IsDragging)
+                {
+                    ripple.DetachCapturedSource();
+                    ripple.FinishPress(ripple._pointerPress);
+                    ripple.FinishPress(ripple._unknownPress);
+                    ripple._pointerPress = ripple._unknownPress = null;
+                }
+                ripple.UpdateStateLayer();
+            });
         EnableHoverProperty.Changed.AddClassHandler<MaterialRipple>(
             static (ripple, _) => ripple.UpdateStateLayer());
         EnableFocusProperty.Changed.AddClassHandler<MaterialRipple>(
@@ -1301,6 +1412,7 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
         base.OnAttachedToVisualTree(e);
         _detached = false;
         _clock.Restart();
+        AttachWindow();
         RebindHost();
     }
 
@@ -1308,6 +1420,8 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
     {
         base.OnDetachedFromVisualTree(e);
         _detached = true;
+        DetachWindow();
+        _lastTunnelKeyDown = null;
         UnbindHost();
         _ripples.Clear();
         _interactions.Clear();
@@ -1316,6 +1430,43 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
         _stateTween?.Dispose();
         _stateTween = null;
         _clock.Reset();
+    }
+
+    private void AttachWindow()
+    {
+        DetachWindow();
+        if (TopLevel.GetTopLevel(this) is WindowBase window)
+        {
+            _window = window;
+            window.Deactivated += OnWindowDeactivated;
+        }
+    }
+
+    private void DetachWindow()
+    {
+        if (_window is null)
+            return;
+        _window.Deactivated -= OnWindowDeactivated;
+        _window = null;
+    }
+
+    private void DetachCapturedSource()
+    {
+        if (_capturedSource is null)
+            return;
+        _capturedSource.RemoveHandler(InputElement.PointerCaptureLostEvent, OnHostPointerCaptureLost);
+        _capturedSource = null;
+    }
+
+    private void OnWindowDeactivated(object? sender, EventArgs e)
+    {
+        foreach (var press in _keyPresses.Values)
+            FinishPress(press);
+        _keyPresses.Clear();
+        DetachCapturedSource();
+        FinishPress(_pointerPress);
+        FinishPress(_unknownPress);
+        _pointerPress = _unknownPress = null;
     }
 
     private void RebindHost()
@@ -1340,8 +1491,8 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
         _host.Classes.CollectionChanged += OnHostClassesChanged;
         _host.AddHandler(InputElement.PointerPressedEvent, OnHostPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         _host.AddHandler(InputElement.PointerReleasedEvent, OnHostPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
-        _host.AddHandler(InputElement.PointerCaptureLostEvent, OnHostPointerCaptureLost, RoutingStrategies.Tunnel, handledEventsToo: true);
-        _host.AddHandler(InputElement.KeyDownEvent, OnHostKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
+        _host.AddHandler(InputElement.PointerCaptureLostEvent, OnHostPointerCaptureLost, RoutingStrategies.Direct, handledEventsToo: true);
+        _host.AddHandler(InputElement.KeyDownEvent, OnHostKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         _host.AddHandler(InputElement.KeyUpEvent, OnHostKeyUp, RoutingStrategies.Bubble, handledEventsToo: true);
         _host.AddHandler(InputElement.LostFocusEvent, OnHostLostFocus, RoutingStrategies.Bubble, handledEventsToo: true);
 
@@ -1419,6 +1570,7 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
 
     private void OnHostLostFocus(object? sender, RoutedEventArgs e)
     {
+        _lastTunnelKeyDown = null;
         foreach (var press in _keyPresses.Values) FinishPress(press);
         _keyPresses.Clear();
         FinishPress(_unknownPress);
@@ -1440,13 +1592,24 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
         var origin = new Point(
             Math.Clamp(position.X, 0, Math.Max(0, Bounds.Width)),
             Math.Clamp(position.Y, 0, Math.Max(0, Bounds.Height)));
+        DetachCapturedSource();
         _pointerPress = StartPress(origin);
+        if (_pointerPress is not null)
+        {
+            var captured = (e.Pointer.Captured as InputElement) ?? (e.Source as InputElement);
+            if (captured is not null && !ReferenceEquals(captured, _host))
+            {
+                _capturedSource = captured;
+                captured.AddHandler(InputElement.PointerCaptureLostEvent, OnHostPointerCaptureLost, RoutingStrategies.Direct, handledEventsToo: true);
+            }
+        }
     }
 
     private void OnHostPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (e.InitialPressMouseButton != MouseButton.Left)
             return;
+        DetachCapturedSource();
         FinishPress(_pointerPress);
         FinishPress(_unknownPress);
         _pointerPress = _unknownPress = null;
@@ -1454,6 +1617,13 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
 
     private void OnHostPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
+        if (ReferenceEquals(sender, _capturedSource) && ReferenceEquals(e.Pointer.Captured, _host))
+        {
+            DetachCapturedSource();
+            return;
+        }
+
+        DetachCapturedSource();
         FinishPress(_pointerPress);
         FinishPress(_unknownPress);
         _pointerPress = _unknownPress = null;
@@ -1462,9 +1632,25 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
     // Native Button owns activation; the indication observes Space and Enter independently.
     private void OnHostKeyDown(object? sender, KeyEventArgs e)
     {
-        if (!HostEnabled || !EnablePress || _keyPresses.ContainsKey(e.Key))
+        if (e.Key is not (Key.Enter or Key.Space))
             return;
-        if (e.Key is not (Key.Enter or Key.Space) || IsNestedActionSource(e.Source))
+
+        if (ReferenceEquals(e, _lastTunnelKeyDown))
+        {
+            _lastTunnelKeyDown = null;
+            return;
+        }
+
+        if (e.Route == RoutingStrategies.Tunnel)
+        {
+            _lastTunnelKeyDown = e;
+            if (e.Handled)
+                return;
+        }
+
+        if (e.KeyModifiers != KeyModifiers.None || !HostEnabled || !EnablePress || _keyPresses.ContainsKey(e.Key))
+            return;
+        if (IsNestedActionSource(e.Source))
             return;
         if (StartPress(origin: null) is { } press)
             _keyPresses.Add(e.Key, press);
@@ -1476,27 +1662,13 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
     // classified instead. The walk stops at the host, which keeps the host's own template visuals,
     // content presenters and icons from suppressing its ripple; the host itself is never visited,
     // so a button, row or toggle that hosts a ripple still draws its own press.
-    private bool IsNestedActionSource(object? source)
-    {
-        for (var visual = source as Visual;
-             visual is not null && !ReferenceEquals(visual, _host);
-             visual = visual.GetVisualParent())
-        {
-            if (visual is Button or ToggleButton or TextBox or ComboBox or Slider or ScrollBar
-                or MenuItem or ListBoxItem)
-                return true;
-
-            // A nested card is an independent action only when it is itself clickable; a plain
-            // nested surface stays part of this target.
-            if (visual is MaterialCard { IsInteractive: true })
-                return true;
-        }
-
-        return false;
-    }
+    private bool IsNestedActionSource(object? source) =>
+        _host is not null && MaterialAssist.IsNestedInteractiveSource(_host, source);
 
     private void OnHostKeyUp(object? sender, KeyEventArgs e)
     {
+        if (e.Key is Key.Enter or Key.Space)
+            _lastTunnelKeyDown = null;
         if (_keyPresses.Remove(e.Key, out var press)) FinishPress(press);
         FinishPress(_unknownPress);
         _unknownPress = null;
@@ -1617,6 +1789,8 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
 
     private void ResetHostInteractions()
     {
+        DetachCapturedSource();
+        _lastTunnelKeyDown = null;
         _pointerPress = _unknownPress = null;
         _keyPresses.Clear();
         _ripples.Clear();
@@ -1641,6 +1815,8 @@ public sealed class MaterialRipple : Control, Avalonia.Rendering.ICustomHitTest
             _stateTarget = 0;
             SnapStateAlpha(0);
         }
+        DetachCapturedSource();
+        _lastTunnelKeyDown = null;
         _pointerPress = _unknownPress = null;
         _keyPresses.Clear();
         FinishPresses();
