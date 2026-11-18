@@ -72,14 +72,14 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
     private readonly Slider _options;
     private readonly Slider _height;
     private readonly Slider _peek;
-    private readonly StackPanel _sideSettings = new() { Spacing = 16 };
-    private readonly StackPanel _bottomSettings = new() { Spacing = 16 };
-    private readonly StackPanel _persistentOnlySettings = new() { Spacing = 16 };
+    private readonly StackPanel _sideSettings;
+    private readonly StackPanel _bottomSettings;
+    private readonly StackPanel _persistentOnlySettings;
     private bool _showingSide = true;
     private bool _wasModal = true;
     private bool _built;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal SheetPlayground()
     {
@@ -167,38 +167,43 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
         _surface.Bind(Border.BorderBrushProperty, this.GetResourceObservable("MaterialOutlineVariantBrush"));
         Children.Add(_surface);
 
-        _form = Choice(Settings, "Форма", new[] { "Боковой лист", "Нижний лист" }, 0);
-        _modal = Toggle(Settings, "Модальный", true);
+        var formSection = InspectorLayout.Section(Settings, "Вариант", divider: false);
+        _form = InspectorLayout.Choice(formSection, "Форма", new[] { "Боковой лист", "Нижний лист" }, 0);
+        var formSwitches = InspectorLayout.Switches(formSection);
+        _modal = InspectorLayout.Switch(formSwitches, "Модальный", true);
 
-        _edge = Choice(_sideSettings, "Сторона", new[] { "Start", "End" }, 1);
-        _headline = TextField(_sideSettings, "Заголовок", "Фильтры");
-        _back = Toggle(_sideSettings, "Кнопка «Назад»", true);
-        _closeButton = Toggle(_sideSettings, "Кнопка закрытия", true);
-        _sideWidth = Number(_sideSettings, "Ширина листа", 240, 400, 320, 8);
-        Settings.Children.Add(_sideSettings);
+        _sideSettings = InspectorLayout.Section(Settings, "Боковой лист");
+        _edge = InspectorLayout.Choice(_sideSettings, "Сторона", new[] { "Start", "End" }, 1);
+        _headline = InspectorLayout.TextField(_sideSettings, "Заголовок", "Фильтры");
+        var sideSwitches = InspectorLayout.Switches(_sideSettings);
+        _back = InspectorLayout.Switch(sideSwitches, "Кнопка «Назад»", true);
+        _closeButton = InspectorLayout.Switch(sideSwitches, "Кнопка закрытия", true);
+        _sideWidth = InspectorLayout.Slider(_sideSettings, "Ширина листа", 240, 400, 320, step: 8, unit: "dp", format: "0");
 
-        _dragHandle = Toggle(_bottomSettings, "Drag handle", true);
-        _swipe = Toggle(_bottomSettings, "Свайп и drag", true);
-        _peek = Number(_persistentOnlySettings, "Peek height", 0, 240, 56, 8);
-        _skipHidden = Toggle(_persistentOnlySettings, "Пропускать Hidden anchor", true);
-        _bottomSettings.Children.Add(_persistentOnlySettings);
-        Settings.Children.Add(_bottomSettings);
+        _bottomSettings = InspectorLayout.Section(Settings, "Нижний лист");
+        var bottomSwitches = InspectorLayout.Switches(_bottomSettings);
+        _dragHandle = InspectorLayout.Switch(bottomSwitches, "Drag handle", true);
+        _swipe = InspectorLayout.Switch(bottomSwitches, "Свайп и drag", true);
+        _persistentOnlySettings = InspectorLayout.Group(_bottomSettings);
+        _peek = InspectorLayout.Slider(_persistentOnlySettings, "Peek height", 0, 240, 56, step: 8, unit: "dp", format: "0");
+        var persistentSwitches = InspectorLayout.Switches(_persistentOnlySettings);
+        _skipHidden = InspectorLayout.Switch(persistentSwitches, "Пропускать Hidden anchor", true);
 
-        _dismiss = Toggle(Settings, "Закрытие по Escape и scrim", true);
-        _actions = Toggle(Settings, "Кнопки действий", true);
-        _actionLabel = TextField(Settings, "Основное действие", "Сохранить");
-        _options = Number(Settings, "Пунктов в содержимом", 2, 10, 4, 1);
-        _height = Number(Settings, "Высота области", 360, 720, 520, 20);
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Persistent scaffold: верхняя панель, тело с нижним inset = peek height, " +
-                   "стандартный нижний лист и snackbar host над частичным листом. Peek задаёт " +
-                   "высоту частичного anchor; «Пропускать Hidden» убирает закрытое состояние, " +
-                   "поэтому Escape, drag и «Скрыть» сворачивают лист в partial. Кнопка в теле " +
-                   "открывает отдельный модальный лист с исходными anchors и scrim.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        var contentSection = InspectorLayout.Section(Settings, "Содержимое и действия");
+        var contentSwitches = InspectorLayout.Switches(contentSection);
+        _dismiss = InspectorLayout.Switch(contentSwitches, "Закрытие по Escape и scrim", true);
+        _actions = InspectorLayout.Switch(contentSwitches, "Кнопки действий", true);
+        _actionLabel = InspectorLayout.TextField(contentSection, "Основное действие", "Сохранить");
+        _options = InspectorLayout.Slider(contentSection, "Пунктов в содержимом", 2, 10, 4, step: 1, format: "0");
+        _height = InspectorLayout.Slider(contentSection, "Высота области", 360, 720, 520, step: 20, unit: "dp", format: "0");
+
+        InspectorLayout.Note(
+            Settings,
+            "Persistent scaffold: верхняя панель, тело с нижним inset = peek height, " +
+            "стандартный нижний лист и snackbar host над частичным листом. Peek задаёт " +
+            "высоту частичного anchor; «Пропускать Hidden» убирает закрытое состояние, " +
+            "поэтому Escape, drag и «Скрыть» сворачивают лист в partial. Кнопка в теле " +
+            "открывает отдельный модальный лист с исходными anchors и scrim.");
 
         AutomationProperties.SetName(_headline, "Заголовок листа");
         AutomationProperties.SetName(_actionLabel, "Текст основного действия");
@@ -701,63 +706,4 @@ internal sealed class SheetPlayground : Grid, IComponentPlayground
         MaterialSheetValue.PartiallyExpanded => "частично",
         _ => "развёрнут",
     };
-
-    private static MaterialButtonGroup Choice(StackPanel host, string label, string[] options, int selected)
-    {
-        host.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = selected;
-        host.Children.Add(group);
-        return group;
-    }
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static TextBox TextField(StackPanel host, string label, string value)
-    {
-        host.Children.Add(new TextBlock { Text = label });
-        var field = new TextBox { Text = value, HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetVariant(field, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(field, label);
-        host.Children.Add(field);
-        return field;
-    }
-
-    private static Slider Number(
-        StackPanel host, string label, double min, double max, double value, double step)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0}" };
-        host.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(slider, false);
-        AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0}";
-        };
-        host.Children.Add(slider);
-        return slider;
-    }
 }

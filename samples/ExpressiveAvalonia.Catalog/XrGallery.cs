@@ -5,6 +5,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
@@ -92,11 +93,9 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
     };
 
     private readonly ComboBox _component;
-    private readonly StackPanel _surfaceGroup;
+    private readonly StackPanel _sharedGroup;
     private readonly ComboBox _surface;
-    private readonly StackPanel _iconGroup;
     private readonly ComboBox _icon;
-    private readonly StackPanel _labelGroup;
     private readonly TextBox _label;
     private readonly ToggleSwitch _selected;
     private readonly ToggleSwitch _enabled;
@@ -144,7 +143,7 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
 
     private bool _syncing;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal XrPlayground()
     {
@@ -198,106 +197,63 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
         };
         Children.Add(stageColumn);
 
-        _component = Select(Settings, "Компонент", ComponentNames, 0);
+        var componentSection = InspectorLayout.Section(Settings, divider: false);
+        _component = InspectorLayout.Combo(componentSection, "Компонент", ComponentNames, 0);
 
-        _surfaceGroup = new StackPanel { Spacing = 6 };
-        _surfaceGroup.Children.Add(new TextBlock { Text = "Поверхность" });
-        _surface = new ComboBox
-        {
-            ItemsSource = Enum.GetNames<XrSurfaceRole>(),
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        AutomationProperties.SetName(_surface, "Поверхность");
-        _surfaceGroup.Children.Add(_surface);
-        Settings.Children.Add(_surfaceGroup);
+        _sharedGroup = InspectorLayout.Section(Settings, "Параметры элемента");
+        _surface = InspectorLayout.Combo(_sharedGroup, "Поверхность", Enum.GetNames<XrSurfaceRole>(), 0);
+        _icon = InspectorLayout.Combo(_sharedGroup, "Иконка", IconNames, 3);
+        _label = InspectorLayout.TextField(_sharedGroup, "Подпись кнопки", "Избранное");
+        var sharedSwitches = InspectorLayout.Switches(_sharedGroup);
+        _selected = InspectorLayout.Switch(sharedSwitches, "Выбрана (IsChecked)", false);
+        _enabled = InspectorLayout.Switch(sharedSwitches, "Доступна", true);
 
-        _iconGroup = new StackPanel { Spacing = 6 };
-        _iconGroup.Children.Add(new TextBlock { Text = "Иконка" });
-        _icon = new ComboBox { ItemsSource = IconNames, SelectedIndex = 3, HorizontalAlignment = HorizontalAlignment.Stretch };
-        AutomationProperties.SetName(_icon, "Иконка");
-        _iconGroup.Children.Add(_icon);
-        Settings.Children.Add(_iconGroup);
-
-        _labelGroup = new StackPanel { Spacing = 6 };
-        _label = new TextBox { Text = "Избранное" };
-        MaterialTextField.SetVariant(_label, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(_label, "Подпись кнопки");
-        AutomationProperties.SetName(_label, "Подпись кнопки");
-        _labelGroup.Children.Add(_label);
-        Settings.Children.Add(_labelGroup);
-
-        _selected = new ToggleSwitch { Content = "Выбрана (IsChecked)" };
-        Settings.Children.Add(_selected);
-        _enabled = new ToggleSwitch { Content = "Доступна", IsChecked = true };
-        Settings.Children.Add(_enabled);
-
-        _appBarGroup = new StackPanel { Spacing = 12 };
-        _appBarGroup.Children.Add(new TextBlock { Text = "App bar", FontSize = 16, FontWeight = FontWeight.Bold });
-        _appBarGroup.Children.Add(new TextBlock { Text = "Конфигурация" });
-        _appBarConfiguration = new ComboBox
-        {
-            ItemsSource = new[] { "Center-aligned", "Small" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _appBarGroup = InspectorLayout.Section(Settings, "App bar");
+        _appBarConfiguration = InspectorLayout.Combo(_appBarGroup, "Конфигурация", new[] { "Center-aligned", "Small" }, 0);
         AutomationProperties.SetName(_appBarConfiguration, "Конфигурация app bar");
-        _appBarGroup.Children.Add(_appBarConfiguration);
-        _appBarTitle = Field(_appBarGroup, "Заголовок", "Заголовок");
-        _trailingCount = Number(_appBarGroup, "Иконок справа", 0, 3, 1);
-        Settings.Children.Add(_appBarGroup);
+        _appBarTitle = InspectorLayout.TextField(_appBarGroup, "Заголовок", "Заголовок");
+        _trailingCount = InspectorLayout.Slider(_appBarGroup, "Иконок справа", 0, 3, 1, 1, "", "0");
 
-        _toolbarGroup = new StackPanel { Spacing = 12 };
-        _toolbarGroup.Children.Add(new TextBlock { Text = "Toolbar", FontSize = 16, FontWeight = FontWeight.Bold });
-        _toolbarGroup.Children.Add(new TextBlock { Text = "Ориентация" });
-        _toolbarOrientation = new ComboBox
-        {
-            ItemsSource = new[] { "Горизонтальная", "Вертикальная" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _toolbarGroup = InspectorLayout.Section(Settings, "Toolbar");
+        _toolbarOrientation = InspectorLayout.Combo(_toolbarGroup, "Ориентация", new[] { "Горизонтальная", "Вертикальная" }, 0);
         AutomationProperties.SetName(_toolbarOrientation, "Ориентация toolbar");
-        _toolbarGroup.Children.Add(_toolbarOrientation);
-        _toolbarItems = Number(_toolbarGroup, "Действий", 3, 6, 6);
-        _toolbarFab = Toggle(_toolbarGroup, "FAB в toolbar", true);
-        _toolbarExpanded = Toggle(_toolbarGroup, "Развёрнут", true);
-        _toolbarScrollToggle = Toggle(_toolbarGroup, "Скрывать при прокрутке", true);
-        Settings.Children.Add(_toolbarGroup);
+        _toolbarItems = InspectorLayout.Slider(_toolbarGroup, "Действий", 3, 6, 6, 1, "", "0");
+        var toolbarSwitches = InspectorLayout.Switches(_toolbarGroup);
+        _toolbarFab = InspectorLayout.Switch(toolbarSwitches, "FAB в toolbar", true);
+        _toolbarExpanded = InspectorLayout.Switch(toolbarSwitches, "Развёрнут", true);
+        _toolbarScrollToggle = InspectorLayout.Switch(toolbarSwitches, "Скрывать при прокрутке", true);
 
-        _navBarGroup = new StackPanel { Spacing = 12 };
-        _navBarGroup.Children.Add(new TextBlock { Text = "Navigation bar", FontSize = 16, FontWeight = FontWeight.Bold });
-        _navBarCount = Number(_navBarGroup, "Пунктов", 3, 5, 4);
-        _navBarShort = Toggle(_navBarGroup, "Короткая панель", false);
-        Settings.Children.Add(_navBarGroup);
+        _navBarGroup = InspectorLayout.Section(Settings, "Navigation bar");
+        _navBarCount = InspectorLayout.Slider(_navBarGroup, "Пунктов", 3, 5, 4, 1, "", "0");
+        var navBarSwitches = InspectorLayout.Switches(_navBarGroup);
+        _navBarShort = InspectorLayout.Switch(navBarSwitches, "Короткая панель", false);
 
-        _railGroup = new StackPanel { Spacing = 12 };
-        _railGroup.Children.Add(new TextBlock { Text = "Navigation rail", FontSize = 16, FontWeight = FontWeight.Bold });
-        _railWide = Toggle(_railGroup, "Широкая панель", false);
-        _railExpanded = Toggle(_railGroup, "Развёрнута", false);
-        _railWidth = Number(_railGroup, "Ширина широкой панели", 220, 360, 300);
-        _railFab = Toggle(_railGroup, "FAB в rail", true);
-        _railLabels = Toggle(_railGroup, "Подписи пунктов", true);
-        _railMenu = Toggle(_railGroup, "Кнопка меню", true);
-        Settings.Children.Add(_railGroup);
+        _railGroup = InspectorLayout.Section(Settings, "Navigation rail");
+        var railSwitches = InspectorLayout.Switches(_railGroup);
+        _railWide = InspectorLayout.Switch(railSwitches, "Широкая панель", false);
+        _railExpanded = InspectorLayout.Switch(railSwitches, "Развёрнута", false);
+        _railFab = InspectorLayout.Switch(railSwitches, "FAB в rail", true);
+        _railLabels = InspectorLayout.Switch(railSwitches, "Подписи пунктов", true);
+        _railMenu = InspectorLayout.Switch(railSwitches, "Кнопка меню", true);
+        _railWidth = InspectorLayout.Slider(_railGroup, "Ширина широкой панели", 220, 360, 300, 1, "dp", "0");
 
-        _dialogGroup = new StackPanel { Spacing = 12 };
-        _dialogGroup.Children.Add(new TextBlock { Text = "Dialog", FontSize = 16, FontWeight = FontWeight.Bold });
-        _dialogTitle = Field(_dialogGroup, "Заголовок", "Basic dialog title");
-        _dialogText = Field(_dialogGroup, "Поддерживающий текст",
-            "A dialog is a type of modal window that appears in front of app content to provide critical information.");
-        _dialogIcon = Toggle(_dialogGroup, "Иконка в диалоге", true);
-        _dialogDivider = Toggle(_dialogGroup, "Разделитель", true);
-        _dialogSecondary = Toggle(_dialogGroup, "Второе действие", true);
-        Settings.Children.Add(_dialogGroup);
+        _dialogGroup = InspectorLayout.Section(Settings, "Dialog");
+        _dialogTitle = InspectorLayout.TextField(_dialogGroup, "Заголовок", "Basic dialog title");
+        _dialogText = InspectorLayout.TextField(
+            _dialogGroup,
+            "Поддерживающий текст",
+            "A dialog is a type of modal window that appears in front of app content to provide critical information.",
+            multiline: true);
+        var dialogSwitches = InspectorLayout.Switches(_dialogGroup);
+        _dialogIcon = InspectorLayout.Switch(dialogSwitches, "Иконка в диалоге", true);
+        _dialogDivider = InspectorLayout.Switch(dialogSwitches, "Разделитель", true);
+        _dialogSecondary = InspectorLayout.Switch(dialogSwitches, "Второе действие", true);
 
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Кнопки и пункты активируются указателем, Enter и Space; навигационные бары и rail " +
-                   "используют нативное одиночное выделение со стрелками, Home и End. Пространственный " +
-                   "runtime не подразумевается.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        InspectorLayout.Note(
+            Settings,
+            "Кнопки и пункты активируются указателем, Enter и Space; навигационные бары и rail " +
+            "используют нативное одиночное выделение со стрелками, Home и End. Пространственный " +
+            "runtime не подразумевается.");
 
         _appBar.LeadingContent = LeadingButton();
         _appBar.TrailingContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 0 };
@@ -308,7 +264,14 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
         _toolbar.FabLabel = "Создать";
 
         _iconButton.Click += (_, _) => _status.Text = $"Icon button: {_iconButton.Label}.";
-        _toggleButton.IsCheckedChanged += (_, _) => _status.Text = $"Toggle icon button: {_toggleButton.IsChecked}.";
+        _toggleButton.IsCheckedChanged += (_, _) =>
+        {
+            _status.Text = $"Toggle icon button: {_toggleButton.IsChecked}.";
+            if (_syncing) return;
+            _syncing = true;
+            _selected.IsChecked = _toggleButton.IsChecked == true;
+            _syncing = false;
+        };
         _toolbar.FabCommand = new ActionCommand(() => _status.Text = "Toolbar FAB.");
         _navBar.SelectionChanged += (_, _) =>
         {
@@ -330,11 +293,11 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
         _label.TextChanged += (_, _) => Apply();
         _appBarConfiguration.SelectionChanged += (_, _) => Apply();
         _appBarTitle.TextChanged += (_, _) => Apply();
-        _trailingCount.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
+        _trailingCount.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
         _toolbarOrientation.SelectionChanged += (_, _) => Apply();
-        _toolbarItems.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
-        _navBarCount.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
-        _railWidth.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
+        _toolbarItems.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
+        _navBarCount.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
+        _railWidth.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
         _dialogTitle.TextChanged += (_, _) => Apply();
         _dialogText.TextChanged += (_, _) => Apply();
         foreach (var toggle in new[]
@@ -364,9 +327,10 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
         _rail.IsVisible = component == 5;
         _dialogPanel.IsVisible = component == 6;
 
-        _surfaceGroup.IsVisible = component <= 3;
-        _iconGroup.IsVisible = component is 1 or 2;
-        _labelGroup.IsVisible = component is 1 or 2;
+        _sharedGroup.IsVisible = component <= 3;
+        _surface.IsVisible = component <= 3;
+        _icon.IsVisible = component is 1 or 2;
+        _label.IsVisible = component is 1 or 2;
         _selected.IsVisible = component == 2;
         _enabled.IsVisible = component is 1 or 2;
         _appBarGroup.IsVisible = component == 0;
@@ -591,56 +555,8 @@ internal sealed class XrPlayground : Grid, IComponentPlayground
         return new ScrollViewer
         {
             Content = list,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
-    }
-
-    private static ComboBox Select(StackPanel target, string label, string[] options, int selected)
-    {
-        target.Children.Add(new TextBlock { Text = label });
-        var combo = new ComboBox { ItemsSource = options, SelectedIndex = selected, HorizontalAlignment = HorizontalAlignment.Stretch };
-        AutomationProperties.SetName(combo, label);
-        target.Children.Add(combo);
-        return combo;
-    }
-
-    private static TextBox Field(StackPanel target, string label, string text)
-    {
-        var field = new TextBox { Text = text, TextWrapping = TextWrapping.Wrap };
-        MaterialTextField.SetVariant(field, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(field, label);
-        AutomationProperties.SetName(field, label);
-        target.Children.Add(field);
-        return field;
-    }
-
-    private static ToggleSwitch Toggle(StackPanel target, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        target.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static Slider Number(StackPanel target, string label, double min, double max, double value)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0}" };
-        target.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = 1,
-            IsSnapToTickEnabled = true,
-        };
-        AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == Slider.ValueProperty)
-                caption.Text = $"{label}: {slider.Value:0}";
-        };
-        target.Children.Add(slider);
-        return slider;
     }
 
     private sealed class ActionCommand(Action execute) : ICommand

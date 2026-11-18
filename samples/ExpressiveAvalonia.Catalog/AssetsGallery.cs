@@ -68,11 +68,11 @@ internal sealed class AssetsPlayground : Grid, IComponentPlayground
         HorizontalAlignment = HorizontalAlignment.Center,
         TextWrapping = TextWrapping.Wrap,
     };
-    private readonly ComboBox _type = new() { ItemsSource = new[] { "Иконки", "Тональные палитры" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _category = new() { ItemsSource = IconCategories, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _resource = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly StackPanel _iconSettings = new() { Spacing = 16 };
-    private readonly StackPanel _paletteSettings = new() { Spacing = 16 };
+    private readonly MaterialButtonGroup _type;
+    private readonly ComboBox _category;
+    private readonly ComboBox _resource;
+    private readonly StackPanel _iconSettings;
+    private readonly StackPanel _paletteSettings;
     private readonly Slider _glyphSize;
     private readonly Slider _swatchWidth;
     private readonly Slider _swatchHeight;
@@ -83,7 +83,7 @@ internal sealed class AssetsPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _copyOnClick;
     private List<MaterialIconInfo> _icons = [];
     private bool _syncing;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal AssetsPlayground()
     {
@@ -103,37 +103,34 @@ internal sealed class AssetsPlayground : Grid, IComponentPlayground
         _status.Margin = new Thickness(24, 0, 24, 20);
         Children.Add(_status);
 
-        Settings.Children.Add(Caption("Тип"));
-        Settings.Children.Add(_type);
-        Settings.Children.Add(Caption("Категория"));
-        Settings.Children.Add(_category);
-        Settings.Children.Add(Caption("Ресурс"));
-        Settings.Children.Add(_resource);
-        Settings.Children.Add(_iconSettings);
-        Settings.Children.Add(_paletteSettings);
-
-        _glyphSize = Number(_iconSettings, "Размер глифа", 24, 240, 96, 8, "dp");
-        _showName = Toggle(_iconSettings, "Подписывать имя и source id", true);
-
-        _swatchWidth = Number(_paletteSettings, "Ширина образца", 40, 100, 61, 1, "dp");
-        _swatchHeight = Number(_paletteSettings, "Высота образца", 40, 140, 72, 4, "dp");
-        _labelWidth = Number(_paletteSettings, "Ширина подписи строки", 80, 220, 140, 10, "dp");
-        _showTitle = Toggle(_paletteSettings, "Заголовок палитры", true);
-        _toneLabels = Toggle(_paletteSettings, "Подписи тонов", true);
-        _copyOnClick = Toggle(_paletteSettings, "Копировать hex по нажатию", true);
-
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Глифы адресуются по design source id: восемнадцать имён экспортированы дважды, " +
-                   "поэтому «Общие имена» показывает обе геометрии. Нажатие на образец палитры копирует " +
-                   "его hex; «Доска источника» показывает точные заливки local-005641.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
-
+        var selectorSection = InspectorLayout.Section(Settings, divider: false);
+        _type = InspectorLayout.Choice(selectorSection, "Тип", new[] { "Иконки", "Палитры" }, 0);
         AutomationProperties.SetName(_type, "Тип ассета");
+        _category = InspectorLayout.Combo(selectorSection, "Категория", IconCategories, 0);
         AutomationProperties.SetName(_category, "Категория ассетов");
+        _resource = InspectorLayout.Combo(selectorSection, "Ресурс");
         AutomationProperties.SetName(_resource, "Выбранный ресурс");
+
+        _iconSettings = InspectorLayout.Section(Settings, "Параметры глифа");
+        _glyphSize = InspectorLayout.Slider(_iconSettings, "Размер глифа", 24, 240, 96, 8, "dp", "0");
+        var iconSwitches = InspectorLayout.Switches(_iconSettings);
+        _showName = InspectorLayout.Switch(iconSwitches, "Подписывать имя и source id", true);
+
+        _paletteSettings = InspectorLayout.Section(Settings, "Тональная палитра");
+        _paletteSettings.IsVisible = false;
+        _swatchWidth = InspectorLayout.Slider(_paletteSettings, "Ширина образца", 40, 100, 61, 1, "dp", "0");
+        _swatchHeight = InspectorLayout.Slider(_paletteSettings, "Высота образца", 40, 140, 72, 4, "dp", "0");
+        _labelWidth = InspectorLayout.Slider(_paletteSettings, "Ширина подписи строки", 80, 220, 140, 10, "dp", "0");
+        var paletteSwitches = InspectorLayout.Switches(_paletteSettings);
+        _showTitle = InspectorLayout.Switch(paletteSwitches, "Заголовок палитры", true);
+        _toneLabels = InspectorLayout.Switch(paletteSwitches, "Подписи тонов", true);
+        _copyOnClick = InspectorLayout.Switch(paletteSwitches, "Копировать hex по нажатию", true);
+
+        InspectorLayout.Note(
+            Settings,
+            "Глифы адресуются по design source id: восемнадцать имён экспортированы дважды, " +
+            "поэтому «Общие имена» показывает обе геометрии. Нажатие на образец палитры копирует " +
+            "его hex; «Доска источника» показывает точные заливки local-005641.");
 
         _type.SelectionChanged += (_, _) =>
         {
@@ -283,37 +280,5 @@ internal sealed class AssetsPlayground : Grid, IComponentPlayground
         {
             return false;
         }
-    }
-
-    private static TextBlock Caption(string text) => new() { Text = text };
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static Slider Number(StackPanel host, string label, double min, double max, double value, double step, string unit)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0} {unit}" };
-        host.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(slider, false);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0} {unit}";
-        };
-        AutomationProperties.SetName(slider, label);
-        host.Children.Add(slider);
-        return slider;
     }
 }

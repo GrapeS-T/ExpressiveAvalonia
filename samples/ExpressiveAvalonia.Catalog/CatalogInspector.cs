@@ -1,4 +1,8 @@
+using System;
+using System.Linq;
+using System.Runtime.CompilerServices;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
@@ -7,6 +11,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
+using ExpressiveAvalonia.Tokens;
 
 namespace ExpressiveAvalonia.Catalog;
 
@@ -14,55 +19,51 @@ internal sealed class CatalogInspector : ScrollViewer
 {
     protected override Type StyleKeyOverride => typeof(ScrollViewer);
 
-    private readonly StackPanel _settings = new() { Spacing = 16, Margin = new Thickness(20) };
-    private readonly StackPanel _pageSettings = new() { Spacing = 16 };
+    private static readonly (string Name, Color Color)[] SeedPresets =
+    [
+        ("Baseline Purple", Color.Parse("#6750A4")),
+        ("Emerald", Color.Parse("#006C4C")),
+        ("Ocean Blue", Color.Parse("#0061A4")),
+        ("Warm Amber", Color.Parse("#8B5000")),
+        ("Crimson Rose", Color.Parse("#9C4146")),
+        ("Olive Moss", Color.Parse("#4A672D")),
+    ];
+
+    private readonly StackPanel _settings = new() { Spacing = 16, Margin = new Thickness(16, 16, 16, 24) };
+    private readonly StackPanel _pageSettings = new() { Spacing = 14 };
+    private readonly StackPanel _resetFooter = new() { Spacing = 10, IsVisible = false };
     internal StackPanel StudioSettings { get; } = new() { Spacing = 16, Margin = new Thickness(24) };
-    private readonly StackPanel _shared = new() { Spacing = 16 };
+    private readonly Action? _resetPage;
     private bool _previewEnabled = true;
     private FlowDirection _previewFlow;
     private double _previewWidth = double.NaN;
     private double _previewHeight;
     private Control? _page;
-    private Slider _width = null!;
-    private CheckBox _autoWidth = null!;
     private Action? _restorePage;
 
-    internal CatalogInspector(MaterialTheme theme, Window window)
+    internal CatalogInspector(MaterialTheme theme, Window window, Action? resetPage = null)
     {
+        _resetPage = resetPage;
         Content = _settings;
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         AllowAutoHide = false;
-        var global = Section("Оформление студии");
-        _settings.Children.Remove(global);
-        StudioSettings.Children.Add(global);
-        StudioSettings.Children.Add(_shared);
-        var dark = new ToggleSwitch { Content = "Тёмная тема", IsChecked = window.ActualThemeVariant == ThemeVariant.Dark };
-        var syncingTheme = false;
-        dark.IsCheckedChanged += (_, _) =>
-        {
-            if (!syncingTheme) window.RequestedThemeVariant = dark.IsChecked == true ? ThemeVariant.Dark : ThemeVariant.Light;
-        };
-        window.ActualThemeVariantChanged += (_, _) =>
-        {
-            syncingTheme = true;
-            dark.IsChecked = window.ActualThemeVariant == ThemeVariant.Dark;
-            syncingTheme = false;
-        };
-        global.Children.Add(dark);
-        var reduced = new ToggleSwitch { Content = "Меньше движения", IsChecked = theme.IsReducedMotion };
-        reduced.IsCheckedChanged += (_, _) => theme.IsReducedMotion = reduced.IsChecked == true;
-        global.Children.Add(reduced);
-        _settings.Children.Add(_pageSettings);
-        BuildSharedSettings();
-    }
 
-    private StackPanel Section(string title, bool page = false)
-    {
-        var panel = new StackPanel { Spacing = 16, Margin = new Thickness(0, 12, 0, 16) };
-        panel.Children.Add(new TextBlock { Text = title, FontSize = 16, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap });
-        (page ? _pageSettings : _settings).Children.Add(panel);
-        return panel;
+        _settings.Children.Add(_pageSettings);
+
+        if (_resetPage is not null)
+        {
+            _resetFooter.Children.Add(new MaterialDivider());
+            InspectorLayout.ActionButton(
+                _resetFooter,
+                "Сбросить по умолчанию",
+                () => _resetPage(),
+                MaterialButtonVariant.Outlined,
+                iconName: "undo");
+            _settings.Children.Add(_resetFooter);
+        }
+
+        BuildStudioSettings(theme, window);
     }
 
     private sealed record OriginalButtonSize(MaterialControlSize Size);
@@ -77,22 +78,35 @@ internal sealed class CatalogInspector : ScrollViewer
         page.Width = _previewWidth;
         page.MinHeight = _previewHeight;
         page.IsEnabled = _previewEnabled;
-        page.FlowDirection = _previewFlow;
+        if (_previewFlow == FlowDirection.RightToLeft)
+            page.FlowDirection = FlowDirection.RightToLeft;
+        else
+            page.ClearValue(FlowDirectionProperty);
+
         var descendants = page.GetLogicalDescendants().OfType<Control>().Prepend(page).ToArray();
         if (descendants.OfType<IComponentPlayground>().FirstOrDefault() is { } playground)
         {
             _pageSettings.Children.Add(playground.Settings);
+            _resetFooter.IsVisible = _resetPage is not null;
             return;
         }
+
+        _resetFooter.IsVisible = false;
         var hasButtons = descendants.OfType<Button>().Any(b => b is not MaterialFabBase) || descendants.OfType<ViewportGallery>().Any();
         if (hasButtons)
         {
-            var sizes = Section("Размер кнопок", true);
-            var size = new ComboBox { ItemsSource = new[] { "Как в примере", "ExtraSmall", "Small", "Medium", "Large", "ExtraLarge" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-            var originals = new System.Runtime.CompilerServices.ConditionalWeakTable<Button, OriginalButtonSize>();
+            var section = InspectorLayout.Section(_pageSettings, "Размер кнопок", divider: false);
+            var size = InspectorLayout.Combo(
+                section,
+                "ControlSize",
+                new[] { "Как в примере", "ExtraSmall", "Small", "Medium", "Large", "ExtraLarge" },
+                0);
+            var originals = new ConditionalWeakTable<Button, OriginalButtonSize>();
             void ApplySize()
             {
-                var selected = size.SelectedIndex <= 0 ? (MaterialControlSize?)null : Enum.Parse<MaterialControlSize>((string)size.SelectedItem!);
+                var selected = size.SelectedIndex <= 0
+                    ? (MaterialControlSize?)null
+                    : Enum.Parse<MaterialControlSize>((string)size.SelectedItem!);
                 page.SetValue(ViewportGallery.SizeOverrideProperty, selected);
                 foreach (var button in page.GetLogicalDescendants().OfType<Button>().Where(b => b is not MaterialFabBase))
                 {
@@ -101,59 +115,171 @@ internal sealed class CatalogInspector : ScrollViewer
                 }
             }
             _restorePage = () => page.ClearValue(ViewportGallery.SizeOverrideProperty);
-            size.SelectionChanged += (_, _) =>
-            {
-                ApplySize();
-            };
-            sizes.Children.Add(size);
+            size.SelectionChanged += (_, _) => ApplySize();
         }
     }
-    private void BuildSharedSettings()
+
+    private void BuildStudioSettings(MaterialTheme theme, Window window)
     {
-        var layout = new StackPanel { Spacing = 16 };
-        layout.Children.Add(new TextBlock { Text = "Область примера", FontSize = 16, FontWeight = FontWeight.Bold });
-        _shared.Children.Add(layout);
-        _autoWidth = new CheckBox { Content = "Автоширина", IsChecked = true };
-        _width = new Slider { Minimum = 360, Maximum = 1440, Value = 840, TickFrequency = 40, IsSnapToTickEnabled = true, IsEnabled = false };
-        var widthLabel = new TextBlock { Text = "Ширина: автоматически" };
+        var syncing = false;
+
+        var appearance = InspectorLayout.Section(StudioSettings, "Тема и цвет", divider: false);
+        var dark = InspectorLayout.Switch(appearance, "Тёмная тема", window.ActualThemeVariant == ThemeVariant.Dark);
+        dark.IsCheckedChanged += (_, _) =>
+        {
+            if (!syncing)
+                window.RequestedThemeVariant = dark.IsChecked == true ? ThemeVariant.Dark : ThemeVariant.Light;
+        };
+        window.ActualThemeVariantChanged += (_, _) =>
+        {
+            syncing = true;
+            dark.IsChecked = window.ActualThemeVariant == ThemeVariant.Dark;
+            syncing = false;
+        };
+
+        var swatchBar = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
+        var swatchRings = new Border[SeedPresets.Length];
+        void SyncSeedSwatches()
+        {
+            for (var i = 0; i < SeedPresets.Length; i++)
+            {
+                var active = SeedPresets[i].Color == theme.SeedColor;
+                swatchRings[i].BorderThickness = active ? new Thickness(2.5) : new Thickness(1);
+                swatchRings[i].Opacity = active ? 1.0 : 0.82;
+            }
+        }
+
+        for (var i = 0; i < SeedPresets.Length; i++)
+        {
+            var preset = SeedPresets[i];
+            var dot = new Border
+            {
+                Width = 28,
+                Height = 28,
+                CornerRadius = new CornerRadius(14),
+                Background = new SolidColorBrush(preset.Color),
+            };
+            var ring = new Border
+            {
+                Padding = new Thickness(3),
+                CornerRadius = new CornerRadius(999),
+                Child = dot,
+            };
+            ring.Bind(Border.BorderBrushProperty, ring.GetResourceObservable("MaterialPrimaryBrush"));
+            swatchRings[i] = ring;
+
+            var swatchButton = new Button
+            {
+                Content = ring,
+                Padding = new Thickness(0),
+                MinWidth = 40,
+                MinHeight = 40,
+                Background = Brushes.Transparent,
+            };
+            MaterialAssist.SetButtonVariant(swatchButton, MaterialButtonVariant.Text);
+            MaterialAssist.SetIsIconButton(swatchButton, true);
+            ToolTip.SetTip(swatchButton, $"{preset.Name} (#{preset.Color.R:X2}{preset.Color.G:X2}{preset.Color.B:X2})");
+            AutomationProperties.SetName(swatchButton, $"Акцент {preset.Name}");
+            swatchButton.Click += (_, _) => theme.SeedColor = preset.Color;
+            swatchBar.Children.Add(swatchButton);
+        }
+        SyncSeedSwatches();
+        InspectorLayout.Field(appearance, "Акцентный цвет (SeedColor)", swatchBar);
+
+        var contrast = InspectorLayout.Choice(
+            appearance,
+            "Контрастность",
+            new[] { "Обычная", "Средняя", "Высокая" },
+            theme.Contrast >= 0.75 ? 2 : theme.Contrast >= 0.25 ? 1 : 0);
+        contrast.SelectionChanged += (_, _) =>
+        {
+            if (syncing) return;
+            theme.Contrast = contrast.SelectedIndex switch
+            {
+                1 => 0.5,
+                2 => 1.0,
+                _ => 0.0,
+            };
+        };
+
+        var motion = InspectorLayout.Section(StudioSettings, "Движение (Motion)");
+        var motionScheme = InspectorLayout.Choice(
+            motion,
+            "Схема пружин",
+            new[] { "Expressive", "Standard" },
+            theme.MotionScheme == MaterialMotionScheme.Expressive ? 0 : 1);
+        motionScheme.SelectionChanged += (_, _) =>
+        {
+            if (syncing) return;
+            theme.MotionScheme = motionScheme.SelectedIndex == 0
+                ? MaterialMotionScheme.Expressive
+                : MaterialMotionScheme.Standard;
+        };
+
+        var reduced = InspectorLayout.Switch(motion, "Меньше движения (Reduced motion)", theme.IsReducedMotion);
+        reduced.IsCheckedChanged += (_, _) =>
+        {
+            if (!syncing)
+                theme.IsReducedMotion = reduced.IsChecked == true;
+        };
+
+        theme.PropertyChanged += (_, e) =>
+        {
+            syncing = true;
+            if (e.Property == MaterialTheme.SeedColorProperty)
+                SyncSeedSwatches();
+            else if (e.Property == MaterialTheme.ContrastProperty)
+                contrast.SelectedIndex = theme.Contrast >= 0.75 ? 2 : theme.Contrast >= 0.25 ? 1 : 0;
+            else if (e.Property == MaterialTheme.MotionSchemeProperty)
+                motionScheme.SelectedIndex = theme.MotionScheme == MaterialMotionScheme.Expressive ? 0 : 1;
+            else if (e.Property == MaterialTheme.IsReducedMotionProperty)
+                reduced.IsChecked = theme.IsReducedMotion;
+            syncing = false;
+        };
+
+        var preview = InspectorLayout.Section(StudioSettings, "Область примера");
+        var autoWidth = InspectorLayout.Switch(preview, "Автоматическая ширина", true);
+        var (width, widthValue) = InspectorLayout.SliderWithReadout(
+            preview, "Ширина области", 360, 1440, 840, 40, "dp");
+        width.IsEnabled = false;
+        widthValue.Text = "авто";
+
         void ApplyWidth()
         {
-            var auto = _autoWidth.IsChecked == true;
-            _width.IsEnabled = !auto;
-            _previewWidth = auto ? double.NaN : _width.Value;
+            var auto = autoWidth.IsChecked == true;
+            width.IsEnabled = !auto;
+            _previewWidth = auto ? double.NaN : width.Value;
             if (_page is not null) _page.Width = _previewWidth;
-            widthLabel.Text = auto ? "Ширина: автоматически" : $"Ширина: {_width.Value:0} dp";
+            widthValue.Text = auto ? "авто" : $"{width.Value:0} dp";
         }
-        _autoWidth.IsCheckedChanged += (_, _) => ApplyWidth();
-        _width.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) ApplyWidth(); };
-        layout.Children.Add(_autoWidth);
-        layout.Children.Add(widthLabel);
-        layout.Children.Add(_width);
-        var heightLabel = new TextBlock { Text = "Мин. высота: 0 dp" };
-        var height = new Slider { Minimum = 0, Maximum = 1000, TickFrequency = 50, IsSnapToTickEnabled = true };
+        autoWidth.IsCheckedChanged += (_, _) => ApplyWidth();
+        width.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) ApplyWidth(); };
+
+        var height = InspectorLayout.Slider(preview, "Минимальная высота", 0, 1000, 0, 50, "dp");
         height.PropertyChanged += (_, e) =>
         {
             if (e.Property != RangeBase.ValueProperty) return;
             _previewHeight = height.Value;
             if (_page is not null) _page.MinHeight = _previewHeight;
-            heightLabel.Text = $"Мин. высота: {height.Value:0} dp";
         };
-        layout.Children.Add(heightLabel);
-        layout.Children.Add(height);
-        var enabled = new ToggleSwitch { Content = "Примеры доступны", IsChecked = true };
+
+        var stateSwitches = InspectorLayout.Switches(preview);
+        var enabled = InspectorLayout.Switch(stateSwitches, "Примеры доступны", true);
         enabled.IsCheckedChanged += (_, _) =>
         {
             _previewEnabled = enabled.IsChecked == true;
             if (_page is not null) _page.IsEnabled = _previewEnabled;
         };
-        layout.Children.Add(enabled);
-        var rtl = new ToggleSwitch { Content = "Справа налево (RTL)" };
+
+        var rtl = InspectorLayout.Switch(stateSwitches, "Справа налево (RTL)", false);
         rtl.IsCheckedChanged += (_, _) =>
         {
             _previewFlow = rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
-            if (_page is not null) _page.FlowDirection = _previewFlow;
+            if (_page is null) return;
+            if (_previewFlow == FlowDirection.RightToLeft)
+                _page.FlowDirection = FlowDirection.RightToLeft;
+            else
+                _page.ClearValue(FlowDirectionProperty);
         };
-        layout.Children.Add(rtl);
     }
-
 }

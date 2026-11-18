@@ -2,8 +2,8 @@ using System;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
@@ -64,51 +64,48 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
         HorizontalAlignment = HorizontalAlignment.Center,
         TextWrapping = TextWrapping.Wrap,
     };
-    private readonly ComboBox _category = new()
-    {
-        ItemsSource = new[] { "Screens", "Layout grid", "Keyboard", "Building blocks", "Device chrome", "Color schematic" },
-        SelectedIndex = 0,
-        HorizontalAlignment = HorizontalAlignment.Stretch,
-    };
-    private readonly StackPanel _screensSettings = new() { Spacing = 16 };
-    private readonly StackPanel _layoutSettings = new() { Spacing = 16 };
-    private readonly StackPanel _keyboardSettings = new() { Spacing = 16 };
-    private readonly StackPanel _blocksSettings = new() { Spacing = 16 };
-    private readonly StackPanel _chromeSettings = new() { Spacing = 16 };
-    private readonly StackPanel _schematicSettings = new() { Spacing = 16 };
+    private readonly ComboBox _category;
+    private readonly StackPanel _screensSettings;
+    private readonly StackPanel _layoutSettings;
+    private readonly StackPanel _keyboardSettings;
+    private readonly StackPanel _blocksSettings;
+    private readonly StackPanel _chromeSettings;
+    private readonly StackPanel _schematicSettings;
 
-    private readonly ComboBox _screen = new() { ItemsSource = ScreenNames, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _form = new() { ItemsSource = new[] { "Phone", "Browser" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _screen;
+    private readonly MaterialButtonGroup _form;
     private readonly Slider _screenScale;
     private Viewbox? _screenViewbox;
     private double _screenNativeWidth = 428;
     private double _screenNativeHeight = 960;
 
-    private readonly ComboBox _layoutKind = new() { ItemsSource = new[] { "Адаптивная сетка", "Вариант источника" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _sizeClass = new() { ItemsSource = SizeClassNames, SelectedIndex = 2, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _navigation = new() { ItemsSource = NavigationNames, SelectedIndex = 1, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _layoutKind;
+    private readonly ComboBox _sizeClass;
+    private readonly ComboBox _navigation;
     private readonly Slider _layoutWidth;
     private readonly ToggleSwitch _autoNavigation;
 
     private readonly MaterialKeyboard _keyboard = new() { Width = 412 };
     private Viewbox? _keyboardStage;
-    private readonly ComboBox _keyboardConfig = new() { ItemsSource = Enum.GetNames<MaterialKeyboardConfiguration>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _keyboardStyle = new() { ItemsSource = Enum.GetNames<MaterialKeyboardStyle>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _keyboardLayer = new() { ItemsSource = Enum.GetNames<MaterialKeyboardLayer>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _keyboardConfig;
+    private readonly ComboBox _keyboardStyle;
+    private readonly ComboBox _keyboardLayer;
     private readonly ToggleSwitch _shift;
     private readonly ToggleSwitch _caps;
     private readonly ToggleSwitch _chromeBar;
     private readonly ToggleSwitch _bottomBar;
     private readonly ToggleSwitch _keyboardOpen;
 
-    private readonly ComboBox _block = new() { ItemsSource = BlockNames, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _block;
     private readonly ToggleSwitch _overline;
     private readonly ToggleSwitch _blockSupporting;
     private readonly ToggleSwitch _slotFilled;
     private readonly ToggleSwitch _tileSelected;
     private readonly ToggleSwitch _tileText;
 
-    private readonly ComboBox _chrome = new() { ItemsSource = ChromeNames, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _chrome;
+    private readonly StackPanel _statusBarGroup;
+    private readonly StackPanel _deviceFrameGroup;
     private readonly ToggleSwitch _barCutout;
     private readonly ToggleSwitch _barClock;
     private readonly TextBox _barTime;
@@ -129,7 +126,7 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
     private readonly Slider _swatchWidth;
 
     private bool _syncing;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal ExamplesPlayground()
     {
@@ -139,93 +136,99 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
         _status.Margin = new Thickness(24, 0, 24, 20);
         Children.Add(_status);
 
-        Settings.Children.Add(Caption("Семейство"));
-        Settings.Children.Add(_category);
+        var categorySection = InspectorLayout.Section(Settings, divider: false);
+        _category = InspectorLayout.Combo(
+            categorySection,
+            "Семейство",
+            new[] { "Screens", "Layout grid", "Keyboard", "Building blocks", "Device chrome", "Color schematic" },
+            0);
+        AutomationProperties.SetName(_category, "Семейство примеров");
 
         // ---- screens ----
-        _screensSettings.Children.Add(Caption("Экран"));
-        _screensSettings.Children.Add(_screen);
-        _screensSettings.Children.Add(Caption("Форм-фактор"));
-        _screensSettings.Children.Add(_form);
-        _screenScale = Number(_screensSettings, "Масштаб", 0.3, 1.0, 0.5, 0.05, "×");
-        Settings.Children.Add(_screensSettings);
+        _screensSettings = InspectorLayout.Section(Settings, "Screens");
+        _screen = InspectorLayout.Combo(_screensSettings, "Экран", ScreenNames, 0);
+        AutomationProperties.SetName(_screen, "Экран");
+        _form = InspectorLayout.Choice(_screensSettings, "Форм-фактор", new[] { "Phone", "Browser" }, 0);
+        AutomationProperties.SetName(_form, "Форм-фактор экрана");
+        _screenScale = InspectorLayout.Slider(_screensSettings, "Масштаб", 0.3, 1.0, 0.5, 0.05, "×", "0.00");
 
         // ---- layout ----
-        _layoutSettings.Children.Add(Caption("Пример"));
-        _layoutSettings.Children.Add(_layoutKind);
-        _layoutWidth = Number(_layoutSettings, "Ширина окна", 320, 1680, 900, 20, "dp");
-        _layoutSettings.Children.Add(Caption("Класс размера (вариант источника)"));
-        _layoutSettings.Children.Add(_sizeClass);
-        _layoutSettings.Children.Add(Caption("Navigation region"));
-        _layoutSettings.Children.Add(_navigation);
-        _autoNavigation = Toggle(_layoutSettings, "Адаптивная навигация", true);
-        Settings.Children.Add(_layoutSettings);
+        _layoutSettings = InspectorLayout.Section(Settings, "Layout grid");
+        _layoutKind = InspectorLayout.Combo(_layoutSettings, "Пример", new[] { "Адаптивная сетка", "Вариант источника" }, 0);
+        AutomationProperties.SetName(_layoutKind, "Пример сетки");
+        _layoutWidth = InspectorLayout.Slider(_layoutSettings, "Ширина окна", 320, 1680, 900, 20, "dp", "0");
+        _sizeClass = InspectorLayout.Combo(_layoutSettings, "Класс размера (вариант источника)", SizeClassNames, 2);
+        AutomationProperties.SetName(_sizeClass, "Класс размера");
+        _navigation = InspectorLayout.Combo(_layoutSettings, "Navigation region", NavigationNames, 1);
+        AutomationProperties.SetName(_navigation, "Navigation region");
+        var layoutSwitches = InspectorLayout.Switches(_layoutSettings);
+        _autoNavigation = InspectorLayout.Switch(layoutSwitches, "Адаптивная навигация", true);
 
         // ---- keyboard ----
-        _keyboardSettings.Children.Add(Caption("Конфигурация"));
-        _keyboardSettings.Children.Add(_keyboardConfig);
-        _keyboardSettings.Children.Add(Caption("Presentation"));
-        _keyboardSettings.Children.Add(_keyboardStyle);
-        _keyboardSettings.Children.Add(Caption("Слой"));
-        _keyboardSettings.Children.Add(_keyboardLayer);
-        _shift = Toggle(_keyboardSettings, "Shift", false);
-        _caps = Toggle(_keyboardSettings, "Caps lock", false);
-        _chromeBar = Toggle(_keyboardSettings, "Chrome bar", true);
-        _bottomBar = Toggle(_keyboardSettings, "Bottom bar", true);
-        _keyboardOpen = Toggle(_keyboardSettings, "Клавиатура открыта", true);
-        Settings.Children.Add(_keyboardSettings);
+        _keyboardSettings = InspectorLayout.Section(Settings, "Keyboard");
+        _keyboardConfig = InspectorLayout.Combo(_keyboardSettings, "Конфигурация", Enum.GetNames<MaterialKeyboardConfiguration>(), 0);
+        AutomationProperties.SetName(_keyboardConfig, "Конфигурация клавиатуры");
+        _keyboardStyle = InspectorLayout.Combo(_keyboardSettings, "Presentation", Enum.GetNames<MaterialKeyboardStyle>(), 0);
+        AutomationProperties.SetName(_keyboardStyle, "Presentation клавиатуры");
+        _keyboardLayer = InspectorLayout.Combo(_keyboardSettings, "Слой", Enum.GetNames<MaterialKeyboardLayer>(), 0);
+        AutomationProperties.SetName(_keyboardLayer, "Слой клавиатуры");
+        var keyboardSwitches = InspectorLayout.Switches(_keyboardSettings);
+        _shift = InspectorLayout.Switch(keyboardSwitches, "Shift", false);
+        _caps = InspectorLayout.Switch(keyboardSwitches, "Caps lock", false);
+        _chromeBar = InspectorLayout.Switch(keyboardSwitches, "Chrome bar", true);
+        _bottomBar = InspectorLayout.Switch(keyboardSwitches, "Bottom bar", true);
+        _keyboardOpen = InspectorLayout.Switch(keyboardSwitches, "Клавиатура открыта", true);
 
         // ---- building blocks ----
-        _blocksSettings.Children.Add(Caption("Building block"));
-        _blocksSettings.Children.Add(_block);
-        _overline = Toggle(_blocksSettings, "Overline", true);
-        _blockSupporting = Toggle(_blocksSettings, "Поддерживающий текст", true);
-        _slotFilled = Toggle(_blocksSettings, "Заполнить слот", false);
-        _tileSelected = Toggle(_blocksSettings, "Выбранная плитка", false);
-        _tileText = Toggle(_blocksSettings, "Текст на плитке", true);
-        Settings.Children.Add(_blocksSettings);
+        _blocksSettings = InspectorLayout.Section(Settings, "Building blocks");
+        _block = InspectorLayout.Combo(_blocksSettings, "Building block", BlockNames, 0);
+        AutomationProperties.SetName(_block, "Building block");
+        var blockSwitches = InspectorLayout.Switches(_blocksSettings);
+        _overline = InspectorLayout.Switch(blockSwitches, "Overline", true);
+        _blockSupporting = InspectorLayout.Switch(blockSwitches, "Поддерживающий текст", true);
+        _slotFilled = InspectorLayout.Switch(blockSwitches, "Заполнить слот", false);
+        _tileSelected = InspectorLayout.Switch(blockSwitches, "Выбранная плитка", false);
+        _tileText = InspectorLayout.Switch(blockSwitches, "Текст на плитке", true);
 
         // ---- chrome ----
-        _chromeSettings.Children.Add(Caption("Chrome"));
-        _chromeSettings.Children.Add(_chrome);
-        _barCutout = Toggle(_chromeSettings, "Status bar: камера-вырез", true);
-        _barClock = Toggle(_chromeSettings, "Status bar: живые часы", true);
-        _barTime = Text(_chromeSettings, "Status bar: время", "9:41");
-        _frameStatus = Toggle(_chromeSettings, "Frame: status bar", true);
-        _frameGesture = Toggle(_chromeSettings, "Frame: gesture bar", true);
-        _frameCutout = Toggle(_chromeSettings, "Frame: камера-вырез", true);
-        _frameScroll = Toggle(_chromeSettings, "Frame: прокрутка содержимого", true);
-        _frameTime = Text(_chromeSettings, "Frame: время", "9:41");
-        Settings.Children.Add(_chromeSettings);
+        _chromeSettings = InspectorLayout.Section(Settings, "Device chrome");
+        _chrome = InspectorLayout.Combo(_chromeSettings, "Chrome", ChromeNames, 0);
+        AutomationProperties.SetName(_chrome, "Chrome пример");
+
+        _statusBarGroup = InspectorLayout.Group(_chromeSettings);
+        var barSwitches = InspectorLayout.Switches(_statusBarGroup);
+        _barCutout = InspectorLayout.Switch(barSwitches, "Камера-вырез", true);
+        AutomationProperties.SetName(_barCutout, "Status bar: камера-вырез");
+        _barClock = InspectorLayout.Switch(barSwitches, "Живые часы", true);
+        AutomationProperties.SetName(_barClock, "Status bar: живые часы");
+        _barTime = InspectorLayout.TextField(_statusBarGroup, "Время", "9:41");
+        AutomationProperties.SetName(_barTime, "Время status bar");
+
+        _deviceFrameGroup = InspectorLayout.Group(_chromeSettings);
+        var frameSwitches = InspectorLayout.Switches(_deviceFrameGroup);
+        _frameStatus = InspectorLayout.Switch(frameSwitches, "Status bar", true);
+        AutomationProperties.SetName(_frameStatus, "Frame: status bar");
+        _frameGesture = InspectorLayout.Switch(frameSwitches, "Gesture bar", true);
+        AutomationProperties.SetName(_frameGesture, "Frame: gesture bar");
+        _frameCutout = InspectorLayout.Switch(frameSwitches, "Камера-вырез", true);
+        AutomationProperties.SetName(_frameCutout, "Frame: камера-вырез");
+        _frameScroll = InspectorLayout.Switch(frameSwitches, "Прокрутка содержимого", true);
+        AutomationProperties.SetName(_frameScroll, "Frame: прокрутка содержимого");
+        _frameTime = InspectorLayout.TextField(_deviceFrameGroup, "Время", "9:41");
+        AutomationProperties.SetName(_frameTime, "Время device frame");
 
         // ---- schematic ----
-        _darkPreview = Toggle(_schematicSettings, "Тёмный предпросмотр", true);
-        _fixedColors = Toggle(_schematicSettings, "Fixed colors", true);
-        _swatchWidth = Number(_schematicSettings, "Ширина образца", 120, 240, 180, 10, "dp");
-        Settings.Children.Add(_schematicSettings);
+        _schematicSettings = InspectorLayout.Section(Settings, "Color schematic");
+        _swatchWidth = InspectorLayout.Slider(_schematicSettings, "Ширина образца", 120, 240, 180, 10, "dp", "0");
+        var schematicSwitches = InspectorLayout.Switches(_schematicSettings);
+        _darkPreview = InspectorLayout.Switch(schematicSwitches, "Тёмный предпросмотр", true);
+        _fixedColors = InspectorLayout.Switch(schematicSwitches, "Fixed colors", true);
 
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Экраны собраны из тех же контролов, что использует приложение: они масштабируются, " +
-                   "фокусируются и прокручиваются. Сетка меряется по реальным breakpoint'ам 600/840/1200/1600, " +
-                   "клавиатура вводит текст в собственный буфер, схема копирует hex по нажатию.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
-
-        AutomationProperties.SetName(_category, "Семейство примеров");
-        AutomationProperties.SetName(_screen, "Экран");
-        AutomationProperties.SetName(_form, "Форм-фактор экрана");
-        AutomationProperties.SetName(_layoutKind, "Пример сетки");
-        AutomationProperties.SetName(_sizeClass, "Класс размера");
-        AutomationProperties.SetName(_navigation, "Navigation region");
-        AutomationProperties.SetName(_keyboardConfig, "Конфигурация клавиатуры");
-        AutomationProperties.SetName(_keyboardStyle, "Presentation клавиатуры");
-        AutomationProperties.SetName(_keyboardLayer, "Слой клавиатуры");
-        AutomationProperties.SetName(_block, "Building block");
-        AutomationProperties.SetName(_chrome, "Chrome пример");
-        AutomationProperties.SetName(_barTime, "Время status bar");
-        AutomationProperties.SetName(_frameTime, "Время device frame");
+        InspectorLayout.Note(
+            Settings,
+            "Экраны собраны из тех же контролов, что использует приложение: они масштабируются, " +
+            "фокусируются и прокручиваются. Сетка меряется по реальным breakpoint'ам 600/840/1200/1600, " +
+            "клавиатура вводит текст в собственный буфер, схема копирует hex по нажатию.");
 
         _category.SelectionChanged += (_, _) =>
         {
@@ -411,8 +414,11 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
+        _autoNavigation.IsVisible = adaptive;
         _autoNavigation.IsEnabled = adaptive;
+        _layoutWidth.IsVisible = adaptive;
         _layoutWidth.IsEnabled = adaptive;
+        _sizeClass.IsVisible = !adaptive;
         _sizeClass.IsEnabled = !adaptive;
         _status.Text = $"Ширина {width:0} dp · {Describe(MaterialLayoutGrid.FromWidth(width))} · " +
                        (adaptive ? "адаптивная навигация" : "вариант источника");
@@ -446,7 +452,7 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
             row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
             panel.Children.Add(row);
         }
-        panel.Bind(Avalonia.Controls.Panel.BackgroundProperty, panel.GetResourceObservable("MaterialSurfaceContainerBrush"));
+        panel.Bind(Panel.BackgroundProperty, panel.GetResourceObservable("MaterialSurfaceContainerBrush"));
         return panel;
     }
 
@@ -462,7 +468,7 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
             MaterialTypography.SetStyle(item, MaterialTypeStyle.LabelLarge);
             panel.Children.Add(item);
         }
-        panel.Bind(Avalonia.Controls.Panel.BackgroundProperty, panel.GetResourceObservable("MaterialSurfaceContainerBrush"));
+        panel.Bind(Panel.BackgroundProperty, panel.GetResourceObservable("MaterialSurfaceContainerBrush"));
         return panel;
     }
 
@@ -478,7 +484,7 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
             bar.Bind(Border.BackgroundProperty, bar.GetResourceObservable("MaterialSurfaceContainerHighestBrush"));
             panel.Children.Add(bar);
         }
-        panel.Bind(Avalonia.Controls.Panel.BackgroundProperty, panel.GetResourceObservable("MaterialSurfaceBrush"));
+        panel.Bind(Panel.BackgroundProperty, panel.GetResourceObservable("MaterialSurfaceBrush"));
         return panel;
     }
 
@@ -530,11 +536,17 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
     private void RenderBlocks()
     {
         var block = Math.Clamp(_block.SelectedIndex, 0, 5);
+        _overline.IsVisible = block == 0;
         _overline.IsEnabled = block <= 1;
+        _blockSupporting.IsVisible = block is 0 or 1 or 3;
         _blockSupporting.IsEnabled = block != 2 && block != 4;
+        _slotFilled.IsVisible = block == 2;
         _slotFilled.IsEnabled = block == 2;
+        _tileSelected.IsVisible = block == 3;
         _tileSelected.IsEnabled = block == 3;
+        _tileText.IsVisible = block == 3;
         _tileText.IsEnabled = block == 3;
+
         Control content;
         switch (block)
         {
@@ -675,7 +687,11 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
 
     private void RenderChrome()
     {
-        if (_chrome.SelectedIndex == 1)
+        var isFrame = _chrome.SelectedIndex == 1;
+        _statusBarGroup.IsVisible = !isFrame;
+        _deviceFrameGroup.IsVisible = isFrame;
+
+        if (isFrame)
         {
             var frame = new MaterialDeviceFrame
             {
@@ -746,49 +762,5 @@ internal sealed class ExamplesPlayground : Grid, IComponentPlayground
         _schematic.SwatchWidth = _swatchWidth.Value;
         _stage.Content = _schematicStage;
         _status.Text = "Color-role schematic: нажатие на образец копирует hex.";
-    }
-
-    // ---- helpers ------------------------------------------------------------------------
-
-    private static TextBlock Caption(string text) => new() { Text = text };
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static TextBox Text(StackPanel host, string label, string value)
-    {
-        host.Children.Add(Caption(label));
-        var box = new TextBox { Text = value, HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetVariant(box, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(box, label);
-        host.Children.Add(box);
-        return box;
-    }
-
-    private static Slider Number(StackPanel host, string label, double min, double max, double value, double step, string unit)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0.##} {unit}" };
-        host.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(slider, false);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0.##} {unit}";
-        };
-        AutomationProperties.SetName(slider, label);
-        host.Children.Add(slider);
-        return slider;
     }
 }

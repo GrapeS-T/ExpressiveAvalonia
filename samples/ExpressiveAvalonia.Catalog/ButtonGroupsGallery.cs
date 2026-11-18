@@ -22,21 +22,21 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
 {
     // The theme loads no stock control theme, so PathIcon has no template and paints nothing.
     // MaterialIcon (used by the Buttons page) has its own template and is the glyph carrier here.
-    private static readonly string[] GlyphNames = { "star", "favorite", "share", "add", "edit", "more_horiz" };
-    private static readonly string[] DefaultLabels = { "Звезда", "Избранное", "Поделиться", "Добавить", "Правка", "Ещё" };
-    private static readonly string[] VariantNames = { "Filled", "Tonal", "Outlined", "Elevated", "Text" };
+    private static readonly string[] GlyphNames = ["star", "favorite", "share", "add", "edit", "more_horiz"];
+    private static readonly string[] DefaultLabels = ["Звезда", "Избранное", "Поделиться", "Добавить", "Правка", "Ещё"];
+    private static readonly string[] VariantNames = ["Filled", "Tonal", "Outlined", "Elevated", "Text"];
 
     // The enum starts at Standard, so the combo indices cannot be cast directly.
     private static readonly MaterialButtonVariant[] Variants =
-    {
+    [
         MaterialButtonVariant.Filled,
         MaterialButtonVariant.Tonal,
         MaterialButtonVariant.Outlined,
         MaterialButtonVariant.Elevated,
         MaterialButtonVariant.Text,
-    };
+    ];
 
-    private static readonly string[] SizeNames = { "ExtraSmall", "Small", "Medium", "Large", "ExtraLarge" };
+    private static readonly string[] SizeNames = ["ExtraSmall", "Small", "Medium", "Large", "ExtraLarge"];
 
     private readonly MaterialButtonGroup _group = new()
     {
@@ -72,6 +72,7 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
     private readonly MenuFlyout _splitMenu = new();
     private readonly ComboBox _variant;
     private readonly ComboBox _size;
+    private readonly StackPanel _selectionSwitches;
     private readonly ToggleSwitch _check;
     private readonly ToggleSwitch _replace;
     private readonly ToggleSwitch _enabled;
@@ -81,17 +82,11 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
     private readonly Slider _density;
     private readonly Slider _count;
     private readonly TextBox _labels;
-    private readonly StackPanel _variantSettings = new() { Spacing = 16 };
-    private readonly StackPanel _shapeSettings = new() { Spacing = 16 };
-    private readonly StackPanel _selectionSettings = new() { Spacing = 16 };
-    private readonly StackPanel _checkSettings = new() { Spacing = 16 };
-    private readonly StackPanel _replaceSettings = new() { Spacing = 16 };
-    private readonly StackPanel _densitySettings = new() { Spacing = 16 };
     private int _savedSelection;
     private bool _built;
     private bool _syncing;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal ButtonGroupPlayground()
     {
@@ -139,65 +134,40 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         AutomationProperties.SetName(splitIcon, "Действие");
         AutomationProperties.SetName(toggleIcon, "Избранное");
 
-        _kind = Choice(Settings, "Семейство", new[] { "Standard", "Connected", "Segmented" }, 0);
-        _content = Choice(Settings, "Содержимое", new[] { "Текст", "Иконка", "Текст и иконка" }, 2);
+        var configSection = InspectorLayout.Section(Settings, "Конфигурация", divider: false);
+        _kind = InspectorLayout.Choice(configSection, "Семейство", ["Standard", "Connected", "Segmented"], 0);
+        _variant = InspectorLayout.Combo(configSection, "Вид", VariantNames, 0);
+        _size = InspectorLayout.Combo(configSection, "Размер", SizeNames, 2);
+        _shape = InspectorLayout.Choice(configSection, "Форма", ["Round", "Square"], 0);
+        _orientation = InspectorLayout.Choice(configSection, "Ориентация", ["Горизонтально", "Вертикально"], 0);
+        _density = InspectorLayout.Slider(configSection, "Плотность", -3, 0, 0, 1, format: "0");
 
-        _variant = Field(_variantSettings, "Вид", new ComboBox
-        {
-            ItemsSource = VariantNames,
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        });
-        Settings.Children.Add(_variantSettings);
+        var selectionSection = InspectorLayout.Section(Settings, "Выбор и анатомия");
+        _content = InspectorLayout.Choice(selectionSection, "Содержимое", ["Текст", "Иконка", "Оба"], 2);
+        _selection = InspectorLayout.Choice(selectionSection, "Выбор", ["Нет", "Один", "Несколько"], 1);
+        _selectionSwitches = InspectorLayout.Switches(selectionSection);
+        _check = InspectorLayout.Switch(_selectionSwitches, "Галочка у выбранного", true);
+        _replace = InspectorLayout.Switch(_selectionSwitches, "Заменять иконку галочкой", true);
 
-        _size = Field(Settings, "Размер", new ComboBox
-        {
-            ItemsSource = SizeNames,
-            SelectedIndex = 2,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        });
+        var itemsSection = InspectorLayout.Section(Settings, "Элементы");
+        _count = InspectorLayout.Slider(itemsSection, "Количество элементов", 2, 6, 4, 1, format: "0");
+        _labels = InspectorLayout.TextField(itemsSection, "Подписи через запятую", string.Join(", ", DefaultLabels));
 
-        _shape = Choice(_shapeSettings, "Форма", new[] { "Round", "Square" }, 0);
-        Settings.Children.Add(_shapeSettings);
+        var stateSection = InspectorLayout.Section(Settings, "Состояния");
+        var stateSwitches = InspectorLayout.Switches(stateSection);
+        _enabled = InspectorLayout.Switch(stateSwitches, "Доступна", true);
+        _rtl = InspectorLayout.Switch(stateSwitches, "Справа налево (RTL)", false);
+        _splitPrimaryEnabled = InspectorLayout.Switch(stateSwitches, "Split: ведущее действие доступно", true);
+        _splitTrailingEnabled = InspectorLayout.Switch(stateSwitches, "Split: действие меню доступно", true);
 
-        _orientation = Choice(Settings, "Ориентация", new[] { "Горизонтально", "Вертикально" }, 0);
-
-        _selection = Choice(_selectionSettings, "Выбор", new[] { "Нет", "Один", "Несколько" }, 1);
-        Settings.Children.Add(_selectionSettings);
-
-        _check = Toggle(_checkSettings, "Галочка у выбранного", true);
-        Settings.Children.Add(_checkSettings);
-
-        _replace = Toggle(_replaceSettings, "Заменять иконку галочкой", true);
-        Settings.Children.Add(_replaceSettings);
-
-        _density = Number(_densitySettings, "Плотность", -3, 0, 0, 1);
-        Settings.Children.Add(_densitySettings);
-
-        _count = Number(Settings, "Количество элементов", 2, 6, 4, 1);
-        _labels = Field(Settings, "Подписи через запятую", new TextBox
-        {
-            Text = string.Join(", ", DefaultLabels),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        });
-        MaterialTextField.SetVariant(_labels, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(_labels, "Подписи");
-
-        _enabled = Toggle(Settings, "Доступна", true);
-        _rtl = Toggle(Settings, "Справа налево (RTL)", false);
-        _splitPrimaryEnabled = Toggle(Settings, "Split: ведущее действие доступно", true);
-        _splitTrailingEnabled = Toggle(Settings, "Split: действие меню доступно", true);
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Standard расширяет нажатую кнопку за счёт соседних; поддерживает действия и выбор. " +
-                   "Connected заполняет доступную ширину, разделяет кнопки промежутком 2 dp и " +
-                   "меняет форму только нажатой кнопки. Оба вида поддерживают Round/Square и цвета кнопок. " +
-                   "Segmented — прежний вариант с общей рамкой. Стрелки, Home/End и Space работают нативно. " +
-                   "Split без меню переключает trailing-половину: checked даёт пилюлю и слой 10%, " +
-                   "а команда видит уже новое состояние.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        InspectorLayout.Note(
+            Settings,
+            "Standard расширяет нажатую кнопку за счёт соседних; поддерживает действия и выбор. " +
+            "Connected заполняет доступную ширину, разделяет кнопки промежутком 2 dp и " +
+            "меняет форму только нажатой кнопки. Оба вида поддерживают Round/Square и цвета кнопок. " +
+            "Segmented — прежний вариант с общей рамкой. Стрелки, Home/End и Space работают нативно. " +
+            "Split без меню переключает trailing-половину: checked даёт пилюлю и слой 10%, " +
+            "а команда видит уже новое состояние.");
 
         AutomationProperties.SetName(_variant, "Вид группы кнопок");
         AutomationProperties.SetName(_size, "Размер группы кнопок");
@@ -265,12 +235,12 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         var showIcon = content != 0;
         var showText = content != 1;
 
-        _variantSettings.IsVisible = kind != MaterialButtonGroupKind.Segmented;
-        _shapeSettings.IsVisible = kind != MaterialButtonGroupKind.Segmented;
-        _selectionSettings.IsVisible = true;
-        _checkSettings.IsVisible = mode != MaterialButtonGroupSelectionMode.None;
-        _replaceSettings.IsVisible = mode != MaterialButtonGroupSelectionMode.None &&
-                                     _check.IsChecked == true && showIcon;
+        _variant.IsVisible = kind != MaterialButtonGroupKind.Segmented;
+        _shape.IsVisible = kind != MaterialButtonGroupKind.Segmented;
+        var hasSelection = mode != MaterialButtonGroupSelectionMode.None;
+        _selectionSwitches.IsVisible = hasSelection;
+        _check.IsVisible = hasSelection;
+        _replace.IsVisible = hasSelection && _check.IsChecked == true && showIcon;
 
         _group.Kind = kind;
         _group.Variant = variant;
@@ -284,15 +254,15 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         _group.ReplaceIconWhenSelected = _replace.IsChecked == true;
         _group.Density = (int)Math.Round(_density.Value);
         _group.IsEnabled = _enabled.IsChecked == true;
-        _group.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        InspectorLayout.ApplyFlowDirection(_group, _rtl);
 
-        _split.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        InspectorLayout.ApplyFlowDirection(_split, _rtl);
         _split.IsPrimaryEnabled = _splitPrimaryEnabled.IsChecked == true;
         _split.IsTrailingEnabled = _splitTrailingEnabled.IsChecked == true;
 
         // The checkable variant shares the RTL and segment-enabled controls so both splits show
         // the same mirrored seam and disabled composition; it deliberately has no popup.
-        _splitToggle.FlowDirection = _split.FlowDirection;
+        InspectorLayout.ApplyFlowDirection(_splitToggle, _rtl);
         _splitToggle.IsPrimaryEnabled = _split.IsPrimaryEnabled;
         _splitToggle.IsTrailingEnabled = _split.IsTrailingEnabled;
 
@@ -400,63 +370,5 @@ internal sealed class ButtonGroupPlayground : Grid, IComponentPlayground
         for (var i = 0; i < count; i++)
             labels[i] = i < parts.Length ? parts[i] : DefaultLabels[i % DefaultLabels.Length];
         return labels;
-    }
-
-    private static T Field<T>(StackPanel host, string label, T control) where T : Control
-    {
-        host.Children.Add(new TextBlock { Text = label });
-        host.Children.Add(control);
-        return control;
-    }
-
-    private static MaterialButtonGroup Choice(StackPanel host, string label, string[] options, int selected)
-    {
-        host.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        // The group clears an out-of-range selection whenever items change, so the initial index
-        // is applied only after every item exists.
-        group.SelectedIndex = selected;
-        host.Children.Add(group);
-        return group;
-    }
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static Slider Number(
-        StackPanel host, string label, double min, double max, double value, double step)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0}" };
-        host.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(slider, false);
-        AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0}";
-        };
-        host.Children.Add(slider);
-        return slider;
     }
 }

@@ -1,5 +1,5 @@
+using System.Linq;
 using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
@@ -30,6 +30,7 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
     private readonly TextBlock _hostState = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _open = new() { Content = "Открыть меню", HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Button _close = new() { Content = "Закрыть", HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly StackPanel _behaviorSection;
     private readonly MaterialButtonGroup _mode;
     private readonly ToggleSwitch _openToggle;
     private readonly ToggleSwitch _closeOnSelection;
@@ -50,7 +51,7 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
     private MaterialNavigationDrawerPresentation? _lastPresentation;
     private bool _sync;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal NavigationDrawerPlayground()
     {
@@ -102,23 +103,30 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
         var stage = new Border { Margin = new Thickness(24), Child = _card };
         Children.Add(stage);
 
-        _mode = Choice("Режим", ["Постоянный", "Выдвижной", "Модальный"]);
-        _openToggle = Toggle("Drawer открыт", true);
-        _closeOnSelection = Toggle("Закрывать при выборе", true);
-        _lightDismiss = Toggle("Закрытие по scrim", true);
-        _headers = Toggle("Заголовки групп", true);
-        _dividers = Toggle("Разделители", true);
-        _badges = Toggle("Бейджи", true);
-        _icons = Toggle("Иконки пунктов", true);
-        _disabled = Toggle("«Корзина» недоступна", false);
-        _width = Number("Ширина drawer", 280, 400, 360, 10);
-        _scrim = Number("Плотность scrim", 0, 0.8, 0.32, 0.04);
-        _margin = Number("Отступ модального drawer", 0, 48, 0, 4);
+        var modeSection = InspectorLayout.Section(Settings, "Конфигурация", divider: false);
+        _mode = InspectorLayout.Choice(modeSection, "Режим", ["Постоянный", "Выдвижной", "Модальный"]);
+        _openToggle = InspectorLayout.Switch(modeSection, "Drawer открыт", true);
 
-        Settings.Children.Add(new TextBlock { Text = "Выбранный пункт" });
-        _selected = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
-        AutomationProperties.SetName(_selected, "Выбранный пункт");
-        Settings.Children.Add(_selected);
+        _behaviorSection = InspectorLayout.Section(Settings, "Поведение закрытия");
+        var behaviorSwitches = InspectorLayout.Switches(_behaviorSection);
+        _closeOnSelection = InspectorLayout.Switch(behaviorSwitches, "Закрывать при выборе", true);
+        _lightDismiss = InspectorLayout.Switch(behaviorSwitches, "Закрытие по scrim", true);
+
+        var anatomySection = InspectorLayout.Section(Settings, "Анатомия");
+        var anatomySwitches = InspectorLayout.Switches(anatomySection);
+        _headers = InspectorLayout.Switch(anatomySwitches, "Заголовки групп", true);
+        _dividers = InspectorLayout.Switch(anatomySwitches, "Разделители", true);
+        _badges = InspectorLayout.Switch(anatomySwitches, "Бейджи", true);
+        _icons = InspectorLayout.Switch(anatomySwitches, "Иконки пунктов", true);
+        _disabled = InspectorLayout.Switch(anatomySwitches, "«Корзина» недоступна", false);
+
+        var dimensionsSection = InspectorLayout.Section(Settings, "Размеры");
+        _width = InspectorLayout.Slider(dimensionsSection, "Ширина drawer", 280, 400, 360, step: 10, unit: "dp", format: "0");
+        _scrim = InspectorLayout.Slider(dimensionsSection, "Плотность scrim", 0, 0.8, 0.32, step: 0.04, format: "0.##");
+        _margin = InspectorLayout.Slider(dimensionsSection, "Отступ модального drawer", 0, 48, 0, step: 4, unit: "dp", format: "0");
+
+        var selectionSection = InspectorLayout.Section(Settings, "Навигация");
+        _selected = InspectorLayout.Combo(selectionSection, "Выбранный пункт");
 
         var (headers, dividers, destinations) = BuildDrawer();
         _headerItems = headers;
@@ -255,7 +263,9 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
             if (!_destinations[3].IsEnabled && _drawer.SelectedIndex == 3)
                 _drawer.SelectedIndex = 0;
 
-            _closeOnSelection.IsVisible = !(_lastPresentation == MaterialNavigationDrawerPresentation.Permanent);
+            var nonPermanent = _lastPresentation != MaterialNavigationDrawerPresentation.Permanent;
+            _behaviorSection.IsVisible = nonPermanent;
+            _closeOnSelection.IsVisible = nonPermanent;
             _lightDismiss.IsVisible = modal;
             _scrim.IsVisible = modal;
             _margin.IsVisible = modal;
@@ -313,53 +323,6 @@ internal sealed class NavigationDrawerPlayground : Grid, IComponentPlayground
         Height = 24,
         IsDecorative = true,
     };
-
-    private MaterialButtonGroup Choice(string label, string[] options)
-    {
-        Settings.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = 0;
-        Settings.Children.Add(group);
-        return group;
-    }
-
-    private ToggleSwitch Toggle(string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        Settings.Children.Add(toggle);
-        return toggle;
-    }
-
-    private Slider Number(string label, double min, double max, double value, double step)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0.##}" };
-        Settings.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                caption.Text = $"{label}: {slider.Value:0.##}";
-        };
-        Settings.Children.Add(slider);
-        return slider;
-    }
 
     private static class Icons
     {

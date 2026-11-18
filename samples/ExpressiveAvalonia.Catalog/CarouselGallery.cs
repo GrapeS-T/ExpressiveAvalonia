@@ -33,6 +33,14 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
         "Full screen",
     };
 
+    private static readonly string[] FlingBehaviors =
+    {
+        "Layout default",
+        "Single advance",
+        "Velocity",
+        "No snap",
+    };
+
     private static readonly Lazy<Bitmap> SourceImage = new(() => new Bitmap(AssetLoader.Open(SourceImageUri)));
 
     private readonly MaterialCarousel _carousel = new()
@@ -47,10 +55,9 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
         HorizontalAlignment = HorizontalAlignment.Center,
         TextWrapping = TextWrapping.Wrap,
     };
-    private readonly ComboBox _layout = new() { ItemsSource = Layouts, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private static readonly string[] FlingBehaviors = { "Layout default", "Single advance", "Velocity", "No snap" };
-    private readonly ComboBox _fling = new() { ItemsSource = FlingBehaviors, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly TextBlock _current = new() { Text = "CurrentItem: —", FontSize = 13 };
+    private readonly ComboBox _layout;
+    private readonly ComboBox _fling;
+    private readonly TextBlock _current;
     private readonly Slider _count;
     private readonly Slider _height;
     private readonly Slider _spacing;
@@ -60,12 +67,12 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _snap;
     private readonly ToggleSwitch _userScroll;
     private readonly ToggleSwitch _disableLast;
-    private readonly ToggleSwitch _rtl;
     private readonly ToggleSwitch _fillHeight;
+    private readonly ToggleSwitch _rtl;
     private MaterialCarouselLayout _builtLayout = (MaterialCarouselLayout)(-1);
     private bool _spacingOverridden;
     private bool _rebuilding;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal CarouselPlayground()
     {
@@ -87,43 +94,42 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
         _status.Margin = new Thickness(24, 0, 24, 20);
         Children.Add(_status);
 
-        Settings.Children.Add(Caption("Layout"));
-        Settings.Children.Add(_layout);
-        Settings.Children.Add(Caption("Fling settling"));
-        Settings.Children.Add(_fling);
-        _count = Number(Settings, "Количество карточек", 0, 8, 5, 1, "");
-        _height = Number(Settings, "Высота карточки", 120, 320, 204, 4, "dp");
-        _spacing = Number(Settings, "Промежуток", 0, 32, 8, 1, "dp");
-        _width = Number(Settings, "Ширина", 320, 900, 520, 10, "dp");
-        _fullHeight = Number(Settings, "Высота full screen", 320, 760, 560, 20, "dp");
-        _text = Toggle(Settings, "Текст на карточках", true);
-        _snap = Toggle(Settings, "Привязка прокрутки к карточкам", true);
-        _userScroll = Toggle(Settings, "Прокрутка пользователем", true);
-        _disableLast = Toggle(Settings, "Последняя карточка недоступна", false);
-        _rtl = Toggle(Settings, "Right-to-left", false);
-        _fillHeight = Toggle(Settings, "Высота по контейнеру", false);
-        Settings.Children.Add(_current);
-        Settings.Children.Add(CreateMutationButtons());
-
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Карточки листаются колесом, панорамированием или touch-жестом и привязываются к началу " +
-                   "карточки; Left/Right меняют выбор, Home/End прыгают к краям, PageUp/PageDown листают " +
-                   "страницу, Enter/Space активируют карточку. Выбор прокручивает карточку в вид; полный " +
-                   "размер экрана заполняет viewport одной карточкой. Fling settling переопределяет " +
-                   "поведение из Layout; Right-to-left проверяет зеркальную раскладку, кнопки ниже " +
-                   "вставляют и удаляют карточку рядом с текущей, а также прыгают и анимируют к элементу. " +
-                   "«Прокрутка пользователем» выключает жест, колесо, PageUp/PageDown и scroll-действия " +
-                   "automation, оставляя карточки, клики, выбор и программную прокрутку.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
-
+        var layoutSection = InspectorLayout.Section(Settings, "Раскладка и доводка", divider: false);
+        _layout = InspectorLayout.Combo(layoutSection, "Layout", Layouts, 0);
         AutomationProperties.SetName(_layout, "Layout карусели");
+        _fling = InspectorLayout.Combo(layoutSection, "Fling settling", FlingBehaviors, 0);
         AutomationProperties.SetName(_fling, "Fling settling");
-        AutomationProperties.SetName(_rtl, "Right-to-left");
-        AutomationProperties.SetName(_fillHeight, "Высота по контейнеру");
-        AutomationProperties.SetName(_userScroll, "Прокрутка пользователем");
+
+        var dimensionsSection = InspectorLayout.Section(Settings, "Размеры");
+        _count = InspectorLayout.Slider(dimensionsSection, "Количество карточек", 0, 8, 5, 1, "", "0");
+        _height = InspectorLayout.Slider(dimensionsSection, "Высота карточки", 120, 320, 204, 4, "dp", "0");
+        _spacing = InspectorLayout.Slider(dimensionsSection, "Промежуток", 0, 32, 8, 1, "dp", "0");
+        _width = InspectorLayout.Slider(dimensionsSection, "Ширина", 320, 900, 520, 10, "dp", "0");
+        _fullHeight = InspectorLayout.Slider(dimensionsSection, "Высота full screen", 320, 760, 560, 20, "dp", "0");
+
+        var optionsSection = InspectorLayout.Section(Settings, "Параметры и состояния");
+        var switches = InspectorLayout.Switches(optionsSection);
+        _text = InspectorLayout.Switch(switches, "Текст на карточках", true);
+        _snap = InspectorLayout.Switch(switches, "Привязка прокрутки к карточкам", true);
+        _userScroll = InspectorLayout.Switch(switches, "Прокрутка пользователем", true);
+        _disableLast = InspectorLayout.Switch(switches, "Последняя карточка недоступна", false);
+        _fillHeight = InspectorLayout.Switch(switches, "Высота по контейнеру", false);
+        _rtl = InspectorLayout.Switch(switches, "Right-to-left", false);
+
+        var mutationsSection = InspectorLayout.Section(Settings, "Коллекция и навигация");
+        _current = InspectorLayout.Readout(mutationsSection, "CurrentItem: —");
+        mutationsSection.Children.Add(CreateMutationButtons());
+
+        InspectorLayout.Note(
+            Settings,
+            "Карточки листаются колесом, панорамированием или touch-жестом и привязываются к началу " +
+            "карточки; Left/Right меняют выбор, Home/End прыгают к краям, PageUp/PageDown листают " +
+            "страницу, Enter/Space активируют карточку. Выбор прокручивает карточку в вид; полный " +
+            "размер экрана заполняет viewport одной карточкой. Fling settling переопределяет " +
+            "поведение из Layout; Right-to-left проверяет зеркальную раскладку, кнопки ниже " +
+            "вставляют и удаляют карточку рядом с текущей, а также прыгают и анимируют к элементу. " +
+            "«Прокрутка пользователем» выключает жест, колесо, PageUp/PageDown и scroll-действия " +
+            "automation, оставляя карточки, клики, выбор и программную прокрутку.");
 
         _layout.SelectionChanged += (_, _) => { if (!_rebuilding) Apply(); };
         _fling.SelectionChanged += (_, _) => { if (!_rebuilding) Apply(); };
@@ -138,7 +144,7 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
                 Apply();
             };
         }
-        foreach (var toggle in new[] { _text, _snap, _userScroll, _disableLast, _rtl, _fillHeight })
+        foreach (var toggle in new[] { _text, _snap, _userScroll, _disableLast, _fillHeight, _rtl })
             toggle.IsCheckedChanged += (_, _) => { if (!_rebuilding) Apply(); };
 
         _carousel.SelectionChanged += (_, _) =>
@@ -168,9 +174,7 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
         if (layout != _builtLayout && !_spacingOverridden)
             _spacing.Value = full ? 16 : 8;
         _carousel.Layout = layout;
-        _carousel.FlowDirection = _rtl.IsChecked == true
-            ? FlowDirection.RightToLeft
-            : FlowDirection.LeftToRight;
+        InspectorLayout.ApplyFlowDirection(_carousel, _rtl);
         _carousel.ItemHeight = fill ? double.NaN : _height.Value;
         if (_spacingOverridden)
             _carousel.ItemSpacing = _spacing.Value;
@@ -205,8 +209,12 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
         {
             if (_carousel.Items[i] is not MaterialCarouselItem item) continue;
             var index = i;
-            var button = new Button { Content = item.Label, IsEnabled = item.IsEnabled,
-                HorizontalAlignment = HorizontalAlignment.Stretch };
+            var button = new Button
+            {
+                Content = item.Label,
+                IsEnabled = item.IsEnabled,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
             button.Click += (_, _) =>
             {
                 _carousel.SelectedIndex = index;
@@ -277,12 +285,7 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
     /// </summary>
     private Control CreateMutationButtons()
     {
-        var insert = new Button { Content = "Вставить после текущей" };
-        var remove = new Button { Content = "Удалить текущую" };
-        var jump = new Button { Content = "Jump к выбранной" };
-        var animate = new Button { Content = "Animate к последней" };
-
-        insert.Click += (_, _) =>
+        var insert = InspectorLayout.CreateActionButton("Вставить после текущей", () =>
         {
             if (_carousel.ItemCount >= (int)_count.Maximum) return;
             var at = Math.Max(0, Math.Min(_carousel.CurrentItem, _carousel.ItemCount - 1)) + 1;
@@ -290,9 +293,9 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
             SyncCountToItems();
             UpdateItems();
             _status.Text = $"Вставлена карточка в позицию {at + 1}; карточек: {_carousel.ItemCount}";
-        };
+        });
 
-        remove.Click += (_, _) =>
+        var remove = InspectorLayout.CreateActionButton("Удалить текущую", () =>
         {
             if (_carousel.ItemCount == 0) return;
             var at = Math.Max(0, Math.Min(_carousel.CurrentItem, _carousel.ItemCount - 1));
@@ -301,21 +304,26 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
             UpdateItems();
             _status.Text = $"Удалена карточка в позиции {at + 1}; карточек: {_carousel.ItemCount}, " +
                            $"CurrentItem: {_carousel.CurrentItem}";
-        };
+        });
 
-        jump.Click += (_, _) =>
+        var jump = InspectorLayout.CreateActionButton("Jump к выбранной", () =>
         {
             if (_carousel.SelectedIndex >= 0)
                 _carousel.ScrollToItem(_carousel.SelectedIndex);
-        };
+        });
 
-        animate.Click += (_, _) =>
+        var animate = InspectorLayout.CreateActionButton("Animate к последней", () =>
         {
             if (_carousel.ItemCount > 0)
                 _carousel.AnimateScrollToItem(_carousel.ItemCount - 1);
-        };
+        });
 
-        return new WrapPanel { Children = { insert, remove, jump, animate } };
+        return new WrapPanel
+        {
+            ItemSpacing = 6,
+            LineSpacing = 6,
+            Children = { insert, remove, jump, animate },
+        };
     }
 
     // Keeps the count slider in sync with direct collection mutations without rebuilding the items.
@@ -474,37 +482,5 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
         group.Children.Add(new TranslateTransform(surface.OffsetX, surface.OffsetY));
         control.RenderTransform = group;
         control.Opacity = surface.Alpha;
-    }
-
-    private static TextBlock Caption(string text) => new() { Text = text };
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static Slider Number(StackPanel host, string label, double min, double max, double value, double step, string unit)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0} {unit}" };
-        host.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(slider, false);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0} {unit}";
-        };
-        AutomationProperties.SetName(slider, label);
-        host.Children.Add(slider);
-        return slider;
     }
 }

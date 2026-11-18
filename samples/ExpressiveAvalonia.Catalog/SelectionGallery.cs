@@ -1,3 +1,5 @@
+using System;
+using System.Threading;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -41,7 +43,7 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
     private string _switchLabel = "Тёмная тема";
     private int _type;
     private bool _syncing;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal SelectionPlayground()
     {
@@ -66,53 +68,41 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
             Spacing = 24,
             Margin = new Thickness(24),
             HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
         };
         stage.Children.Add(_host);
         stage.Children.Add(_readout);
         Children.Add(stage);
 
-        _kind = Choice(Settings, "Тип", new[] { "Checkbox", "Radio", "Switch" }, 0);
-        _label = new TextBox { Text = _checkLabel, HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetVariant(_label, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(_label, "Подпись");
-        AutomationProperties.SetName(_label, "Подпись");
-        Settings.Children.Add(_label);
+        var topSection = InspectorLayout.Section(Settings, divider: false);
+        _kind = InspectorLayout.Choice(topSection, "Тип", new[] { "Checkbox", "Radio", "Switch" }, 0);
+        _label = InspectorLayout.TextField(topSection, "Подпись", _checkLabel);
 
-        _checkSettings = new StackPanel { Spacing = 16 };
-        _checkState = Choice(_checkSettings, "Состояние", new[] { "Off", "On", "Indeterminate" }, 1);
-        _threeState = Toggle(_checkSettings, "Трёхпозиционный флажок", false);
-        _error = Toggle(_checkSettings, "Ошибка валидации", false);
-        Settings.Children.Add(_checkSettings);
+        _checkSettings = InspectorLayout.Section(Settings, "Флажок");
+        _checkState = InspectorLayout.Choice(_checkSettings, "Состояние", new[] { "Off", "On", "Indeterminate" }, 1);
+        var checkSwitches = InspectorLayout.Switches(_checkSettings);
+        _threeState = InspectorLayout.Switch(checkSwitches, "Трёхпозиционный флажок", false);
+        _error = InspectorLayout.Switch(checkSwitches, "Ошибка валидации", false);
 
-        _radioSettings = new StackPanel { Spacing = 16 };
-        _radioSettings.Children.Add(new TextBlock { Text = "Выбранный вариант" });
-        _radioChoice = new ComboBox
-        {
-            ItemsSource = _radioLabels.ToArray(),
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-        AutomationProperties.SetName(_radioChoice, "Выбранный вариант");
-        _radioSettings.Children.Add(_radioChoice);
-        Settings.Children.Add(_radioSettings);
+        _radioSettings = InspectorLayout.Section(Settings, "Радиокнопки");
+        _radioChoice = InspectorLayout.Combo(_radioSettings, "Выбранный вариант", _radioLabels.ToArray(), 0);
 
-        _switchSettings = new StackPanel { Spacing = 16 };
-        _switchState = Choice(_switchSettings, "Состояние", new[] { "Off", "On" }, 1);
-        _switchIcons = Choice(_switchSettings, "Иконки ручки", new[] { "Нет", "Только On", "Встроенные", "Контент" }, 2);
-        Settings.Children.Add(_switchSettings);
+        _switchSettings = InspectorLayout.Section(Settings, "Переключатель");
+        _switchState = InspectorLayout.Choice(_switchSettings, "Состояние", new[] { "Off", "On" }, 1);
+        _switchIcons = InspectorLayout.Choice(_switchSettings, "Иконки ручки", new[] { "Нет", "On", "Авто", "Контент" }, 2);
 
-        _enabled = Toggle(Settings, "Доступен", true);
-        _rtl = Toggle(Settings, "Справа налево (RTL)", false);
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "MD3 Expressive использует шаблон Selection: контейнер флажка 18 dp, " +
-                   "глиф радиокнопки 20 dp, дорожка переключателя 52 × 32 dp. Клик, Space, Enter и стрелки — настоящие состояния; " +
-                   "трёхпозиционный флажок циклически проходит Off → On → Indeterminate. Подпись меняется справа, " +
-                   "а состояние примера всегда отражается в инспекторе. Режимы иконок переключателя позволяют проверить " +
-                   "ручку без иконок (16/24 dp), иконку только во включённом состоянии (16/24 dp), встроенные глифы и OnContent/OffContent (24 dp).",
-            TextWrapping = TextWrapping.Wrap, FontSize = 13
-        });
+        var statesSection = InspectorLayout.Section(Settings, "Состояния");
+        var stateSwitches = InspectorLayout.Switches(statesSection);
+        _enabled = InspectorLayout.Switch(stateSwitches, "Доступен", true);
+        _rtl = InspectorLayout.Switch(stateSwitches, "Справа налево (RTL)", false);
+
+        InspectorLayout.Note(
+            Settings,
+            "MD3 Expressive использует шаблон Selection: контейнер флажка 18 dp, " +
+            "глиф радиокнопки 20 dp, дорожка переключателя 52 × 32 dp. Клик, Space, Enter и стрелки — настоящие состояния; " +
+            "трёхпозиционный флажок циклически проходит Off → On → Indeterminate. Подпись меняется справа, " +
+            "а состояние примера всегда отражается в инспекторе. Режимы иконок переключателя позволяют проверить " +
+            "ручку без иконок (16/24 dp), иконку только во включённом состоянии (16/24 dp), встроенные глифы и OnContent/OffContent (24 dp).");
 
         _kind.SelectionChanged += (_, _) => { if (!_syncing) SelectType(_kind.SelectedIndex); };
         _label.TextChanged += (_, _) => { if (!_syncing) ApplyLabel(); };
@@ -163,8 +153,7 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
             _error.IsChecked == true ? new object[] { "Обязательное поле" } : null);
         _switchIcons.SelectionChanged += (_, _) => ApplySwitchIcons();
         _enabled.IsCheckedChanged += (_, _) => _host.IsEnabled = _enabled.IsChecked == true;
-        _rtl.IsCheckedChanged += (_, _) =>
-            _host.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        _rtl.IsCheckedChanged += (_, _) => InspectorLayout.ApplyFlowDirection(_host, _rtl);
 
         ApplySwitchIcons();
         SelectType(0);
@@ -187,7 +176,7 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
     {
         1 => _radioLabels[Math.Max(0, _radioChoice.SelectedIndex)],
         2 => _switchLabel,
-        _ => _checkLabel
+        _ => _checkLabel,
     };
 
     private void ApplyLabel()
@@ -274,36 +263,11 @@ internal sealed class SelectionPlayground : Grid, IComponentPlayground
             {
                 null => "Состояние: неопределённое",
                 true => "Состояние: включено",
-                false => "Состояние: выключено"
-            }
+                false => "Состояние: выключено",
+            },
         };
     }
 
     private string RadioLabel(int index) =>
         string.IsNullOrWhiteSpace(_radioLabels[index]) ? $"Вариант {index + 1}" : _radioLabels[index];
-
-    private static MaterialButtonGroup Choice(StackPanel host, string label, string[] options, int selected)
-    {
-        host.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true
-        };
-        foreach (var option in options) group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        // Items first: adding items clamps a selection that points past the current item count.
-        group.SelectedIndex = selected;
-        host.Children.Add(group);
-        return group;
-    }
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
 }

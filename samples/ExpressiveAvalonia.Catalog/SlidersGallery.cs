@@ -1,7 +1,12 @@
+using System;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
+using Avalonia.Data;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Styling;
 using ExpressiveAvalonia.Controls;
 using ExpressiveAvalonia.Theming;
@@ -35,7 +40,8 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _rtl;
     private bool _syncing;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal SliderPlayground()
     {
@@ -44,26 +50,33 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
         Grid.SetRow(_readout, 1);
         _readout.Margin = new Thickness(0, 24, 0, 24);
         Children.Add(_readout);
-        _kind = Choice("Вид", new[] { "Обычный", "От центра", "Диапазон" }, 0);
-        _size = Choice("Размер", Enum.GetNames<MaterialControlSize>(), 2);
-        _orientation = Choice("Ориентация", new[] { "Горизонтальная", "Вертикальная" }, 0);
-        _length = Number("Длина, dp", 120, 1440, 320, 20);
-        _value = Number("Значение", 0, 100, 50, 1);
-        _lower = Number("Начало диапазона", 0, 100, 20, 1);
-        _upper = Number("Конец диапазона", 0, 100, 80, 1);
-        _points = Number("Количество точек (включая края)", 2, 51, 11, 1);
-        _points.FormatString = "0";
-        _stops = Toggle("Показывать дискретные метки", true);
-        _icon = Toggle("Иконка громкости", false);
-        _indicator = Toggle("Подсказка значения", true);
-        _snap = Toggle("Дискретные значения", false);
-        _enabled = Toggle("Слайдер доступен", true);
-        _rtl = Toggle("Справа налево (RTL)", false);
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Количество точек включает оба конца шкалы; шаг привязки рассчитывается автоматически. Иконка внутри трека — только для обычного слайдера M, L и XL. Диапазон — только горизонтальный.",
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 13
-        });
+
+        var configSection = InspectorLayout.Section(Settings, "Конфигурация", divider: false);
+        _kind = InspectorLayout.Field(configSection, "Вид", new InspectorMenuChoice("Вид", ["Обычный", "От центра", "Диапазон"], 0));
+        _size = InspectorLayout.Field(configSection, "Размер", new InspectorMenuChoice("Размер", Enum.GetNames<MaterialControlSize>(), 2));
+        _orientation = InspectorLayout.Field(configSection, "Ориентация", new InspectorMenuChoice("Ориентация", ["Горизонтальная", "Вертикальная"], 0));
+
+        var valuesSection = InspectorLayout.Section(Settings, "Значения и шкала");
+        _length = Number(valuesSection, "Длина, dp", 120, 1440, 320, 20);
+        _value = Number(valuesSection, "Значение", 0, 100, 50, 1);
+        _lower = Number(valuesSection, "Начало диапазона", 0, 100, 20, 1);
+        _upper = Number(valuesSection, "Конец диапазона", 0, 100, 80, 1);
+        _points = Number(valuesSection, "Количество точек (включая края)", 2, 51, 11, 1, "0");
+
+        var optionsSection = InspectorLayout.Section(Settings, "Опции и состояния");
+        var switches = InspectorLayout.Switches(optionsSection);
+        _snap = InspectorLayout.Switch(switches, "Дискретные значения", false);
+        _stops = InspectorLayout.Switch(switches, "Показывать дискретные метки", true);
+        _icon = InspectorLayout.Switch(switches, "Иконка громкости", false);
+        _indicator = InspectorLayout.Switch(switches, "Подсказка значения", true);
+        _enabled = InspectorLayout.Switch(switches, "Слайдер доступен", true);
+        _rtl = InspectorLayout.Switch(switches, "Справа налево (RTL)", false);
+
+        InspectorLayout.Note(
+            Settings,
+            "Количество точек включает оба конца шкалы; шаг привязки рассчитывается автоматически. " +
+            "Иконка внутри трека — только для обычного слайдера M, L и XL. Диапазон — только горизонтальный.");
+
         _kind.SelectionChanged += (_, _) => Apply();
         _size.SelectionChanged += (_, _) => Apply();
         _orientation.SelectionChanged += (_, _) => Apply();
@@ -81,47 +94,49 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
         Apply();
     }
 
-    private InspectorMenuChoice Choice(string label, string[] items, int selected)
+    private static NumericUpDown Number(
+        StackPanel host,
+        string label,
+        decimal min,
+        decimal max,
+        decimal value,
+        decimal increment,
+        string format = "0.##")
     {
-        Settings.Children.Add(new TextBlock { Text = label });
-        var input = new InspectorMenuChoice(label, items, selected);
-        Settings.Children.Add(input);
-        return input;
-    }
-
-    private NumericUpDown Number(string label, decimal min, decimal max, decimal value, decimal increment)
-    {
-        var group = new StackPanel { Spacing = 6 };
-        var input = new NumericUpDown { Minimum = min, Maximum = max, Value = value, Increment = increment, FormatString = "0.##", AllowSpin = true, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var input = new NumericUpDown
+        {
+            Minimum = min,
+            Maximum = max,
+            Value = value,
+            Increment = increment,
+            FormatString = format,
+            AllowSpin = true,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
         // NumericUpDown has no implicit theme in this catalog; give its native parser a visible editor.
-        input.Template = new Avalonia.Controls.Templates.FuncControlTemplate<NumericUpDown>((owner, scope) =>
+        input.Template = new FuncControlTemplate<NumericUpDown>((owner, scope) =>
         {
             var editor = new TextBox
             {
-                Name = "PART_TextBox", MinHeight = 56, Margin = new Thickness(0, 8, 0, 0),
+                Name = "PART_TextBox",
+                MinHeight = 56,
+                Margin = new Thickness(0, 8, 0, 0),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                VerticalContentAlignment = VerticalAlignment.Center
+                VerticalContentAlignment = VerticalAlignment.Center,
             };
             MaterialTextField.SetVariant(editor, MaterialTextFieldVariant.Outlined);
             MaterialTextField.SetLabel(editor, label);
             scope.Register("PART_TextBox", editor);
-            editor.Bind(TextBox.TextProperty, new Avalonia.Data.Binding(nameof(NumericUpDown.Text))
+            editor.Bind(TextBox.TextProperty, new Binding(nameof(NumericUpDown.Text))
             {
-                Source = owner, Mode = Avalonia.Data.BindingMode.TwoWay
+                Source = owner,
+                Mode = BindingMode.TwoWay,
             });
-            Avalonia.Automation.AutomationProperties.SetName(editor, label);
+            AutomationProperties.SetName(editor, label);
             return editor;
         });
-        Avalonia.Automation.AutomationProperties.SetName(input, label);
-        group.Children.Add(input);
-        Settings.Children.Add(group);
-        return input;
-    }
-
-    private ToggleSwitch Toggle(string label, bool value)
-    {
-        var input = new ToggleSwitch { Content = label, IsChecked = value };
-        Settings.Children.Add(input);
+        AutomationProperties.SetName(input, label);
+        host.Children.Add(input);
         return input;
     }
 
@@ -134,14 +149,14 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
         _orientation.IsEnabled = !range;
         var discrete = _snap.IsChecked == true;
         _stops.IsEnabled = discrete;
-        _points.Parent!.SetValue(IsVisibleProperty, discrete);
+        _points.IsVisible = discrete;
         _points.Value = decimal.Truncate(_points.Value ?? 11);
         var frequency = (centered ? 200d : 100d) / ((double)(_points.Value ?? 11) - 1);
         var allowIcon = !range && !centered && _size.SelectedIndex >= 2;
         _icon.IsEnabled = allowIcon;
-        _value.Parent!.SetValue(IsVisibleProperty, !range);
-        _lower.Parent!.SetValue(IsVisibleProperty, range);
-        _upper.Parent!.SetValue(IsVisibleProperty, range);
+        _value.IsVisible = !range;
+        _lower.IsVisible = range;
+        _upper.IsVisible = range;
         _value.Minimum = centered ? -100 : 0;
         var vertical = !range && _orientation.SelectedIndex == 1;
         var control = range ? (Control)_range : _single;
@@ -149,8 +164,8 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
         control.Width = vertical ? double.NaN : (double)(_length.Value ?? 320);
         control.Height = vertical ? (double)(_length.Value ?? 320) : double.NaN;
         control.IsEnabled = _enabled.IsChecked == true;
-        if (_rtl.IsChecked == true) control.FlowDirection = Avalonia.Media.FlowDirection.RightToLeft;
-        else control.ClearValue(FlowDirectionProperty);
+        InspectorLayout.ApplyFlowDirection(_single, _rtl);
+        InspectorLayout.ApplyFlowDirection(_range, _rtl);
         MaterialAssist.SetControlSize(control, (MaterialControlSize)_size.SelectedIndex);
         MaterialSlider.SetShowStops(control, discrete && _stops.IsChecked == true);
         MaterialSlider.SetShowIcon(control, allowIcon && _icon.IsChecked == true);
@@ -206,19 +221,19 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
         internal InspectorMenuChoice(string label, string[] options, int selected)
         {
             SelectedIndex = selected;
-            HorizontalAlignment = HorizontalAlignment.Left;
+            HorizontalAlignment = HorizontalAlignment.Stretch;
             ControlSize = MaterialControlSize.Small;
             ButtonShape = MaterialButtonShape.Round;
             Variant = MaterialButtonVariant.Filled;
-            var icon = Avalonia.Media.Geometry.Parse("M12,2 A10,10 0 1 1 11.99,2 Z M12,5 L10.2,9 L6,9.5 L9,12.5 L8.3,17 L12,14.8 L15.7,17 L15,12.5 L18,9.5 L13.8,9 Z");
-            var arrow = Avalonia.Media.Geometry.Parse("M9,6 L15,12 L9,18 Z");
+            var icon = Geometry.Parse("M12,2 A10,10 0 1 1 11.99,2 Z M12,5 L10.2,9 L6,9.5 L9,12.5 L8.3,17 L12,14.8 L15.7,17 L15,12.5 L18,9.5 L13.8,9 Z");
+            var arrow = Geometry.Parse("M9,6 L15,12 L9,18 Z");
             Icon = new PathIcon { Data = icon, Width = 20, Height = 20 };
             Content = options[selected];
             Click += (_, _) => IsMenuOpen = true;
             var flyout = new MenuFlyout
             {
                 Placement = PlacementMode.BottomEdgeAlignedLeft,
-                FlyoutPresenterTheme = (ControlTheme)Application.Current!.FindResource("MaterialMenuFlyoutPresenterExpressive")!
+                FlyoutPresenterTheme = (ControlTheme)Application.Current!.FindResource("MaterialMenuFlyoutPresenterExpressive")!,
             };
             var entries = new MenuItem[options.Length];
             for (var i = 0; i < options.Length; i++)
@@ -226,8 +241,9 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
                 var index = i;
                 var item = new MenuItem
                 {
-                    Header = options[i], MinWidth = 240,
-                    Icon = new PathIcon { Data = icon, Width = 24, Height = 24 }
+                    Header = options[i],
+                    MinWidth = 240,
+                    Icon = new PathIcon { Data = icon, Width = 24, Height = 24 },
                 };
                 MaterialMenu.SetSurfaceStyle(item, MaterialMenuSurfaceStyle.Expressive);
                 MaterialMenu.SetTrailingIcon(item, new PathIcon { Data = arrow, Width = 18, Height = 18 });
@@ -236,7 +252,7 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
                 {
                     SelectedIndex = index;
                     Content = options[index];
-                    Avalonia.Automation.AutomationProperties.SetName(this, $"{label}: {options[index]}");
+                    AutomationProperties.SetName(this, $"{label}: {options[index]}");
                     for (var n = 0; n < entries.Length; n++) MaterialMenu.SetIsActive(entries[n], n == index);
                     SelectionChanged?.Invoke(this, EventArgs.Empty);
                 };
@@ -244,7 +260,7 @@ internal sealed class SliderPlayground : Grid, IComponentPlayground
                 flyout.Items.Add(item);
             }
             Flyout = flyout;
-            Avalonia.Automation.AutomationProperties.SetName(this, $"{label}: {options[selected]}");
+            AutomationProperties.SetName(this, $"{label}: {options[selected]}");
         }
     }
 }
