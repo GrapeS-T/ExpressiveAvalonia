@@ -282,9 +282,9 @@ public abstract class MaterialSheet : ContentControl, IMaterialOverlayFocusChain
         if (IsOpen && _currentValue != MaterialSheetValue.Hidden)
             return Task.CompletedTask;
 
-        _opened = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = _opened ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         SetCurrentValue(IsOpenProperty, true);
-        return _opened.Task;
+        return completion.Task;
     }
 
     /// <summary>Closes the sheet and completes when the exit motion has finished.</summary>
@@ -293,7 +293,7 @@ public abstract class MaterialSheet : ContentControl, IMaterialOverlayFocusChain
         if (!IsOpen && _currentValue == MaterialSheetValue.Hidden)
             return Task.CompletedTask;
 
-        var completion = _closed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = _closed ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         SetCurrentValue(IsOpenProperty, false);
         return completion.Task;
     }
@@ -515,15 +515,7 @@ public abstract class MaterialSheet : ContentControl, IMaterialOverlayFocusChain
         else
         {
             _presenting = false;
-            _position.JumpTo(GetPosition(MaterialSheetValue.Hidden));
-            if (_scrim is not null)
-            {
-                _scrim.IsVisible = false;
-                _scrim.Opacity = 0;
-            }
-            if (_root is not null)
-                _root.IsHitTestVisible = false;
-            SetCurrentValue(Visual.IsVisibleProperty, false);
+            ResetHiddenVisualState(hideControl: true);
         }
 
         UpdatePositionFromState();
@@ -540,8 +532,17 @@ public abstract class MaterialSheet : ContentControl, IMaterialOverlayFocusChain
             _scrimAlpha = new MaterialSpringValue(this, 0, ApplyScrimOpacity);
         }
 
-        if (!_templateApplied || !IsOpen)
+        if (!IsOpen)
+        {
+            ResetHiddenVisualState(hideControl: true);
             return;
+        }
+
+        if (!_templateApplied)
+        {
+            SetCurrentValue(Visual.IsVisibleProperty, true);
+            return;
+        }
 
         if (!_openingRaised && _currentValue == MaterialSheetValue.Hidden)
         {
@@ -570,6 +571,9 @@ public abstract class MaterialSheet : ContentControl, IMaterialOverlayFocusChain
         _openingRaised = false;
         _scrimPressed = false;
 
+        if (!IsOpen || _targetValue == MaterialSheetValue.Hidden)
+            ResetHiddenVisualState(hideControl: !IsOpen || _templateApplied);
+
         CancelValueCompletion();
         var stagedShow = _showCompletion;
         _showCompletion = null;
@@ -582,6 +586,22 @@ public abstract class MaterialSheet : ContentControl, IMaterialOverlayFocusChain
         _restoreFocus = false;
 
         base.OnDetachedFromVisualTree(e);
+    }
+
+    private void ResetHiddenVisualState(bool hideControl)
+    {
+        SetCurrentAnchorValue(MaterialSheetValue.Hidden);
+        SetTargetValue(MaterialSheetValue.Hidden);
+        _position?.JumpTo(GetPosition(MaterialSheetValue.Hidden));
+        if (_scrim is not null)
+        {
+            _scrim.IsVisible = false;
+            _scrim.Opacity = 0;
+        }
+        if (_root is not null)
+            _root.IsHitTestVisible = false;
+        if (hideControl)
+            SetCurrentValue(Visual.IsVisibleProperty, false);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -631,6 +651,11 @@ public abstract class MaterialSheet : ContentControl, IMaterialOverlayFocusChain
         {
             // Visibility must be true for the template to be applied in the first place.
             SetCurrentValue(Visual.IsVisibleProperty, open);
+            if (!open)
+            {
+                CompleteOpened(false);
+                CompleteClosed(true);
+            }
             return;
         }
 

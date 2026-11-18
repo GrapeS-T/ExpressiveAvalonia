@@ -7,7 +7,7 @@ internal static class CarouselParallax
     internal static (double Start, double End, double Translation) Calculate(
         double size, double crossSize, double offset, double viewportStart, double viewportEnd)
     {
-        if (size <= 0) return default;
+        if (size <= 0 || crossSize <= 0) return default;
         var aspect = size / crossSize;
         // The strict boundaries (including the discontinuities at 1 and 16/9) are upstream.
         var intensity = aspect > 16d / 9 ? 0.5

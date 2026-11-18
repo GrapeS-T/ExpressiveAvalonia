@@ -57,20 +57,16 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
     };
     private readonly ComboBox _type;
     private readonly MaterialButtonGroup _surface;
-    private readonly StackPanel _surfacePanel = new() { Spacing = 8 };
     private readonly ComboBox _variant;
     private readonly ComboBox _density;
-    private readonly ToggleSwitch _scroll;
+    private readonly StackPanel _anatomySection;
+    private readonly Slider _count;
+    private readonly ToggleSwitch _labels;
     private readonly ToggleSwitch _icons;
     private readonly ToggleSwitch _supporting;
     private readonly ToggleSwitch _divider;
     private readonly ToggleSwitch _active;
-    private readonly ToggleSwitch _labels;
-    private readonly Slider _count;
-    private readonly StackPanel _variantPanel = new() { Spacing = 8 };
-    private readonly StackPanel _densityPanel = new() { Spacing = 8 };
-    private readonly StackPanel _countPanel = new() { Spacing = 8 };
-    private readonly TextBlock _countCaption = new();
+    private readonly ToggleSwitch _scroll;
     private Control? _exposedPanel;
     private Border? _groupsCard;
     private readonly MaterialMenuGroup[] _groups = new MaterialMenuGroup[3];
@@ -82,7 +78,8 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
     private bool _showGridChecked = true;
     private bool _menuBarVibrantChecked;
     private bool _syncing;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal MenusPlayground()
     {
@@ -110,73 +107,49 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         stage.Children.Add(_readout);
         Children.Add(stage);
 
-        Settings.Children.Add(new TextBlock { Text = "Тип меню" });
-        _type = new ComboBox
-        {
-            ItemsSource = new[] { "Menu button (flyout)", "Context menu", "Menu bar", "Exposed dropdown / search", "Groups (standalone)" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        AutomationProperties.SetName(_type, "Тип меню");
-        Settings.Children.Add(_type);
-        _surface = Choice(_surfacePanel, "Поверхность", new[] { "Baseline", "Expressive" }, 1);
-        Settings.Children.Add(_surfacePanel);
-
-        _variantPanel.Children.Add(new TextBlock { Text = "Вариант" });
-        _variant = new ComboBox
-        {
-            ItemsSource = new[] { "Standard", "Vibrant" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        var surfaceSection = InspectorLayout.Section(Settings, "Тип и поверхность", divider: false);
+        _type = InspectorLayout.Combo(
+            surfaceSection,
+            "Тип меню",
+            new[]
+            {
+                "Menu button (flyout)",
+                "Context menu",
+                "Menu bar",
+                "Exposed dropdown / search",
+                "Groups (standalone)",
+            },
+            0);
+        _surface = InspectorLayout.Choice(surfaceSection, "Поверхность", new[] { "Baseline", "Expressive" }, 1);
+        _variant = InspectorLayout.Combo(surfaceSection, "Вариант", new[] { "Standard", "Vibrant" }, 0);
         AutomationProperties.SetName(_variant, "Вариант меню");
-        _variantPanel.Children.Add(_variant);
-        Settings.Children.Add(_variantPanel);
-
-        _densityPanel.Children.Add(new TextBlock { Text = "Плотность (только Baseline)" });
-        _density = new ComboBox
-        {
-            ItemsSource = new[] { "Default (56 dp)", "Dense2 (48 dp)", "Dense4 (40 dp)" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _density = InspectorLayout.Combo(
+            surfaceSection,
+            "Плотность (только Baseline)",
+            new[] { "Default (56 dp)", "Dense2 (48 dp)", "Dense4 (40 dp)" },
+            0);
         AutomationProperties.SetName(_density, "Плотность меню");
-        _densityPanel.Children.Add(_density);
-        Settings.Children.Add(_densityPanel);
 
-        _scroll = Toggle(Settings, "Полоса прокрутки при переполнении", false);
-        _icons = Toggle(Settings, "Ведущие иконки", true);
-        _supporting = Toggle(Settings, "Поддерживающий текст у первого пункта", false);
-        _divider = Toggle(Settings, "Разделитель под первым пунктом", false);
-        _active = Toggle(Settings, "Активный пункт (IsActive)", false);
-        _labels = Toggle(Settings, "Заголовки секций", true);
-
-        _countPanel.Children.Add(_countCaption);
-        _count = new Slider
-        {
-            Minimum = 3,
-            Maximum = 8,
-            Value = 5,
-            TickFrequency = 1,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(_count, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(_count, false);
+        _anatomySection = InspectorLayout.Section(Settings, "Пункты и анатомия");
+        _count = InspectorLayout.Slider(_anatomySection, "Пунктов в меню", 3, 8, 5, step: 1, format: "0");
         AutomationProperties.SetName(_count, "Количество пунктов меню");
-        _countPanel.Children.Add(_count);
-        Settings.Children.Add(_countPanel);
 
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Один живой экземпляр меню. Menu button открывает MenuFlyout (клик, Enter, Space, ↓), " +
-                   "Context menu — нативный ContextMenu (клик или правая кнопка), Menu bar — Menu с вложенным " +
-                   "подменю, Exposed dropdown / search — keyed ComboBox и поле поиска, Groups — три " +
-                   "MaterialMenuGroup с формами Leading/Middle/Trailing. Стрелки, Home/End, Escape и " +
-                   "доступные клавиши обрабатывает Avalonia. Поверхность Baseline использует плотность " +
-                   "56/48/40 dp, Expressive — 16 dp радиус, формы пунктов и варианты Standard/Vibrant.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        var anatomySwitches = InspectorLayout.Switches(_anatomySection);
+        _labels = InspectorLayout.Switch(anatomySwitches, "Заголовки секций", true);
+        _icons = InspectorLayout.Switch(anatomySwitches, "Ведущие иконки", true);
+        _supporting = InspectorLayout.Switch(anatomySwitches, "Поддерживающий текст у первого пункта", false);
+        _divider = InspectorLayout.Switch(anatomySwitches, "Разделитель под первым пунктом", false);
+        _active = InspectorLayout.Switch(anatomySwitches, "Активный пункт (IsActive)", false);
+        _scroll = InspectorLayout.Switch(anatomySwitches, "Полоса прокрутки при переполнении", false);
+
+        InspectorLayout.Note(
+            Settings,
+            "Один живой экземпляр меню. Menu button открывает MenuFlyout (клик, Enter, Space, ↓), " +
+            "Context menu — нативный ContextMenu (клик или правая кнопка), Menu bar — Menu с вложенным " +
+            "подменю, Exposed dropdown / search — keyed ComboBox и поле поиска, Groups — три " +
+            "MaterialMenuGroup с формами Leading/Middle/Trailing. Стрелки, Home/End, Escape и " +
+            "доступные клавиши обрабатывает Avalonia. Поверхность Baseline использует плотность " +
+            "56/48/40 dp, Expressive — 16 dp радиус, формы пунктов и варианты Standard/Vibrant.");
 
         _type.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         _surface.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
@@ -223,17 +196,18 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         var surface = Surface;
         var expressive = surface == MaterialMenuSurfaceStyle.Expressive;
 
-        _surfacePanel.IsVisible = usesSurface;
-        _variantPanel.IsVisible = usesSurface && expressive;
-        _densityPanel.IsVisible = usesSurface && !expressive;
-        _scroll.IsVisible = isPopupMenu;
-        _icons.IsVisible = isPopupMenu || isGroups;
-        _supporting.IsVisible = isPopupMenu || isGroups;
+        _surface.IsVisible = usesSurface;
+        _variant.IsVisible = usesSurface && expressive;
+        _density.IsVisible = usesSurface && !expressive;
+
+        _anatomySection.IsVisible = usesSurface;
+        _count.IsVisible = isPopupMenu;
+        _labels.IsVisible = usesSurface;
+        _icons.IsVisible = usesSurface;
+        _supporting.IsVisible = usesSurface;
         _divider.IsVisible = isPopupMenu;
         _active.IsVisible = isPopupMenu;
-        _labels.IsVisible = isPopupMenu || isGroups;
-        _countPanel.IsVisible = isPopupMenu;
-        _countCaption.Text = $"Пунктов в меню: {(int)Math.Round(_count.Value)}";
+        _scroll.IsVisible = isPopupMenu;
 
         switch (type)
         {
@@ -589,31 +563,6 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
     private static MenuItem SeparatorItem() => new() { Header = "-" };
 
     private void Report(string message) => _readout.Text = message;
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static MaterialButtonGroup Choice(StackPanel host, string label, string[] options, int selected)
-    {
-        host.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = selected;
-        host.Children.Add(group);
-        return group;
-    }
 
     private static ControlTheme FindTheme(string key) =>
         (ControlTheme)Application.Current!.FindResource(key)!;

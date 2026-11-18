@@ -18,6 +18,7 @@
   <x:String x:Key="MaterialTextFieldClearText">Clear text</x:String>
   <x:String x:Key="MaterialTextFieldMenuItemsText">Menu items</x:String>
   <x:String x:Key="MaterialTextFieldNoResultsText">No results</x:String>
+  <x:String x:Key="MaterialSearchPlaceholderText">Search</x:String>
 
   <MenuFlyout x:Key="MaterialTextFieldContextFlyout">
     <MenuItem Header="{DynamicResource MaterialTextInputCutText}" Command="{Binding $parent[TextBox].Cut}"
@@ -404,7 +405,7 @@
 
   <!-- Menu row from "Menu with Text field" (local-004355/local-004356): 56dp pitch, 24dp
        leading icon, label plus supporting text, trailing chevron and a 1dp divider. -->
-  <ControlTheme x:Key="MaterialMenuTextFieldItemTheme" TargetType="ListBoxItem">
+  <ControlTheme x:Key="MaterialMenuTextFieldItemTheme" TargetType="ListBoxItem" x:DataType="ctrl:MaterialMenuTextFieldItem">
     <Setter Property="MinHeight" Value="56" />
     <Setter Property="Padding" Value="12,6" />
     <Setter Property="Background" Value="Transparent" />
@@ -412,6 +413,7 @@
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Focusable" Value="False" />
+    <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel>
@@ -483,6 +485,7 @@
                    theming:MaterialTextField.Label="{TemplateBinding Label}"
                    theming:MaterialTextField.SupportingText="{TemplateBinding SupportingText}"
                    PlaceholderText="{TemplateBinding PlaceholderText}"
+                   AutomationProperties.Name="{TemplateBinding (AutomationProperties.Name)}"
                    Text="{TemplateBinding Text, Mode=TwoWay}" />
           <Border Name="PART_MenuSurface" Margin="0,4,0,0" Padding="0,8"
                   MaxHeight="{TemplateBinding MaxMenuHeight}"
@@ -494,6 +497,7 @@
                        ItemContainerTheme="{StaticResource MaterialMenuTextFieldItemTheme}"
                        ItemTemplate="{StaticResource MaterialMenuTextFieldItemTemplate}" />
               <TextBlock Name="PART_Empty" Text="{DynamicResource MaterialTextFieldNoResultsText}"
+                         AutomationProperties.LiveSetting="Polite"
                          Margin="12,8" IsHitTestVisible="False" IsVisible="False"
                          Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                          FontSize="{DynamicResource MaterialBodyMediumFontSize}"

@@ -371,6 +371,8 @@ public class MaterialButtonGroupItem : ToggleButton
 
         if (!animate || !this.IsAttachedToVisualTree() || MaterialMotion.GetIsReduced(this))
         {
+            _iconOpacitySpring?.Dispose();
+            _iconOpacitySpring = null;
             _checkOpacitySpring?.Dispose();
             _checkOpacitySpring = null;
             SetCurrentValue(ContentIconOpacityProperty, iconTarget);
@@ -382,13 +384,13 @@ public class MaterialButtonGroupItem : ToggleButton
             icon.Retarget(iconTarget);
         else
             _iconOpacitySpring = MaterialMotion.Animate(this, ContentIconOpacity, iconTarget,
-                value => ContentIconOpacity = value, MaterialSpring.EffectsDefault, 0.001);
+                value => ContentIconOpacity = Math.Clamp(value, 0, 1), MaterialSpring.EffectsDefault, 0.001);
 
         if (_checkOpacitySpring is { } checkSpring)
             checkSpring.Retarget(checkTarget);
         else
             _checkOpacitySpring = MaterialMotion.Animate(this, CheckOpacity, checkTarget,
-                value => CheckOpacity = value, MaterialSpring.EffectsDefault, 0.001);
+                value => CheckOpacity = Math.Clamp(value, 0, 1), MaterialSpring.EffectsDefault, 0.001);
     }
 
     // SegmentedButtonDefaults.Icon: the active mark fades in with DefaultEffects and scales in from
@@ -398,6 +400,10 @@ public class MaterialButtonGroupItem : ToggleButton
     {
         if (!this.IsAttachedToVisualTree() || MaterialMotion.GetIsReduced(this))
         {
+            _checkScaleSpring?.Dispose();
+            _checkScaleSpring = null;
+            _checkOpacitySpring?.Dispose();
+            _checkOpacitySpring = null;
             SetCurrentValue(CheckScaleProperty, 1d);
             SetCurrentValue(CheckOpacityProperty, 1d);
             return;
@@ -407,13 +413,13 @@ public class MaterialButtonGroupItem : ToggleButton
             scale.Retarget(1);
         else
             _checkScaleSpring = MaterialMotion.Animate(this, CheckScale, 1,
-                value => CheckScale = value, MaterialSpring.SpatialFast, 0.001);
+                value => CheckScale = Math.Max(0, value), MaterialSpring.SpatialFast, 0.001);
 
         if (_checkOpacitySpring is { } opacity)
             opacity.Retarget(1);
         else
             _checkOpacitySpring = MaterialMotion.Animate(this, CheckOpacity, 1,
-                value => CheckOpacity = value, MaterialSpring.EffectsDefault, 0.001);
+                value => CheckOpacity = Math.Clamp(value, 0, 1), MaterialSpring.EffectsDefault, 0.001);
 
     }
 

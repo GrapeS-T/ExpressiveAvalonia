@@ -387,7 +387,10 @@ public sealed class MaterialNavigationItemLayout : Panel
             totalIndicatorWidth, indicatorHeight);
         Child(0)?.SetValue(OpacityProperty, Clamp01(IndicatorAlpha));
         if (!hasLabel)
+        {
             Place(label, 0, 0, 0, 0);
+            label?.SetValue(OpacityProperty, 0d);
+        }
     }
 
     private void ArrangeStart(Size finalSize, double iconSize, Size labelSize)

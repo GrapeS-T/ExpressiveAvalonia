@@ -175,6 +175,7 @@ public sealed class MaterialTimePicker : TemplatedControl
     private MaterialTimeInputMode _keyboardReturnMode = MaterialTimeInputMode.Dial;
     private MaterialTimeInputMode? _shownMode;
     private MaterialMotion.SpringAnimation? _modeAnimation;
+    private Control? _modeAnimationTarget;
 
     /// <summary>The selected time, truncated to whole minutes and clamped to one day.</summary>
     public TimeSpan Time
@@ -483,8 +484,7 @@ public sealed class MaterialTimePicker : TemplatedControl
         if (_sideModeToggle is not null)
             _sideModeToggle.Click -= ModeToggleClick;
         DetachScrollStateHandlers();
-        _modeAnimation?.Dispose();
-        _modeAnimation = null;
+        CancelModeAnimation();
         _shownMode = null;
     }
 
@@ -952,8 +952,20 @@ public sealed class MaterialTimePicker : TemplatedControl
             _minuteSegment.IsSelected = _active == MaterialClockDialSelection.Minute;
     }
 
+    private void CancelModeAnimation()
+    {
+        _modeAnimation?.Dispose();
+        _modeAnimation = null;
+        if (_modeAnimationTarget is { } previous)
+        {
+            previous.Opacity = 1;
+            _modeAnimationTarget = null;
+        }
+    }
+
     private void AnimateModeChange(MaterialTimeInputMode mode)
     {
+        CancelModeAnimation();
         Control? target = mode switch
         {
             MaterialTimeInputMode.Dial => _dial,
@@ -962,7 +974,7 @@ public sealed class MaterialTimePicker : TemplatedControl
         };
         if (target is null)
             return;
-        _modeAnimation?.Dispose();
+        _modeAnimationTarget = target;
         target.Opacity = 0;
         _modeAnimation = MaterialMotion.Animate(target, 0, 1, value => target.Opacity = value,
             MaterialSpring.EffectsFast);

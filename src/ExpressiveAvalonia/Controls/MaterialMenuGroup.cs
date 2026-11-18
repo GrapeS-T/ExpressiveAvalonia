@@ -198,17 +198,17 @@ public class MaterialMenuGroup : HeaderedItemsControl
     private static int FirstEnabledIndex(MenuItem[] items)
     {
         for (var i = 0; i < items.Length; i++)
-            if (items[i].IsEffectivelyEnabled)
+            if (MaterialMenu.IsNavigableMenuItem(items[i]))
                 return i;
-        return items.Length - 1;
+        return items.Length;
     }
 
     private static int LastEnabledIndex(MenuItem[] items)
     {
         for (var i = items.Length - 1; i >= 0; i--)
-            if (items[i].IsEffectivelyEnabled)
+            if (MaterialMenu.IsNavigableMenuItem(items[i]))
                 return i;
-        return 0;
+        return -1;
     }
 
     private bool MoveToSibling(int delta)
@@ -227,17 +227,17 @@ public class MaterialMenuGroup : HeaderedItemsControl
             var next = (index + delta * step % siblings.Count + siblings.Count) % siblings.Count;
             switch (siblings[next])
             {
-                case MaterialMenuGroup group:
+                case MaterialMenuGroup group when group.IsEffectivelyVisible:
                     var target = delta > 0
-                        ? group.ItemsInOrder().FirstOrDefault(x => x.IsEffectivelyEnabled)
-                        : group.ItemsInOrder().LastOrDefault(x => x.IsEffectivelyEnabled);
+                        ? group.ItemsInOrder().FirstOrDefault(MaterialMenu.IsNavigableMenuItem)
+                        : group.ItemsInOrder().LastOrDefault(MaterialMenu.IsNavigableMenuItem);
                     if (target is not null)
                     {
                         target.Focus(NavigationMethod.Directional);
                         return true;
                     }
                     break;
-                case MenuItem item when item.IsEffectivelyEnabled:
+                case MenuItem item when MaterialMenu.IsNavigableMenuItem(item):
                     item.Focus(NavigationMethod.Directional);
                     return true;
             }
@@ -347,7 +347,7 @@ public class MaterialMenuGroup : HeaderedItemsControl
         {
             index = (index + delta + items.Length) % items.Length;
             var candidate = items[index];
-            if (candidate.IsEffectivelyEnabled)
+            if (MaterialMenu.IsNavigableMenuItem(candidate))
             {
                 candidate.Focus(NavigationMethod.Directional);
                 return;
@@ -357,7 +357,7 @@ public class MaterialMenuGroup : HeaderedItemsControl
 
     private void Activate(MenuItem item)
     {
-        if (!item.IsEffectivelyEnabled)
+        if (!MaterialMenu.IsNavigableMenuItem(item))
             return;
 
         item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));

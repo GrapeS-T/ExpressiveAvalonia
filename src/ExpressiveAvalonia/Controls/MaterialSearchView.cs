@@ -231,7 +231,6 @@ public class MaterialSearchView : TemplatedControl
     private TopLevel? _lightDismissRoot;
     private int _expansionGeneration;
     private bool _anchorWasVisible = true;
-    private bool _hideAnchorWhenExpanded;
     private bool _anchorVisibilityChanged;
     private double _collapsedCornerRadius = 28;
     private string? _lastSyncedText;
@@ -542,15 +541,17 @@ public class MaterialSearchView : TemplatedControl
         _slideTarget = _slideProgress;
         _root.Opacity = IsOpen ? 1 : 0;
         _root.RenderTransform = null;
+        _root.ClearValue(Border.CornerRadiusProperty);
         if (IsOpen)
         {
-            _expandedCornerRadius = _root.CornerRadius;
+            _expandedCornerRadius = CornerRadius;
             _collapsedCornerRadius = ResolveCollapsedCornerRadius();
         }
 
         if (_suggestionsHost is not null)
             _suggestionsHost.RenderTransform = null;
         ApplyContentOpacity();
+        SyncExpandedAnchorVisibility();
     }
 
     /// <summary>
@@ -583,7 +584,9 @@ public class MaterialSearchView : TemplatedControl
         if (IsOpen)
             CapturePreviousFocus();
 
+        AttachItemsView();
         HookAnchorBar();
+        SyncExpandedAnchorVisibility();
         if (IsOpen)
             AttachLightDismiss();
         UpdateAutoFocus();
@@ -592,6 +595,8 @@ public class MaterialSearchView : TemplatedControl
         Dispatcher.UIThread.Post(
             () =>
             {
+                if (!this.IsAttachedToVisualTree())
+                    return;
                 AttachItemsView();
                 UpdateSuggestionsVisibility();
                 AnnounceResultCount();
@@ -629,7 +634,7 @@ public class MaterialSearchView : TemplatedControl
             UpdateExpansionState();
             _root.Opacity = 1;
             _root.RenderTransform = null;
-            _root.CornerRadius = _expandedCornerRadius;
+            _root.ClearValue(Border.CornerRadiusProperty);
             if (_suggestionsHost is not null)
                 _suggestionsHost.Opacity = 1;
             if (_scrim is not null)
@@ -637,6 +642,12 @@ public class MaterialSearchView : TemplatedControl
         }
 
         DetachLightDismiss();
+        if (_itemsView is not null)
+        {
+            _itemsView.CollectionChanged -= OnItemsChanged;
+            _itemsView = null;
+        }
+        _previousFocus = null;
         if (ExpansionAnchor is { } anchor && _anchorVisibilityChanged)
         {
             anchor.IsVisible = _anchorWasVisible;
@@ -727,12 +738,18 @@ public class MaterialSearchView : TemplatedControl
                 oldAnchor.IsVisible = _anchorWasVisible;
                 _anchorVisibilityChanged = false;
             }
-            HookAnchorBar();
-            if (!IsOpen)
-            {
+            if (!_anchorVisibilityChanged)
                 _anchorWasVisible = ExpansionAnchor?.IsVisible ?? true;
-                _anchorVisibilityChanged = false;
-            }
+            HookAnchorBar();
+            SyncExpandedAnchorVisibility();
+        }
+        else if (change.Property == HideAnchorWhenExpandedProperty)
+        {
+            SyncExpandedAnchorVisibility();
+        }
+        else if (change.Property == CornerRadiusProperty)
+        {
+            _expandedCornerRadius = CornerRadius;
         }
         else if (change.Property == AutoFocusProperty)
         {
@@ -1062,10 +1079,7 @@ public class MaterialSearchView : TemplatedControl
         PseudoClasses.Set(":baseline", Variant == MaterialSearchViewVariant.Baseline);
         PseudoClasses.Set(":supporting-text", Configuration == MaterialSearchFieldConfiguration.SupportingText);
         PseudoClasses.Set(":closed", !IsOpen);
-        PseudoClasses.Set(":scrim",
-            ShowScrim &&
-            (Mode == MaterialSearchViewMode.FullScreen ||
-             Variant == MaterialSearchViewVariant.Expressive));
+        PseudoClasses.Set(":scrim", ShowScrim && Mode == MaterialSearchViewMode.FullScreen);
     }
 
     private void UpdateConfiguration()
@@ -1126,10 +1140,10 @@ public class MaterialSearchView : TemplatedControl
             IsVisible = true;
             if (!interrupted)
             {
-                _expandedCornerRadius = root.CornerRadius;
+                _expandedCornerRadius = CornerRadius;
                 _collapsedCornerRadius = ResolveCollapsedCornerRadius();
-                _anchorWasVisible = ExpansionAnchor?.IsVisible ?? true;
-                _anchorVisibilityChanged = false;
+                if (!_anchorVisibilityChanged)
+                    _anchorWasVisible = ExpansionAnchor?.IsVisible ?? true;
                 _slideSpring?.Dispose();
                 _slideSpring = null;
                 _slideProgress = 0;
@@ -1138,10 +1152,6 @@ public class MaterialSearchView : TemplatedControl
                 velocity = 0;
                 ApplyExpansion(root, 0, open: true);
             }
-
-            // Re-evaluate even when the opening interrupted a collapse: the anchor-hide policy
-            // may have been changed while the view was running.
-            _hideAnchorWhenExpanded = ExpansionAnchor is not null && HideAnchorWhenExpanded;
 
             // Post so the anchor's bounds are current after resize/scroll; the generation guard
             // prevents a stale open from restarting after the caller closed the view again.
@@ -1330,23 +1340,41 @@ public class MaterialSearchView : TemplatedControl
 
         ApplyContentOpacity();
 
-        var collapsed = Math.Max(0, _collapsedCornerRadius);
-        var radius = collapsed + (_expandedCornerRadius.TopLeft - collapsed) * p;
-        root.CornerRadius = new CornerRadius(radius);
-
         if (open && p >= 0.999)
         {
-            root.CornerRadius = _expandedCornerRadius;
-            if (_hideAnchorWhenExpanded && ExpansionAnchor is { } expandedAnchor)
-            {
-                expandedAnchor.IsVisible = false;
-                _anchorVisibilityChanged = true;
-            }
-            _hideAnchorWhenExpanded = false;
+            root.ClearValue(Border.CornerRadiusProperty);
+            SyncExpandedAnchorVisibility();
+        }
+        else
+        {
+            var collapsed = Math.Max(0, _collapsedCornerRadius);
+            var radius = collapsed + (_expandedCornerRadius.TopLeft - collapsed) * p;
+            root.SetCurrentValue(Border.CornerRadiusProperty, new CornerRadius(radius));
         }
 
         if (!open && p <= 0.0001 && _closing)
             FinishExpansion(root);
+    }
+
+    private void SyncExpandedAnchorVisibility()
+    {
+        if (ExpansionAnchor is not { } anchor)
+            return;
+
+        if (IsOpen && _expansionProgress >= 0.999 && HideAnchorWhenExpanded && this.IsAttachedToVisualTree())
+        {
+            if (!_anchorVisibilityChanged)
+            {
+                _anchorWasVisible = anchor.IsVisible;
+                anchor.IsVisible = false;
+                _anchorVisibilityChanged = true;
+            }
+        }
+        else if (!HideAnchorWhenExpanded && _anchorVisibilityChanged)
+        {
+            anchor.IsVisible = _anchorWasVisible;
+            _anchorVisibilityChanged = false;
+        }
     }
 
     private void FinishExpansion(Border root)
@@ -1472,6 +1500,8 @@ public class MaterialSearchView : TemplatedControl
 
     private void OnScrimPressed(object? sender, PointerPressedEventArgs e)
     {
+        if (!IsOpen || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
         e.Handled = true;
         Dismiss(MaterialSearchDismissReason.Scrim);
     }

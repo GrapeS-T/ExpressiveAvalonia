@@ -291,11 +291,13 @@ public sealed class MaterialDatePicker : TemplatedControl
     /// (1900). Values outside the range are disabled and cannot be committed.
     /// </summary>
     public static readonly StyledProperty<int> MinimumYearProperty =
-        AvaloniaProperty.Register<MaterialDatePicker, int>(nameof(MinimumYear), 1900);
+        AvaloniaProperty.Register<MaterialDatePicker, int>(nameof(MinimumYear), 1900,
+            coerce: (_, value) => Math.Clamp(value, DateTime.MinValue.Year, DateTime.MaxValue.Year));
 
     /// <summary>Last selectable year, defaulting to the source range end (2100).</summary>
     public static readonly StyledProperty<int> MaximumYearProperty =
-        AvaloniaProperty.Register<MaterialDatePicker, int>(nameof(MaximumYear), 2100);
+        AvaloniaProperty.Register<MaterialDatePicker, int>(nameof(MaximumYear), 2100,
+            coerce: (_, value) => Math.Clamp(value, DateTime.MinValue.Year, DateTime.MaxValue.Year));
 
     /// <summary>Optional <see cref="MaterialSelectableDates"/>; null enables every date.</summary>
     public static readonly StyledProperty<MaterialSelectableDates?> SelectableDatesProperty =
@@ -726,8 +728,16 @@ public sealed class MaterialDatePicker : TemplatedControl
     private MaterialDateInputFormat InputFormat =>
         _inputFormat ??= MaterialDateInputFormat.FromPattern(EffectiveDateFormat);
 
+    private (int Min, int Max) EffectiveYearRange =>
+        (Math.Clamp(Math.Min(MinimumYear, MaximumYear), DateTime.MinValue.Year, DateTime.MaxValue.Year),
+         Math.Clamp(Math.Max(MinimumYear, MaximumYear), DateTime.MinValue.Year, DateTime.MaxValue.Year));
+
     /// <summary>Port of <c>yearRange</c>: the years the calendar can display and store.</summary>
-    private bool IsYearInRange(int year) => year >= MinimumYear && year <= MaximumYear;
+    private bool IsYearInRange(int year)
+    {
+        var (minYear, maxYear) = EffectiveYearRange;
+        return year >= minYear && year <= maxYear;
+    }
 
     /// <summary>
     /// Port of <c>SelectableDates.isSelectableYear</c>: the predicate disables year cells and
@@ -1173,14 +1183,30 @@ public sealed class MaterialDatePicker : TemplatedControl
             return null;
         var picker = (MaterialDatePicker)instance;
         var day = date.Date;
+        var (minYear, maxYear) = picker.EffectiveYearRange;
         // Port of DatePickerStateImpl: a date outside the year range is not stored. The
         // SelectableDates predicate only disables UI cells; it does not reject bound state.
-        if (day.Year < picker.MinimumYear || day.Year > picker.MaximumYear)
+        if (day.Year < minYear || day.Year > maxYear)
             return null;
-        if (picker.MinimumDate is { } min && day < min.Date)
-            return min;
-        if (picker.MaximumDate is { } max && day > max.Date)
-            return max;
+        if (picker.MinimumDate is { } min && picker.MaximumDate is { } max)
+        {
+            var lower = min.Date <= max.Date ? min.Date : max.Date;
+            var upper = min.Date <= max.Date ? max.Date : min.Date;
+            if (day < lower)
+                day = lower;
+            else if (day > upper)
+                day = upper;
+        }
+        else if (picker.MinimumDate is { } minOnly && day < minOnly.Date)
+        {
+            day = minOnly.Date;
+        }
+        else if (picker.MaximumDate is { } maxOnly && day > maxOnly.Date)
+        {
+            day = maxOnly.Date;
+        }
+        if (day.Year < minYear || day.Year > maxYear)
+            return null;
         return ToDateTimeOffset(day);
     }
 
@@ -1338,8 +1364,8 @@ public sealed class MaterialDatePicker : TemplatedControl
         if (!_focusDateSet)
         {
             var month = DisplayMonth;
-            var year = Math.Clamp(month.Year, Math.Min(MinimumYear, MaximumYear),
-                Math.Max(MinimumYear, MaximumYear));
+            var (minYear, maxYear) = EffectiveYearRange;
+            var year = Math.Clamp(month.Year, minYear, maxYear);
             var candidate = new DateTime(year, month.Month, 1);
             candidate = ClampToBounds(candidate) ?? candidate;
             if (!IsDateSelectable(candidate))
@@ -1517,8 +1543,7 @@ public sealed class MaterialDatePicker : TemplatedControl
         // DateRangePicker.kt: numberOfMonthsInRange(yearRange) =
         // (yearRange.last - yearRange.first + 1) * 12. The whole permitted range is addressable;
         // only the viewport window is materialized below.
-        var firstYear = Math.Min(MinimumYear, MaximumYear);
-        var lastYear = Math.Max(MinimumYear, MaximumYear);
+        var (firstYear, lastYear) = EffectiveYearRange;
         var signature = FormattableString.Invariant(
             $"{firstYear}|{lastYear}|{EffectiveCulture.Name}|{(int)FirstDayOfWeek}|{FlowDirection}|{(IsRightToLeft ? "rtl" : "ltr")}");
         if (_fullScreenSignature != signature)
@@ -2107,8 +2132,7 @@ public sealed class MaterialDatePicker : TemplatedControl
 
         // The pinned YearPicker lists the whole yearRange in three columns, disabled years
         // included. Its initial scroll lands three years above the displayed year.
-        var firstYear = Math.Min(MinimumYear, MaximumYear);
-        var lastYear = Math.Max(MinimumYear, MaximumYear);
+        var (firstYear, lastYear) = EffectiveYearRange;
         if (list)
         {
             var stack = new StackPanel();
@@ -2170,8 +2194,7 @@ public sealed class MaterialDatePicker : TemplatedControl
             return;
         // max(0, displayedYear - yearRange.first - YearsInRow): the anchor year is one grid row
         // above the displayed year, clamped into the year range.
-        var minYear = Math.Min(MinimumYear, MaximumYear);
-        var maxYear = Math.Max(MinimumYear, MaximumYear);
+        var (minYear, maxYear) = EffectiveYearRange;
         var year = Math.Clamp(DisplayMonth.Year - YearColumns, minYear, maxYear);
         Control? anchor = null;
         foreach (var (cell, value) in _choiceCells)
@@ -2222,8 +2245,8 @@ public sealed class MaterialDatePicker : TemplatedControl
         ApplyFullScreenCellStates();
         RefreshChoiceStates();
         UpdateNavigationState();
-        UpdateActionVisibility();
         SyncInputText(force: false);
+        UpdateActionVisibility();
 
         if (_headerLabel is not null)
             _headerLabel.Text = _effectiveLabel;
@@ -2922,7 +2945,8 @@ public sealed class MaterialDatePicker : TemplatedControl
     {
         get
         {
-            var first = new DateTime(Math.Min(MinimumYear, MaximumYear), 1, 1);
+            var (minYear, _) = EffectiveYearRange;
+            var first = new DateTime(minYear, 1, 1);
             if (MinimumDate is { } min)
             {
                 var month = new DateTime(min.Date.Year, min.Date.Month, 1);
@@ -2937,7 +2961,8 @@ public sealed class MaterialDatePicker : TemplatedControl
     {
         get
         {
-            var last = new DateTime(Math.Max(MinimumYear, MaximumYear), 12, 1);
+            var (_, maxYear) = EffectiveYearRange;
+            var last = new DateTime(maxYear, 12, 1);
             if (MaximumDate is { } max)
             {
                 var month = new DateTime(max.Date.Year, max.Date.Month, 1);
@@ -3491,12 +3516,62 @@ public sealed class MaterialDatePicker : TemplatedControl
         if (_cancelButton is not null)
             _cancelButton.IsVisible = showActions;
         if (_okButton is not null)
-        {
             _okButton.IsVisible = showActions;
-            _okButton.IsEnabled = IsRange
+        UpdateConfirmState();
+    }
+
+    private void UpdateConfirmState()
+    {
+        if (_okButton is not null)
+            _okButton.IsEnabled = HasConfirmableSelection();
+    }
+
+    private bool HasConfirmableSelection()
+    {
+        if (!IsInputMode)
+        {
+            return IsRange
                 ? SelectedDate is not null && SelectedEndDate is not null
                 : SelectedDate is not null;
         }
+
+        if (!TryResolveConfirmableDate(_startInput, isEnd: false, out var start))
+            return false;
+        if (!IsRange)
+            return true;
+        return TryResolveConfirmableDate(_endInput, isEnd: true, out var end) && end >= start;
+    }
+
+    private bool TryResolveConfirmableDate(TextBox? box, bool isEnd, out DateTime date)
+    {
+        var committed = isEnd ? SelectedEndDate : SelectedDate;
+        if (box is null)
+        {
+            if (committed is { } value)
+            {
+                date = value.Date;
+                return true;
+            }
+            date = default;
+            return false;
+        }
+
+        var text = box.Text;
+        if (committed is { } syncedValue &&
+            string.Equals(text, SyncedInputText(isEnd), StringComparison.Ordinal))
+        {
+            date = syncedValue.Date;
+            return true;
+        }
+
+        if (TryParseDate(text, out var parsed) && IsDateSelectable(parsed))
+        {
+            date = parsed;
+            return true;
+        }
+
+        date = default;
+        return false;
     }
 
     private void UpdateEffectiveLabel()
@@ -3937,10 +4012,11 @@ public sealed class MaterialDatePicker : TemplatedControl
 
     private void RecordInputEdit(TextBox? box, bool isEnd)
     {
-        if (box is null || _syncingInput || !box.IsFocused ||
+        if (box is null || _syncingInput ||
             string.Equals(box.Text, SyncedInputText(isEnd), StringComparison.Ordinal))
             return;
         SetInputValidationMessage(isEnd, null);
+        UpdateConfirmState();
     }
 
     private string? SyncedInputText(bool isEnd) => isEnd ? _endSyncedText : _startSyncedText;
@@ -4068,17 +4144,19 @@ public sealed class MaterialDatePicker : TemplatedControl
         ApplySelection(date, end);
     }
 
-    private string FormatRangeError() =>
-        string.Format(EffectiveCulture,
+    private string FormatRangeError()
+    {
+        var (minYear, maxYear) = EffectiveYearRange;
+        return string.Format(EffectiveCulture,
             GetText("MaterialDatePickerOutOfRangeText",
                 "Enter a date between {0} and {1}"),
-            MinimumYear.ToString(EffectiveCulture),
-            MaximumYear.ToString(EffectiveCulture));
+            minYear.ToString(EffectiveCulture),
+            maxYear.ToString(EffectiveCulture));
+    }
 
     private string FormatBoundsError()
     {
-        var minYear = Math.Min(MinimumYear, MaximumYear);
-        var maxYear = Math.Max(MinimumYear, MaximumYear);
+        var (minYear, maxYear) = EffectiveYearRange;
         var minBound = MinimumDate?.Date ?? new DateTime(minYear, 1, 1);
         var maxBound = MaximumDate?.Date ?? new DateTime(maxYear, 12, 31);
         return string.Format(EffectiveCulture,
@@ -4173,8 +4251,7 @@ public sealed class MaterialDatePicker : TemplatedControl
     private DateTime? ClampToBounds(DateTime date)
     {
         date = date.Date;
-        var minYear = Math.Min(MinimumYear, MaximumYear);
-        var maxYear = Math.Max(MinimumYear, MaximumYear);
+        var (minYear, maxYear) = EffectiveYearRange;
         if (date.Year < minYear)
             date = new DateTime(minYear, 1, 1);
         else if (date.Year > maxYear)
@@ -4447,7 +4524,8 @@ public sealed class MaterialDatePicker : TemplatedControl
                 return false;
         }
 
-        date = new DateTime(Math.Clamp(date.Year, MinimumYear, MaximumYear), date.Month, 1);
+        var (minY, maxY) = EffectiveYearRange;
+        date = new DateTime(Math.Clamp(date.Year, minY, maxY), date.Month, 1);
         _focusDate = date;
         if (date.Year != DisplayMonth.Year || date.Month != DisplayMonth.Month)
             SetDisplayMonth(new DateTime(date.Year, date.Month, 1));
@@ -4458,6 +4536,7 @@ public sealed class MaterialDatePicker : TemplatedControl
     private bool HandleYearKey(KeyEventArgs e)
     {
         var year = _focusDate.Year;
+        var (minY, maxY) = EffectiveYearRange;
         var rtl = IsRightToLeft;
         switch (e.Key)
         {
@@ -4480,16 +4559,16 @@ public sealed class MaterialDatePicker : TemplatedControl
                 year += 30;
                 break;
             case Key.Home:
-                year = MinimumYear;
+                year = minY;
                 break;
             case Key.End:
-                year = MaximumYear;
+                year = maxY;
                 break;
             default:
                 return false;
         }
 
-        year = Math.Clamp(year, Math.Min(MinimumYear, MaximumYear), Math.Max(MinimumYear, MaximumYear));
+        year = Math.Clamp(year, minY, maxY);
         _focusDate = new DateTime(year, _focusDate.Month, 1);
         if (year != DisplayMonth.Year)
             SetDisplayMonth(new DateTime(year, DisplayMonth.Month, 1));

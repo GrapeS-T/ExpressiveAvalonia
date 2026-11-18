@@ -4,6 +4,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
@@ -63,27 +64,23 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
     };
 
     private readonly MaterialButtonGroup _kind;
-    private readonly StackPanel _modeGroup;
     private readonly MaterialButtonGroup _mode;
     private readonly ToggleSwitch _showIcon;
     private readonly MaterialButtonGroup _size;
-    private readonly StackPanel _sizeGroup;
     private readonly ComboBox _role;
     private readonly ComboBox _icon;
     private readonly TextBox _label;
-    private readonly StackPanel _labelGroup;
     private readonly ToggleSwitch _expanded;
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _rtl;
     private readonly Slider _actions;
-    private readonly StackPanel _actionsGroup;
     private readonly ToggleSwitch _openMenu;
     private int _lastKind = -1;
     private int _colorFamily;
     private bool _solidRole;
     private bool _syncing;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal FabPlayground()
     {
@@ -117,82 +114,33 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
         };
         Children.Add(stageColumn);
 
-        _kind = Choice(Settings, "Компонент", ["FAB", "Extended FAB", "FAB menu"]);
+        var configSection = InspectorLayout.Section(Settings, "Конфигурация", divider: false);
+        _kind = InspectorLayout.Choice(configSection, "Компонент", ["FAB", "Extended FAB", "FAB menu"], 0);
+        _mode = InspectorLayout.Choice(configSection, "Режим Extended FAB", ["Expressive", "Classic"], 0);
+        _size = InspectorLayout.Choice(configSection, "Размер", ["40", "56", "80", "96"], 1);
+        _role = InspectorLayout.Combo(configSection, "Цветовая роль", FabRoleNames, 0);
 
-        _modeGroup = new StackPanel { Spacing = 6 };
-        _mode = Choice(_modeGroup, "Режим Extended FAB", ["Expressive", "Classic"]);
-        Settings.Children.Add(_modeGroup);
-
-        _sizeGroup = new StackPanel { Spacing = 6 };
-        _sizeGroup.Children.Add(new TextBlock { Text = "Размер" });
-        _size = Group(_sizeGroup, ["40", "56", "80", "96"]);
-        _size.SelectedIndex = 1;
-        Settings.Children.Add(_sizeGroup);
-
-        Settings.Children.Add(new TextBlock { Text = "Цветовая роль" });
-        _role = new ComboBox
-        {
-            ItemsSource = FabRoleNames,
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        AutomationProperties.SetName(_role, "Цветовая роль");
-        Settings.Children.Add(_role);
-
-        Settings.Children.Add(new TextBlock { Text = "Иконка" });
-        _icon = new ComboBox
-        {
-            ItemsSource = IconNames,
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        AutomationProperties.SetName(_icon, "Иконка");
-        Settings.Children.Add(_icon);
-
-        _labelGroup = new StackPanel { Spacing = 6 };
-        _label = new TextBox { Text = "Создать" };
-        MaterialTextField.SetVariant(_label, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(_label, "Текст extended FAB");
-        AutomationProperties.SetName(_label, "Текст extended FAB");
-        _labelGroup.Children.Add(_label);
-        Settings.Children.Add(_labelGroup);
-
-        _expanded = new ToggleSwitch { Content = "Label развёрнут", IsChecked = true };
-        Settings.Children.Add(_expanded);
-        _showIcon = new ToggleSwitch { Content = "С иконкой", IsChecked = true };
-        Settings.Children.Add(_showIcon);
-        _enabled = new ToggleSwitch { Content = "Доступен", IsChecked = true };
-        Settings.Children.Add(_enabled);
-        _rtl = new ToggleSwitch { Content = "Справа налево (RTL)" };
-        Settings.Children.Add(_rtl);
-
-        _actionsGroup = new StackPanel { Spacing = 6 };
-        _actionsGroup.Children.Add(new TextBlock { Text = "Действий в меню: 3" });
-        _actions = new Slider { Minimum = 2, Maximum = 6, Value = 3, TickFrequency = 1, IsSnapToTickEnabled = true };
+        var contentSection = InspectorLayout.Section(Settings, "Содержимое");
+        _icon = InspectorLayout.Combo(contentSection, "Иконка", IconNames, 0);
+        _label = InspectorLayout.TextField(contentSection, "Текст extended FAB", "Создать");
+        _actions = InspectorLayout.Slider(contentSection, "Действий в меню", 2, 6, 3, 1, format: "0");
         AutomationProperties.SetName(_actions, "Количество действий в меню");
-        _actions.PropertyChanged += (_, e) =>
-        {
-            if (e.Property != Slider.ValueProperty)
-                return;
-            ((TextBlock)_actionsGroup.Children[0]).Text = $"Действий в меню: {_actions.Value:0}";
-            Apply();
-        };
-        _actionsGroup.Children.Add(_actions);
-        Settings.Children.Add(_actionsGroup);
 
-        _openMenu = new ToggleSwitch { Content = "Меню раскрыто" };
-        Settings.Children.Add(_openMenu);
+        var stateSection = InspectorLayout.Section(Settings, "Состояния");
+        var stateSwitches = InspectorLayout.Switches(stateSection);
+        _showIcon = InspectorLayout.Switch(stateSwitches, "С иконкой", true);
+        _expanded = InspectorLayout.Switch(stateSwitches, "Label развёрнут", true);
+        _openMenu = InspectorLayout.Switch(stateSwitches, "Меню раскрыто", false);
+        _enabled = InspectorLayout.Switch(stateSwitches, "Доступен", true);
+        _rtl = InspectorLayout.Switch(stateSwitches, "Справа налево (RTL)", false);
 
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "FAB — обычная кнопка: Enter, Space и указатель дают настоящие состояния. " +
-                   "Классический Extended FAB — 56 в высоту с иконкой 24 и минимумом 80; " +
-                   "без иконки это text-only вариант, который не сворачивается. " +
-                   "У FAB menu стрелки открывают список и перемещают фокус, Escape закрывает меню " +
-                   "и возвращает фокус на триггер, а пункты выполняют команды.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        InspectorLayout.Note(
+            Settings,
+            "FAB — обычная кнопка: Enter, Space и указатель дают настоящие состояния. " +
+            "Классический Extended FAB — 56 в высоту с иконкой 24 и минимумом 80; " +
+            "без иконки это text-only вариант, который не сворачивается. " +
+            "У FAB menu стрелки открывают список и перемещают фокус, Escape закрывает меню " +
+            "и возвращает фокус на триггер, а пункты выполняют команды.");
 
         _fab.Click += (_, _) => _status.Text = $"FAB нажат: {_fab.ColorRole}, {_fab.Size}.";
         _extended.Click += (_, _) => _status.Text = $"Extended FAB нажат: {_extended.Label}.";
@@ -212,6 +160,11 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
         _role.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         _icon.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         _label.TextChanged += (_, _) => { if (!_syncing) Apply(); };
+        _actions.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty && !_syncing)
+                Apply();
+        };
         foreach (var toggle in new[] { _expanded, _showIcon, _enabled, _rtl, _openMenu })
             toggle.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
 
@@ -302,16 +255,16 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
 
         var size = Math.Clamp(_size.SelectedIndex, 0, kind == 0 ? 3 : 2);
 
-        _stageContent.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        InspectorLayout.ApplyFlowDirection(_stageContent, _rtl);
         _fab.IsVisible = kind == 0;
         _extended.IsVisible = kind == 1;
         _menuHost.IsVisible = kind == 2;
-        _sizeGroup.IsVisible = !(kind == 1 && mode == MaterialExtendedFabMode.Classic);
-        _modeGroup.IsVisible = kind == 1;
-        _labelGroup.IsVisible = kind == 1;
+        _size.IsVisible = !(kind == 1 && mode == MaterialExtendedFabMode.Classic);
+        _mode.IsVisible = kind == 1;
+        _label.IsVisible = kind == 1;
         _expanded.IsVisible = kind == 1 && hasIcon;
         _showIcon.IsVisible = kind == 1;
-        _actionsGroup.IsVisible = kind == 2;
+        _actions.IsVisible = kind == 2;
         _openMenu.IsVisible = kind == 2;
 
         _fab.Size = (MaterialFabSize)size;
@@ -365,28 +318,6 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
             segment.Label = SegmentLabels[i];
             segment.Icon = SegmentIcons[i];
         }
-    }
-
-    private static MaterialButtonGroup Choice(StackPanel target, string label, string[] options)
-    {
-        target.Children.Add(new TextBlock { Text = label });
-        return Group(target, options);
-    }
-
-    private static MaterialButtonGroup Group(StackPanel target, string[] options)
-    {
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-            ControlSize = MaterialControlSize.Small,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = 0;
-        target.Children.Add(group);
-        return group;
     }
 
     private sealed class ActionCommand(Action action) : ICommand

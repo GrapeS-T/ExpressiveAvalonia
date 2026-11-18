@@ -47,29 +47,24 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
     };
     private readonly Button _show = new() { HorizontalAlignment = HorizontalAlignment.Center };
     private readonly ComboBox _family;
+    private readonly Slider _width;
     private readonly TextBox _title;
     private readonly TextBox _supporting;
-    private readonly TextBox _primaryText;
-    private readonly TextBox _secondaryText;
     private readonly ToggleSwitch _icon;
     private readonly ToggleSwitch _divider;
+    private readonly StackPanel _listSection;
+    private readonly Slider _rows;
     private readonly ToggleSwitch _threeLine;
     private readonly ToggleSwitch _scrollable;
+    private readonly TextBox _primaryText;
+    private readonly TextBox _secondaryText;
+    private readonly StackPanel _dismissSwitches;
     private readonly ToggleSwitch _dismissible;
     private readonly ToggleSwitch _scrim;
-    private readonly Slider _rows;
-    private readonly Slider _width;
-    private readonly StackPanel _rowsSettings = new() { Spacing = 16 };
-    private readonly StackPanel _threeLineSettings = new() { Spacing = 16 };
-    private readonly StackPanel _scrollableSettings = new() { Spacing = 16 };
-    private readonly StackPanel _widthSettings = new() { Spacing = 8 };
-    private readonly StackPanel _secondarySettings = new() { Spacing = 8 };
-    private readonly StackPanel _dismissibleSettings = new() { Spacing = 16 };
-    private readonly StackPanel _scrimSettings = new() { Spacing = 16 };
     private bool _built;
     private bool _syncing;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal DialogPlayground()
     {
@@ -129,52 +124,47 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         });
 
-        _family = Field(Settings, "Семейство", new ComboBox
-        {
-            ItemsSource = new[]
+        var familySection = InspectorLayout.Section(Settings, "Семейство и размеры", divider: false);
+        _family = InspectorLayout.Combo(
+            familySection,
+            "Семейство",
+            new[]
             {
                 "Базовый", "С иконкой", "Список", "Прокручиваемый список", "Поле ввода", "Без закрытия", "Полный экран",
             },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        });
+            0);
+        _width = InspectorLayout.Slider(familySection, "Ширина диалога", 280, 560, 312, step: 8, unit: "dp", format: "0");
 
-        _title = TextField(Settings, "Заголовок", "Заголовок диалога");
-        _supporting = TextField(Settings, "Текст поддержки",
-            "Диалог появляется поверх содержимого приложения и требует решения или подтверждения.");
-        _icon = Toggle(Settings, "Иконка", false);
-        _divider = Toggle(Settings, "Разделитель", false);
+        var contentSection = InspectorLayout.Section(Settings, "Содержимое");
+        _title = InspectorLayout.TextField(contentSection, "Заголовок", "Заголовок диалога");
+        _supporting = InspectorLayout.TextField(
+            contentSection,
+            "Текст поддержки",
+            "Диалог появляется поверх содержимого приложения и требует решения или подтверждения.",
+            multiline: true);
+        var contentSwitches = InspectorLayout.Switches(contentSection);
+        _icon = InspectorLayout.Switch(contentSwitches, "Иконка", false);
+        _divider = InspectorLayout.Switch(contentSwitches, "Разделитель", false);
 
-        _rows = Number(_rowsSettings, "Строк в списке", 1, 12, 3, 1);
-        Settings.Children.Add(_rowsSettings);
+        _listSection = InspectorLayout.Section(Settings, "Параметры списка");
+        _rows = InspectorLayout.Slider(_listSection, "Строк в списке", 1, 12, 3, step: 1, format: "0");
+        var listSwitches = InspectorLayout.Switches(_listSection);
+        _threeLine = InspectorLayout.Switch(listSwitches, "Трёхстрочные строки", false);
+        _scrollable = InspectorLayout.Switch(listSwitches, "Прокручиваемый список", false);
 
-        _threeLine = Toggle(_threeLineSettings, "Трёхстрочные строки", false);
-        Settings.Children.Add(_threeLineSettings);
+        var actionsSection = InspectorLayout.Section(Settings, "Действия и закрытие");
+        _primaryText = InspectorLayout.TextField(actionsSection, "Действие по умолчанию", "Сохранить");
+        _secondaryText = InspectorLayout.TextField(actionsSection, "Действие отмены", "Отмена");
+        _dismissSwitches = InspectorLayout.Switches(actionsSection);
+        _dismissible = InspectorLayout.Switch(_dismissSwitches, "Закрытие по Escape", true);
+        _scrim = InspectorLayout.Switch(_dismissSwitches, "Закрытие по клику на scrim", true);
 
-        _scrollable = Toggle(_scrollableSettings, "Прокручиваемый список", false);
-        Settings.Children.Add(_scrollableSettings);
-
-        _width = Number(_widthSettings, "Ширина диалога", 280, 560, 312, 8);
-        Settings.Children.Add(_widthSettings);
-        _primaryText = TextField(Settings, "Действие по умолчанию", "Сохранить");
-        _secondaryText = TextField(_secondarySettings, "Действие отмены", "Отмена");
-        Settings.Children.Add(_secondarySettings);
-
-        _dismissible = Toggle(_dismissibleSettings, "Закрытие по Escape", true);
-        Settings.Children.Add(_dismissibleSettings);
-
-        _scrim = Toggle(_scrimSettings, "Закрытие по клику на scrim", true);
-        Settings.Children.Add(_scrimSettings);
-
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Семейство задаёт набор слотов: базовый, с иконкой и разделителем, список, " +
-                   "прокручиваемый список, поле ввода и диалог без закрытия. Предпросмотр — обычный " +
-                   "MaterialDialog: действия настоящие, строки списка переключаются мышью и Space. " +
-                   "Модальная копия собирается из текущих настроек и возвращает результат.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        InspectorLayout.Note(
+            Settings,
+            "Семейство задаёт набор слотов: базовый, с иконкой и разделителем, список, " +
+            "прокручиваемый список, поле ввода и диалог без закрытия. Предпросмотр — обычный " +
+            "MaterialDialog: действия настоящие, строки списка переключаются мышью и Space. " +
+            "Модальная копия собирается из текущих настроек и возвращает результат.");
 
         AutomationProperties.SetName(_title, "Заголовок диалога");
         AutomationProperties.SetName(_supporting, "Текст поддержки диалога");
@@ -218,16 +208,17 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
         var family = CurrentFamily;
         var fullScreen = family == DialogFamily.FullScreen;
         var usesList = family is DialogFamily.List or DialogFamily.ScrollableList;
-        var dismissible = family != DialogFamily.NonDismissible && _dismissible.IsChecked == true;
+        var canConfigureDismiss = family != DialogFamily.NonDismissible;
+        var dismissible = canConfigureDismiss && _dismissible.IsChecked == true;
 
+        _width.IsVisible = !fullScreen;
         _icon.IsVisible = !fullScreen;
-        _rowsSettings.IsVisible = usesList;
-        _threeLineSettings.IsVisible = usesList;
-        _scrollableSettings.IsVisible = family == DialogFamily.List;
-        _widthSettings.IsVisible = !fullScreen;
-        _secondarySettings.IsVisible = !fullScreen;
-        _dismissibleSettings.IsVisible = family != DialogFamily.NonDismissible;
-        _scrimSettings.IsVisible = family != DialogFamily.NonDismissible && !fullScreen && dismissible;
+        _listSection.IsVisible = usesList;
+        _scrollable.IsVisible = family == DialogFamily.List;
+        _secondaryText.IsVisible = !fullScreen;
+        _dismissible.IsVisible = canConfigureDismiss;
+        _scrim.IsVisible = canConfigureDismiss && !fullScreen && dismissible;
+        _dismissSwitches.IsVisible = _dismissible.IsVisible || _scrim.IsVisible;
 
         _previewFrame.Width = fullScreen ? 360 : double.NaN;
         _previewFrame.Height = fullScreen ? 460 : double.NaN;
@@ -378,56 +369,6 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
         {
             _readout.Text = "Не удалось открыть диалог: " + exception.Message;
         }
-    }
-
-    private static T Field<T>(StackPanel host, string label, T control) where T : Control
-    {
-        host.Children.Add(new TextBlock { Text = label });
-        host.Children.Add(control);
-        return control;
-    }
-
-    private static TextBox TextField(StackPanel host, string label, string value)
-    {
-        var field = Field(host, label, new TextBox
-        {
-            Text = value,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        });
-        MaterialTextField.SetVariant(field, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(field, label);
-        return field;
-    }
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static Slider Number(
-        StackPanel host, string label, double min, double max, double value, double step)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0}" };
-        host.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(slider, false);
-        AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0}";
-        };
-        host.Children.Add(slider);
-        return slider;
     }
 
     private sealed class DelegateCommand(Action execute) : ICommand

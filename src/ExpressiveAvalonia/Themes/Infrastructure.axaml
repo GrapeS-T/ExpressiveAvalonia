@@ -618,21 +618,30 @@
 
   <ControlTheme x:Key="{x:Type CalendarButton}" TargetType="CalendarButton" BasedOn="{StaticResource MaterialCalendarCell}">
     <Setter Property="MinWidth" Value="80" />
-    <Style Selector="^:inactive"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" /></Style>
-    <Style Selector="^:selected">
+    <Style Selector="^:inactive:not(:disabled)"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" /></Style>
+    <Style Selector="^:selected:not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:selected:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialDatePickerDisabledSelectedContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDatePickerDisabledSelectedContentBrush}" />
     </Style>
     <Style Selector="^:btnfocused /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type CalendarDayButton}" TargetType="CalendarDayButton" BasedOn="{StaticResource MaterialCalendarCell}">
-    <Style Selector="^:inactive"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" /></Style>
-    <Style Selector="^:today"><Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" /></Style>
+    <Style Selector="^:inactive:not(:disabled)"><Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" /></Style>
+    <Style Selector="^:today:not(:disabled)"><Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" /></Style>
     <Style Selector="^:today /template/ Border#TodayRing"><Setter Property="IsVisible" Value="True" /></Style>
-    <Style Selector="^:selected">
+    <Style Selector="^:today:disabled /template/ Border#TodayRing"><Setter Property="BorderBrush" Value="{DynamicResource MaterialDisabledOutlineBrush}" /></Style>
+    <Style Selector="^:selected:not(:disabled)">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:selected:disabled">
+      <Setter Property="Background" Value="{DynamicResource MaterialDatePickerDisabledSelectedContainerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDatePickerDisabledSelectedContentBrush}" />
     </Style>
     <Style Selector="^:dayfocused /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
     <Style Selector="^:blackout /template/ Path#BlackoutVisual"><Setter Property="IsVisible" Value="True" /></Style>

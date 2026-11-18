@@ -1,6 +1,8 @@
+using System;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ExpressiveAvalonia.Controls;
@@ -18,62 +20,91 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
     private readonly MaterialNavigationRail _collapsedRail = new()
     {
         Mode = MaterialNavigationRailMode.Wide,
-        IsExpanded = false
+        IsExpanded = false,
     };
     private readonly MaterialNavigationRailHost _host;
     private readonly Border _surface;
     private readonly Grid _inline = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
     private readonly Border _body;
     private readonly ContentControl _stage = new();
-    private readonly MaterialButtonGroup _kind, _placement, _alignment, _badge;
-    private readonly ToggleSwitch _labels, _menu, _fab, _header, _disabledLast, _enabled, _rtl, _dismiss, _closeOnSelection, _hideOnCollapse;
-    private readonly Slider _count, _height;
+    private readonly StackPanel _modalSection;
+    private readonly MaterialButtonGroup _kind;
+    private readonly MaterialButtonGroup _placement;
+    private readonly MaterialButtonGroup _alignment;
+    private readonly MaterialButtonGroup _badge;
+    private readonly ToggleSwitch _labels;
+    private readonly ToggleSwitch _menu;
+    private readonly ToggleSwitch _fab;
+    private readonly ToggleSwitch _header;
+    private readonly ToggleSwitch _disabledLast;
+    private readonly ToggleSwitch _enabled;
+    private readonly ToggleSwitch _rtl;
+    private readonly ToggleSwitch _dismiss;
+    private readonly ToggleSwitch _closeOnSelection;
+    private readonly ToggleSwitch _hideOnCollapse;
+    private readonly Slider _count;
+    private readonly Slider _height;
     private readonly TextBox _fabText;
     private readonly TextBlock _headerContent = new() { Text = "Почта" };
     private readonly Button _open = new() { Content = "Открыть rail" };
     private readonly string[] _names = ["Главная", "Поиск", "Избранное", "Сообщения", "Архив", "Настройки"];
-    private readonly string[] _icons = [
+    private readonly string[] _icons =
+    [
         "M12,3 L2,12 L5,12 L5,21 L10,21 L10,15 L14,15 L14,21 L19,21 L19,12 L22,12 Z",
         "M10,2 A8,8 0 1 1 4.34,15.66 A8,8 0 0 1 10,2 Z M10,4 A6,6 0 1 0 10,16 A6,6 0 0 0 10,4 Z M15,14 L22,21 L20,23 L13,16 Z",
         "M12,2 L15,8 L22,9 L17,14 L18,21 L12,18 L6,21 L7,14 L2,9 L9,8 Z",
         "M2,4 L22,4 L22,20 L2,20 Z M4,6 L12,12 L20,6 L20,8 L12,14 L4,8 Z",
         "M3,5 L21,5 L21,21 L3,21 Z M5,2 L19,2 L21,4 L3,4 Z M9,9 L15,9 L15,11 L9,11 Z",
-        "M3,10 L21,10 L21,14 L3,14 Z M10,3 L14,3 L14,21 L10,21 Z"];
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+        "M3,10 L21,10 L21,14 L3,14 Z M10,3 L14,3 L14,21 L10,21 Z",
+    ];
+
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal NavigationRailPlayground()
     {
-        _kind = Choice("Представление", ["Compact", "Expanded", "Modal"]);
-        _placement = Choice("Поверхность", ["Docked", "Floating"]);
-        _alignment = Choice("Расположение пунктов", ["Top", "Middle"]);
-        _count = Number("Количество пунктов", 3, 6, 4, 1);
-        _height = Number("Высота", 400, 720, 520, 20);
-        _labels = Toggle("Подписи пунктов", true);
-        _badge = Choice("Badge", ["Нет", "Точка", "Число"]);
-        _menu = Toggle("Кнопка меню", true);
-        _fab = Toggle("FAB", true);
-        _header = Toggle("Заголовок", false);
-        _fabText = new TextBox { Text = "Создать" };
-        ExpressiveAvalonia.Theming.MaterialTextField.SetLabel(_fabText, "Текст FAB");
-        Settings.Children.Add(_fabText);
-        _disabledLast = Toggle("Последний пункт недоступен", false);
-        _enabled = Toggle("Доступен", true);
-        _rtl = Toggle("Справа налево (RTL)", false);
-        _dismiss = Toggle("Закрытие по scrim", true);
-        _closeOnSelection = Toggle("Закрывать при выборе", true);
-        _hideOnCollapse = Toggle("Скрывать rail при сворачивании", false);
+        var presentationSection = InspectorLayout.Section(Settings, "Конфигурация", divider: false);
+        _kind = InspectorLayout.Choice(presentationSection, "Представление", ["Compact", "Expanded", "Modal"]);
+        _placement = InspectorLayout.Choice(presentationSection, "Поверхность", ["Docked", "Floating"]);
+        _alignment = InspectorLayout.Choice(presentationSection, "Расположение пунктов", ["Top", "Middle"]);
+
+        var dimensionsSection = InspectorLayout.Section(Settings, "Размеры");
+        _count = InspectorLayout.Slider(dimensionsSection, "Количество пунктов", 3, 6, 4, step: 1, format: "0");
+        _height = InspectorLayout.Slider(dimensionsSection, "Высота", 400, 720, 520, step: 20, unit: "dp", format: "0");
+
+        var anatomySection = InspectorLayout.Section(Settings, "Анатомия");
+        _badge = InspectorLayout.Choice(anatomySection, "Badge", ["Нет", "Точка", "Число"]);
+        var anatomySwitches = InspectorLayout.Switches(anatomySection);
+        _labels = InspectorLayout.Switch(anatomySwitches, "Подписи пунктов", true);
+        _menu = InspectorLayout.Switch(anatomySwitches, "Кнопка меню", true);
+        _header = InspectorLayout.Switch(anatomySwitches, "Заголовок", false);
+        _fab = InspectorLayout.Switch(anatomySwitches, "FAB", true);
+        _fabText = InspectorLayout.TextField(anatomySection, "Текст FAB", "Создать");
+
+        _modalSection = InspectorLayout.Section(Settings, "Модальный режим");
+        var modalSwitches = InspectorLayout.Switches(_modalSection);
+        _dismiss = InspectorLayout.Switch(modalSwitches, "Закрытие по scrim", true);
+        _closeOnSelection = InspectorLayout.Switch(modalSwitches, "Закрывать при выборе", true);
+        _hideOnCollapse = InspectorLayout.Switch(modalSwitches, "Скрывать rail при сворачивании", false);
+
+        var statesSection = InspectorLayout.Section(Settings, "Состояния");
+        var stateSwitches = InspectorLayout.Switches(statesSection);
+        _disabledLast = InspectorLayout.Switch(stateSwitches, "Последний пункт недоступен", false);
+        _enabled = InspectorLayout.Switch(stateSwitches, "Доступен", true);
+        _rtl = InspectorLayout.Switch(stateSwitches, "Справа налево (RTL)", false);
+
         _body = new Border { Child = _open };
         _host = new MaterialNavigationRailHost
         {
             Rail = _rail,
             CollapsedRail = _collapsedRail,
-            IsModal = true
+            IsModal = true,
         };
         _host.TemplateApplied += (_, e) =>
         {
             foreach (var name in new[] { "PART_RailHost", "PART_CollapsedHost" })
             {
-                if (e.NameScope.Find<Border>(name) is not { } presenter) continue;
+                if (e.NameScope.Find<Border>(name) is not { } presenter)
+                    continue;
                 presenter.HorizontalAlignment = HorizontalAlignment.Center;
                 presenter.PropertyChanged += (_, change) =>
                 {
@@ -82,20 +113,33 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
                 };
             }
         };
-        _surface = new Border { Child = _stage, Margin = new Thickness(24), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+        _surface = new Border
+        {
+            Child = _stage,
+            Margin = new Thickness(24),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
         Children.Add(_surface);
+
         _open.Click += (_, _) => _host.OpenRail();
         _rail.MenuCommand = new ActionCommand(() =>
         {
-            if (_kind.SelectedIndex == 2) _host.CloseRail();
-            else _kind.SelectedIndex = _kind.SelectedIndex == 0 ? 1 : 0;
+            if (_kind.SelectedIndex == 2)
+                _host.CloseRail();
+            else
+                _kind.SelectedIndex = _kind.SelectedIndex == 0 ? 1 : 0;
         });
         _collapsedRail.MenuCommand = new ActionCommand(() => _host.OpenRail());
-        foreach (var choice in new[] { _kind, _placement, _alignment, _badge }) choice.SelectionChanged += (_, _) => Apply();
-        foreach (var toggle in new[] { _labels, _menu, _fab, _header, _disabledLast, _enabled, _rtl, _dismiss, _closeOnSelection, _hideOnCollapse }) toggle.IsCheckedChanged += (_, _) => Apply();
-        _count.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
-        _height.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
+
+        foreach (var choice in new[] { _kind, _placement, _alignment, _badge })
+            choice.SelectionChanged += (_, _) => Apply();
+        foreach (var toggle in new[] { _labels, _menu, _fab, _header, _disabledLast, _enabled, _rtl, _dismiss, _closeOnSelection, _hideOnCollapse })
+            toggle.IsCheckedChanged += (_, _) => Apply();
+        _count.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
+        _height.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
         _fabText.TextChanged += (_, _) => Apply();
+
         Apply();
     }
 
@@ -123,11 +167,16 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
                 _stage.Content = _inline;
             }
         }
+
         _rail.Mode = MaterialNavigationRailMode.Wide;
         _rail.IsExpanded = _kind.SelectedIndex != 0;
-        _host.Placement = _placement.SelectedIndex == 1 ? MaterialNavigationRailHostPlacement.Floating : MaterialNavigationRailHostPlacement.Docked;
+        _host.Placement = _placement.SelectedIndex == 1
+            ? MaterialNavigationRailHostPlacement.Floating
+            : MaterialNavigationRailHostPlacement.Docked;
         _rail.IsFloating = _placement.SelectedIndex == 1;
-        _rail.RailAlignment = _alignment.SelectedIndex == 1 ? MaterialNavigationRailAlignment.Middle : MaterialNavigationRailAlignment.Top;
+        _rail.RailAlignment = _alignment.SelectedIndex == 1
+            ? MaterialNavigationRailAlignment.Middle
+            : MaterialNavigationRailAlignment.Top;
         _rail.ShowMenuButton = _menu.IsChecked == true;
         _rail.ShowFab = _fab.IsChecked == true;
         _rail.Header = _header.IsChecked == true ? _headerContent : null;
@@ -135,6 +184,7 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
         _fabText.IsVisible = _rail.IsExpanded && _rail.ShowFab;
         _open.IsVisible = modal && _hideOnCollapse.IsChecked == true;
         _body.IsVisible = _open.IsVisible;
+        _modalSection.IsVisible = modal;
         _dismiss.IsVisible = _closeOnSelection.IsVisible = _hideOnCollapse.IsVisible = modal;
         _host.IsLightDismissEnabled = _dismiss.IsChecked == true;
         _host.CloseOnSelection = _closeOnSelection.IsChecked == true;
@@ -143,7 +193,7 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
         _host.Width = 440;
         _rail.Height = modal ? double.NaN : _height.Value;
         _rail.IsEnabled = _enabled.IsChecked == true;
-        _surface.FlowDirection = _rtl.IsChecked == true ? Avalonia.Media.FlowDirection.RightToLeft : Avalonia.Media.FlowDirection.LeftToRight;
+        InspectorLayout.ApplyFlowDirection(_surface, _rtl);
 
         // The source hideOnCollapse=false presentation is a real collapsed rail, not a stub:
         // it owns native items, forwards activation to the expanded rail and shares selection.
@@ -156,7 +206,7 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
         _collapsedRail.FabText = _rail.FabText;
         _collapsedRail.Height = _height.Value;
         _collapsedRail.IsEnabled = _rail.IsEnabled;
-        _collapsedRail.FlowDirection = _surface.FlowDirection;
+        InspectorLayout.ApplyFlowDirection(_collapsedRail, _rtl);
 
         var count = (int)_count.Value;
         SyncItems(_rail, count);
@@ -186,31 +236,6 @@ internal sealed class NavigationRailPlayground : Grid, IComponentPlayground
         }
     }
 
-    private MaterialButtonGroup Choice(string label, string[] options)
-    {
-        Settings.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup { Kind = MaterialButtonGroupKind.Connected, SelectionMode = MaterialButtonGroupSelectionMode.Single, ShowSelectedIcon = true, ControlSize = ExpressiveAvalonia.Theming.MaterialControlSize.Small };
-        foreach (var option in options) group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = 0;
-        Settings.Children.Add(group);
-        return group;
-    }
-    private ToggleSwitch Toggle(string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        Settings.Children.Add(toggle);
-        return toggle;
-    }
-    private Slider Number(string label, double min, double max, double value, double step)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0}" };
-        Settings.Children.Add(caption);
-        var slider = new Slider { Minimum = min, Maximum = max, Value = value, TickFrequency = step, IsSnapToTickEnabled = true };
-        Avalonia.Automation.AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) caption.Text = $"{label}: {slider.Value:0}"; };
-        Settings.Children.Add(slider);
-        return slider;
-    }
     private sealed class ActionCommand(Action execute) : ICommand
     {
         public event EventHandler? CanExecuteChanged { add { } remove { } }

@@ -368,7 +368,8 @@ public sealed class MaterialSnackbar : TemplatedControl
         _scaleTransform = new ScaleTransform(1, 1);
         RenderTransform = _scaleTransform;
         EnsureDrivers();
-        JumpToOpenState(_showOnAttach ? false : _isOpen);
+        JumpToOpenState(_isOpen && !_showOnAttach && !_entrancePending);
+        IsHitTestVisible = _isOpen;
 
         _isMeasuredMultiline = HasExplicitNewline(Text);
         UpdateVisualState();
@@ -433,9 +434,14 @@ public sealed class MaterialSnackbar : TemplatedControl
             _showOnAttach = false;
             BeginOpenAnimation(restart: true);
         }
-        else
+        else if (!_entrancePending)
         {
             JumpToOpenState(true);
+        }
+        else
+        {
+            JumpToOpenState(false);
+            IsHitTestVisible = true;
         }
 
         RestartAutoDismissTimer();
@@ -452,7 +458,10 @@ public sealed class MaterialSnackbar : TemplatedControl
 
         _entrancePending = true;
         if (restart)
-            JumpToOpenState(false);
+        {
+            _alpha?.JumpTo(0);
+            _scale?.JumpTo(0);
+        }
 
         // Background runs after the render pass, so the hidden state is committed first.
         Dispatcher.UIThread.Post(
@@ -492,7 +501,7 @@ public sealed class MaterialSnackbar : TemplatedControl
         if (_scaleTransform is null)
             return;
 
-        var initial = _isOpen && !_entrancePending ? 1 : 0;
+        var initial = _isOpen && !_showOnAttach && !_entrancePending ? 1 : 0;
         if (_alpha is null)
             _alpha = new MaterialSpringValue(this, initial,
                 value => Opacity = Math.Clamp(value, 0, 1));
@@ -521,6 +530,7 @@ public sealed class MaterialSnackbar : TemplatedControl
     {
         if (!_isOpen)
             return;
+        IsHitTestVisible = true;
         _alpha?.AnimateTo(1, MaterialSpring.EffectsFast, null, 0.01);
         _scale?.AnimateTo(1, MaterialSpring.SpatialFast, null, 0.01);
     }

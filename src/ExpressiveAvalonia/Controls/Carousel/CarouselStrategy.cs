@@ -81,8 +81,13 @@ internal sealed class CarouselStrategy
 
         MinItemSize = min;
         MaxItemSize = max;
-        ItemMainAxisSize = defaultKeylines.Count > 0 ? defaultKeylines.FirstFocal.Size : 0;
-        IsValid = defaultKeylines.Count > 0 && availableSpace != 0 && ItemMainAxisSize != 0;
+        ItemMainAxisSize = defaultKeylines.Count > 0 && defaultKeylines.FirstFocalIndex >= 0
+            ? defaultKeylines.FirstFocal.Size
+            : 0;
+        IsValid = defaultKeylines.Count > 0 &&
+            defaultKeylines.FirstFocalIndex >= 0 &&
+            availableSpace > 0 &&
+            ItemMainAxisSize > 0;
         _startShiftDistance = GetStartShiftDistance(startKeylineSteps, beforeContentPadding);
         _endShiftDistance = GetEndShiftDistance(endKeylineSteps, afterContentPadding);
         _startShiftPoints = GetStepInterpolationPoints(_startShiftDistance, startKeylineSteps, true);
@@ -154,7 +159,7 @@ internal sealed class CarouselStrategy
     /// </summary>
     public double GetSnapPositionOffset(int itemIndex, int itemCount)
     {
-        if (!IsValid)
+        if (!IsValid || DefaultKeylines.FirstFocalIndex < 0)
             return 0;
 
         // Default: align the first focal keyline of the default arrangement.
@@ -165,7 +170,8 @@ internal sealed class CarouselStrategy
             // Steps are ordered from the default arrangement outwards; index from the end.
             var stepIndex = Math.Clamp(StartKeylineSteps.Count - 1 - itemIndex, 0, StartKeylineSteps.Count - 1);
             var startKeylines = StartKeylineSteps[stepIndex];
-            offset = RoundToInt(startKeylines.FirstFocal.UnadjustedOffset - (ItemMainAxisSize / 2));
+            if (startKeylines.FirstFocalIndex >= 0)
+                offset = RoundToInt(startKeylines.FirstFocal.UnadjustedOffset - (ItemMainAxisSize / 2));
         }
 
         var lastItemIndex = itemCount - 1;
@@ -175,7 +181,8 @@ internal sealed class CarouselStrategy
         {
             var stepIndex = Math.Clamp(EndKeylineSteps.Count - 1 - (lastItemIndex - itemIndex), 0, EndKeylineSteps.Count - 1);
             var endKeylines = EndKeylineSteps[stepIndex];
-            offset = RoundToInt(endKeylines.LastFocal.UnadjustedOffset - (ItemMainAxisSize / 2));
+            if (endKeylines.LastFocalIndex >= 0)
+                offset = RoundToInt(endKeylines.LastFocal.UnadjustedOffset - (ItemMainAxisSize / 2));
         }
 
         return offset;
@@ -322,7 +329,7 @@ internal sealed class CarouselStrategy
 
     private static double GetStartShiftDistance(List<CarouselKeylineList> startKeylineSteps, double beforeContentPadding)
     {
-        if (startKeylineSteps.Count == 0)
+        if (startKeylineSteps.Count == 0 || startKeylineSteps[0].Count == 0 || startKeylineSteps[^1].Count == 0)
             return 0;
 
         return Math.Max(
@@ -332,7 +339,7 @@ internal sealed class CarouselStrategy
 
     private static double GetEndShiftDistance(List<CarouselKeylineList> endKeylineSteps, double afterContentPadding)
     {
-        if (endKeylineSteps.Count == 0)
+        if (endKeylineSteps.Count == 0 || endKeylineSteps[0].Count == 0 || endKeylineSteps[^1].Count == 0)
             return 0;
 
         return Math.Max(
@@ -351,7 +358,7 @@ internal sealed class CarouselStrategy
         double beforeContentPadding)
     {
         var steps = new List<CarouselKeylineList>();
-        if (defaultKeylines.Count == 0)
+        if (defaultKeylines.Count == 0 || defaultKeylines.FirstFocalIndex < 0 || carouselMainAxisSize <= 0)
             return steps;
 
         steps.Add(defaultKeylines);
@@ -409,13 +416,16 @@ internal sealed class CarouselStrategy
         if (beforeContentPadding != 0)
         {
             var last = steps[^1];
-            steps[^1] = CreateShiftedKeylineListForContentPadding(
-                last,
-                carouselMainAxisSize,
-                itemSpacing,
-                beforeContentPadding,
-                last.FirstFocal,
-                last.FirstFocalIndex);
+            if (last.FirstFocalIndex >= 0)
+            {
+                steps[^1] = CreateShiftedKeylineListForContentPadding(
+                    last,
+                    carouselMainAxisSize,
+                    itemSpacing,
+                    beforeContentPadding,
+                    last.FirstFocal,
+                    last.FirstFocalIndex);
+            }
         }
 
         return steps;
@@ -432,7 +442,7 @@ internal sealed class CarouselStrategy
         double afterContentPadding)
     {
         var steps = new List<CarouselKeylineList>();
-        if (defaultKeylines.Count == 0)
+        if (defaultKeylines.Count == 0 || defaultKeylines.LastFocalIndex < 0 || carouselMainAxisSize <= 0)
             return steps;
 
         steps.Add(defaultKeylines);
@@ -491,13 +501,16 @@ internal sealed class CarouselStrategy
         if (afterContentPadding != 0)
         {
             var last = steps[^1];
-            steps[^1] = CreateShiftedKeylineListForContentPadding(
-                last,
-                carouselMainAxisSize,
-                itemSpacing,
-                -afterContentPadding,
-                last.LastFocal,
-                last.LastFocalIndex);
+            if (last.LastFocalIndex >= 0)
+            {
+                steps[^1] = CreateShiftedKeylineListForContentPadding(
+                    last,
+                    carouselMainAxisSize,
+                    itemSpacing,
+                    -afterContentPadding,
+                    last.LastFocal,
+                    last.LastFocalIndex);
+            }
         }
 
         return steps;
@@ -534,8 +547,14 @@ internal sealed class CarouselStrategy
             builder =>
             {
                 for (var i = 0; i < from.Count; i++)
-                    builder.Add(from[i].Size - Math.Abs(sizeReduction), from[i].IsAnchor);
+                {
+                    var floor = from[i].Size > 0 ? Math.Min(1d, from[i].Size) : 1d;
+                    builder.Add(Math.Max(floor, from[i].Size - Math.Abs(sizeReduction)), from[i].IsAnchor);
+                }
             });
+
+        if (newKeylines.Count != from.Count || newKeylines.FirstFocalIndex < 0 || newKeylines.LastFocalIndex < 0)
+            return from;
 
         // Reset the unadjusted offsets: the Pager still lays items out end-to-end at their
         // original page size.
@@ -556,6 +575,9 @@ internal sealed class CarouselStrategy
         double carouselMainAxisSize,
         double itemSpacing)
     {
+        if (sourceIndex < 0 || sourceIndex >= from.Count || from.PivotIndex < 0)
+            return from;
+
         // -1 when the pivot shifts towards the start, 1 when it shifts towards the end.
         var pivotDirection = sourceIndex > destinationIndex ? 1 : -1;
         var pivotDelta =
@@ -569,13 +591,17 @@ internal sealed class CarouselStrategy
 
         var moved = entries[sourceIndex];
         entries.RemoveAt(sourceIndex);
-        entries.Insert(destinationIndex, moved);
+        entries.Insert(Math.Clamp(destinationIndex, 0, entries.Count), moved);
 
-        return CarouselKeylines.Of(carouselMainAxisSize, itemSpacing, newPivotIndex, newPivotOffset, builder =>
+        var shifted = CarouselKeylines.Of(carouselMainAxisSize, itemSpacing, newPivotIndex, newPivotOffset, builder =>
         {
             foreach (var keyline in entries)
                 builder.Add(keyline.Size, keyline.IsAnchor);
         });
+
+        return shifted.Count == from.Count && shifted.FirstFocalIndex >= 0 && shifted.LastFocalIndex >= 0
+            ? shifted
+            : from;
     }
 
     /// <summary>
@@ -596,6 +622,12 @@ internal sealed class CarouselStrategy
         {
             var previousKeylines = steps[i - 1];
             var currentKeylines = steps[i];
+            if (previousKeylines.Count == 0 || currentKeylines.Count == 0)
+            {
+                points[i] = i == steps.Count - 1 ? 1 : points[i - 1];
+                continue;
+            }
+
             var distanceShifted = isShiftingLeft
                 ? currentKeylines[0].UnadjustedOffset - previousKeylines[0].UnadjustedOffset
                 : previousKeylines[^1].UnadjustedOffset - currentKeylines[^1].UnadjustedOffset;

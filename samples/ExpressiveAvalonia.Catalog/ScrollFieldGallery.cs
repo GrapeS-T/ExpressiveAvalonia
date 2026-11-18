@@ -29,10 +29,10 @@ internal sealed class ScrollFieldPlayground : Grid, IComponentPlayground
     {
         HorizontalAlignment = HorizontalAlignment.Center,
         FontSize = 16,
-        TextWrapping = TextWrapping.Wrap
+        TextWrapping = TextWrapping.Wrap,
     };
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal ScrollFieldPlayground()
     {
@@ -59,7 +59,7 @@ internal sealed class ScrollFieldPlayground : Grid, IComponentPlayground
             {
                 FontSize = 24,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
             };
             text.Bind(TextBlock.TextProperty, new Binding(nameof(MaterialScrollFieldItem.Text)));
             return text;
@@ -74,7 +74,7 @@ internal sealed class ScrollFieldPlayground : Grid, IComponentPlayground
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Center
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
         clock.Children.Add(hourBlock);
         clock.Children.Add(new TextBlock
@@ -82,7 +82,7 @@ internal sealed class ScrollFieldPlayground : Grid, IComponentPlayground
             Text = ":",
             FontSize = 45,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 8)
+            Margin = new Thickness(0, 0, 0, 8),
         });
         clock.Children.Add(minuteBlock);
 
@@ -90,7 +90,7 @@ internal sealed class ScrollFieldPlayground : Grid, IComponentPlayground
         {
             Orientation = Orientation.Horizontal,
             Spacing = 24,
-            HorizontalAlignment = HorizontalAlignment.Center
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
         wheels.Children.Add(numberBlock);
         wheels.Children.Add(clock);
@@ -101,38 +101,35 @@ internal sealed class ScrollFieldPlayground : Grid, IComponentPlayground
             Spacing = 24,
             Margin = new Thickness(24),
             HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
         };
         stage.Children.Add(wheels);
         stage.Children.Add(_readout);
         Children.Add(stage);
 
-        var enabled = new ToggleSwitch { Content = "Доступно", IsChecked = true };
+        var controlsSection = InspectorLayout.Section(Settings, "Управление", divider: false);
+        var switches = InspectorLayout.Switches(controlsSection);
+        var enabled = InspectorLayout.Switch(switches, "Доступно", true);
         enabled.IsCheckedChanged += (_, _) => SetEnabled(enabled.IsChecked == true);
-        Settings.Children.Add(enabled);
 
-        var next = new Button { Content = "Следующее значение", HorizontalAlignment = HorizontalAlignment.Stretch };
-        next.Click += (_, _) => _numberState.AnimateScrollToOption(
-            Mod(_numberState.SelectedOption + 1, _numberState.ItemCount));
-        Settings.Children.Add(next);
+        InspectorLayout.ActionButton(
+            controlsSection,
+            "Следующее значение",
+            () => _numberState.AnimateScrollToOption(Mod(_numberState.SelectedOption + 1, _numberState.ItemCount)));
 
-        var previous = new Button { Content = "Предыдущее значение", HorizontalAlignment = HorizontalAlignment.Stretch };
-        previous.Click += (_, _) => _numberState.AnimateScrollToOption(
-            Mod(_numberState.SelectedOption - 1, _numberState.ItemCount));
-        Settings.Children.Add(previous);
+        InspectorLayout.ActionButton(
+            controlsSection,
+            "Предыдущее значение",
+            () => _numberState.AnimateScrollToOption(Mod(_numberState.SelectedOption - 1, _numberState.ItemCount)));
 
-        Settings.Children.Add(new TextBlock
-        {
-            Text =
-                "ScrollField — колесо выбора на бесконечном pager, а не TextBox. " +
-                "Высота 120 dp, слот 52 dp; выбранный слот анимирован fastSpatial из DisplayMedium " +
-                "в DisplayLargeEmphasized, цвет — из outline в onSurface. Прокрутите колесом, " +
-                "потяните мышью или пальцем, щёлкните слот, используйте ↑/↓ после фокуса. " +
-                "Fling ограничен одним слотом; автоматизация страниц имеет диапазон 0–99 999. " +
-                "Живая подпись показывает selectedOption и targetOption, которые различаются до завершения settle.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13
-        });
+        InspectorLayout.Note(
+            Settings,
+            "ScrollField — колесо выбора на бесконечном pager, а не TextBox. " +
+            "Высота 120 dp, слот 52 dp; выбранный слот анимирован fastSpatial из DisplayMedium " +
+            "в DisplayLargeEmphasized, цвет — из outline в onSurface. Прокрутите колесом, " +
+            "потяните мышью или пальцем, щёлкните слот, используйте ↑/↓ после фокуса. " +
+            "Fling ограничен одним слотом; автоматизация страниц имеет диапазон 0–99 999. " +
+            "Живая подпись показывает selectedOption и targetOption, которые различаются до завершения settle.");
 
         foreach (var state in new[] { _numberState, _hourState, _minuteState, _unitState })
             state.PropertyChanged += (_, e) =>
@@ -155,7 +152,7 @@ internal sealed class ScrollFieldPlayground : Grid, IComponentPlayground
             State = state,
             Width = width,
             Height = 120,
-            ContentDescription = description
+            ContentDescription = description,
         };
         AutomationProperties.SetName(field, description);
         return field;
@@ -168,7 +165,7 @@ internal sealed class ScrollFieldPlayground : Grid, IComponentPlayground
         {
             Text = label,
             HorizontalAlignment = HorizontalAlignment.Center,
-            FontSize = 12
+            FontSize = 12,
         });
         panel.Children.Add(field);
         return panel;

@@ -58,6 +58,7 @@ public sealed class MaterialPullToRefresh : ContentControl
     private RefreshArrowIndicator? _arrow;
     private MaterialRefreshIndicatorBox? _indicator;
     private Grid? _builtInPanel;
+    private ContentPresenter? _contentHost;
     private ContentPresenter? _customIndicator;
     private MaterialFocusIndicator? _focusIndicator;
     private readonly RotateTransform _rotation = new();
@@ -102,7 +103,17 @@ public sealed class MaterialPullToRefresh : ContentControl
         AddHandler(PointerCaptureLostEvent, CaptureLost, RoutingStrategies.Tunnel, true);
         GestureRecognizers.Add(new ScrollGestureRecognizer { CanVerticallyScroll = true });
         AddHandler(ScrollGestureEvent, GesturePostScroll, RoutingStrategies.Bubble, true);
-        AttachedToVisualTree += (_, _) => { ApplyIndicatorAppearance(); ApplyFraction(IsRefreshing ? 1 : 0); ApplyFade(IsRefreshing ? 1 : 0); UpdateFocusIndicator(); };
+        AttachedToVisualTree += (_, _) =>
+        {
+            _settle?.Dispose();
+            _settle = null;
+            _crossfade?.Dispose();
+            _crossfade = null;
+            ApplyIndicatorAppearance();
+            ApplyFraction(IsRefreshing ? 1 : 0);
+            ApplyFade(IsRefreshing ? 1 : 0);
+            UpdateFocusIndicator();
+        };
         DetachedFromVisualTree += (_, _) => CancelGesture();
         ResourcesChanged += (_, _) =>
         {
@@ -171,6 +182,7 @@ public sealed class MaterialPullToRefresh : ContentControl
     private Control Build()
     {
         var content = new ContentPresenter { HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
+        _contentHost = content;
         content[!ContentPresenter.ContentProperty] = this[!ContentProperty];
         content[!ContentPresenter.ContentTemplateProperty] = this[!ContentTemplateProperty];
         _builtInPanel = new Grid();
@@ -304,14 +316,26 @@ public sealed class MaterialPullToRefresh : ContentControl
         if (change.Property == IsRefreshingProperty)
         {
             if (_indicator is not null) _indicator.IsRefreshing = IsRefreshing;
-            Settle(IsRefreshing ? 1 : 0);
-            _crossfade ??= MaterialMotion.Animate(this, _fade, IsRefreshing ? 1 : 0, ApplyFade, MaterialSpring.EffectsDefault);
-            _crossfade.Retarget(IsRefreshing ? 1 : 0);
+            var fadeTarget = IsRefreshing ? 1 : 0;
+            Settle(fadeTarget);
+            if (_crossfade is { IsRunning: true })
+            {
+                _crossfade.Retarget(fadeTarget);
+            }
+            else
+            {
+                _crossfade?.Dispose();
+                _crossfade = MaterialMotion.Animate(this, _fade, fadeTarget, ApplyFade, MaterialSpring.EffectsDefault);
+            }
         }
         // The source progress derives from the pulled distance and the positional threshold;
         // once released, the state animation owns the fraction until it settles.
         if (change.Property == ThresholdProperty && _pointer is not null && _settle?.IsRunning != true)
+        {
+            _settle?.Dispose();
+            _settle = null;
             ApplyFraction(CalculateDistanceFraction(_distancePulled, Threshold));
+        }
         if (change.Property == IndicatorTypeProperty && _builtInPanel is not null)
         {
             BuildIndicator();
@@ -365,8 +389,34 @@ public sealed class MaterialPullToRefresh : ContentControl
     {
         _distancePulled = 0;
         // PullToRefreshStateImpl uses Animatable's default spring (1500/1), not theme spatial.
-        _settle ??= MaterialMotion.Animate(this, _distanceFraction, target, ApplyFraction, 1500, 1);
-        _settle.Retarget(target);
+        if (_settle is { IsRunning: true })
+        {
+            _settle.Retarget(target);
+            return;
+        }
+        _settle?.Dispose();
+        _settle = MaterialMotion.Animate(this, _distanceFraction, target, ApplyFraction, 1500, 1);
+    }
+
+    private ScrollViewer? ResolveScroller(object? source)
+    {
+        for (var visual = source as Visual;
+             visual is not null && !ReferenceEquals(visual, this);
+             visual = visual.GetVisualParent())
+        {
+            if (visual is ScrollViewer scroller)
+                return scroller;
+        }
+
+        if (ReferenceEquals(source, this))
+        {
+            return Content as ScrollViewer ??
+                   _contentHost?.GetVisualDescendants()
+                       .OfType<ScrollViewer>()
+                       .FirstOrDefault(sv => sv.FindAncestorOfType<TextBox>() is null);
+        }
+
+        return null;
     }
 
     private void Pressed(object? sender, PointerPressedEventArgs e)
@@ -375,7 +425,7 @@ public sealed class MaterialPullToRefresh : ContentControl
             (e.Pointer.Type == PointerType.Mouse && (!AllowMousePull || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed))) return;
         _pointer = e.Pointer;
         _start = _last = e.GetPosition(this);
-        _scroller = e.Source as ScrollViewer ?? (e.Source as Visual)?.FindAncestorOfType<ScrollViewer>();
+        _scroller = ResolveScroller(e.Source);
         _scrollPresenter = _scroller?.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
         _distancePulled = 0;
     }
@@ -422,6 +472,8 @@ public sealed class MaterialPullToRefresh : ContentControl
         // Upward drag first collapses the indicator, before native content consumes the rest.
         if (e.Delta.Y > 0 && _distancePulled > 0)
         {
+            _settle?.Dispose();
+            _settle = null;
             var consumed = Math.Min(e.Delta.Y, _distancePulled);
             _distancePulled -= consumed;
             ApplyFraction(CalculateDistanceFraction(_distancePulled, Threshold));
@@ -446,6 +498,8 @@ public sealed class MaterialPullToRefresh : ContentControl
         var remaining = Math.Max(0, -e.Delta.Y - nativeConsumed);
         if (remaining <= 0) return;
         _dragging = true;
+        _settle?.Dispose();
+        _settle = null;
         _distancePulled += remaining;
         ApplyFraction(CalculateDistanceFraction(_distancePulled, Threshold));
         e.Handled = true;

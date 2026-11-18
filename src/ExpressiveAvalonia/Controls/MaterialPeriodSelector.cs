@@ -141,23 +141,47 @@ public sealed class MaterialPeriodSelector : TemplatedControl
 
     private void OnSelectorKeyDown(object? sender, KeyEventArgs e)
     {
-        if (!IsEffectivelyEnabled) return;
-        var invertHorizontal = Orientation == Orientation.Horizontal &&
-                               FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
-        bool? requested = e.Key switch
-        {
-            Key.Up => false,
-            Key.Down => true,
-            Key.Left => invertHorizontal,
-            Key.Right => !invertHorizontal,
-            _ => null,
-        };
+        if (e.Handled || !IsEffectivelyEnabled || e.KeyModifiers != KeyModifiers.None)
+            return;
 
-        if (requested is null) return;
-        e.Handled = true;
-        if (IsPm == requested.Value) return;
+        bool? requested;
+        if (Orientation == Orientation.Horizontal)
+        {
+            var invert = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
+            requested = e.Key switch
+            {
+                Key.Left => invert,
+                Key.Right => !invert,
+                _ => null,
+            };
+        }
+        else
+        {
+            requested = e.Key switch
+            {
+                Key.Up => false,
+                Key.Down => true,
+                _ => null,
+            };
+        }
+
+        if (requested is null)
+            return;
+
+        var target = requested.Value ? _pm : _am;
+        if (IsPm == requested.Value)
+        {
+            if (target is { IsFocused: false })
+            {
+                target.Focus(NavigationMethod.Directional);
+                e.Handled = true;
+            }
+            return;
+        }
+
         SetCurrentValue(IsPmProperty, requested.Value);
-        (requested.Value ? _pm : _am)?.Focus(NavigationMethod.Directional);
+        target?.Focus(NavigationMethod.Directional);
+        e.Handled = true;
     }
 
     private void UpdateSelection()

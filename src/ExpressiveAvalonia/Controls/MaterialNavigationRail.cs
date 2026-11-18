@@ -777,6 +777,8 @@ public class MaterialNavigationRail : ListBox
         {
             if (visual is MaterialNavigationRailItem item && ItemsControlFromItemContainer(item) == this)
                 return item;
+            if (visual is InputElement { Focusable: true })
+                return null;
             if (ReferenceEquals(visual, this))
                 return null;
         }

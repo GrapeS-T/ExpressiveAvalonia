@@ -197,13 +197,13 @@ public class XrToolbar : ItemsControl
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
         LayoutUpdated -= OnLayoutUpdated;
         _adapter?.Dispose();
         _adapter = null;
         UnsubscribeState();
         _expandAnimation?.Dispose();
         _expandAnimation = null;
+        base.OnDetachedFromVisualTree(e);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -303,17 +303,18 @@ public class XrToolbar : ItemsControl
             return;
         var parentSize = parent.Bounds.Size;
         var position = Bounds.Position;
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
+        var flipHorizontal = parent.FlowDirection != FlowDirection;
         var limit = behavior.ExitDirection switch
         {
             MaterialFloatingToolbarExitDirection.Start =>
-                rtl ? parentSize.Width - position.X : Bounds.Width + position.X,
+                flipHorizontal ? parentSize.Width - position.X : Bounds.Width + position.X,
             MaterialFloatingToolbarExitDirection.End =>
-                rtl ? Bounds.Width + position.X : parentSize.Width - position.X,
+                flipHorizontal ? Bounds.Width + position.X : parentSize.Width - position.X,
             MaterialFloatingToolbarExitDirection.Top => Bounds.Height + position.Y,
             _ => parentSize.Height - position.Y
         };
-        behavior.State.HeightOffsetLimit = -(limit - behavior.State.HeightOffset);
+        if (limit > 0)
+            behavior.State.HeightOffsetLimit = -limit;
     }
 
     private void UpdateExitTransform()
@@ -327,15 +328,14 @@ public class XrToolbar : ItemsControl
         }
 
         var offset = behavior.State.HeightOffset;
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
         switch (behavior.ExitDirection)
         {
             case MaterialFloatingToolbarExitDirection.Start:
-                _exitTransform.X = rtl ? -offset : offset;
+                _exitTransform.X = offset;
                 _exitTransform.Y = 0;
                 break;
             case MaterialFloatingToolbarExitDirection.End:
-                _exitTransform.X = rtl ? offset : -offset;
+                _exitTransform.X = -offset;
                 _exitTransform.Y = 0;
                 break;
             case MaterialFloatingToolbarExitDirection.Top:

@@ -523,7 +523,7 @@
     <Style Selector="^:scrim /template/ Border#PART_Scrim">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:closed /template/ Border#PART_Root">
+    <Style Selector="^:closed /template/ Border#PART_Root, ^:closed /template/ Border#PART_Scrim">
       <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
   </ControlTheme>

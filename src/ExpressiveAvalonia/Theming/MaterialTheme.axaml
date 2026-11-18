@@ -52,25 +52,35 @@
     <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
   </Style>
-  <Style Selector="controls|MaterialToolbar[Color=Standard] controls|MaterialBarActionsPanel > Button:not(:disabled), controls|MaterialToolbar[Color=Standard] ContentPresenter Button:not(controls|MaterialFabBase):not(:disabled)">
+  <Style Selector="controls|MaterialToolbar[Color=Standard] controls|MaterialBarActionsPanel > Button[(theming|MaterialAssist.IsIconButton)=True], controls|MaterialToolbar[Color=Standard] ContentPresenter:not(#PART_Fab) Button[(theming|MaterialAssist.IsIconButton)=True]">
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:not(:disabled)">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    </Style>
+  </Style>
+  <Style Selector="controls|MaterialToolbar[Color=Standard] controls|MaterialBarActionsPanel > Button[(theming|MaterialAssist.ButtonVariant)=Text]:not(:disabled), controls|MaterialToolbar[Color=Standard] ContentPresenter:not(#PART_Fab) Button[(theming|MaterialAssist.ButtonVariant)=Text]:not(:disabled)">
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
   </Style>
-  <Style Selector="controls|MaterialToolbar[Color=Standard] controls|MaterialBarActionsPanel > ToggleButton:not(:checked):not(:disabled), controls|MaterialToolbar[Color=Standard] ContentPresenter ToggleButton:not(:checked):not(:disabled)">
+  <Style Selector="controls|MaterialToolbar[Color=Standard] controls|MaterialBarActionsPanel > ToggleButton[(theming|MaterialAssist.ButtonVariant)=Standard]:not(:checked):not(:disabled), controls|MaterialToolbar[Color=Standard] controls|MaterialBarActionsPanel > ToggleButton[(theming|MaterialAssist.ButtonVariant)=Text]:not(:checked):not(:disabled), controls|MaterialToolbar[Color=Standard] ContentPresenter:not(#PART_Fab) ToggleButton[(theming|MaterialAssist.ButtonVariant)=Standard]:not(:checked):not(:disabled), controls|MaterialToolbar[Color=Standard] ContentPresenter:not(#PART_Fab) ToggleButton[(theming|MaterialAssist.ButtonVariant)=Text]:not(:checked):not(:disabled)">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
   </Style>
-  <Style Selector="controls|MaterialToolbar[Color=Standard] controls|MaterialBarActionsPanel > ToggleButton:checked:not(:disabled), controls|MaterialToolbar[Color=Standard] ContentPresenter ToggleButton:checked:not(:disabled)">
+  <Style Selector="controls|MaterialToolbar[Color=Standard] controls|MaterialBarActionsPanel > ToggleButton[(theming|MaterialAssist.ButtonVariant)=Standard]:checked:not(:disabled), controls|MaterialToolbar[Color=Standard] controls|MaterialBarActionsPanel > ToggleButton[(theming|MaterialAssist.ButtonVariant)=Text]:checked:not(:disabled), controls|MaterialToolbar[Color=Standard] ContentPresenter:not(#PART_Fab) ToggleButton[(theming|MaterialAssist.ButtonVariant)=Standard]:checked:not(:disabled), controls|MaterialToolbar[Color=Standard] ContentPresenter:not(#PART_Fab) ToggleButton[(theming|MaterialAssist.ButtonVariant)=Text]:checked:not(:disabled)">
     <Setter Property="Background" Value="{DynamicResource MaterialSecondaryContainerBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSecondaryContainerBrush}" />
   </Style>
-  <Style Selector="controls|MaterialToolbar[Color=Vibrant] controls|MaterialBarActionsPanel > Button:not(:disabled), controls|MaterialToolbar[Color=Vibrant] ContentPresenter Button:not(controls|MaterialFabBase):not(:disabled)">
+  <Style Selector="controls|MaterialToolbar[Color=Vibrant] controls|MaterialBarActionsPanel > Button[(theming|MaterialAssist.IsIconButton)=True], controls|MaterialToolbar[Color=Vibrant] ContentPresenter:not(#PART_Fab) Button[(theming|MaterialAssist.IsIconButton)=True]">
+    <Style Selector="^[(theming|MaterialAssist.ButtonVariant)=Standard]:not(:disabled)">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryContainerBrush}" />
+    </Style>
+  </Style>
+  <Style Selector="controls|MaterialToolbar[Color=Vibrant] controls|MaterialBarActionsPanel > Button[(theming|MaterialAssist.ButtonVariant)=Text]:not(:disabled), controls|MaterialToolbar[Color=Vibrant] ContentPresenter:not(#PART_Fab) Button[(theming|MaterialAssist.ButtonVariant)=Text]:not(:disabled)">
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryContainerBrush}" />
   </Style>
-  <Style Selector="controls|MaterialToolbar[Color=Vibrant] controls|MaterialBarActionsPanel > ToggleButton:not(:checked):not(:disabled), controls|MaterialToolbar[Color=Vibrant] ContentPresenter ToggleButton:not(:checked):not(:disabled)">
+  <Style Selector="controls|MaterialToolbar[Color=Vibrant] controls|MaterialBarActionsPanel > ToggleButton[(theming|MaterialAssist.ButtonVariant)=Standard]:not(:checked):not(:disabled), controls|MaterialToolbar[Color=Vibrant] controls|MaterialBarActionsPanel > ToggleButton[(theming|MaterialAssist.ButtonVariant)=Text]:not(:checked):not(:disabled), controls|MaterialToolbar[Color=Vibrant] ContentPresenter:not(#PART_Fab) ToggleButton[(theming|MaterialAssist.ButtonVariant)=Standard]:not(:checked):not(:disabled), controls|MaterialToolbar[Color=Vibrant] ContentPresenter:not(#PART_Fab) ToggleButton[(theming|MaterialAssist.ButtonVariant)=Text]:not(:checked):not(:disabled)">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryContainerBrush}" />
   </Style>
-  <Style Selector="controls|MaterialToolbar[Color=Vibrant] controls|MaterialBarActionsPanel > ToggleButton:checked:not(:disabled), controls|MaterialToolbar[Color=Vibrant] ContentPresenter ToggleButton:checked:not(:disabled)">
+  <Style Selector="controls|MaterialToolbar[Color=Vibrant] controls|MaterialBarActionsPanel > ToggleButton[(theming|MaterialAssist.ButtonVariant)=Standard]:checked:not(:disabled), controls|MaterialToolbar[Color=Vibrant] controls|MaterialBarActionsPanel > ToggleButton[(theming|MaterialAssist.ButtonVariant)=Text]:checked:not(:disabled), controls|MaterialToolbar[Color=Vibrant] ContentPresenter:not(#PART_Fab) ToggleButton[(theming|MaterialAssist.ButtonVariant)=Standard]:checked:not(:disabled), controls|MaterialToolbar[Color=Vibrant] ContentPresenter:not(#PART_Fab) ToggleButton[(theming|MaterialAssist.ButtonVariant)=Text]:checked:not(:disabled)">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
   </Style>

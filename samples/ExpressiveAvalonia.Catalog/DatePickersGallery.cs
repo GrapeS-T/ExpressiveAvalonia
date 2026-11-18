@@ -1,7 +1,6 @@
 using System;
 using System.Globalization;
 using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -49,12 +48,12 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _weekdaysOnly;
     private readonly ComboBox _culture;
     private readonly TextBox _label;
-    private readonly TextBlock _cultureSample = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _cultureSample;
     private int _lastMode = -1;
     private bool? _lastRange;
     private bool _sync;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal DatePickersPlayground()
     {
@@ -106,39 +105,35 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
         stage.Children.Add(_card);
         Children.Add(stage);
 
-        _presentation = Choice("Представление", ["Поле", "Dock", "Modal", "Full"]);
-        _presentation.SelectedIndex = 2;
-        _selection = Choice("Выбор", ["Один день", "Диапазон"]);
-        _input = Toggle("Текстовый ввод", false);
-        _bounds = Toggle("Ограничить 14 днями", false);
-        _actions = Toggle("Кнопки OK / Cancel", true);
-        _clear = Toggle("Кнопка очистки", true);
-        _adjacent = Toggle("Соседние дни", false);
-        _yearRange = Toggle("Диапазон лет 2020–2030", false);
-        _weekdaysOnly = Toggle("Только будни", false);
+        var presentation = InspectorLayout.Section(Settings, "Представление и выбор", divider: false);
+        _presentation = InspectorLayout.Choice(presentation, "Представление", new[] { "Поле", "Dock", "Modal", "Full" }, selected: 2);
+        _selection = InspectorLayout.Choice(presentation, "Выбор", new[] { "Один день", "Диапазон" });
+        _label = InspectorLayout.TextField(presentation, "Заголовок", "Дата");
 
-        Settings.Children.Add(new TextBlock { Text = "Культура" });
-        _culture = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
-        foreach (var (name, _) in Cultures)
-            _culture.Items.Add(name);
-        _culture.SelectedIndex = 1;
-        AutomationProperties.SetName(_culture, "Культура");
-        Settings.Children.Add(_culture);
-        _cultureSample.FontSize = 12;
-        _cultureSample.Bind(TextBlock.ForegroundProperty, _cultureSample.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
-        Settings.Children.Add(_cultureSample);
+        var localization = InspectorLayout.Section(Settings, "Локализация");
+        _culture = InspectorLayout.Combo(
+            localization,
+            "Культура",
+            Array.ConvertAll(Cultures, static entry => entry.Name),
+            selected: 1);
+        _cultureSample = InspectorLayout.Readout(localization);
 
-        _label = new TextBox { Text = "Дата", HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetLabel(_label, "Заголовок");
-        MaterialTextField.SetVariant(_label, MaterialTextFieldVariant.Outlined);
-        AutomationProperties.SetName(_label, "Заголовок");
-        Settings.Children.Add(_label);
+        var options = InspectorLayout.Section(Settings, "Параметры");
+        var switches = InspectorLayout.Switches(options);
+        _input = InspectorLayout.Switch(switches, "Текстовый ввод", false);
+        _bounds = InspectorLayout.Switch(switches, "Ограничить 14 днями", false);
+        _actions = InspectorLayout.Switch(switches, "Кнопки OK / Cancel", true);
+        _clear = InspectorLayout.Switch(switches, "Кнопка очистки", true);
+        _adjacent = InspectorLayout.Switch(switches, "Соседние дни", false);
+        _yearRange = InspectorLayout.Switch(switches, "Диапазон лет 2020–2030", false);
+        _weekdaysOnly = InspectorLayout.Switch(switches, "Только будни", false);
 
+        var quickActions = InspectorLayout.Section(Settings, "Быстрые действия");
         var actions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
-        actions.Children.Add(ActionButton("Сегодня", () => _picker.GoToToday()));
-        actions.Children.Add(ActionButton("Очистить", ClearSelection));
-        actions.Children.Add(ActionButton("Диалог…", OpenDialog));
-        Settings.Children.Add(actions);
+        actions.Children.Add(InspectorLayout.CreateActionButton("Сегодня", () => _picker.GoToToday()));
+        actions.Children.Add(InspectorLayout.CreateActionButton("Очистить", ClearSelection));
+        actions.Children.Add(InspectorLayout.CreateActionButton("Диалог…", OpenDialog));
+        quickActions.Children.Add(actions);
 
         _picker.SelectionChanged += (_, _) =>
         {
@@ -365,37 +360,5 @@ internal sealed class DatePickersPlayground : Grid, IComponentPlayground
 
         public override bool IsSelectableDate(DateTime date) =>
             date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
-    }
-
-    private Button ActionButton(string content, Action action)
-    {
-        var button = new Button { Content = content };
-        button.Click += (_, _) => action();
-        return button;
-    }
-
-    private MaterialButtonGroup Choice(string label, string[] options)
-    {
-        Settings.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = 0;
-        Settings.Children.Add(group);
-        return group;
-    }
-
-    private ToggleSwitch Toggle(string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        Settings.Children.Add(toggle);
-        return toggle;
     }
 }

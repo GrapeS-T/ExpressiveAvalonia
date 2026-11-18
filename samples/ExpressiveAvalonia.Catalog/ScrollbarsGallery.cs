@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -27,8 +28,8 @@ internal sealed class ScrollbarsPlayground : Grid, IComponentPlayground
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ToggleSwitch _fade;
     private readonly ToggleSwitch _nativeBars;
-    private readonly ToggleSwitch _rtl;
     private readonly ToggleSwitch _track;
+    private readonly ToggleSwitch _rtl;
     private readonly ToggleSwitch _precisionFlag;
     private readonly ToggleSwitch _precision;
     private readonly ComboBox _thumbRole;
@@ -40,7 +41,7 @@ internal sealed class ScrollbarsPlayground : Grid, IComponentPlayground
     private readonly Slider _fadeDelay;
     private readonly Slider _fadeDuration;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal ScrollbarsPlayground()
     {
@@ -130,9 +131,9 @@ internal sealed class ScrollbarsPlayground : Grid, IComponentPlayground
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        stage.Children.Add(Section("Вертикальный", "Родной вертикальный ScrollBar остаётся интерактивным; пассивный слой повторяет смещение, размер контента и viewport."));
+        stage.Children.Add(StageSection("Вертикальный", "Родной вертикальный ScrollBar остаётся интерактивным; пассивный слой повторяет смещение, размер контента и viewport."));
         stage.Children.Add(verticalHost);
-        stage.Children.Add(Section("Горизонтальный", "Track/thumb используют viewport, inset из источника и RTL-позицию; колесо и клавиатура продолжают прокручивать."));
+        stage.Children.Add(StageSection("Горизонтальный", "Track/thumb используют viewport, inset из источника и RTL-позицию; колесо и клавиатура продолжают прокручивать."));
         stage.Children.Add(horizontalHost);
 
         var buttons = new StackPanel
@@ -149,53 +150,49 @@ internal sealed class ScrollbarsPlayground : Grid, IComponentPlayground
 
         Children.Add(stage);
 
-        _fade = Toggle("Fade lifecycle", true);
-        _nativeBars = Toggle("Родные ScrollBar", true);
-        _rtl = Toggle("RTL", false);
-        _track = Toggle("Показать track", false);
-        _precisionFlag = Toggle("Precision sizing flag (глобальный)", MaterialPrecisionPointer.IsComponentSizingEnabled);
-        _precision = new ToggleSwitch
-        {
-            Content = "Precision pointer (host adapter)",
-            IsChecked = MaterialPrecisionPointer.ShouldUsePrecisionPointerComponentSizing,
-            IsEnabled = false,
-        };
-        var (thumbRoleHost, thumbRole) = Combo("Цвет thumb", ["Outline 70% (источник)", "Primary", "Error"]);
-        _thumbRole = thumbRole;
-        _thickness = NumberSlider(2, 12, 4);
-        _minLength = NumberSlider(8, 48, 24);
-        _maxFraction = NumberSlider(0.2, 1, 0.9);
-        _mainInset = NumberSlider(0, 12, 2);
-        _crossInset = NumberSlider(0, 12, 0);
-        _fadeDelay = NumberSlider(0, 1000, 400);
-        _fadeDuration = NumberSlider(0, 500, 250);
+        var overlaySection = InspectorLayout.Section(Settings, "Поведение оверлея", divider: false);
+        var overlaySwitches = InspectorLayout.Switches(overlaySection);
+        _fade = InspectorLayout.Switch(overlaySwitches, "Fade lifecycle", true);
+        _nativeBars = InspectorLayout.Switch(overlaySwitches, "Родные ScrollBar", true);
+        _track = InspectorLayout.Switch(overlaySwitches, "Показать track", false);
+        _rtl = InspectorLayout.Switch(overlaySwitches, "RTL", false);
+        _thumbRole = InspectorLayout.Combo(
+            overlaySection,
+            "Цвет thumb",
+            new[] { "Outline 70% (источник)", "Primary", "Error" },
+            0);
 
-        Settings.Children.Add(_fade);
-        Settings.Children.Add(_nativeBars);
-        Settings.Children.Add(_rtl);
-        Settings.Children.Add(_track);
-        Settings.Children.Add(thumbRoleHost);
-        Settings.Children.Add(Number("Толщина", _thickness));
-        Settings.Children.Add(Number("Минимальная длина thumb", _minLength));
-        Settings.Children.Add(Number("Максимальная доля thumb", _maxFraction));
-        Settings.Children.Add(Number("Main-axis inset", _mainInset));
-        Settings.Children.Add(Number("Cross-axis inset", _crossInset));
-        Settings.Children.Add(Number("Fade delay, ms", _fadeDelay));
-        Settings.Children.Add(Number("Fade duration, ms", _fadeDuration));
-        Settings.Children.Add(_precisionFlag);
-        Settings.Children.Add(_precision);
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Пассивный слой не перехватывает ввод и не заменяет Avalonia ScrollBar: page/thumb/wheel работают через родной ScrollViewer. " +
-                   "Precision-флаг повторяет источник (флаг + клавиатура + мышь); в Avalonia устройства наблюдаются по вводу окна. " +
-                   "Pen/touch не считаются мышью. При reduced motion задержка fade сохраняется, длительность становится нулевой.",
-            TextWrapping = TextWrapping.Wrap,
-        });
+        var geometrySection = InspectorLayout.Section(Settings, "Геометрия и тайминг");
+        _thickness = InspectorLayout.Slider(geometrySection, "Толщина", 2, 12, 4, step: 0.5, unit: "dp", format: "0.##", snapToTick: false);
+        _minLength = InspectorLayout.Slider(geometrySection, "Минимальная длина thumb", 8, 48, 24, step: 1, unit: "dp", format: "0.##", snapToTick: false);
+        _maxFraction = InspectorLayout.Slider(geometrySection, "Максимальная доля thumb", 0.2, 1, 0.9, step: 0.05, unit: "", format: "0.##", snapToTick: false);
+        _mainInset = InspectorLayout.Slider(geometrySection, "Main-axis inset", 0, 12, 2, step: 0.5, unit: "dp", format: "0.##", snapToTick: false);
+        _crossInset = InspectorLayout.Slider(geometrySection, "Cross-axis inset", 0, 12, 0, step: 0.5, unit: "dp", format: "0.##", snapToTick: false);
+        _fadeDelay = InspectorLayout.Slider(geometrySection, "Fade delay", 0, 1000, 400, step: 50, unit: "ms", format: "0", snapToTick: false);
+        _fadeDuration = InspectorLayout.Slider(geometrySection, "Fade duration", 0, 500, 250, step: 25, unit: "ms", format: "0", snapToTick: false);
+
+        var precisionSection = InspectorLayout.Section(Settings, "Precision pointer");
+        var precisionSwitches = InspectorLayout.Switches(precisionSection);
+        _precisionFlag = InspectorLayout.Switch(
+            precisionSwitches,
+            "Precision sizing flag (глобальный)",
+            MaterialPrecisionPointer.IsComponentSizingEnabled);
+        _precision = InspectorLayout.Switch(
+            precisionSwitches,
+            "Precision pointer (host adapter)",
+            MaterialPrecisionPointer.ShouldUsePrecisionPointerComponentSizing);
+        _precision.IsEnabled = false;
+
+        InspectorLayout.Note(
+            Settings,
+            "Пассивный слой не перехватывает ввод и не заменяет Avalonia ScrollBar: page/thumb/wheel работают через родной ScrollViewer. " +
+            "Precision-флаг повторяет источник (флаг + клавиатура + мышь); в Avalonia устройства наблюдаются по вводу окна. " +
+            "Pen/touch не считаются мышью. При reduced motion задержка fade сохраняется, длительность становится нулевой.");
 
         _fade.IsCheckedChanged += (_, _) => ApplySettings();
         _nativeBars.IsCheckedChanged += (_, _) => ApplySettings();
-        _rtl.IsCheckedChanged += (_, _) => ApplySettings();
         _track.IsCheckedChanged += (_, _) => ApplySettings();
+        _rtl.IsCheckedChanged += (_, _) => ApplySettings();
         _precisionFlag.IsCheckedChanged += (_, _) =>
         {
             MaterialPrecisionPointer.IsComponentSizingEnabled = _precisionFlag.IsChecked == true;
@@ -248,11 +245,11 @@ internal sealed class ScrollbarsPlayground : Grid, IComponentPlayground
             bar.TrackColor = _track.IsChecked == true
                 ? ResolveColor("MaterialOutlineVariantColor") ?? Colors.Transparent
                 : Colors.Transparent;
-            bar.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+            InspectorLayout.ApplyFlowDirection(bar, _rtl);
         }
 
-        _verticalScroll.FlowDirection = _verticalBar.FlowDirection;
-        _horizontalScroll.FlowDirection = _horizontalBar.FlowDirection;
+        InspectorLayout.ApplyFlowDirection(_verticalScroll, _rtl);
+        InspectorLayout.ApplyFlowDirection(_horizontalScroll, _rtl);
 
         var native = _nativeBars.IsChecked == true
             ? ScrollBarVisibility.Auto
@@ -303,51 +300,12 @@ internal sealed class ScrollbarsPlayground : Grid, IComponentPlayground
 
     private static string YesNo(bool value) => value ? "да" : "нет";
 
-    private static TextBlock Section(string title, string description) => new()
+    private static TextBlock StageSection(string title, string description) => new()
     {
         Text = $"{title}\n{description}",
         TextWrapping = TextWrapping.Wrap,
         FontWeight = FontWeight.SemiBold,
     };
-
-    private static ToggleSwitch Toggle(string label, bool value) =>
-        new() { Content = label, IsChecked = value, HorizontalAlignment = HorizontalAlignment.Stretch };
-
-    private static (Control Host, ComboBox Combo) Combo(string label, string[] items)
-    {
-        var combo = new ComboBox { ItemsSource = items, SelectedIndex = 0 };
-        var host = new StackPanel { Spacing = 4 };
-        host.Children.Add(new TextBlock { Text = label });
-        host.Children.Add(combo);
-        return (host, combo);
-    }
-
-    private static Slider NumberSlider(double min, double max, double value) => new()
-    {
-        Minimum = min,
-        Maximum = max,
-        Value = value,
-        TickFrequency = Math.Max((max - min) / 20, 0.01),
-        IsSnapToTickEnabled = false,
-    };
-
-    private static Control Number(string label, Slider slider)
-    {
-        var value = new TextBlock { Text = slider.Value.ToString("0.##"), HorizontalAlignment = HorizontalAlignment.Right };
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                value.Text = slider.Value.ToString("0.##");
-        };
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        header.Children.Add(new TextBlock { Text = label });
-        Grid.SetColumn(value, 1);
-        header.Children.Add(value);
-        var host = new StackPanel { Spacing = 4 };
-        host.Children.Add(header);
-        host.Children.Add(slider);
-        return host;
-    }
 
     private static Button Action(string label, Action action)
     {

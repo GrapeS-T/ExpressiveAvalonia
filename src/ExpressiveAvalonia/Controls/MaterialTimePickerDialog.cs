@@ -104,7 +104,8 @@ public sealed class MaterialTimePickerDialog : Window
     {
         if (e.Property == MaterialTimePicker.EffectiveHeadlineProperty ||
             e.Property == MaterialTimePicker.HeadlineProperty ||
-            e.Property == MaterialTimePicker.VariantProperty)
+            e.Property == MaterialTimePicker.VariantProperty ||
+            e.Property == MaterialTimePicker.InputModeProperty)
         {
             Title = ResolveTitle(_picker);
         }
@@ -164,7 +165,10 @@ public sealed class MaterialTimePickerDialog : Window
         _picker.PropertyChanged -= OnPickerPropertyChanged;
         _scrim.PointerPressed -= OnScrimPointerPressed;
         if (_ownerWindow is not null)
+        {
             _ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
+            _ownerWindow.PositionChanged -= OnOwnerPositionChanged;
+        }
 
         if (_result is not { IsConfirmed: true })
         {
@@ -197,10 +201,14 @@ public sealed class MaterialTimePickerDialog : Window
         if (ReferenceEquals(_ownerWindow, owner))
             return;
         if (_ownerWindow is not null)
+        {
             _ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
+            _ownerWindow.PositionChanged -= OnOwnerPositionChanged;
+        }
         _ownerWindow = owner;
         _previousFocus ??= owner.FocusManager?.GetFocusedElement();
         owner.PropertyChanged += OnOwnerPropertyChanged;
+        owner.PositionChanged += OnOwnerPositionChanged;
         ApplyPresentation(owner);
     }
 
@@ -208,6 +216,12 @@ public sealed class MaterialTimePickerDialog : Window
     {
         if (e.Property == ClientSizeProperty && !_closed)
             ApplyPresentation(_ownerWindow);
+    }
+
+    private void OnOwnerPositionChanged(object? sender, PixelPointEventArgs e)
+    {
+        if (!_closed && _ownerWindow is { PlatformImpl: not null, ClientSize: { Width: > 0, Height: > 0 } } owner)
+            Position = owner.PointToScreen(new Point(0, 0));
     }
 
     private void ApplyPresentation(Window? owner)
@@ -220,6 +234,11 @@ public sealed class MaterialTimePickerDialog : Window
             SizeToContent = SizeToContent.Manual;
             Width = size.Width;
             Height = size.Height;
+            if (owner.PlatformImpl is not null)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Position = owner.PointToScreen(new Point(0, 0));
+            }
             _scrim.Background = ResolveScrimBrush();
             _scrim.Opacity = ResolveScrimOpacity();
             _scrim.IsVisible = true;
@@ -229,6 +248,7 @@ public sealed class MaterialTimePickerDialog : Window
             return;
         }
 
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _scrim.IsVisible = false;
         ClearValue(WidthProperty);
         ClearValue(HeightProperty);

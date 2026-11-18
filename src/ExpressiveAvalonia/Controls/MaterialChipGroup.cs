@@ -165,6 +165,13 @@ public class MaterialChipGroup : ItemsControl
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
+        if (change.Property == ItemsSourceProperty && change.OldValue is null && change.NewValue is not null)
+        {
+            foreach (var chip in _chips.ToList())
+                UnregisterChip(chip);
+            _chips.Clear();
+        }
+
         base.OnPropertyChanged(change);
         if (change.Property == LayoutProperty)
         {
@@ -178,6 +185,7 @@ public class MaterialChipGroup : ItemsControl
         else if (change.Property == ItemsSourceProperty)
         {
             SyncChipsFromItems();
+            UpdateTabStops();
         }
         else if (change.Property == ContainerKindProperty)
         {
@@ -271,6 +279,7 @@ public class MaterialChipGroup : ItemsControl
             return;
         chip.PropertyChanged -= OnChipPropertyChanged;
         chip.GotFocus -= OnChipGotFocus;
+        chip.ClearValue(KeyboardNavigation.IsTabStopProperty);
         _chips.Remove(chip);
         if (_selected.Remove(chip))
             RaiseEvent(new MaterialChipSelectionChangedEventArgs(SelectionChangedEvent, [], [chip]));
@@ -278,7 +287,8 @@ public class MaterialChipGroup : ItemsControl
 
     private void OnChipPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == InputElement.IsEffectivelyEnabledProperty)
+        if (e.Property == InputElement.IsEffectivelyEnabledProperty ||
+            e.Property == Visual.IsVisibleProperty)
         {
             UpdateTabStops();
             return;
@@ -362,11 +372,16 @@ public class MaterialChipGroup : ItemsControl
     private void UpdateTabStops()
     {
         if (_chips.Count == 0)
+        {
+            SetRovingTabStop(null);
             return;
+        }
         var focused = _chips.FirstOrDefault(chip =>
-            (chip.IsFocused || chip.IsKeyboardFocusWithin) && chip.IsEffectivelyEnabled);
-        var selected = _chips.FirstOrDefault(chip => chip.IsSelected && chip.IsEffectivelyEnabled);
-        var first = _chips.FirstOrDefault(chip => chip.IsEffectivelyEnabled);
+            (chip.IsFocused || chip.IsKeyboardFocusWithin) && chip.IsEffectivelyEnabled && chip.IsEffectivelyVisible);
+        var selected = _chips.FirstOrDefault(chip =>
+            chip.IsSelected && chip.IsEffectivelyEnabled && chip.IsEffectivelyVisible);
+        var first = _chips.FirstOrDefault(chip =>
+            chip.IsEffectivelyEnabled && chip.IsEffectivelyVisible);
         SetRovingTabStop(focused ?? selected ?? first);
     }
 
@@ -383,7 +398,7 @@ public class MaterialChipGroup : ItemsControl
         if (e.Handled || e.KeyModifiers != KeyModifiers.None)
             return;
 
-        var chips = _chips.Where(chip => chip.IsEffectivelyEnabled).ToList();
+        var chips = _chips.Where(chip => chip.IsEffectivelyEnabled && chip.IsEffectivelyVisible).ToList();
         if (chips.Count == 0)
             return;
         var focused = chips.FirstOrDefault(chip => chip.IsFocused || chip.IsKeyboardFocusWithin);
@@ -438,7 +453,7 @@ public class MaterialChipGroup : ItemsControl
         var bestScore = double.MaxValue;
         foreach (var chip in _chips)
         {
-            if (ReferenceEquals(chip, from) || !chip.IsEffectivelyEnabled)
+            if (ReferenceEquals(chip, from) || !chip.IsEffectivelyEnabled || !chip.IsEffectivelyVisible)
                 continue;
             var center = CenterRelativeToGroup(chip);
             if (center is null)

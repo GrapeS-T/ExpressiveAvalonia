@@ -90,7 +90,7 @@ internal sealed class MaterialColorAnimation : IDisposable
         _clock.Restart();
         if (!_running) MaterialMotion.ReducedMotionChanged += ReducedChanged;
         _running = true;
-        Request();
+        if (!_disposed) Request();
     }
 
     private void Request()
@@ -105,7 +105,7 @@ internal sealed class MaterialColorAnimation : IDisposable
     {
         _pending = false;
         if (!_running || _disposed) return;
-        if (MaterialMotion.GetIsReduced(_owner) || !_owner.IsEffectivelyVisible || _clock.Elapsed.TotalSeconds >= _duration)
+        if (MaterialMotion.GetIsReduced(_owner) || !_owner.IsEffectivelyVisible || !_owner.IsAttachedToVisualTree() || _clock.Elapsed.TotalSeconds >= _duration)
         {
             Finish();
             return;
@@ -137,10 +137,13 @@ internal sealed class MaterialColorAnimation : IDisposable
         _apply(_target.ToColor());
     }
 
-    private void Detached(object? sender, VisualTreeAttachmentEventArgs e) { if (!_disposed) Finish(); }
+    private void Detached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (_running && !_disposed) Finish();
+    }
     private void ReducedChanged(object? sender, EventArgs e)
     {
-        if (!_disposed && MaterialMotion.GetIsReduced(_owner)) Finish();
+        if (_running && !_disposed && MaterialMotion.GetIsReduced(_owner)) Finish();
     }
     private void Changed(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
@@ -151,10 +154,21 @@ internal sealed class MaterialColorAnimation : IDisposable
             // the same spring kind and retune the running simulation without dropping velocity.
             var (stiffness, damping) = MaterialSpringTokens.Get(_spring, MaterialMotion.GetScheme(_owner));
             if (stiffness != _stiffness || damping != _damping)
-                Retarget(_target.ToColor(), stiffness, damping);
+            {
+                if (!_running)
+                {
+                    _stiffness = stiffness;
+                    _damping = damping;
+                    _simulation = new SpringSimulation(stiffness, damping);
+                }
+                else
+                {
+                    Retarget(_target.ToColor(), stiffness, damping);
+                }
+            }
             return;
         }
-        if ((e.Property == MaterialMotion.IsReducedProperty || e.Property == Visual.IsVisibleProperty) &&
+        if (_running && (e.Property == MaterialMotion.IsReducedProperty || e.Property == Visual.IsVisibleProperty) &&
             (MaterialMotion.GetIsReduced(_owner) || !_owner.IsEffectivelyVisible)) Finish();
     }
 

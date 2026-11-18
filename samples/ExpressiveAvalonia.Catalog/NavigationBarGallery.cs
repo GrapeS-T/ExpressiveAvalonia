@@ -1,6 +1,5 @@
 using System;
 using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
@@ -56,7 +55,7 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
     private readonly ComboBox _selected;
     private bool _sync;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal NavigationBarPlayground()
     {
@@ -102,35 +101,32 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
         stage.Children.Add(_card);
         Children.Add(stage);
 
-        _axis = Choice("Ось полосы", ["Горизонтальная", "Вертикальная"]);
-        _kind = Choice("Вариант", ["Классическая", "Short (выразительная)"]);
-        _arrangement = Choice("Раскладка Short", ["Равные", "По центру"]);
-        Settings.Children.Add(new TextBlock { Text = "Расположение пунктов" });
-        _itemOrientation = new ComboBox
-        {
-            ItemsSource = new[] { "Авто", "Иконка слева", "Иконка сверху" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        AutomationProperties.SetName(_itemOrientation, "Расположение пунктов");
-        Settings.Children.Add(_itemOrientation);
-        _count = Number("Количество пунктов", 3, 6, 4, 1);
-        _labels = Toggle("Подписи пунктов", true);
-        _alwaysShowLabel = Toggle("Подписи у всех пунктов", true);
-        _badge = Choice("Badge «Избранное»", ["Нет", "Точка", "Число"]);
-        _rtl = Toggle("RTL (справа налево)", false);
-        _badgeText = new TextBox { Text = "3", HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetLabel(_badgeText, "Текст badge");
-        MaterialTextField.SetVariant(_badgeText, MaterialTextFieldVariant.Outlined);
-        AutomationProperties.SetName(_badgeText, "Текст badge");
-        Settings.Children.Add(_badgeText);
-        _disabledLast = Toggle("Последний пункт недоступен", false);
-        _cardWidth = Number("Ширина панели", 240, 720, 560, 20);
+        var configSection = InspectorLayout.Section(Settings, "Конфигурация", divider: false);
+        _kind = InspectorLayout.Choice(configSection, "Вариант", ["Classic", "Short"]);
+        _axis = InspectorLayout.Choice(configSection, "Ось полосы", ["Горизонтальная", "Вертикальная"]);
+        _arrangement = InspectorLayout.Choice(configSection, "Раскладка Short", ["Равные", "По центру"]);
+        _itemOrientation = InspectorLayout.Combo(
+            configSection,
+            "Расположение пунктов",
+            new[] { "Авто", "Иконка слева", "Иконка сверху" },
+            0);
 
-        Settings.Children.Add(new TextBlock { Text = "Выбранный пункт" });
-        _selected = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
-        AutomationProperties.SetName(_selected, "Выбранный пункт");
-        Settings.Children.Add(_selected);
+        var destinationsSection = InspectorLayout.Section(Settings, "Пункты и бейдж");
+        _count = InspectorLayout.Slider(destinationsSection, "Количество пунктов", 3, 6, 4, step: 1, format: "0");
+        var destinationSwitches = InspectorLayout.Switches(destinationsSection);
+        _labels = InspectorLayout.Switch(destinationSwitches, "Подписи пунктов", true);
+        _alwaysShowLabel = InspectorLayout.Switch(destinationSwitches, "Подписи у всех пунктов", true);
+        _badge = InspectorLayout.Choice(destinationsSection, "Badge «Избранное»", ["Нет", "Точка", "Число"]);
+        _badgeText = InspectorLayout.TextField(destinationsSection, "Текст badge", "3");
+
+        var layoutSection = InspectorLayout.Section(Settings, "Геометрия и выбор");
+        _cardWidth = InspectorLayout.Slider(layoutSection, "Ширина панели", 240, 720, 560, step: 20, unit: "dp", format: "0");
+        _selected = InspectorLayout.Combo(layoutSection, "Выбранный пункт");
+
+        var statesSection = InspectorLayout.Section(Settings, "Состояния");
+        var stateSwitches = InspectorLayout.Switches(statesSection);
+        _disabledLast = InspectorLayout.Switch(stateSwitches, "Последний пункт недоступен", false);
+        _rtl = InspectorLayout.Switch(stateSwitches, "RTL (справа налево)", false);
 
         foreach (var group in new[] { _axis, _kind, _arrangement, _badge })
             group.SelectionChanged += (_, _) => { if (!_sync) Apply(); };
@@ -188,9 +184,7 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
                     2 => MaterialNavigationItemIconPosition.Top,
                     _ => MaterialNavigationItemIconPosition.Auto,
                 };
-            _card.FlowDirection = _rtl.IsChecked == true
-                ? Avalonia.Media.FlowDirection.RightToLeft
-                : Avalonia.Media.FlowDirection.LeftToRight;
+            InspectorLayout.ApplyFlowDirection(_card, _rtl);
             DockPanel.SetDock(_bar, vertical ? Dock.Left : Dock.Bottom);
             _bar.Width = vertical ? 240 : double.NaN;
             _card.Width = _cardWidth.Value;
@@ -275,52 +269,5 @@ internal sealed class NavigationBarPlayground : Grid, IComponentPlayground
         {
             _status.Text = "Ничего не выбрано";
         }
-    }
-
-    private MaterialButtonGroup Choice(string label, string[] options)
-    {
-        Settings.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = 0;
-        Settings.Children.Add(group);
-        return group;
-    }
-
-    private ToggleSwitch Toggle(string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        Settings.Children.Add(toggle);
-        return toggle;
-    }
-
-    private Slider Number(string label, double min, double max, double value, double step)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0}" };
-        Settings.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                caption.Text = $"{label}: {slider.Value:0}";
-        };
-        Settings.Children.Add(slider);
-        return slider;
     }
 }

@@ -28,6 +28,12 @@ internal sealed class CarouselArrangement(
 
     private bool IsValid()
     {
+        if (LargeCount <= 0 || LargeSize <= 0)
+            return false;
+        if (MediumCount > 0 && (MediumSize <= 0 || LargeSize <= MediumSize))
+            return false;
+        if (SmallCount > 0 && SmallSize <= 0)
+            return false;
         if (LargeCount > 0 && SmallCount > 0 && MediumCount > 0)
             return LargeSize > MediumSize && MediumSize > SmallSize;
         if (LargeCount > 0 && SmallCount > 0)
@@ -58,7 +64,7 @@ internal sealed class CarouselArrangement(
         double targetLargeSize,
         int[] largeCounts)
     {
-        if (largeCounts.Length == 0 || mediumCounts.Length == 0 || smallCounts.Length == 0)
+        if (availableSpace <= 0 || largeCounts.Length == 0 || mediumCounts.Length == 0 || smallCounts.Length == 0)
             return null;
 
         CarouselArrangement? lowestCostArrangement = null;
@@ -82,8 +88,9 @@ internal sealed class CarouselArrangement(
                         largeCount,
                         targetLargeSize);
 
-                    if (lowestCostArrangement is null ||
-                        arrangement.Cost(targetLargeSize) < lowestCostArrangement.Cost(targetLargeSize))
+                    if (arrangement.IsValid() &&
+                        (lowestCostArrangement is null ||
+                         arrangement.Cost(targetLargeSize) < lowestCostArrangement.Cost(targetLargeSize)))
                     {
                         lowestCostArrangement = arrangement;
                         // A cost of 0 means the large size did not have to change. Permutations are
@@ -119,7 +126,9 @@ internal sealed class CarouselArrangement(
     {
         var totalItemCount = largeCount + mediumCount + smallCount;
         var availableSpaceWithoutSpacing = availableSpace - ((totalItemCount - 1) * itemSpacing);
-        var arrangedSmallSize = Math.Clamp(smallSize, minSmallSize, maxSmallSize);
+        var minSmall = Math.Max(1d, Math.Min(minSmallSize, maxSmallSize));
+        var maxSmall = Math.Max(minSmall, maxSmallSize);
+        var arrangedSmallSize = Math.Clamp(smallSize, minSmall, maxSmall);
         var arrangedMediumSize = mediumSize;
         var arrangedLargeSize = largeSize;
 
@@ -132,12 +141,12 @@ internal sealed class CarouselArrangement(
         if (smallCount > 0 && delta > 0)
         {
             // Grow the small items.
-            arrangedSmallSize += Math.Min(delta / smallCount, maxSmallSize - arrangedSmallSize);
+            arrangedSmallSize += Math.Min(delta / smallCount, maxSmall - arrangedSmallSize);
         }
         else if (smallCount > 0 && delta < 0)
         {
             // Shrink the small items.
-            arrangedSmallSize += Math.Max(delta / smallCount, minSmallSize - arrangedSmallSize);
+            arrangedSmallSize += Math.Max(delta / smallCount, minSmall - arrangedSmallSize);
         }
 
         if (smallCount <= 0)

@@ -847,7 +847,7 @@ internal sealed class LinearProgressPresenter : Control
         var barEnd = endFraction * length;
 
         // Source: when there is not enough room to draw the caps, fall back to a butt line.
-        if (StrokeCap == PenLineCap.Flat || band > length)
+        if (StrokeCap == PenLineCap.Flat || band > length || strokeWidth / 2 > length - strokeWidth / 2)
         {
             DrawLogicalLine(context, _buttPen, brush, barStart, barEnd, length, band, vertical);
             return;
@@ -904,9 +904,11 @@ internal sealed class LinearProgressPresenter : Control
 
         var active = IsBrushVisible(IndicatorBrush) ? IndicatorBrush : null;
         var track = IsBrushVisible(TrackBrush) ? TrackBrush : null;
-        var capWidth = (StrokeCap == PenLineCap.Flat && TrackStrokeCap == PenLineCap.Flat) || band > length
+        var maxHalfStroke = Math.Max(activeStroke / 2, trackStroke / 2);
+        var capWidth = (StrokeCap == PenLineCap.Flat && TrackStrokeCap == PenLineCap.Flat) ||
+                       band > length || maxHalfStroke > length - maxHalfStroke
             ? 0
-            : Math.Max(activeStroke / 2, trackStroke / 2);
+            : maxHalfStroke;
 
         var fractions = new double[4];
         int pairCount;

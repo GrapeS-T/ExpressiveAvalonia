@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
@@ -36,88 +37,62 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _enabled;
     private readonly ToggleSwitch _readOnly;
     private readonly ToggleSwitch _rtl;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal TextFieldPlayground()
     {
         var host = new Border
         {
-            Child = _field, HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(24)
+            Child = _field,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(24),
         };
         Children.Add(host);
-        Settings.Children.Add(new TextBlock { Text = "Вид" });
-        _variant = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true
-        };
-        _variant.Items.Add(new MaterialButtonGroupItem { Content = "Filled" });
-        _variant.Items.Add(new MaterialButtonGroupItem { Content = "Outlined" });
-        _variant.SelectedIndex = 1;
-        Settings.Children.Add(_variant);
-        Settings.Children.Add(new TextBlock { Text = "Положение подписи" });
-        _labelPosition = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true
-        };
-        _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Авто" });
-        _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Внутри" });
-        _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Вырез" });
-        _labelPosition.Items.Add(new MaterialButtonGroupItem { Content = "Сверху" });
-        _labelPosition.SelectedIndex = 0;
-        Settings.Children.Add(_labelPosition);
-        Settings.Children.Add(new TextBlock { Text = "Выравнивание подписи" });
-        _labelAlignment = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected, ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small, SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true
-        };
-        _labelAlignment.Items.Add(new MaterialButtonGroupItem { Content = "Старт" });
-        _labelAlignment.Items.Add(new MaterialButtonGroupItem { Content = "Центр" });
-        _labelAlignment.Items.Add(new MaterialButtonGroupItem { Content = "Конец" });
-        _labelAlignment.SelectedIndex = 0;
-        Settings.Children.Add(_labelAlignment);
-        _alwaysMinimized = Toggle("Подпись всегда минимизирована", false);
-        var widthLabel = new TextBlock { Text = "Ширина: 320 dp" };
-        Settings.Children.Add(widthLabel);
-        _width = new Slider { Minimum = 240, Maximum = 560, Value = 320, TickFrequency = 1, IsSnapToTickEnabled = true };
-        MaterialAssist.SetControlSize(_width, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(_width, false);
-        Avalonia.Automation.AutomationProperties.SetName(_width, "Ширина поля, dp");
+
+        var configSection = InspectorLayout.Section(Settings, "Конфигурация", divider: false);
+        _variant = InspectorLayout.Choice(configSection, "Вид", ["Filled", "Outlined"], 1);
+        _labelPosition = InspectorLayout.Choice(configSection, "Положение подписи", ["Авто", "Внутри", "Вырез", "Сверху"], 0);
+        _labelAlignment = InspectorLayout.Choice(configSection, "Выравнивание подписи", ["Старт", "Центр", "Конец"], 0);
+        var configSwitches = InspectorLayout.Switches(configSection);
+        _alwaysMinimized = InspectorLayout.Switch(configSwitches, "Подпись всегда минимизирована", false);
+        _width = InspectorLayout.Slider(configSection, "Ширина", 240, 560, 320, 1, "dp", "0");
+        AutomationProperties.SetName(_width, "Ширина поля, dp");
         _width.PropertyChanged += (_, e) =>
         {
-            if (e.Property != RangeBase.ValueProperty) return;
-            _field.Width = _width.Value;
-            widthLabel.Text = $"Ширина: {_width.Value:0} dp";
+            if (e.Property == RangeBase.ValueProperty)
+                _field.Width = _width.Value;
         };
-        Settings.Children.Add(_width);
-        _label = Editor("Подпись", "Label");
-        _placeholder = Editor("Placeholder", "Введите текст");
-        _supporting = Editor("Поддерживающий текст", "Supporting text");
-        _prefix = Editor("Префикс", "");
-        _suffix = Editor("Суффикс", "");
-        _leading = Toggle("Иконка поиска слева", false);
-        _trailing = Toggle("Иконка справа", false);
-        _clear = Toggle("Кнопка очистки", false);
-        _password = Toggle("Пароль и кнопка показа", false);
-        _multiline = Toggle("Многострочный ввод", false);
-        _error = Toggle("Ошибка валидации", false);
-        _enabled = Toggle("Поле доступно", true);
-        _readOnly = Toggle("Только чтение", false);
-        _rtl = Toggle("Справа налево (RTL)", false);
-        var reset = new Button { Content = "Восстановить текст", HorizontalAlignment = HorizontalAlignment.Stretch };
-        reset.Click += (_, _) => _field.Text = "Input text";
-        Settings.Children.Add(reset);
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Редактируйте текст прямо в поле. Наведение и фокус — настоящие состояния; Tab переводит фокус в поле. MD3 и MD3E используют общий шаблон Filled / Outlined.",
-            TextWrapping = TextWrapping.Wrap, FontSize = 13
-        });
+
+        var textSection = InspectorLayout.Section(Settings, "Текст и аффиксы");
+        _label = InspectorLayout.TextField(textSection, "Подпись", "Label");
+        _placeholder = InspectorLayout.TextField(textSection, "Placeholder", "Введите текст");
+        _supporting = InspectorLayout.TextField(textSection, "Поддерживающий текст", "Supporting text");
+        _prefix = InspectorLayout.TextField(textSection, "Префикс", "");
+        _suffix = InspectorLayout.TextField(textSection, "Суффикс", "");
+
+        var modeSection = InspectorLayout.Section(Settings, "Иконки и режим");
+        var modeSwitches = InspectorLayout.Switches(modeSection);
+        _leading = InspectorLayout.Switch(modeSwitches, "Иконка поиска слева", false);
+        _trailing = InspectorLayout.Switch(modeSwitches, "Иконка справа", false);
+        _clear = InspectorLayout.Switch(modeSwitches, "Кнопка очистки", false);
+        _password = InspectorLayout.Switch(modeSwitches, "Пароль и кнопка показа", false);
+        _multiline = InspectorLayout.Switch(modeSwitches, "Многострочный ввод", false);
+
+        var stateSection = InspectorLayout.Section(Settings, "Состояния");
+        var stateSwitches = InspectorLayout.Switches(stateSection);
+        _error = InspectorLayout.Switch(stateSwitches, "Ошибка валидации", false);
+        _enabled = InspectorLayout.Switch(stateSwitches, "Поле доступно", true);
+        _readOnly = InspectorLayout.Switch(stateSwitches, "Только чтение", false);
+        _rtl = InspectorLayout.Switch(stateSwitches, "Справа налево (RTL)", false);
+        InspectorLayout.ActionButton(stateSection, "Восстановить текст", () => _field.Text = "Input text");
+
+        InspectorLayout.Note(
+            Settings,
+            "Редактируйте текст прямо в поле. Наведение и фокус — настоящие состояния; " +
+            "Tab переводит фокус в поле. MD3 и MD3E используют общий шаблон Filled / Outlined.");
+
         _variant.SelectionChanged += (_, _) => Apply();
         _labelPosition.SelectionChanged += (_, _) => Apply();
         _labelAlignment.SelectionChanged += (_, _) => Apply();
@@ -126,24 +101,6 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
         foreach (var toggle in new[] { _leading, _trailing, _clear, _password, _multiline, _error, _enabled, _readOnly, _rtl, _alwaysMinimized })
             toggle.IsCheckedChanged += (_, _) => Apply();
         Apply();
-    }
-
-
-    private TextBox Editor(string label, string text)
-    {
-        var editor = new TextBox { Text = text, HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetVariant(editor, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(editor, label);
-        Avalonia.Automation.AutomationProperties.SetName(editor, label);
-        Settings.Children.Add(editor);
-        return editor;
-    }
-
-    private ToggleSwitch Toggle(string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        Settings.Children.Add(toggle);
-        return toggle;
     }
 
     private static PathIcon Icon(string geometry) => new() { Data = Geometry.Parse(geometry), Width = 24, Height = 24 };
@@ -165,9 +122,9 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
         MaterialTextField.SetMinimizedLabelAlignment(_field, alignment);
         MaterialTextField.SetAboveLabelAlignment(_field, alignment);
         if (string.IsNullOrEmpty(_label.Text))
-            _field.ClearValue(Avalonia.Automation.AutomationProperties.NameProperty);
+            _field.ClearValue(AutomationProperties.NameProperty);
         else
-            Avalonia.Automation.AutomationProperties.SetName(_field, _label.Text);
+            AutomationProperties.SetName(_field, _label.Text);
         _field.PlaceholderText = _placeholder.Text;
         MaterialTextField.SetSupportingText(_field, _supporting.Text);
         MaterialTextField.SetPrefix(_field, _prefix.Text);
@@ -195,7 +152,7 @@ internal sealed class TextFieldPlayground : Grid, IComponentPlayground
         _field.MinHeight = _field.AcceptsReturn ? 120 : 56;
         _field.IsEnabled = _enabled.IsChecked == true;
         _field.IsReadOnly = _readOnly.IsChecked == true;
-        _field.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        InspectorLayout.ApplyFlowDirection(_field, _rtl);
         DataValidationErrors.SetErrors(_field, _error.IsChecked == true ? new object[] { "Введите корректное значение" } : null);
     }
 }

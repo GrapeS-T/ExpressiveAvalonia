@@ -48,32 +48,30 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
     };
     private readonly MaterialButtonGroup _kind;
     private readonly ComboBox _placement;
+    private readonly StackPanel _plainPanel;
     private readonly ComboBox _plainType;
     private readonly TextBox _plainText;
     private readonly Slider _delay;
-    private readonly TextBlock _delayCaption = new();
     private readonly ToggleSwitch _longPress;
     private readonly ToggleSwitch _showOnDisabled;
     private readonly ToggleSwitch _ownerEnabled;
     private readonly ToggleSwitch _exposeHelp;
     private readonly ToggleSwitch _plainCaret;
-    private readonly ToggleSwitch _richCaret;
+    private readonly StackPanel _richPanel;
+    private readonly ComboBox _mode;
     private readonly TextBox _title;
     private readonly TextBox _body;
     private readonly ComboBox _actions;
     private readonly TextBox _primary;
     private readonly TextBox _secondary;
+    private readonly ComboBox _persistence;
     private readonly ToggleSwitch _showTitle;
     private readonly ToggleSwitch _showActions;
     private readonly ToggleSwitch _showSecondary;
-    private readonly ComboBox _persistence;
-    private readonly ComboBox _mode;
-    private readonly StackPanel _plainPanel = new() { Spacing = 16 };
-    private readonly StackPanel _richPanel = new() { Spacing = 16 };
-    private readonly StackPanel _primaryPanel = new() { Spacing = 8 };
-    private readonly StackPanel _secondaryPanel = new() { Spacing = 8 };
+    private readonly ToggleSwitch _richCaret;
     private bool _syncing;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal TooltipsPlayground()
     {
@@ -108,115 +106,79 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         stage.Children.Add(_readout);
         Children.Add(stage);
 
-        _kind = Choice("Тип подсказки", new[] { "Plain", "Rich" }, 0);
-
-        var placementPanel = new StackPanel { Spacing = 8 };
-        placementPanel.Children.Add(new TextBlock { Text = "Размещение (Placement)" });
-        _placement = new ComboBox
-        {
-            ItemsSource = new[] { "По умолчанию (Auto)", "Top", "Bottom", "Left", "Right" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        var typeSection = InspectorLayout.Section(Settings, "Тип и размещение", divider: false);
+        _kind = InspectorLayout.Choice(typeSection, "Тип подсказки", new[] { "Plain", "Rich" }, 0);
+        _placement = InspectorLayout.Combo(
+            typeSection,
+            "Размещение (Placement)",
+            new[] { "По умолчанию (Auto)", "Top", "Bottom", "Left", "Right" },
+            0);
         AutomationProperties.SetName(_placement, "Размещение подсказки");
-        placementPanel.Children.Add(_placement);
-        Settings.Children.Add(placementPanel);
 
-        _plainPanel.Children.Add(new TextBlock { Text = "Макет" });
-        _plainType = new ComboBox
-        {
-            ItemsSource = new[] { "Single line (200 DIP)", "Multi line (200 DIP)" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _plainPanel = InspectorLayout.Section(Settings, "Обычная подсказка (Plain)");
+        _plainType = InspectorLayout.Combo(
+            _plainPanel,
+            "Макет",
+            new[] { "Single line (200 DIP)", "Multi line (200 DIP)" },
+            0);
         AutomationProperties.SetName(_plainType, "Макет обычной подсказки");
-        _plainPanel.Children.Add(_plainType);
+        _plainText = InspectorLayout.TextField(_plainPanel, "Текст подсказки", LongText, multiline: true);
+        _delay = InspectorLayout.Slider(_plainPanel, "Задержка появления", 0, 2000, 500, step: 100, unit: "мс", format: "0");
 
-        _plainText = TextField("Текст подсказки", LongText, acceptsReturn: true);
-        _plainPanel.Children.Add(_plainText);
+        var plainSwitches = InspectorLayout.Switches(_plainPanel);
+        _longPress = InspectorLayout.Switch(plainSwitches, "Открывать долгим нажатием (500 мс)", true);
+        _showOnDisabled = InspectorLayout.Switch(plainSwitches, "Показывать у недоступного владельца", false);
+        _ownerEnabled = InspectorLayout.Switch(plainSwitches, "Владелец доступен", true);
+        _exposeHelp = InspectorLayout.Switch(plainSwitches, "Текст помощи для скринридера", true);
+        _plainCaret = InspectorLayout.Switch(plainSwitches, "Карат 16×8 (caretShape)", false);
 
-        _plainPanel.Children.Add(_delayCaption);
-        _delay = new Slider { Minimum = 0, Maximum = 2000, Value = 500, TickFrequency = 100, IsSnapToTickEnabled = true };
-        MaterialAssist.SetControlSize(_delay, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(_delay, false);
-        AutomationProperties.SetName(_delay, "Задержка появления");
-        _plainPanel.Children.Add(_delay);
-
-        _longPress = Toggle(_plainPanel, "Открывать долгим нажатием (500 мс)", true);
-        _showOnDisabled = Toggle(_plainPanel, "Показывать у недоступного владельца", false);
-        _ownerEnabled = Toggle(_plainPanel, "Владелец доступен", true);
-        _exposeHelp = Toggle(_plainPanel, "Текст помощи для скринридера", true);
-        _plainCaret = Toggle(_plainPanel, "Карат 16×8 (caretShape)", false);
-        Settings.Children.Add(_plainPanel);
-
-        _richPanel.Children.Add(new TextBlock { Text = "Открытие" });
-        _mode = new ComboBox
-        {
-            ItemsSource = new[] { "Кнопка с Flyout", "Context flyout + ShowAt" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _richPanel = InspectorLayout.Section(Settings, "Расширенная подсказка (Rich)");
+        _mode = InspectorLayout.Combo(
+            _richPanel,
+            "Открытие",
+            new[] { "Кнопка с Flyout", "Context flyout + ShowAt" },
+            0);
         AutomationProperties.SetName(_mode, "Способ открытия расширенной подсказки");
-        _richPanel.Children.Add(_mode);
+        _title = InspectorLayout.TextField(_richPanel, "Заголовок (Title)", "Опубликовать изменения");
+        _body = InspectorLayout.TextField(
+            _richPanel,
+            "Текст (Content)",
+            "Публикация делает ревизию видимой всем, у кого есть доступ к библиотеке.",
+            multiline: true);
 
-        _title = TextField("Заголовок (Title)", "Опубликовать изменения");
-        _richPanel.Children.Add(_title);
-        _body = TextField("Текст (Content)", "Публикация делает ревизию видимой всем, у кого есть доступ к библиотеке.", acceptsReturn: true);
-        _richPanel.Children.Add(_body);
-
-        _richPanel.Children.Add(new TextBlock { Text = "Действия" });
-        _actions = new ComboBox
-        {
-            ItemsSource = new[] { "Две кнопки", "Свой набор (оценка)", "Без действий" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _actions = InspectorLayout.Combo(
+            _richPanel,
+            "Действия",
+            new[] { "Две кнопки", "Свой набор (оценка)", "Без действий" },
+            0);
         AutomationProperties.SetName(_actions, "Действия расширенной подсказки");
-        _richPanel.Children.Add(_actions);
 
-        _primaryPanel.Children.Add(new TextBlock { Text = "Основное действие" });
-        _primary = new TextBox { Text = "Опубликовать", HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetVariant(_primary, MaterialTextFieldVariant.Outlined);
-        AutomationProperties.SetName(_primary, "Основное действие");
-        _primaryPanel.Children.Add(_primary);
-        _richPanel.Children.Add(_primaryPanel);
+        _primary = InspectorLayout.TextField(_richPanel, "Основное действие", "Опубликовать");
+        _secondary = InspectorLayout.TextField(_richPanel, "Второе действие", "Отмена");
 
-        _secondaryPanel.Children.Add(new TextBlock { Text = "Второе действие" });
-        _secondary = new TextBox { Text = "Отмена", HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetVariant(_secondary, MaterialTextFieldVariant.Outlined);
-        AutomationProperties.SetName(_secondary, "Второе действие");
-        _secondaryPanel.Children.Add(_secondary);
-        _richPanel.Children.Add(_secondaryPanel);
-
-        _richPanel.Children.Add(new TextBlock { Text = "Удержание (IsPersistent)" });
-        _persistence = new ComboBox
-        {
-            ItemsSource = new[]
+        _persistence = InspectorLayout.Combo(
+            _richPanel,
+            "Удержание (IsPersistent)",
+            new[]
             {
                 "По умолчанию (от действий)",
                 "Постоянная (IsPersistent = true)",
                 "Временная 1.5 с (IsPersistent = false)",
             },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+            0);
         AutomationProperties.SetName(_persistence, "Удержание расширенной подсказки");
-        _richPanel.Children.Add(_persistence);
 
-        _showTitle = Toggle(_richPanel, "Показывать заголовок", true);
-        _showActions = Toggle(_richPanel, "Показывать действия (ShowActions)", true);
-        _showSecondary = Toggle(_richPanel, "Показывать второе действие", true);
-        _richCaret = Toggle(_richPanel, "Карат 16×8 (caretShape)", false);
-        Settings.Children.Add(_richPanel);
+        var richSwitches = InspectorLayout.Switches(_richPanel);
+        _showTitle = InspectorLayout.Switch(richSwitches, "Показывать заголовок", true);
+        _showActions = InspectorLayout.Switch(richSwitches, "Показывать действия (ShowActions)", true);
+        _showSecondary = InspectorLayout.Switch(richSwitches, "Показывать второе действие", true);
+        _richCaret = InspectorLayout.Switch(richSwitches, "Карат 16×8 (caretShape)", false);
 
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Plain использует настоящий ToolTip: наведение, задержка, фокус с клавиатуры, Escape и " +
-                   "долгое нажатие. Rich — RichTooltip: Flyout или ContextFlyout, заголовок, поддерживающий " +
-                   "текст и действия; обе кнопки закрывают подсказку после команды и возвращают фокус владельцу.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        InspectorLayout.Note(
+            Settings,
+            "Plain использует настоящий ToolTip: наведение, задержка, фокус с клавиатуры, Escape и " +
+            "долгое нажатие. Rich — RichTooltip: Flyout или ContextFlyout, заголовок, поддерживающий " +
+            "текст и действия; обе кнопки закрывают подсказку после команды и возвращают фокус владельцу.");
 
         _kind.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         _placement.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
@@ -249,9 +211,8 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         var plain = _kind.SelectedIndex == 0;
         _plainPanel.IsVisible = plain;
         _richPanel.IsVisible = !plain;
-        _delayCaption.Text = $"Задержка появления: {(int)Math.Round(_delay.Value)} мс";
-        _primaryPanel.IsVisible = _actions.SelectedIndex == 0;
-        _secondaryPanel.IsVisible = _actions.SelectedIndex == 0 && _showSecondary.IsChecked == true;
+        _primary.IsVisible = _actions.SelectedIndex == 0;
+        _secondary.IsVisible = _actions.SelectedIndex == 0 && _showSecondary.IsChecked == true;
         _showSecondary.IsVisible = _actions.SelectedIndex == 0;
 
         if (plain)
@@ -391,49 +352,6 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
     }
 
     private void Report(string message) => _readout.Text = message;
-
-    private TextBox TextField(string label, string text, bool acceptsReturn = false)
-    {
-        var box = new TextBox
-        {
-            Text = text,
-            AcceptsReturn = acceptsReturn,
-            TextWrapping = acceptsReturn ? TextWrapping.Wrap : TextWrapping.NoWrap,
-            MinHeight = acceptsReturn ? 88 : 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        MaterialTextField.SetVariant(box, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(box, label);
-        AutomationProperties.SetName(box, label);
-        return box;
-    }
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private MaterialButtonGroup Choice(string label, string[] options, int selected)
-    {
-        var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = selected;
-        panel.Children.Add(group);
-        Settings.Children.Add(panel);
-        return group;
-    }
 
     private sealed class DelegateCommand(Action execute) : ICommand
     {

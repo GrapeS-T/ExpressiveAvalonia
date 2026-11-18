@@ -33,8 +33,8 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
         HorizontalAlignment = HorizontalAlignment.Center,
         TextWrapping = TextWrapping.Wrap,
     };
-    private readonly ComboBox _variant = new() { ItemsSource = Enum.GetNames<MaterialCardVariant>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _anatomy = new() { ItemsSource = Anatomies, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _variant;
+    private readonly ComboBox _anatomy;
     private readonly Slider _width;
     private readonly Slider _radius;
     private readonly ToggleSwitch _avatar;
@@ -54,7 +54,7 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
     private int _commands;
     private int _actions;
     private int _drags;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal CardsPlayground()
     {
@@ -103,40 +103,38 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
         badgeRow.Children.Add(BadgeSample(FlowDirection.LeftToRight, null));
         _slotContent.Children.Add(badgeRow);
 
-        Settings.Children.Add(Caption("Вид контейнера"));
-        Settings.Children.Add(_variant);
-        Settings.Children.Add(Caption("Анатомия"));
-        Settings.Children.Add(_anatomy);
-        _width = Number(Settings, "Ширина", 240, 520, 360, 8, "dp");
-        _radius = Number(Settings, "Радиус", 0, 32, 12, 1, "dp");
-
-        _header = Text(Settings, "Шапка", "Заголовок");
-        _title = Text(Settings, "Заголовок", "Title");
-        _supporting = Text(Settings, "Поддерживающий текст", "Короткое описание карточки.");
-
-        _avatar = Toggle(Settings, "Аватар в шапке", true);
-        _headerAction = Toggle(Settings, "Действие в шапке", false);
-        _secondary = Toggle(Settings, "Вторичное действие", true);
-        _interactive = Toggle(Settings, "Интерактивная карточка", false);
-        _focus = Toggle(Settings, "Показывать фокусное кольцо", false);
-        _drag = Toggle(Settings, "Перетаскивание (DragData)", false);
-        _enabled = Toggle(Settings, "Доступна", true);
-
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Интерактивная карточка получает фокус, состояния hover/pressed/focused/dragged, " +
-                   "активацию Enter/Space и команду без вложенных кнопок действий (по гайдлайнам M3). " +
-                   "В неинтерактивном режиме карточка служит контейнером для самостоятельных кнопок. " +
-                   "Layout=Slot заменяет анатомию слотом содержимого.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
-
+        var containerSection = InspectorLayout.Section(Settings, "Контейнер", divider: false);
+        _variant = InspectorLayout.Combo(containerSection, "Вид контейнера", Enum.GetNames<MaterialCardVariant>(), 0);
         AutomationProperties.SetName(_variant, "Вид карточки");
+        _anatomy = InspectorLayout.Combo(containerSection, "Анатомия", Anatomies, 0);
         AutomationProperties.SetName(_anatomy, "Анатомия карточки");
+        _width = InspectorLayout.Slider(containerSection, "Ширина", 240, 520, 360, 8, "dp", "0");
+        _radius = InspectorLayout.Slider(containerSection, "Радиус", 0, 32, 12, 1, "dp", "0");
+
+        var contentSection = InspectorLayout.Section(Settings, "Содержимое");
+        _header = InspectorLayout.TextField(contentSection, "Шапка", "Заголовок");
         AutomationProperties.SetName(_header, "Шапка карточки");
+        _title = InspectorLayout.TextField(contentSection, "Заголовок", "Title");
         AutomationProperties.SetName(_title, "Заголовок карточки");
+        _supporting = InspectorLayout.TextField(contentSection, "Поддерживающий текст", "Короткое описание карточки.");
         AutomationProperties.SetName(_supporting, "Поддерживающий текст карточки");
+
+        var behaviorSection = InspectorLayout.Section(Settings, "Поведение и состояния");
+        var switches = InspectorLayout.Switches(behaviorSection);
+        _avatar = InspectorLayout.Switch(switches, "Аватар в шапке", true);
+        _headerAction = InspectorLayout.Switch(switches, "Действие в шапке", false);
+        _secondary = InspectorLayout.Switch(switches, "Вторичное действие", true);
+        _interactive = InspectorLayout.Switch(switches, "Интерактивная карточка", false);
+        _focus = InspectorLayout.Switch(switches, "Показывать фокусное кольцо", false);
+        _drag = InspectorLayout.Switch(switches, "Перетаскивание (DragData)", false);
+        _enabled = InspectorLayout.Switch(switches, "Доступна", true);
+
+        InspectorLayout.Note(
+            Settings,
+            "Интерактивная карточка получает фокус, состояния hover/pressed/focused/dragged, " +
+            "активацию Enter/Space и команду без вложенных кнопок действий (по гайдлайнам M3). " +
+            "В неинтерактивном режиме карточка служит контейнером для самостоятельных кнопок. " +
+            "Layout=Slot заменяет анатомию слотом содержимого.");
 
         _variant.SelectionChanged += (_, _) => Apply();
         _anatomy.SelectionChanged += (_, _) => Apply();
@@ -291,48 +289,6 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
         };
         AutomationProperties.SetName(box, text is null ? "Badge dot" : $"Badge {text}");
         return box;
-    }
-
-    private static TextBlock Caption(string text) => new() { Text = text };
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static TextBox Text(StackPanel host, string label, string value)
-    {
-        host.Children.Add(Caption(label));
-        var box = new TextBox { Text = value, HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetVariant(box, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(box, label);
-        host.Children.Add(box);
-        return box;
-    }
-
-    private static Slider Number(StackPanel host, string label, double min, double max, double value, double step, string unit)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0} {unit}" };
-        host.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(slider, false);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0} {unit}";
-        };
-        AutomationProperties.SetName(slider, label);
-        host.Children.Add(slider);
-        return slider;
     }
 
     private sealed class DelegateCommand : ICommand

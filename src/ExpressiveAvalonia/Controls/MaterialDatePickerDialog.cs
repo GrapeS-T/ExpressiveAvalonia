@@ -165,7 +165,10 @@ public sealed class MaterialDatePickerDialog : Window
         _picker.PropertyChanged -= OnPickerPropertyChanged;
         _scrim.PointerPressed -= OnScrimPointerPressed;
         if (_ownerWindow is not null)
+        {
             _ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
+            _ownerWindow.PositionChanged -= OnOwnerPositionChanged;
+        }
 
         // Any close that was not a confirmation discards the draft, like the source dialog where
         // the caller simply does not read the state after a cancel.
@@ -195,10 +198,14 @@ public sealed class MaterialDatePickerDialog : Window
         if (ReferenceEquals(_ownerWindow, owner))
             return;
         if (_ownerWindow is not null)
+        {
             _ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
+            _ownerWindow.PositionChanged -= OnOwnerPositionChanged;
+        }
         _ownerWindow = owner;
         _previousFocus ??= owner.FocusManager?.GetFocusedElement();
         owner.PropertyChanged += OnOwnerPropertyChanged;
+        owner.PositionChanged += OnOwnerPositionChanged;
         ApplyPresentation(owner);
     }
 
@@ -206,6 +213,12 @@ public sealed class MaterialDatePickerDialog : Window
     {
         if (e.Property == ClientSizeProperty && !_closed)
             ApplyPresentation(_ownerWindow);
+    }
+
+    private void OnOwnerPositionChanged(object? sender, PixelPointEventArgs e)
+    {
+        if (!_closed && _ownerWindow is { PlatformImpl: not null, ClientSize: { Width: > 0, Height: > 0 } } owner)
+            Position = owner.PointToScreen(new Point(0, 0));
     }
 
     private void ApplyPresentation(Window? owner)
@@ -216,6 +229,11 @@ public sealed class MaterialDatePickerDialog : Window
             SizeToContent = SizeToContent.Manual;
             Width = size.Width;
             Height = size.Height;
+            if (owner.PlatformImpl is not null)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Position = owner.PointToScreen(new Point(0, 0));
+            }
             _scrim.Background = ResolveScrimBrush();
             _scrim.Opacity = ResolveScrimOpacity();
             _scrim.IsVisible = !fullScreen;
@@ -238,6 +256,7 @@ public sealed class MaterialDatePickerDialog : Window
             return;
         }
 
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _scrim.IsVisible = false;
         if (fullScreen)
         {

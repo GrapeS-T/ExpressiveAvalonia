@@ -479,7 +479,7 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         if (layer is not null)
             return layer;
 
-        var manager = (topLevel.Content as Visual)?.GetSelfAndVisualDescendants()
+        var manager = topLevel.GetSelfAndVisualDescendants()
             .OfType<VisualLayerManager>()
             .FirstOrDefault();
         if (manager is null || manager.EnableOverlayLayer)

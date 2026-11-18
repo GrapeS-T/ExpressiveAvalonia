@@ -21,13 +21,13 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
     private const string StarFilledIcon = "star_filled";
 
     private static readonly MaterialButtonVariant[] Variants =
-    {
+    [
         MaterialButtonVariant.Filled,
         MaterialButtonVariant.Tonal,
         MaterialButtonVariant.Outlined,
         MaterialButtonVariant.Elevated,
         MaterialButtonVariant.Text,
-    };
+    ];
     private static readonly MaterialButtonVariant[] ToggleVariants =
         [MaterialButtonVariant.Filled, MaterialButtonVariant.Tonal, MaterialButtonVariant.Outlined, MaterialButtonVariant.Elevated];
     private static readonly MaterialButtonVariant[] IconVariants =
@@ -60,10 +60,7 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
     private readonly MaterialButtonGroup _iconWidth;
     private readonly ComboBox _variant;
     private readonly ComboBox _size;
-    private readonly StackPanel _iconWidthSettings = new() { Spacing = 16 };
-    private readonly StackPanel _labelSettings = new() { Spacing = 16 };
-    private readonly StackPanel _leadingSettings = new() { Spacing = 16 };
-    private readonly StackPanel _selectedSettings = new() { Spacing = 16 };
+    private readonly StackPanel _textAnatomy;
     private readonly MaterialIcon _buttonGlyph;
     private readonly MaterialIcon _buttonContentGlyph;
     private readonly MaterialIcon _toggleGlyph;
@@ -75,7 +72,8 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _rtl;
     private int _clicks;
     private bool _syncing;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal ButtonPlayground()
     {
@@ -94,45 +92,32 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
         stage.Children.Add(_readout);
         Children.Add(stage);
 
-        _kind = Choice(Settings, "Тип", new[] { "Button", "ToggleButton" }, 0);
-        _content = Choice(Settings, "Содержимое", new[] { "Текст", "Иконка" }, 0);
-        _variant = Field(Settings, "Вид", new ComboBox
-        {
-            ItemsSource = Variants,
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        });
-        _size = Field(Settings, "Размер", new ComboBox
-        {
-            ItemsSource = new[] { "ExtraSmall", "Small", "Medium", "Large", "ExtraLarge" },
-            SelectedIndex = 2,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        });
-        _shape = Choice(Settings, "Форма", new[] { "Round", "Square" }, 0);
-        _iconWidth = Choice(_iconWidthSettings, "Ширина контейнера", new[] { "Narrow", "Default", "Wide" }, 1);
-        Settings.Children.Add(_iconWidthSettings);
+        var configSection = InspectorLayout.Section(Settings, "Конфигурация", divider: false);
+        _kind = InspectorLayout.Choice(configSection, "Тип", ["Button", "ToggleButton"], 0);
+        _content = InspectorLayout.Choice(configSection, "Содержимое", ["Текст", "Иконка"], 0);
+        _variant = InspectorLayout.Combo(configSection, "Вид", Variants, 0);
+        _size = InspectorLayout.Combo(configSection, "Размер", ["ExtraSmall", "Small", "Medium", "Large", "ExtraLarge"], 2);
+        _shape = InspectorLayout.Choice(configSection, "Форма", ["Round", "Square"], 0);
 
-        _label = new TextBox { Text = "Label", HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetVariant(_label, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(_label, "Текст");
-        _labelSettings.Children.Add(_label);
-        _leading = Toggle(_leadingSettings, "Ведущая иконка", true);
-        Settings.Children.Add(_labelSettings);
-        Settings.Children.Add(_leadingSettings);
+        var anatomySection = InspectorLayout.Section(Settings, "Анатомия");
+        _iconWidth = InspectorLayout.Choice(anatomySection, "Ширина контейнера", ["Narrow", "Default", "Wide"], 1);
+        _textAnatomy = InspectorLayout.Group(anatomySection);
+        _label = InspectorLayout.TextField(_textAnatomy, "Текст", "Label");
+        var anatomySwitches = InspectorLayout.Switches(_textAnatomy);
+        _leading = InspectorLayout.Switch(anatomySwitches, "Ведущая иконка", true);
 
-        _selected = Toggle(_selectedSettings, "Выбрано (IsChecked)", false);
-        Settings.Children.Add(_selectedSettings);
-        _enabled = Toggle(Settings, "Доступна", true);
-        _rtl = Toggle(Settings, "Справа налево (RTL)", false);
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "MD3 Expressive: пять размеров и формы Round/Square. " +
-                   "Icon-only: Filled/Tonal/Outlined/Standard; текстовый ToggleButton не использует Text. " +
-                   "Narrow/Default/Wide меняет контейнер, но не глиф. Клик, Space и Enter — " +
-                   "настоящие состояния; выбранность синхронизирована с IsChecked.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        var stateSection = InspectorLayout.Section(Settings, "Состояния");
+        var stateSwitches = InspectorLayout.Switches(stateSection);
+        _selected = InspectorLayout.Switch(stateSwitches, "Выбрано (IsChecked)", false);
+        _enabled = InspectorLayout.Switch(stateSwitches, "Доступна", true);
+        _rtl = InspectorLayout.Switch(stateSwitches, "Справа налево (RTL)", false);
+
+        InspectorLayout.Note(
+            Settings,
+            "MD3 Expressive: пять размеров и формы Round/Square. " +
+            "Icon-only: Filled/Tonal/Outlined/Standard; текстовый ToggleButton не использует Text. " +
+            "Narrow/Default/Wide меняет контейнер, но не глиф. Клик, Space и Enter — " +
+            "настоящие состояния; выбранность синхронизирована с IsChecked.");
 
         AutomationProperties.SetName(_variant, "Вид кнопки");
         AutomationProperties.SetName(_size, "Размер кнопки");
@@ -201,12 +186,11 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
         var current = toggleMode ? (Control)_toggle : _button;
         if (!ReferenceEquals(_host.Child, current))
             _host.Child = current;
-        _host.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        InspectorLayout.ApplyFlowDirection(_host, _rtl);
 
-        _iconWidthSettings.IsVisible = iconMode;
-        _labelSettings.IsVisible = !iconMode;
-        _leadingSettings.IsVisible = !iconMode;
-        _selectedSettings.IsVisible = toggleMode;
+        _iconWidth.IsVisible = iconMode;
+        _textAnatomy.IsVisible = !iconMode;
+        _selected.IsVisible = toggleMode;
 
         UpdateReadout();
     }
@@ -262,36 +246,5 @@ internal sealed class ButtonPlayground : Grid, IComponentPlayground
         _readout.Text = _kind.SelectedIndex == 1
             ? $"Нажатий: {_clicks} · ToggleButton: {toggle}"
             : $"Нажатий: {_clicks}";
-    }
-
-    private static T Field<T>(StackPanel host, string label, T control) where T : Control
-    {
-        host.Children.Add(new TextBlock { Text = label });
-        host.Children.Add(control);
-        return control;
-    }
-
-    private static MaterialButtonGroup Choice(StackPanel host, string label, string[] options, int selected)
-    {
-        var group = Field(host, label, new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-        });
-        foreach (var option in options) group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        // The group clears an out-of-range selection whenever items change, so the initial
-        // index is applied only once every item exists.
-        group.SelectedIndex = selected;
-        return group;
-    }
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
     }
 }

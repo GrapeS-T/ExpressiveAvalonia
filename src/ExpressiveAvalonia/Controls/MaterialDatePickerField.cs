@@ -79,6 +79,8 @@ public sealed class MaterialDatePickerField : TemplatedControl
     private bool _syncing;
     private bool _acceptingSelection;
     private bool _sessionPrepared;
+    private bool _templateApplied;
+    private bool _partsWired;
     private DateTime _lastDismiss = DateTime.MinValue;
     private string _placeholderText = string.Empty;
     private string? _validationMessage;
@@ -205,7 +207,7 @@ public sealed class MaterialDatePickerField : TemplatedControl
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
-        DetachParts();
+        ClearParts();
         base.OnApplyTemplate(e);
 
         _input = e.NameScope.Find<TextBox>("PART_Input");
@@ -213,22 +215,8 @@ public sealed class MaterialDatePickerField : TemplatedControl
         _popup = e.NameScope.Find<Popup>("PART_Popup");
         _error = e.NameScope.Find<TextBlock>("PART_Error");
 
-        if (_input is not null)
+        if (_popup is not null || _input is not null)
         {
-            _input.KeyDown += OnInputKeyDown;
-            _input.LostFocus += OnInputLostFocus;
-            _input.TextChanged += OnInputTextChanged;
-            UpdateInputAutomation();
-        }
-        if (_openButton is not null)
-            _openButton.Click += OnOpenButtonClick;
-
-        if (_popup is not null)
-        {
-            _popup.PlacementTarget = _input;
-            _popup.HorizontalOffset = -16;
-            _popup.VerticalOffset = -4;
-            _popup.PropertyChanged += OnPopupPropertyChanged;
             _picker = new MaterialDatePicker
             {
                 Mode = MaterialDatePickerMode.Docked,
@@ -237,28 +225,11 @@ public sealed class MaterialDatePickerField : TemplatedControl
                 ShowClearButton = true,
                 AllowInputMode = false,
             };
-            _picker.SelectionChanged += OnPickerSelectionChanged;
-            _picker.Confirmed += OnPickerConfirmed;
-            _picker.Cancelled += OnPickerCancelled;
-            _popup.Child = CreatePopupContent(_picker);
         }
 
-        UpdatePlaceholder();
-        SyncPickerOptions();
-        SyncPickerSelection();
-        SyncInputText();
-        UpdateError();
-        if (_popup is not null)
-        {
-            _popup.PlacementTarget = _input ?? (Control)this;
-            if (IsOpen)
-            {
-                // A template applied after Open() has to rebuild the session against the new parts.
-                _sessionPrepared = false;
-                PrepareSession();
-            }
-            _popup.IsOpen = IsOpen;
-        }
+        _templateApplied = true;
+        WireParts();
+        SyncPartsState();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -269,17 +240,19 @@ public sealed class MaterialDatePickerField : TemplatedControl
         {
             if (_syncing)
                 return;
+            SetValidationMessage(null);
             SyncPickerSelection();
-            SyncInputText();
+            SyncInputText(force: true);
             return;
         }
 
         if (change.Property == MinimumDateProperty || change.Property == MaximumDateProperty ||
             change.Property == CultureProperty || change.Property == DateFormatProperty)
         {
+            var formatChanged = change.Property == CultureProperty || change.Property == DateFormatProperty;
             UpdatePlaceholder();
             SyncPickerOptions();
-            SyncInputText();
+            SyncInputText(force: formatChanged);
             return;
         }
 
@@ -300,20 +273,97 @@ public sealed class MaterialDatePickerField : TemplatedControl
         }
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (!_templateApplied || _partsWired)
+            return;
+
+        WireParts();
+        SyncPartsState();
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        var popup = _popup;
-        DetachParts();
-        if (popup is not null)
+        if (_popup is { IsOpen: true })
         {
-            if (popup.Child is Panel host)
-                host.Children.Clear();
-            popup.Child = null;
+            _popup.IsOpen = false;
         }
+        else if (IsOpen)
+        {
+            if (!_acceptingSelection)
+                RestoreOpenValue();
+            _acceptingSelection = false;
+            _sessionPrepared = false;
+            SetCurrentValue(IsOpenProperty, false);
+        }
+        UnwireParts();
         base.OnDetachedFromVisualTree(e);
     }
 
-    private void DetachParts()
+    private void WireParts()
+    {
+        if (_partsWired)
+            return;
+        _partsWired = true;
+
+        if (_input is not null)
+        {
+            _input.KeyDown -= OnInputKeyDown;
+            _input.KeyDown += OnInputKeyDown;
+            _input.LostFocus -= OnInputLostFocus;
+            _input.LostFocus += OnInputLostFocus;
+            _input.TextChanged -= OnInputTextChanged;
+            _input.TextChanged += OnInputTextChanged;
+            UpdateInputAutomation();
+        }
+        if (_openButton is not null)
+        {
+            _openButton.Click -= OnOpenButtonClick;
+            _openButton.Click += OnOpenButtonClick;
+        }
+        if (_picker is not null)
+        {
+            _picker.SelectionChanged -= OnPickerSelectionChanged;
+            _picker.SelectionChanged += OnPickerSelectionChanged;
+            _picker.Confirmed -= OnPickerConfirmed;
+            _picker.Confirmed += OnPickerConfirmed;
+            _picker.Cancelled -= OnPickerCancelled;
+            _picker.Cancelled += OnPickerCancelled;
+        }
+        if (_popup is not null)
+        {
+            _popup.PlacementTarget = _input ?? (Control)this;
+            _popup.HorizontalOffset = -16;
+            _popup.VerticalOffset = -4;
+            _popup.PropertyChanged -= OnPopupPropertyChanged;
+            _popup.PropertyChanged += OnPopupPropertyChanged;
+            if (_popup.Child is null && _picker is not null)
+                _popup.Child = CreatePopupContent(_picker);
+        }
+    }
+
+    private void SyncPartsState()
+    {
+        UpdatePlaceholder();
+        SyncPickerOptions();
+        SyncPickerSelection();
+        SyncInputText(force: true);
+        UpdateError();
+        if (_popup is not null)
+        {
+            _popup.PlacementTarget = _input ?? (Control)this;
+            if (IsOpen)
+            {
+                // A template applied or re-attached after Open() has to rebuild the session against the parts.
+                _sessionPrepared = false;
+                PrepareSession();
+            }
+            _popup.IsOpen = IsOpen;
+        }
+    }
+
+    private void UnwireParts()
     {
         if (_input is not null)
         {
@@ -328,19 +378,29 @@ public sealed class MaterialDatePickerField : TemplatedControl
         {
             _popup.PropertyChanged -= OnPopupPropertyChanged;
             _popup.IsOpen = false;
+            if (_popup.Child is Panel host)
+                host.Children.Clear();
+            _popup.Child = null;
         }
         if (_picker is not null)
         {
             _picker.SelectionChanged -= OnPickerSelectionChanged;
             _picker.Confirmed -= OnPickerConfirmed;
             _picker.Cancelled -= OnPickerCancelled;
-            _picker = null;
         }
+        _partsWired = false;
+        _sessionPrepared = false;
+    }
+
+    private void ClearParts()
+    {
+        UnwireParts();
+        _picker = null;
         _input = null;
         _openButton = null;
         _popup = null;
         _error = null;
-        _sessionPrepared = false;
+        _templateApplied = false;
     }
 
     private static Control CreatePopupContent(MaterialDatePicker picker)
@@ -409,9 +469,9 @@ public sealed class MaterialDatePickerField : TemplatedControl
         }
     }
 
-    private void SyncInputText()
+    private void SyncInputText(bool force = false)
     {
-        if (_input is null || _input.IsFocused)
+        if (_input is null || (!force && _input.IsFocused))
             return;
         _input.Text = SelectedDate is { } value ? FormatValue(value.Date) : string.Empty;
     }
@@ -472,7 +532,7 @@ public sealed class MaterialDatePickerField : TemplatedControl
         {
             _syncing = false;
         }
-        SyncInputText();
+        SyncInputText(force: true);
     }
 
     private void OnOpenButtonClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -492,9 +552,24 @@ public sealed class MaterialDatePickerField : TemplatedControl
         }
         else if (e.Key == Key.Escape)
         {
-            RestoreOpenValue();
-            Close();
-            e.Handled = true;
+            if (IsOpen)
+            {
+                SetValidationMessage(null);
+                RestoreOpenValue();
+                Close();
+                e.Handled = true;
+            }
+            else
+            {
+                var expected = SelectedDate is { } value ? FormatValue(value.Date) : string.Empty;
+                if (!string.Equals(_input?.Text ?? string.Empty, expected, StringComparison.Ordinal) ||
+                    !string.IsNullOrEmpty(_validationMessage))
+                {
+                    SetValidationMessage(null);
+                    SyncInputText(force: true);
+                    e.Handled = true;
+                }
+            }
         }
         else if (e.Key == Key.F4 || (e.Key == Key.Down && e.KeyModifiers == KeyModifiers.Alt))
         {
@@ -550,8 +625,8 @@ public sealed class MaterialDatePickerField : TemplatedControl
 
     private string FormatOutOfRangeMessage()
     {
-        var minYear = _picker is not null ? Math.Min(_picker.MinimumYear, _picker.MaximumYear) : 1900;
-        var maxYear = _picker is not null ? Math.Max(_picker.MinimumYear, _picker.MaximumYear) : 2100;
+        var minYear = _picker is not null ? Math.Clamp(Math.Min(_picker.MinimumYear, _picker.MaximumYear), 1, 9999) : 1900;
+        var maxYear = _picker is not null ? Math.Clamp(Math.Max(_picker.MinimumYear, _picker.MaximumYear), 1, 9999) : 2100;
         var minBound = MinimumDate?.Date ?? new DateTime(minYear, 1, 1);
         var maxBound = MaximumDate?.Date ?? new DateTime(maxYear, 12, 31);
         var pattern = GetText("MaterialDatePickerOutOfRangeText", "Enter a date between {0} and {1}");
@@ -588,13 +663,14 @@ public sealed class MaterialDatePickerField : TemplatedControl
         {
             _syncing = false;
         }
-        SyncInputText();
+        SyncInputText(force: true);
     }
 
     private void OnPickerConfirmed(object? sender, EventArgs e)
     {
         _acceptingSelection = true;
         SetCurrentValue(IsOpenProperty, false);
+        SyncInputText(force: true);
     }
 
     private void OnPickerCancelled(object? sender, EventArgs e)
@@ -636,7 +712,10 @@ public sealed class MaterialDatePickerField : TemplatedControl
     private void RestoreOpenValue()
     {
         if (SelectedDate == _valueAtOpen)
+        {
+            SyncInputText(force: true);
             return;
+        }
         SetSelectedDate(_valueAtOpen);
     }
 

@@ -77,8 +77,58 @@ public class XrNavigationBarItem : ListBoxItem
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == ContentProperty && Label is null && Content is string text)
-            SetCurrentValue(LabelProperty, text);
+        if (change.Property == ContentProperty)
+        {
+            SyncLabelFromText(Content as string);
+        }
+        else if (change.Property == LabelProperty && !_updatingAutoLabel)
+        {
+            _labelFromContent = false;
+            if (!IsSet(LabelProperty) && Content is string fallback)
+                SyncLabelFromText(fallback);
+        }
+        else if (change.Property == AutomationProperties.NameProperty && !_updatingAutomationName)
+        {
+            _appliedName = null;
+        }
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        UpdateAutomation();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _autoStatus?.Dispose();
+        _autoStatus = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    internal void SyncLabelFromText(string? text)
+    {
+        if (IsSet(LabelProperty) && !_labelFromContent)
+            return;
+
+        _updatingAutoLabel = true;
+        try
+        {
+            if (!string.IsNullOrEmpty(text))
+            {
+                _labelFromContent = true;
+                SetCurrentValue(LabelProperty, text);
+            }
+            else if (_labelFromContent)
+            {
+                _labelFromContent = false;
+                ClearValue(LabelProperty);
+            }
+        }
+        finally
+        {
+            _updatingAutoLabel = false;
+        }
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -101,6 +151,9 @@ public class XrNavigationBarItem : ListBoxItem
     }
 
     private string? _appliedName;
+    private bool _labelFromContent;
+    private bool _updatingAutoLabel;
+    private bool _updatingAutomationName;
 
     private void UpdateSelectedIcon()
     {
@@ -123,14 +176,27 @@ public class XrNavigationBarItem : ListBoxItem
     private void UpdateAutomation()
     {
         var label = Label;
-        if (!string.IsNullOrEmpty(label))
+        var current = AutomationProperties.GetName(this);
+        _updatingAutomationName = true;
+        try
         {
-            var current = AutomationProperties.GetName(this);
-            if (string.IsNullOrEmpty(current) || current == _appliedName)
+            if (!string.IsNullOrEmpty(label))
             {
-                AutomationProperties.SetName(this, label);
-                _appliedName = label;
+                if (string.IsNullOrEmpty(current) || current == _appliedName)
+                {
+                    AutomationProperties.SetName(this, label);
+                    _appliedName = label;
+                }
             }
+            else if (_appliedName is not null && current == _appliedName)
+            {
+                ClearValue(AutomationProperties.NameProperty);
+                _appliedName = null;
+            }
+        }
+        finally
+        {
+            _updatingAutomationName = false;
         }
 
         _autoStatus?.Dispose();

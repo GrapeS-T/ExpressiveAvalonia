@@ -79,8 +79,14 @@ public class XrDialog : Window
     public static readonly StyledProperty<bool> IsCloseOnActionProperty =
         AvaloniaProperty.Register<XrDialog, bool>(nameof(IsCloseOnAction), true);
 
+    private readonly EventHandler _primaryCanExecuteChanged;
+    private readonly EventHandler _secondaryCanExecuteChanged;
     private Button? _primary;
     private Button? _secondary;
+    private ICommand? _subscribedPrimaryCommand;
+    private ICommand? _subscribedSecondaryCommand;
+    private bool _commandsActive;
+    private bool _updatingAutomationName;
     private XrDialogResult _result;
 
     static XrDialog()
@@ -93,6 +99,8 @@ public class XrDialog : Window
 
     public XrDialog()
     {
+        _primaryCanExecuteChanged = (_, _) => UpdateActionEnabledStates();
+        _secondaryCanExecuteChanged = (_, _) => UpdateActionEnabledStates();
         WindowDecorations = Avalonia.Controls.WindowDecorations.None;
         CanResize = false;
         SizeToContent = SizeToContent.WidthAndHeight;
@@ -158,17 +166,53 @@ public class XrDialog : Window
             _primary.Click += OnPrimaryClick;
         if (_secondary is not null)
             _secondary.Click += OnSecondaryClick;
+
+        _commandsActive = _primary is not null || _secondary is not null;
+        SyncCommandSubscriptions();
+        UpdateActionEnabledStates();
     }
 
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
-        Control? focusTarget = _primary is { IsVisible: true } primary
+        _commandsActive = true;
+        SyncCommandSubscriptions();
+        UpdateActionEnabledStates();
+        Control? focusTarget = _primary is { IsVisible: true, IsEffectivelyEnabled: true } primary
             ? primary
-            : _secondary is { IsVisible: true } secondary
+            : _secondary is { IsVisible: true, IsEffectivelyEnabled: true } secondary
                 ? secondary
                 : null;
         (focusTarget ?? this).Focus(NavigationMethod.Tab);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _commandsActive = false;
+        SyncCommandSubscriptions();
+        if (_primary is not null)
+            _primary.Click -= OnPrimaryClick;
+        if (_secondary is not null)
+            _secondary.Click -= OnSecondaryClick;
+        base.OnClosed(e);
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == PrimaryCommandProperty || change.Property == SecondaryCommandProperty)
+        {
+            SyncCommandSubscriptions();
+            UpdateActionEnabledStates();
+        }
+        else if (change.Property == PrimaryCommandParameterProperty || change.Property == SecondaryCommandParameterProperty)
+        {
+            UpdateActionEnabledStates();
+        }
+        else if (change.Property == AutomationProperties.NameProperty && !_updatingAutomationName)
+        {
+            _appliedName = null;
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -185,6 +229,15 @@ public class XrDialog : Window
 
     private void OnPrimaryClick(object? sender, RoutedEventArgs e)
     {
+        var command = PrimaryCommand;
+        var parameter = PrimaryCommandParameter;
+        if (command is not null)
+        {
+            if (!command.CanExecute(parameter))
+                return;
+            command.Execute(parameter);
+        }
+
         PrimaryInvoked?.Invoke(this, EventArgs.Empty);
         if (IsCloseOnAction)
             Dismiss(XrDialogResult.Primary);
@@ -192,9 +245,49 @@ public class XrDialog : Window
 
     private void OnSecondaryClick(object? sender, RoutedEventArgs e)
     {
+        var command = SecondaryCommand;
+        var parameter = SecondaryCommandParameter;
+        if (command is not null)
+        {
+            if (!command.CanExecute(parameter))
+                return;
+            command.Execute(parameter);
+        }
+
         SecondaryInvoked?.Invoke(this, EventArgs.Empty);
         if (IsCloseOnAction)
             Dismiss(XrDialogResult.Secondary);
+    }
+
+    private void SyncCommandSubscriptions()
+    {
+        var desiredPrimary = _commandsActive ? PrimaryCommand : null;
+        if (!ReferenceEquals(_subscribedPrimaryCommand, desiredPrimary))
+        {
+            if (_subscribedPrimaryCommand is not null)
+                _subscribedPrimaryCommand.CanExecuteChanged -= _primaryCanExecuteChanged;
+            _subscribedPrimaryCommand = desiredPrimary;
+            if (_subscribedPrimaryCommand is not null)
+                _subscribedPrimaryCommand.CanExecuteChanged += _primaryCanExecuteChanged;
+        }
+
+        var desiredSecondary = _commandsActive ? SecondaryCommand : null;
+        if (!ReferenceEquals(_subscribedSecondaryCommand, desiredSecondary))
+        {
+            if (_subscribedSecondaryCommand is not null)
+                _subscribedSecondaryCommand.CanExecuteChanged -= _secondaryCanExecuteChanged;
+            _subscribedSecondaryCommand = desiredSecondary;
+            if (_subscribedSecondaryCommand is not null)
+                _subscribedSecondaryCommand.CanExecuteChanged += _secondaryCanExecuteChanged;
+        }
+    }
+
+    private void UpdateActionEnabledStates()
+    {
+        if (_primary is not null)
+            _primary.IsEnabled = PrimaryCommand?.CanExecute(PrimaryCommandParameter) ?? true;
+        if (_secondary is not null)
+            _secondary.IsEnabled = SecondaryCommand?.CanExecute(SecondaryCommandParameter) ?? true;
     }
 
     private void Dismiss(XrDialogResult result)
@@ -209,14 +302,27 @@ public class XrDialog : Window
     {
         var headline = Headline;
         Title = headline ?? string.Empty;
-        if (string.IsNullOrEmpty(headline))
-            return;
-
         var current = AutomationProperties.GetName(this);
-        if (string.IsNullOrEmpty(current) || current == _appliedName)
+        _updatingAutomationName = true;
+        try
         {
-            AutomationProperties.SetName(this, headline);
-            _appliedName = headline;
+            if (!string.IsNullOrEmpty(headline))
+            {
+                if (string.IsNullOrEmpty(current) || current == _appliedName)
+                {
+                    AutomationProperties.SetName(this, headline);
+                    _appliedName = headline;
+                }
+            }
+            else if (_appliedName is not null && current == _appliedName)
+            {
+                ClearValue(AutomationProperties.NameProperty);
+                _appliedName = null;
+            }
+        }
+        finally
+        {
+            _updatingAutomationName = false;
         }
     }
 

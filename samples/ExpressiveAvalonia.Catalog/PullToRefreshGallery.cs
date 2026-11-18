@@ -1,9 +1,9 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Media;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Threading;
 using ExpressiveAvalonia.Controls;
 
@@ -15,7 +15,8 @@ public static class PullToRefreshGallery
 
     private sealed class RefreshPlayground : Grid, IComponentPlayground
     {
-        public StackPanel Settings { get; } = new() { Spacing = 16 };
+        public StackPanel Settings { get; } = InspectorLayout.CreatePane();
+
         private readonly MaterialPullToRefresh _refresh;
         private readonly ProgressBar _customProgress = new()
         {
@@ -30,7 +31,7 @@ public static class PullToRefreshGallery
             VerticalAlignment = VerticalAlignment.Top,
         };
         private readonly TextBlock _status = new() { Text = "Потяните список вниз", TextWrapping = TextWrapping.Wrap };
-        private readonly TextBlock _readout = new() { TextWrapping = TextWrapping.Wrap, FontSize = 13 };
+        private readonly TextBlock _readout;
         private readonly DispatcherTimer _completion = new() { Interval = TimeSpan.FromSeconds(2) };
         private int _refreshCount;
 
@@ -40,24 +41,100 @@ public static class PullToRefreshGallery
             list.Children.Add(_status);
             for (var i = 1; i <= 30; i++)
                 list.Children.Add(new TextBlock { Text = $"Элемент {i:00}", Height = 40, VerticalAlignment = VerticalAlignment.Center });
+
             _refresh = new MaterialPullToRefresh
             {
-                AllowMousePull = true, IndicatorType = MaterialRefreshIndicator.Loading, Width = 360, Height = 480,
-                Content = new ScrollViewer { Content = list, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled }
+                AllowMousePull = true,
+                IndicatorType = MaterialRefreshIndicator.Loading,
+                Width = 360,
+                Height = 480,
+                Content = new ScrollViewer
+                {
+                    Content = list,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                },
             };
-            _customProgress.Bind(ProgressBar.ValueProperty,
+            _customProgress.Bind(
+                ProgressBar.ValueProperty,
                 _refresh.GetObservable(MaterialPullToRefresh.DistanceFractionProperty));
-            _customProgress.Bind(ProgressBar.IsIndeterminateProperty,
+            _customProgress.Bind(
+                ProgressBar.IsIndeterminateProperty,
                 _refresh.GetObservable(MaterialPullToRefresh.IsRefreshingProperty));
-            var busy = new ToggleSwitch { Content = "Внешний IsRefreshing" };
+
+            var frame = new Border
+            {
+                Child = _refresh,
+                CornerRadius = new CornerRadius(16),
+                BorderThickness = new Thickness(1),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            frame.Bind(Border.BorderBrushProperty, frame.GetResourceObservable("MaterialOutlineVariantBrush"));
+            Children.Add(frame);
+
+            var config = InspectorLayout.Section(Settings, "Конфигурация", divider: false);
+            var indicator = InspectorLayout.Combo(
+                config,
+                "Тип индикатора",
+                new[] { "Circular arrow", "Expressive loading", "Custom linear progress" },
+                selected: 1);
+            AutomationProperties.SetName(indicator, "Тип индикатора обновления");
+
+            var threshold = InspectorLayout.Slider(
+                config,
+                "Threshold (срабатывание)",
+                40,
+                200,
+                80,
+                step: 10,
+                unit: "dp",
+                format: "0");
+            AutomationProperties.SetName(threshold, "Threshold (срабатывание), dp");
+
+            var travel = InspectorLayout.Slider(
+                config,
+                "Indicator travel (MaxDistance)",
+                40,
+                240,
+                80,
+                step: 10,
+                unit: "dp",
+                format: "0");
+            AutomationProperties.SetName(travel, "Indicator travel (MaxDistance), dp");
+
+            _readout = InspectorLayout.Readout(config);
+
+            var state = InspectorLayout.Section(Settings, "Поведение и состояние");
+            var switches = InspectorLayout.Switches(state);
+            var mouse = InspectorLayout.Switch(switches, "Тянуть мышью (desktop extension)", isChecked: true);
+            var busy = InspectorLayout.Switch(switches, "Внешний IsRefreshing");
+            InspectorLayout.ActionButton(
+                state,
+                "Завершить обновление",
+                () =>
+                {
+                    _completion.Stop();
+                    _refresh.IsRefreshing = false;
+                });
+
+            InspectorLayout.Note(
+                Settings,
+                "Threshold управляет только тем, когда отпускание запрашивает refresh; MaxDistance — насколько далеко уезжает встроенный индикатор. Custom linear progress получает DistanceFraction как Value и переключает IsIndeterminate на IsRefreshing. Жест доступен только у начала списка; колесо мыши прокручивает, но не обновляет. После запроса приложение держит IsRefreshing две секунды. Touch/pen используют тот же жест без mouse opt-in.");
+
             var syncingBusy = false;
             _refresh.PropertyChanged += (_, e) =>
             {
                 if (e.Property == MaterialPullToRefresh.IsRefreshingProperty)
                 {
                     syncingBusy = true;
-                    busy.IsChecked = _refresh.IsRefreshing;
-                    syncingBusy = false;
+                    try
+                    {
+                        busy.IsChecked = _refresh.IsRefreshing;
+                    }
+                    finally
+                    {
+                        syncingBusy = false;
+                    }
                 }
                 if (e.Property == MaterialPullToRefresh.DistanceFractionProperty ||
                     e.Property == MaterialPullToRefresh.IsRefreshingProperty)
@@ -75,34 +152,12 @@ public static class PullToRefreshGallery
                 _refresh.IsRefreshing = false;
                 _status.Text = $"Обновлено: {++_refreshCount}";
             };
-            DetachedFromVisualTree += (_, _) => { _completion.Stop(); _refresh.IsRefreshing = false; };
-            var frame = new Border
+            DetachedFromVisualTree += (_, _) =>
             {
-                Child = _refresh,
-                CornerRadius = new CornerRadius(16),
-                BorderThickness = new Thickness(1),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
+                _completion.Stop();
+                _refresh.IsRefreshing = false;
             };
-            frame.Bind(Border.BorderBrushProperty, frame.GetResourceObservable("MaterialOutlineVariantBrush"));
-            Children.Add(frame);
-            var mouse = new ToggleSwitch { Content = "Тянуть мышью (desktop extension)", IsChecked = true };
-            mouse.IsCheckedChanged += (_, _) => _refresh.AllowMousePull = mouse.IsChecked == true;
-            busy.IsCheckedChanged += (_, _) =>
-            {
-                if (syncingBusy) return;
-                if (busy.IsChecked != true) _completion.Stop();
-                _refresh.IsRefreshing = busy.IsChecked == true;
-            };
-            var finish = new Button { Content = "Завершить обновление" };
-            finish.Click += (_, _) => { _completion.Stop(); _refresh.IsRefreshing = false; };
-            var indicator = new ComboBox
-            {
-                ItemsSource = new[] { "Circular arrow", "Expressive loading", "Custom linear progress" },
-                SelectedIndex = 1,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-            };
-            AutomationProperties.SetName(indicator, "Тип индикатора обновления");
+
             indicator.SelectionChanged += (_, _) =>
             {
                 if (indicator.SelectedIndex == 2)
@@ -111,52 +166,39 @@ public static class PullToRefreshGallery
                     return;
                 }
                 _refresh.IndicatorContent = null;
-                _refresh.IndicatorType = indicator.SelectedIndex == 1 ? MaterialRefreshIndicator.Loading : MaterialRefreshIndicator.Circular;
+                _refresh.IndicatorType = indicator.SelectedIndex == 1
+                    ? MaterialRefreshIndicator.Loading
+                    : MaterialRefreshIndicator.Circular;
             };
-            var threshold = NumberSetting("Threshold (срабатывание), dp", 40, 200, 80, value =>
+            threshold.PropertyChanged += (_, e) =>
             {
-                _refresh.Threshold = value;
+                if (e.Property != RangeBase.ValueProperty)
+                    return;
+                _refresh.Threshold = threshold.Value;
                 UpdateReadout();
-            });
-            var travel = NumberSetting("Indicator travel (MaxDistance), dp", 40, 240, 80, value =>
+            };
+            travel.PropertyChanged += (_, e) =>
             {
-                _refresh.MaxDistance = value;
+                if (e.Property != RangeBase.ValueProperty)
+                    return;
+                _refresh.MaxDistance = travel.Value;
                 UpdateReadout();
-            });
-            Settings.Children.Add(indicator);
-            Settings.Children.Add(threshold);
-            Settings.Children.Add(travel);
-            Settings.Children.Add(_readout);
-            Settings.Children.Add(mouse);
-            Settings.Children.Add(busy);
-            Settings.Children.Add(finish);
-            Settings.Children.Add(new TextBlock
+            };
+            mouse.IsCheckedChanged += (_, _) => _refresh.AllowMousePull = mouse.IsChecked == true;
+            busy.IsCheckedChanged += (_, _) =>
             {
-                Text = "Threshold управляет только тем, когда отпускание запрашивает refresh; MaxDistance — насколько далеко уезжает встроенный индикатор. Custom linear progress получает DistanceFraction как Value и переключает IsIndeterminate на IsRefreshing. Жест доступен только у начала списка; колесо мыши прокручивает, но не обновляет. После запроса приложение держит IsRefreshing две секунды. Touch/pen используют тот же жест без mouse opt-in.",
-                TextWrapping = TextWrapping.Wrap
-            });
+                if (syncingBusy)
+                    return;
+                if (busy.IsChecked != true)
+                    _completion.Stop();
+                _refresh.IsRefreshing = busy.IsChecked == true;
+            };
+
             UpdateReadout();
         }
 
         private void UpdateReadout() =>
             _readout.Text = $"Threshold {_refresh.Threshold:0} dp · indicator travel {_refresh.MaxDistance:0} dp · " +
                             $"fraction {_refresh.DistanceFraction:0.00}{(_refresh.IsRefreshing ? " · refreshing" : "")}";
-
-        private static Control NumberSetting(string label, double min, double max, double value, Action<double> apply)
-        {
-            var caption = new TextBlock { Text = $"{label}: {value:0}", TextWrapping = TextWrapping.Wrap, FontSize = 13 };
-            var slider = new Slider
-            {
-                Minimum = min, Maximum = max, Value = value, TickFrequency = 10, IsSnapToTickEnabled = true,
-            };
-            AutomationProperties.SetName(slider, label);
-            slider.PropertyChanged += (_, e) =>
-            {
-                if (e.Property != RangeBase.ValueProperty) return;
-                caption.Text = $"{label}: {slider.Value:0}";
-                apply(slider.Value);
-            };
-            return new StackPanel { Spacing = 4, Children = { caption, slider } };
-        }
     }
 }

@@ -68,8 +68,15 @@ public class XrNavigationBar : ListBox
     protected override void PrepareContainerForItemOverride(Control container, object? item, int index)
     {
         base.PrepareContainerForItemOverride(container, item, index);
-        if (container is XrNavigationBarItem destination && destination.Label is null && item is string text)
-            destination.Label = text;
+        if (container is XrNavigationBarItem destination)
+            destination.SyncLabelFromText(item as string);
+    }
+
+    protected override void ClearContainerForItemOverride(Control container)
+    {
+        if (container is XrNavigationBarItem destination)
+            destination.SyncLabelFromText(null);
+        base.ClearContainerForItemOverride(container);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

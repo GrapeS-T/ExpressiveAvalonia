@@ -123,7 +123,7 @@
             <Border Name="PART_Divider" Grid.ColumnSpan="3" Height="1"
                     Background="{DynamicResource MaterialOutlineVariantBrush}"
                     IsVisible="{TemplateBinding ShowDivider}" IsHitTestVisible="False" />
-            <controls:MaterialDialogActionsPanel Name="PART_Actions" Grid.Column="2"
+            <controls:MaterialDialogActionsPanel Name="PART_Actions"
                                                HorizontalAlignment="Right" />
           </Grid>
           </Border>
@@ -145,6 +145,8 @@
     </Style>
     <Style Selector="^ /template/ controls|MaterialDialogActionsPanel#PART_Actions">
       <Setter Property="Grid.Row" Value="2" />
+      <Setter Property="Grid.Column" Value="0" />
+      <Setter Property="Grid.ColumnSpan" Value="3" />
       <Setter Property="Margin" Value="24,20,24,20" />
     </Style>
     <Style Selector="^:no-actions:not(:full-screen) /template/ Grid#PART_LayoutRoot">
@@ -152,6 +154,8 @@
     </Style>
     <Style Selector="^:full-screen /template/ controls|MaterialDialogActionsPanel#PART_Actions">
       <Setter Property="Grid.Row" Value="0" />
+      <Setter Property="Grid.Column" Value="2" />
+      <Setter Property="Grid.ColumnSpan" Value="1" />
       <Setter Property="Margin" Value="8,0,16,0" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>

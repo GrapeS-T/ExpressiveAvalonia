@@ -187,6 +187,7 @@ public sealed class MaterialButtonGroupPanel : Panel
         var x = 0d;
         for (var i = 0; i < children.Count; i++)
         {
+            widths[i] = Math.Max(0, widths[i]);
             children[i].Arrange(new Rect(x, 0, widths[i], finalSize.Height));
             x += widths[i] + spacing;
         }
@@ -211,8 +212,8 @@ public sealed class MaterialButtonGroupPanel : Panel
             var progress = item.PressExpansion;
             if (i > 0 && i < last)
             {
-                var limitPrevious = ((MaterialButtonGroupItem)children[i - 1]).CompressionLimit;
-                var limitNext = ((MaterialButtonGroupItem)children[i + 1]).CompressionLimit;
+                var limitPrevious = (children[i - 1] as MaterialButtonGroupItem)?.CompressionLimit ?? 0;
+                var limitNext = (children[i + 1] as MaterialButtonGroupItem)?.CompressionLimit ?? 0;
                 var growth = Math.Floor(progress * Math.Min(ExpandedRatio * widths[i] / 2,
                     Math.Min(limitPrevious, limitNext)) + 0.5);
                 var growthLeft = Math.Min(growth, widths[i - 1]);
@@ -223,7 +224,7 @@ public sealed class MaterialButtonGroupPanel : Panel
             }
             else if (i == 0)
             {
-                var limitNext = ((MaterialButtonGroupItem)children[1]).CompressionLimit;
+                var limitNext = (children[1] as MaterialButtonGroupItem)?.CompressionLimit ?? 0;
                 var growth = Math.Floor(progress * Math.Min(ExpandedRatio * widths[i], limitNext) + 0.5);
                 var growthRight = Math.Min(growth, widths[1]);
                 widths[1] -= growthRight;
@@ -231,7 +232,7 @@ public sealed class MaterialButtonGroupPanel : Panel
             }
             else
             {
-                var limitPrevious = ((MaterialButtonGroupItem)children[i - 1]).CompressionLimit;
+                var limitPrevious = (children[i - 1] as MaterialButtonGroupItem)?.CompressionLimit ?? 0;
                 var growth = Math.Floor(progress * Math.Min(ExpandedRatio * widths[i], limitPrevious) + 0.5);
                 var growthLeft = Math.Min(growth, widths[i - 1]);
                 widths[i - 1] -= growthLeft;

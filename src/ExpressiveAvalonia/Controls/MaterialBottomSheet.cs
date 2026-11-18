@@ -124,6 +124,8 @@ public sealed class MaterialBottomSheet : MaterialSheet
     private double _dragVelocity;
     private PointerType _activePointerType;
     private ScrollGestureEventArgs? _pendingGesture;
+    private Visual? _gestureSource;
+    private Visual? _lastGestureSource;
     private double _gestureOffset;
     // SheetDefaults.kt onPreFling/onPostFling receive the remaining fling velocity. Avalonia's
     // ScrollGestureEventArgs exposes only the content-offset delta (the recognizer's
@@ -381,7 +383,8 @@ public sealed class MaterialBottomSheet : MaterialSheet
         if (_dragHandle is not null)
             _dragHandle.KeyDown -= OnDragHandleKeyDown;
 
-        RemoveHandler(PointerWheelChangedEvent, OnSheetPointerWheel);
+        RemoveHandler(PointerWheelChangedEvent, OnSheetPointerWheelTunnel);
+        RemoveHandler(PointerWheelChangedEvent, OnSheetPointerWheelBubble);
         RemoveHandler(PointerPressedEvent, OnSheetPointerPressed);
         RemoveHandler(PointerMovedEvent, OnSheetPointerMoved);
         RemoveHandler(PointerReleasedEvent, OnSheetPointerReleased);
@@ -420,7 +423,8 @@ public sealed class MaterialBottomSheet : MaterialSheet
             _dragHandle.KeyDown += OnDragHandleKeyDown;
         }
 
-        AddHandler(PointerWheelChangedEvent, OnSheetPointerWheel, RoutingStrategies.Tunnel);
+        AddHandler(PointerWheelChangedEvent, OnSheetPointerWheelTunnel, RoutingStrategies.Tunnel);
+        AddHandler(PointerWheelChangedEvent, OnSheetPointerWheelBubble, RoutingStrategies.Bubble);
         // Drag candidates: a press is only observed until the pointer passes the source touch
         // slop, so taps and inner controls keep their native interactions.
         AddHandler(PointerPressedEvent, OnSheetPointerPressed, RoutingStrategies.Tunnel, true);
@@ -486,6 +490,11 @@ public sealed class MaterialBottomSheet : MaterialSheet
         _pressCandidate = false;
         _pointerActive = false;
         _pendingGesture = null;
+        _gestureSource = null;
+        _lastGestureSource = null;
+        _gestureId = 0;
+        _gestureVelocity = 0;
+        _gestureTimestamp = 0;
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -500,6 +509,11 @@ public sealed class MaterialBottomSheet : MaterialSheet
             _pressCandidate = false;
             _pointerActive = false;
             _pendingGesture = null;
+            _gestureSource = null;
+            _lastGestureSource = null;
+            _gestureId = 0;
+            _gestureVelocity = 0;
+            _gestureTimestamp = 0;
             _wheelSettle?.Dispose();
             _wheelSettle = null;
         }
@@ -747,9 +761,16 @@ public sealed class MaterialBottomSheet : MaterialSheet
     private void GesturePreScroll(InputElement source, ScrollGestureEventArgs e)
     {
         _pendingGesture = null;
+        _gestureSource = null;
         if (!IsWithinContent(source))
             return;
 
+        var isTouchGesture = (_pointerActive && _activePointerType != PointerType.Mouse) ||
+                             (_gestureId != 0 && e.Id == _gestureId);
+        if (!isTouchGesture)
+            return;
+
+        _lastGestureSource = source as Visual;
         // Track the gesture even while the sheet itself consumes nothing: the velocity at the
         // nested-scroll end is what the source's onPreFling/onPostFling forward to the sheet.
         TrackGestureVelocity(e);
@@ -762,7 +783,8 @@ public sealed class MaterialBottomSheet : MaterialSheet
             return;
 
         _pendingGesture = e;
-        _gestureOffset = _contentScroll.Offset.Y;
+        _gestureSource = _lastGestureSource;
+        _gestureOffset = GetChainVerticalOffsetDip(_gestureSource);
 
         // Avalonia's gesture Delta.Y is the content offset delta: positive scrolls the content
         // towards later items. Compose's pre-scroll expands the sheet before the content moves,
@@ -794,15 +816,19 @@ public sealed class MaterialBottomSheet : MaterialSheet
     {
         if (!ReferenceEquals(_pendingGesture, e))
             return;
+        var gestureSource = _gestureSource;
         _pendingGesture = null;
+        _gestureSource = null;
 
         if (!AreGesturesEnabled || !IsOpen || _dragging || _contentScroll is null)
             return;
-        if (e.Delta.Y >= 0)
+        if (!_pointerActive || _activePointerType == PointerType.Mouse)
+            return;
+        if (e.Delta.Y >= 0 || CanChainScrollUp(gestureSource))
             return;
 
-        var units = ScrollUnitPixels();
-        var nativeConsumed = Math.Max(0, _gestureOffset - _contentScroll.Offset.Y) * units;
+        var currentOffset = GetChainVerticalOffsetDip(gestureSource);
+        var nativeConsumed = Math.Max(0, _gestureOffset - currentOffset);
         var remaining = Math.Max(0, -e.Delta.Y - nativeConsumed);
         if (remaining <= 0)
             return;
@@ -822,19 +848,30 @@ public sealed class MaterialBottomSheet : MaterialSheet
     private void GestureEnded(object? sender, ScrollGestureEndedEventArgs e)
     {
         _pendingGesture = null;
+        _gestureSource = null;
         var contentVelocity = _gestureVelocity;
+        var gestureId = _gestureId;
         _gestureVelocity = 0;
         _gestureTimestamp = 0;
-        // A different gesture already started (for example after capture loss): its velocity
-        // belongs to the newer event stream, not to this end.
-        var stale = _gestureId != 0 && e.Id != _gestureId;
         _gestureId = 0;
-        if (stale)
+        // Ignore precision-touchpad/mouse scroll gestures (never tracked) and stale ends after a
+        // newer touch gesture has already started.
+        if (gestureId == 0 || e.Id != gestureId)
+        {
+            _lastGestureSource = null;
             return;
+        }
 
         // Source onPostFling: the remaining fling is handed to the anchored draggable, including
         // when the gesture never moved the sheet but the content had no room left.
-        ReleaseNestedGesture(contentVelocity);
+        try
+        {
+            ReleaseNestedGesture(contentVelocity);
+        }
+        finally
+        {
+            _lastGestureSource = null;
+        }
     }
 
     /// <summary>
@@ -903,18 +940,93 @@ public sealed class MaterialBottomSheet : MaterialSheet
         if (contentVelocity > 0)
         {
             // Forward fling expands the sheet: it engages at the content's end.
+            if (CanChainScrollDown(_lastGestureSource))
+                return false;
             var units = ScrollUnitPixels();
             var maxOffset = (_contentScroll.Extent.Height - _contentScroll.Viewport.Height) / units;
             return _contentScroll.Offset.Y >= maxOffset - 0.5;
         }
 
         // Backward fling collapses the sheet: it engages at the content's start.
-        return _contentScroll.Offset.Y <= 0.5;
+        return !CanChainScrollUp(_lastGestureSource);
+    }
+
+    private double GetChainVerticalOffsetDip(Visual? source)
+    {
+        if (_contentScroll is null)
+            return 0;
+
+        if (source is null || (!ReferenceEquals(source, _contentScroll) && !_contentScroll.IsVisualAncestorOf(source)))
+            return _contentScroll.Offset.Y * ScrollUnitPixels();
+
+        var total = 0d;
+        for (var visual = source; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (visual is ScrollContentPresenter presenter)
+            {
+                var scale = presenter.Viewport.Height > 0
+                    ? presenter.Bounds.Height / presenter.Viewport.Height
+                    : 1d;
+                total += presenter.Offset.Y * scale;
+            }
+            if (ReferenceEquals(visual, _contentScroll))
+                break;
+        }
+
+        return total;
+    }
+
+    private bool CanChainScrollUp(Visual? source)
+    {
+        if (CanContentScrollUp())
+            return true;
+
+        if (_contentScroll is null || source is null ||
+            (!ReferenceEquals(source, _contentScroll) && !_contentScroll.IsVisualAncestorOf(source)))
+            return false;
+
+        for (var visual = source; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (ReferenceEquals(visual, _contentScroll))
+                break;
+            if (visual is ScrollContentPresenter presenter)
+            {
+                var scale = presenter.Viewport.Height > 0
+                    ? presenter.Bounds.Height / presenter.Viewport.Height
+                    : 1d;
+                if (presenter.Offset.Y * scale > 0.5)
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool CanChainScrollDown(Visual? source)
+    {
+        if (_contentScroll is null || source is null ||
+            (!ReferenceEquals(source, _contentScroll) && !_contentScroll.IsVisualAncestorOf(source)))
+            return false;
+
+        for (var visual = source; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (ReferenceEquals(visual, _contentScroll))
+                break;
+            if (visual is ScrollContentPresenter presenter && presenter.Viewport.Height > 0)
+            {
+                var maxOffset = Math.Max(0, presenter.Extent.Height - presenter.Viewport.Height);
+                var scale = presenter.Bounds.Height / presenter.Viewport.Height;
+                if ((maxOffset - presenter.Offset.Y) * scale > 0.5)
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     private void OnDragHandleKeyDown(object? sender, KeyEventArgs e)
     {
-        if (!IsOpen)
+        if (e.Handled || e.KeyModifiers != KeyModifiers.None || !IsOpen)
             return;
 
         switch (e.Key)
@@ -924,15 +1036,12 @@ public sealed class MaterialBottomSheet : MaterialSheet
                 e.Handled = true;
                 break;
             case Key.Up or Key.PageUp:
-                _ = RunTransitionAsync(RequestValueAsync(MaterialSheetValue.Expanded));
-                e.Handled = true;
+                if (ExpandFromHandle())
+                    e.Handled = true;
                 break;
             case Key.Down or Key.PageDown:
-                if (CanUseValue(MaterialSheetValue.PartiallyExpanded))
-                    _ = RunTransitionAsync(RequestValueAsync(MaterialSheetValue.PartiallyExpanded));
-                else if (CanUseValue(MaterialSheetValue.Hidden))
-                    _ = RunTransitionAsync(RequestValueAsync(MaterialSheetValue.Hidden));
-                e.Handled = true;
+                if (CollapseFromHandle())
+                    e.Handled = true;
                 break;
         }
     }
@@ -1103,11 +1212,11 @@ public sealed class MaterialBottomSheet : MaterialSheet
     /// <summary>
     /// Desktop translation of the nested-scroll connection in SheetDefaults.kt. Wheel-down
     /// (negative Compose delta) expands the sheet before the content scrolls; wheel-up only moves
-    /// the sheet once the content is already at its start.
+    /// the sheet once inner scrollers and PART_ContentScroll are already at their start.
     /// </summary>
-    private void OnSheetPointerWheel(object? sender, PointerWheelEventArgs e)
+    private void OnSheetPointerWheelTunnel(object? sender, PointerWheelEventArgs e)
     {
-        if (!AreGesturesEnabled || !IsOpen || _dragging || _contentScroll is null)
+        if (e.Handled || !AreGesturesEnabled || !IsOpen || _dragging || _contentScroll is null)
             return;
 
         if (e.Source is not Visual source ||
@@ -1115,27 +1224,43 @@ public sealed class MaterialBottomSheet : MaterialSheet
             return;
 
         var delta = e.Delta.Y * WheelStep;
+        if (delta >= 0)
+            return;
+
         var (minPosition, maxPosition) = AnchorRange();
         if (!double.IsFinite(minPosition) || maxPosition < minPosition)
             return;
 
-        if (delta < 0)
+        // Pre-scroll: the sheet expands before the inner scroller consumes the gesture.
+        if (SheetPosition > minPosition + 0.5)
         {
-            // Pre-scroll: the sheet expands before the inner scroller consumes the gesture.
-            if (SheetPosition > minPosition + 0.5)
-            {
-                MoveBy(delta);
-                e.Handled = true;
-            }
+            MoveBy(delta);
+            e.Handled = true;
         }
-        else if (delta > 0 && !CanContentScrollUp())
+    }
+
+    private void OnSheetPointerWheelBubble(object? sender, PointerWheelEventArgs e)
+    {
+        if (e.Handled || !AreGesturesEnabled || !IsOpen || _dragging || _contentScroll is null)
+            return;
+
+        if (e.Source is not Visual source ||
+            (!ReferenceEquals(source, _contentScroll) && !_contentScroll.IsVisualAncestorOf(source)))
+            return;
+
+        var delta = e.Delta.Y * WheelStep;
+        if (delta <= 0 || CanChainScrollUp(source))
+            return;
+
+        var (minPosition, maxPosition) = AnchorRange();
+        if (!double.IsFinite(minPosition) || maxPosition < minPosition)
+            return;
+
+        // Post-scroll: only after the content reaches its start does the sheet collapse.
+        if (SheetPosition < maxPosition - 0.5)
         {
-            // Post-scroll: only after the content reaches its start does the sheet collapse.
-            if (SheetPosition < maxPosition - 0.5)
-            {
-                MoveBy(delta);
-                e.Handled = true;
-            }
+            MoveBy(delta);
+            e.Handled = true;
         }
     }
 

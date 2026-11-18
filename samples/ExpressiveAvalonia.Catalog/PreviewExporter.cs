@@ -20,6 +20,8 @@ internal static class PreviewExporter
 
     public static async Task Export(CatalogWindow window)
     {
+        Cards.Clear();
+        _images = 0;
         System.IO.Directory.CreateDirectory(DirectoryPath);
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
         {
@@ -113,6 +115,7 @@ internal static class PreviewExporter
             s.Offset = default;
         }
         var host = new Canvas { ClipToBounds = true, Background = window.Background };
+        var previousWindowContent = window.Content;
         window.Content = null;
         host.Children.Add(page);
         window.Content = host;
@@ -148,7 +151,7 @@ internal static class PreviewExporter
         {
             window.Content = null;
             host.Children.Remove(page);
-            window.Content = page;
+            window.Content = previousWindowContent ?? page;
             foreach (var state in states)
             {
                 state.Scroll.SetCurrentValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, state.Horizontal);

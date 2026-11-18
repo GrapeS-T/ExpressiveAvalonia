@@ -157,7 +157,8 @@ public class MaterialScaffold : ContentControl
         base.OnPropertyChanged(change);
         // Null and a real zero-height bar measure identically, but have different inset
         // semantics. The parent layout must run even when the presenter size is unchanged.
-        if (change.Property == TopBarProperty || change.Property == BottomBarProperty)
+        if (change.Property == TopBarProperty || change.Property == BottomBarProperty ||
+            change.Property == FlowDirectionProperty)
             _layout?.InvalidateMeasure();
     }
 
@@ -257,7 +258,8 @@ public sealed class MaterialScaffoldLayout : Panel
     static MaterialScaffoldLayout()
     {
         AffectsMeasure<MaterialScaffoldLayout>(FabPositionProperty, ContentInsetsProperty,
-            ConsumedInsetsProperty, FabSpacingProperty);
+            ConsumedInsetsProperty, FabSpacingProperty, FlowDirectionProperty);
+        AffectsArrange<MaterialScaffoldLayout>(FlowDirectionProperty);
     }
 
     public MaterialFabPosition FabPosition

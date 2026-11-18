@@ -52,17 +52,12 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
     private readonly Slider _width;
     private readonly Slider _count;
     private readonly TextBox _labels;
-    private readonly StackPanel _variantSettings = new() { Spacing = 16 };
-    private readonly StackPanel _avatarSettings = new() { Spacing = 16 };
-    private readonly StackPanel _trailingSettings = new() { Spacing = 16 };
-    private readonly StackPanel _removeSettings = new() { Spacing = 16 };
-    private readonly StackPanel _selectionSettings = new() { Spacing = 16 };
     private readonly HashSet<int> _savedSelection = new();
     private bool _wasSelectionEnabled;
     private bool _built;
     private bool _syncing;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal ChipPlayground()
     {
@@ -79,53 +74,38 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
 
         AutomationProperties.SetName(_group, "Группа чипов");
 
-        _kind = Field(Settings, "Семейство", new ComboBox
-        {
-            ItemsSource = new[] { "Assist", "Filter", "Input", "Suggestion" },
-            SelectedIndex = 3,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        });
+        var variantSection = InspectorLayout.Section(Settings, "Вариант", divider: false);
+        _kind = InspectorLayout.Combo(variantSection, "Семейство", new[] { "Assist", "Filter", "Input", "Suggestion" }, 3);
         AutomationProperties.SetName(_kind, "Семейство чипа");
-        _variant = Choice(_variantSettings, "Вид", new[] { "Outlined", "Elevated" }, 0);
-        Settings.Children.Add(_variantSettings);
-        _icon = Toggle(Settings, "Ведущая иконка", true);
+        _variant = InspectorLayout.Choice(variantSection, "Вид", new[] { "Outlined", "Elevated" }, 0);
+        var anatomySwitches = InspectorLayout.Switches(variantSection);
+        _icon = InspectorLayout.Switch(anatomySwitches, "Ведущая иконка", true);
+        _avatar = InspectorLayout.Switch(anatomySwitches, "Аватар вместо иконки", false);
+        _trailing = InspectorLayout.Switch(anatomySwitches, "Трейлинг-иконка (Filter)", false);
+        _remove = InspectorLayout.Switch(anatomySwitches, "Удаляемый чип (Input)", true);
 
-        _avatar = Toggle(_avatarSettings, "Аватар вместо иконки", false);
-        Settings.Children.Add(_avatarSettings);
+        var layoutSection = InspectorLayout.Section(Settings, "Выбор и раскладка");
+        _selection = InspectorLayout.Choice(layoutSection, "Режим выбора", new[] { "Нет", "Один", "Несколько" }, 2);
+        _layout = InspectorLayout.Choice(layoutSection, "Раскладка", new[] { "Одна строка", "Несколько строк" }, 1);
+        _width = InspectorLayout.Slider(layoutSection, "Ширина группы", 200, 480, 320, 8, "dp", "0");
 
-        _trailing = Toggle(_trailingSettings, "Трейлинг-иконка (Filter)", false);
-        Settings.Children.Add(_trailingSettings);
-
-        _remove = Toggle(_removeSettings, "Удаляемый чип (Input)", true);
-        Settings.Children.Add(_removeSettings);
-
-        _selection = Choice(_selectionSettings, "Режим выбора", new[] { "Нет", "Один", "Несколько" }, 2);
-        Settings.Children.Add(_selectionSettings);
-
-        _layout = Choice(Settings, "Раскладка", new[] { "Одна строка", "Несколько строк" }, 1);
-        _width = Number(Settings, "Ширина группы", 200, 480, 320, 8);
-        _count = Number(Settings, "Количество чипов", 0, 6, 3, 1);
-        _labels = Field(Settings, "Подписи через запятую", new TextBox
-        {
-            Text = string.Join(", ", DefaultLabels.Take(3)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        });
-        MaterialTextField.SetVariant(_labels, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(_labels, "Подписи");
-        _draggable = Toggle(Settings, "Перетаскивание (IsDraggable)", false);
-        _enabled = Toggle(Settings, "Доступны", true);
-        _rtl = Toggle(Settings, "Справа налево (RTL)", false);
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Assist и Suggestion только выполняют действие; Filter и Input переключают IsSelected. " +
-                   "Tab входит в группу одним шагом, стрелки и Home/End двигают фокус, Space/Enter " +
-                   "переключают, Delete или крестик удаляют Input-чип. Смена семейства, вида, иконки, " +
-                   "ширины или раскладки сохраняет выбор и не пересоздаёт чипы.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
-
+        var contentSection = InspectorLayout.Section(Settings, "Содержимое");
+        _count = InspectorLayout.Slider(contentSection, "Количество чипов", 0, 6, 3, 1, format: "0");
+        _labels = InspectorLayout.TextField(contentSection, "Подписи через запятую", string.Join(", ", DefaultLabels.Take(3)));
         AutomationProperties.SetName(_labels, "Подписи чипов");
+
+        var statesSection = InspectorLayout.Section(Settings, "Состояния");
+        var stateSwitches = InspectorLayout.Switches(statesSection);
+        _draggable = InspectorLayout.Switch(stateSwitches, "Перетаскивание (IsDraggable)", false);
+        _enabled = InspectorLayout.Switch(stateSwitches, "Доступны", true);
+        _rtl = InspectorLayout.Switch(stateSwitches, "Справа налево (RTL)", false);
+
+        InspectorLayout.Note(
+            Settings,
+            "Assist и Suggestion только выполняют действие; Filter и Input переключают IsSelected. " +
+            "Tab входит в группу одним шагом, стрелки и Home/End двигают фокус, Space/Enter " +
+            "переключают, Delete или крестик удаляют Input-чип. Смена семейства, вида, иконки, " +
+            "ширины или раскладки сохраняет выбор и не пересоздаёт чипы.");
 
         foreach (var choice in new[] { _variant, _selection, _layout })
             choice.SelectionChanged += (_, _) => Apply();
@@ -209,17 +189,17 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
         var showIcon = _icon.IsChecked == true;
         var showAvatar = kind == MaterialChipKind.Input && _avatar.IsChecked == true;
 
-        _variantSettings.IsVisible = kind != MaterialChipKind.Input;
-        _avatarSettings.IsVisible = kind == MaterialChipKind.Input;
-        _trailingSettings.IsVisible = kind == MaterialChipKind.Filter;
-        _removeSettings.IsVisible = kind == MaterialChipKind.Input;
-        _selectionSettings.IsVisible = selectable;
+        _variant.IsVisible = kind != MaterialChipKind.Input;
+        _avatar.IsVisible = kind == MaterialChipKind.Input;
+        _trailing.IsVisible = kind == MaterialChipKind.Filter;
+        _remove.IsVisible = kind == MaterialChipKind.Input;
+        _selection.IsVisible = selectable;
 
         _group.SelectionMode = selectionMode;
         _group.Layout = layout;
         _group.Width = _width.Value;
         _group.IsEnabled = _enabled.IsChecked == true;
-        _group.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        InspectorLayout.ApplyFlowDirection(_group, _rtl);
 
         SyncChips(count, labels, kind, variant, showIcon, showAvatar);
         if (!_wasSelectionEnabled && selectionEnabled && _savedSelection.Count > 0)
@@ -330,61 +310,5 @@ internal sealed class ChipPlayground : Grid, IComponentPlayground
         var avatar = new Border { Child = text };
         avatar.Bind(Border.BackgroundProperty, avatar.GetResourceObservable("MaterialTertiaryContainerBrush"));
         return avatar;
-    }
-
-    private static T Field<T>(StackPanel host, string label, T control) where T : Control
-    {
-        host.Children.Add(new TextBlock { Text = label });
-        host.Children.Add(control);
-        return control;
-    }
-
-    private static MaterialButtonGroup Choice(StackPanel host, string label, string[] options, int selected)
-    {
-        host.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = selected;
-        host.Children.Add(group);
-        return group;
-    }
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static Slider Number(
-        StackPanel host, string label, double min, double max, double value, double step)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0}" };
-        host.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(slider, false);
-        AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0}";
-        };
-        host.Children.Add(slider);
-        return slider;
     }
 }

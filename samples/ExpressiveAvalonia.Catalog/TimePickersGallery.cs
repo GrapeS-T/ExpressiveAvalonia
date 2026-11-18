@@ -43,25 +43,26 @@ internal sealed class TimePickerPlayground : Grid, IComponentPlayground
         HorizontalAlignment = HorizontalAlignment.Center,
         TextWrapping = TextWrapping.Wrap,
     };
-    private readonly ComboBox _mode = new() { ItemsSource = StandardModes, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _variant = new() { ItemsSource = Enum.GetNames<MaterialTimePickerVariant>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _fieldShape = new() { ItemsSource = FieldShapes, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _periodShape = new() { ItemsSource = PeriodShapes, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _format = new() { ItemsSource = Enum.GetNames<MaterialTimeFormat>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _orientation = new() { ItemsSource = Enum.GetNames<Orientation>(), SelectedIndex = 1, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _increment = new() { ItemsSource = MinuteSteps, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _culture = new() { ItemsSource = Cultures, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _variant;
+    private readonly ComboBox _mode;
+    private readonly ComboBox _format;
+    private readonly ComboBox _orientation;
+    private readonly ComboBox _fieldShape;
+    private readonly ComboBox _periodShape;
     private readonly Slider _hour;
     private readonly Slider _minute;
+    private readonly ComboBox _increment;
+    private readonly ComboBox _culture;
     private readonly Slider _width;
+    private readonly TextBox _headline;
     private readonly ToggleSwitch _actions;
     private readonly ToggleSwitch _limit;
     private readonly ToggleSwitch _autoAdvance;
-    private readonly TextBox _headline;
     private readonly Button _dialog;
     private MaterialTimeInputMode[] _allowedModes = StandardModes;
     private bool _syncing;
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal TimePickerPlayground()
     {
@@ -114,44 +115,35 @@ internal sealed class TimePickerPlayground : Grid, IComponentPlayground
         _status.Margin = new Thickness(24, 0, 24, 20);
         Children.Add(_status);
 
-        Settings.Children.Add(Caption("Режим ввода"));
-        Settings.Children.Add(_mode);
-        Settings.Children.Add(Caption("Вариант"));
-        Settings.Children.Add(_variant);
-        Settings.Children.Add(Caption("Форма поля времени"));
-        Settings.Children.Add(_fieldShape);
-        Settings.Children.Add(Caption("Форма AM/PM"));
-        Settings.Children.Add(_periodShape);
-        Settings.Children.Add(Caption("Формат"));
-        Settings.Children.Add(_format);
-        Settings.Children.Add(Caption("Ориентация"));
-        Settings.Children.Add(_orientation);
-        Settings.Children.Add(Caption("Шаг минут"));
-        Settings.Children.Add(_increment);
-        Settings.Children.Add(Caption("Культура цифр"));
-        Settings.Children.Add(_culture);
-        _hour = Number(Settings, "Часы", 0, 23, 9, 1, "ч");
-        _minute = Number(Settings, "Минуты", 0, 59, 45, 1, "мин");
-        _width = Number(Settings, "Ширина", 280, 720, 360, 8, "dp");
-        _actions = Toggle(Settings, "Показывать действия Cancel/OK", true);
-        _limit = Toggle(Settings, "Ограничить 09:00–17:00", false);
-        _autoAdvance = Toggle(Settings, "Переход к минутам после часа", true);
-        Settings.Children.Add(Caption("Заголовок"));
-        _headline = new TextBox { HorizontalAlignment = HorizontalAlignment.Stretch };
-        MaterialTextField.SetVariant(_headline, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(_headline, "Заголовок");
-        Settings.Children.Add(_headline);
+        var appearance = InspectorLayout.Section(Settings, "Режим и внешний вид", divider: false);
+        _variant = InspectorLayout.Combo(appearance, "Вариант", Enum.GetNames<MaterialTimePickerVariant>(), selected: 0);
+        _mode = InspectorLayout.Combo(appearance, "Режим ввода", StandardModes, selected: 0);
+        _format = InspectorLayout.Combo(appearance, "Формат", Enum.GetNames<MaterialTimeFormat>(), selected: 0);
+        _orientation = InspectorLayout.Combo(appearance, "Ориентация", Enum.GetNames<Orientation>(), selected: 1);
+        _fieldShape = InspectorLayout.Combo(appearance, "Форма поля времени", FieldShapes, selected: 0);
+        _periodShape = InspectorLayout.Combo(appearance, "Форма AM/PM", PeriodShapes, selected: 0);
 
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Циферблат принимает перетаскивание указателя, ячейки — ввод, стрелки и Enter. " +
-                   "Режим Scroll показывает два колеса TimeScroll; варианты Vibrant и Uncontained " +
-                   "используют форму полей и AM/PM из инспектора. Культура цифр меняет ячейки, " +
-                   "циферблат и колеса без потери введённого черновика. Подтверждение и отмена " +
-                   "сообщаются в строке состояния; при ограничении времени выход за диапазон блокирует OK.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        var valueAndStep = InspectorLayout.Section(Settings, "Значение и шаг");
+        _hour = InspectorLayout.Slider(valueAndStep, "Часы", 0, 23, 9, 1, "ч", format: "0");
+        _minute = InspectorLayout.Slider(valueAndStep, "Минуты", 0, 59, 45, 1, "мин", format: "0");
+        _increment = InspectorLayout.Combo(valueAndStep, "Шаг минут", MinuteSteps, selected: 0);
+        _culture = InspectorLayout.Combo(valueAndStep, "Культура цифр", Cultures, selected: 0);
+        _width = InspectorLayout.Slider(valueAndStep, "Ширина", 280, 720, 360, 8, "dp", format: "0");
+
+        var options = InspectorLayout.Section(Settings, "Заголовок и параметры");
+        _headline = InspectorLayout.TextField(options, "Заголовок");
+        var switches = InspectorLayout.Switches(options);
+        _actions = InspectorLayout.Switch(switches, "Показывать действия Cancel/OK", true);
+        _limit = InspectorLayout.Switch(switches, "Ограничить 09:00–17:00", false);
+        _autoAdvance = InspectorLayout.Switch(switches, "Переход к минутам после часа", true);
+
+        InspectorLayout.Note(
+            Settings,
+            "Циферблат принимает перетаскивание указателя, ячейки — ввод, стрелки и Enter. " +
+            "Режим Scroll показывает два колеса TimeScroll; варианты Vibrant и Uncontained " +
+            "используют форму полей и AM/PM из инспектора. Культура цифр меняет ячейки, " +
+            "циферблат и колеса без потери введённого черновика. Подтверждение и отмена " +
+            "сообщаются в строке состояния; при ограничении времени выход за диапазон блокирует OK.");
 
         AutomationProperties.SetName(_mode, "Режим ввода времени");
         AutomationProperties.SetName(_variant, "Вариант времени");
@@ -291,51 +283,31 @@ internal sealed class TimePickerPlayground : Grid, IComponentPlayground
     private void ApplyTime()
     {
         _syncing = true;
-        var hour = (int)Math.Round(_hour.Value);
-        var minute = (int)Math.Round(_minute.Value);
-        _picker.Time = new TimeSpan(hour, minute, 0);
-        _syncing = false;
+        try
+        {
+            var hour = (int)Math.Round(_hour.Value);
+            var minute = (int)Math.Round(_minute.Value);
+            _picker.Time = new TimeSpan(hour, minute, 0);
+        }
+        finally
+        {
+            _syncing = false;
+        }
     }
 
     private void SyncTime()
     {
         _syncing = true;
-        _hour.Value = _picker.Time.Hours;
-        _minute.Value = _picker.Time.Minutes;
-        _syncing = false;
+        try
+        {
+            _hour.Value = _picker.Time.Hours;
+            _minute.Value = _picker.Time.Minutes;
+        }
+        finally
+        {
+            _syncing = false;
+        }
     }
 
     private static string Format(TimeSpan time) => $"{(int)time.TotalHours:00}:{time.Minutes:00}";
-
-    private static TextBlock Caption(string text) => new() { Text = text };
-
-    private static ToggleSwitch Toggle(StackPanel host, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        host.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static Slider Number(StackPanel host, string label, double min, double max, double value, double step, string unit)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0} {unit}" };
-        host.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(slider, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(slider, false);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty) caption.Text = $"{label}: {slider.Value:0} {unit}";
-        };
-        AutomationProperties.SetName(slider, label);
-        host.Children.Add(slider);
-        return slider;
-    }
 }

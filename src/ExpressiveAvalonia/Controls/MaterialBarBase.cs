@@ -71,16 +71,24 @@ public abstract class MaterialBarBase : TemplatedControl
     private readonly AvaloniaList<MaterialBarAction> _actions = new();
     private readonly List<MaterialBarAction> _subscribedActions = new();
     private readonly List<Control> _actionControls = new();
+    private readonly List<IDisposable> _actionBindings = new();
+    private readonly List<ContentPresenter> _overflowPresenters = new();
     private readonly MaterialAppBarMenuState _menuState = new();
     private MaterialBarActionsPanel? _actionsPanel;
     private Button? _overflowButton;
     private Flyout? _overflowFlyout;
     private bool _hasOverflow;
+    private bool _hasDetached;
     private int _visibleActionCount;
 
     protected MaterialBarBase()
     {
-        _actions.CollectionChanged += (_, _) => RebuildActionControls();
+        _actions.CollectionChanged += (_, _) => OnActionsCollectionChanged();
+        _menuState.PropertyChanged += (_, _) =>
+        {
+            if (!_menuState.IsShowing && _overflowFlyout is not null)
+                CloseOverflow(restoreFocus: false);
+        };
     }
 
     static MaterialBarBase()
@@ -131,7 +139,11 @@ public abstract class MaterialBarBase : TemplatedControl
         private set
         {
             if (SetAndRaise(HasOverflowProperty, ref _hasOverflow, value))
+            {
+                if (!value)
+                    CloseOverflow(restoreFocus: false);
                 _menuState.Dismiss();
+            }
         }
     }
 
@@ -157,11 +169,13 @@ public abstract class MaterialBarBase : TemplatedControl
 
         if (OverflowContent is { } content)
         {
-            panel.Children.Add(new ContentPresenter
+            var overflowContentPresenter = new ContentPresenter
             {
                 Content = content,
                 Margin = new Thickness(12, 8, 12, 4)
-            });
+            };
+            _overflowPresenters.Add(overflowContentPresenter);
+            panel.Children.Add(overflowContentPresenter);
         }
 
         _menuState.Show();
@@ -200,7 +214,8 @@ public abstract class MaterialBarBase : TemplatedControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        if (_subscribedActions.Count == 0 && _actions.Count > 0)
+        _hasDetached = false;
+        if (_actions.Count > 0)
         {
             SubscribeActions();
             SyncActionControls();
@@ -230,8 +245,10 @@ public abstract class MaterialBarBase : TemplatedControl
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        _hasDetached = true;
         base.OnDetachedFromVisualTree(e);
         UnsubscribeActions();
+        ClearActionControls();
         CloseOverflow(restoreFocus: false);
     }
 
@@ -295,9 +312,13 @@ public abstract class MaterialBarBase : TemplatedControl
 
     private void OnOverflowClosed(object? sender, EventArgs e)
     {
-        _menuState.Dismiss();
-        if (sender is Flyout flyout)
+        var flyout = sender as Flyout;
+        if (flyout is not null)
             flyout.Closed -= OnOverflowClosed;
+        if (ReferenceEquals(_overflowFlyout, flyout))
+            _overflowFlyout = null;
+        ReleaseOverflowContent(flyout);
+        _menuState.Dismiss();
     }
 
     private void OnOverflowKeyDown(Panel panel, KeyEventArgs e)
@@ -365,14 +386,36 @@ public abstract class MaterialBarBase : TemplatedControl
         var flyout = _overflowFlyout;
         _overflowFlyout = null;
         if (flyout is null)
+        {
+            ReleaseOverflowContent(null);
             return;
+        }
         flyout.Closed -= OnOverflowClosed;
         flyout.Hide();
+        ReleaseOverflowContent(flyout);
         _menuState.Dismiss();
         if (!restoreFocus)
             return;
         if (_overflowButton is { IsEffectivelyEnabled: true, IsEffectivelyVisible: true } button && button.IsAttachedToVisualTree())
             button.Focus(NavigationMethod.Directional);
+    }
+
+    private void ReleaseOverflowContent(Flyout? flyout)
+    {
+        for (var i = 0; i < _overflowPresenters.Count; i++)
+        {
+            var presenter = _overflowPresenters[i];
+            presenter.Content = null;
+            presenter.UpdateChild();
+        }
+        _overflowPresenters.Clear();
+
+        if (flyout is not null)
+        {
+            if (flyout.Content is Panel panel)
+                panel.Children.Clear();
+            flyout.Content = null;
+        }
     }
 
     private void UpdateMaxItemCount()
@@ -430,6 +473,8 @@ public abstract class MaterialBarBase : TemplatedControl
     private void SubscribeActions()
     {
         UnsubscribeActions();
+        if (!this.IsAttachedToVisualTree())
+            return;
         for (var i = 0; i < _actions.Count; i++)
         {
             var action = _actions[i];
@@ -443,6 +488,36 @@ public abstract class MaterialBarBase : TemplatedControl
         for (var i = 0; i < _subscribedActions.Count; i++)
             _subscribedActions[i].PropertyChanged -= OnBarActionPropertyChanged;
         _subscribedActions.Clear();
+    }
+
+    private void OnActionsCollectionChanged()
+    {
+        if ((_actionsPanel is null || _hasDetached) && !this.IsAttachedToVisualTree())
+        {
+            UpdateOverflowState();
+            return;
+        }
+        RebuildActionControls();
+    }
+
+    private void ClearActionControls()
+    {
+        for (var i = 0; i < _actionBindings.Count; i++)
+            _actionBindings[i].Dispose();
+        _actionBindings.Clear();
+
+        for (var i = 0; i < _actionControls.Count; i++)
+        {
+            var control = _actionControls[i];
+            control.PropertyChanged -= OnActionControlPropertyChanged;
+            if (control is ContentPresenter presenter)
+            {
+                presenter.Content = null;
+                presenter.UpdateChild();
+            }
+        }
+        _actionControls.Clear();
+        _actionsPanel?.SetActionControls(_actionControls);
     }
 
     private void SyncActionControls()
@@ -482,9 +557,12 @@ public abstract class MaterialBarBase : TemplatedControl
     {
         SubscribeActions();
 
-        foreach (var control in _actionControls)
-            control.PropertyChanged -= OnActionControlPropertyChanged;
-        _actionControls.Clear();
+        ClearActionControls();
+        if ((_actionsPanel is null || _hasDetached) && !this.IsAttachedToVisualTree())
+        {
+            UpdateOverflowState();
+            return;
+        }
 
         for (var i = 0; i < _actions.Count; i++)
         {
@@ -563,16 +641,16 @@ public abstract class MaterialBarBase : TemplatedControl
                     MinHeight = 48
                 };
                 ApplyInlineButtonMode(toggle, action);
-                toggle.Bind(ToggleButton.IsCheckedProperty,
-                    new Binding(nameof(MaterialBarAction.IsChecked)) { Source = action, Mode = BindingMode.TwoWay });
-                toggle.Bind(Button.CommandProperty,
-                    new Binding(nameof(MaterialBarAction.Command)) { Source = action });
-                toggle.Bind(Button.CommandParameterProperty,
-                    new Binding(nameof(MaterialBarAction.CommandParameter)) { Source = action });
-                toggle.Bind(IsEnabledProperty,
-                    new Binding(nameof(MaterialBarAction.IsEnabled)) { Source = action });
-                toggle.Bind(AutomationProperties.NameProperty,
-                    new Binding(nameof(MaterialBarAction.EffectiveAutomationName)) { Source = action });
+                _actionBindings.Add(toggle.Bind(ToggleButton.IsCheckedProperty,
+                    new Binding(nameof(MaterialBarAction.IsChecked)) { Source = action, Mode = BindingMode.TwoWay }));
+                _actionBindings.Add(toggle.Bind(Button.CommandProperty,
+                    new Binding(nameof(MaterialBarAction.Command)) { Source = action }));
+                _actionBindings.Add(toggle.Bind(Button.CommandParameterProperty,
+                    new Binding(nameof(MaterialBarAction.CommandParameter)) { Source = action }));
+                _actionBindings.Add(toggle.Bind(IsEnabledProperty,
+                    new Binding(nameof(MaterialBarAction.IsEnabled)) { Source = action }));
+                _actionBindings.Add(toggle.Bind(AutomationProperties.NameProperty,
+                    new Binding(nameof(MaterialBarAction.EffectiveAutomationName)) { Source = action }));
                 toggle.Content = CreateActionGlyph(action);
                 control = toggle;
                 break;
@@ -583,8 +661,8 @@ public abstract class MaterialBarBase : TemplatedControl
                     VerticalContentAlignment = VerticalAlignment.Center,
                     HorizontalContentAlignment = HorizontalAlignment.Center
                 };
-                presenter.Bind(ContentPresenter.ContentProperty,
-                    new Binding(nameof(MaterialBarAction.Content)) { Source = action });
+                _actionBindings.Add(presenter.Bind(ContentPresenter.ContentProperty,
+                    new Binding(nameof(MaterialBarAction.Content)) { Source = action }));
                 control = presenter;
                 break;
 
@@ -595,14 +673,14 @@ public abstract class MaterialBarBase : TemplatedControl
                     MinHeight = 48
                 };
                 ApplyInlineButtonMode(button, action);
-                button.Bind(Button.CommandProperty,
-                    new Binding(nameof(MaterialBarAction.Command)) { Source = action });
-                button.Bind(Button.CommandParameterProperty,
-                    new Binding(nameof(MaterialBarAction.CommandParameter)) { Source = action });
-                button.Bind(IsEnabledProperty,
-                    new Binding(nameof(MaterialBarAction.IsEnabled)) { Source = action });
-                button.Bind(AutomationProperties.NameProperty,
-                    new Binding(nameof(MaterialBarAction.EffectiveAutomationName)) { Source = action });
+                _actionBindings.Add(button.Bind(Button.CommandProperty,
+                    new Binding(nameof(MaterialBarAction.Command)) { Source = action }));
+                _actionBindings.Add(button.Bind(Button.CommandParameterProperty,
+                    new Binding(nameof(MaterialBarAction.CommandParameter)) { Source = action }));
+                _actionBindings.Add(button.Bind(IsEnabledProperty,
+                    new Binding(nameof(MaterialBarAction.IsEnabled)) { Source = action }));
+                _actionBindings.Add(button.Bind(AutomationProperties.NameProperty,
+                    new Binding(nameof(MaterialBarAction.EffectiveAutomationName)) { Source = action }));
                 button.Content = CreateActionGlyph(action);
                 control = button;
                 break;
@@ -628,11 +706,13 @@ public abstract class MaterialBarBase : TemplatedControl
             var customContent = action.MenuContentFactory?.Invoke(_menuState) ?? action.MenuContent;
             if (customContent is not null)
             {
-                panel.Children.Add(new ContentPresenter
+                var presenter = new ContentPresenter
                 {
                     Content = customContent,
                     Margin = new Thickness(12, 8, 12, 4)
-                });
+                };
+                _overflowPresenters.Add(presenter);
+                panel.Children.Add(presenter);
             }
             return;
         }

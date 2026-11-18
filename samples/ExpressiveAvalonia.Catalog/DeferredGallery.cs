@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
@@ -17,6 +18,14 @@ namespace ExpressiveAvalonia.Catalog;
 /// </remarks>
 internal sealed class DeferredGallery(Func<Control> create) : Decorator
 {
+    internal Control Realize() => Child ??= create();
+
+    internal Control Reset()
+    {
+        Child = null;
+        return Child = create();
+    }
+
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         Child ??= create();

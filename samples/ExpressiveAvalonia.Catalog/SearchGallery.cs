@@ -1,5 +1,6 @@
-using System.Collections.ObjectModel;
 using System;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
@@ -24,11 +25,11 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
     private const string PinnedCommit = "77b2199d6f056c2fe829ce25523c34a905e769c1";
 
     private static readonly string[] Catalogue =
-    {
+    [
         "Search bar", "Search view", "Navigation rail", "Navigation bar", "Bottom app bar",
         "Range slider", "Rich tooltip", "Circular progress", "Segmented button", "Text field",
         "Menu", "Chips",
-    };
+    ];
 
     private readonly MaterialSearchBar _bar = new()
     {
@@ -66,6 +67,9 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         TextWrapping = TextWrapping.Wrap,
         HorizontalAlignment = HorizontalAlignment.Center,
     };
+    private readonly StackPanel _barAnatomySection;
+    private readonly StackPanel _viewBehaviorSection;
+    private readonly StackPanel _appBarBehaviorSection;
     private readonly MaterialButtonGroup _kind;
     private readonly MaterialButtonGroup _mode;
     private readonly MaterialButtonGroup _variant;
@@ -89,7 +93,7 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
     private bool _syncing;
     private bool _applying;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal SearchPlayground()
     {
@@ -122,104 +126,96 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         stage.Children.Add(_status);
         Children.Add(stage);
 
-        _kind = Choice("Представление", new[] { "Bar", "View", "App bar" });
-        _mode = Choice("Расположение view", new[] { "Docked", "Full-screen" });
-        _variant = Choice("Вариант", new[] { "Expressive", "Baseline" });
-        _configuration = Choice("Поле", new[] { "Input text", "Supporting text" });
-        _alignment = Choice("Выравнивание текста", new[] { "Left aligned", "Centered" });
+        var presentationSection = InspectorLayout.Section(Settings, "Конфигурация", divider: false);
+        _kind = InspectorLayout.Choice(presentationSection, "Представление", ["Bar", "View", "App bar"]);
+        _mode = InspectorLayout.Choice(presentationSection, "Расположение view", ["Docked", "Full-screen"]);
+        _variant = InspectorLayout.Choice(presentationSection, "Вариант", ["Expressive", "Baseline"]);
+        _configuration = InspectorLayout.Choice(presentationSection, "Поле", ["Input text", "Supporting text"]);
+        _alignment = InspectorLayout.Choice(presentationSection, "Выравнивание текста", ["Left aligned", "Centered"]);
 
-        var widthLabel = new TextBlock { Text = "Ширина: 480 dp" };
-        Settings.Children.Add(widthLabel);
-        _width = new Slider
-        {
-            Minimum = 360,
-            Maximum = 720,
-            Value = 480,
-            TickFrequency = 1,
-            IsSnapToTickEnabled = true,
-        };
-        MaterialAssist.SetControlSize(_width, MaterialControlSize.ExtraSmall);
-        MaterialSlider.SetShowStops(_width, false);
+        var querySection = InspectorLayout.Section(Settings, "Запрос и размеры");
+        _width = InspectorLayout.Slider(querySection, "Ширина", 360, 720, 480, step: 1, unit: "dp", format: "0");
         AutomationProperties.SetName(_width, "Ширина поиска, dp");
-        Settings.Children.Add(_width);
+        _query = InspectorLayout.TextField(querySection, "Query", "Search");
+        _placeholder = InspectorLayout.TextField(querySection, "Placeholder", "Search components");
 
-        _query = TextField("Query", "Search");
-        _placeholder = TextField("Placeholder", "Search components");
-        _leading = Toggle("Ведущая иконка строки", true);
-        _trailing = Toggle("Правая иконка", true);
-        _secondary = Toggle("Вторая правая иконка строки", false);
-        _avatar = Toggle("Аватар в строке", false);
-        _showSuggestions = Toggle("Подсказки", true);
-        _scrim = Toggle("Scrim за view", true);
-        _anchor = Toggle("ExpansionAnchor = search bar", true);
-        _enabled = Toggle("Поиск доступен", true);
-        _rtl = Toggle("Справа налево (RTL)", false);
-        _scrollAppBar = Toggle("App bar уезжает при прокрутке", true);
-        _reverseLayout = Toggle("Обратный layout контента", false);
-        _reducedMotion = Toggle("Reduce motion", false);
+        _barAnatomySection = InspectorLayout.Section(Settings, "Анатомия строки");
+        var barSwitches = InspectorLayout.Switches(_barAnatomySection);
+        _leading = InspectorLayout.Switch(barSwitches, "Ведущая иконка строки", true);
+        _trailing = InspectorLayout.Switch(barSwitches, "Правая иконка", true);
+        _secondary = InspectorLayout.Switch(barSwitches, "Вторая правая иконка строки", false);
+        _avatar = InspectorLayout.Switch(barSwitches, "Аватар в строке", false);
 
-        var open = new Button
-        {
-            Content = "Открыть Search view с текущим запросом",
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _viewBehaviorSection = InspectorLayout.Section(Settings, "Поведение Search view");
+        var viewSwitches = InspectorLayout.Switches(_viewBehaviorSection);
+        _showSuggestions = InspectorLayout.Switch(viewSwitches, "Подсказки", true);
+        _scrim = InspectorLayout.Switch(viewSwitches, "Scrim за view", true);
+        _anchor = InspectorLayout.Switch(viewSwitches, "ExpansionAnchor = search bar", true);
+
+        _appBarBehaviorSection = InspectorLayout.Section(Settings, "Прокрутка App bar");
+        var appBarSwitches = InspectorLayout.Switches(_appBarBehaviorSection);
+        _scrollAppBar = InspectorLayout.Switch(appBarSwitches, "App bar уезжает при прокрутке", true);
+        _reverseLayout = InspectorLayout.Switch(appBarSwitches, "Обратный layout контента", false);
+
+        var actionsSection = InspectorLayout.Section(Settings, "Действия", spacing: 8);
+        var open = InspectorLayout.ActionButton(
+            actionsSection,
+            "Открыть Search view с текущим запросом",
+            () =>
+            {
+                ActiveBar.Text = _query.Text;
+                ShowView();
+            },
+            MaterialButtonVariant.Tonal);
         AutomationProperties.SetName(open, "Открыть Search view");
-        open.Click += (_, _) =>
-        {
-            ActiveBar.Text = _query.Text;
-            ShowView();
-        };
-        Settings.Children.Add(open);
 
-        var close = new Button
-        {
-            Content = "Закрыть (программно)",
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        close.Click += (_, _) =>
-        {
-            if (_view.IsOpen)
-                _view.Dismiss(MaterialSearchDismissReason.Programmatic);
-        };
-        Settings.Children.Add(close);
+        InspectorLayout.ActionButton(
+            actionsSection,
+            "Закрыть (программно)",
+            () =>
+            {
+                if (_view.IsOpen)
+                    _view.Dismiss(MaterialSearchDismissReason.Programmatic);
+            },
+            MaterialButtonVariant.Outlined);
 
-        var clear = new Button
-        {
-            Content = "Очистить запрос",
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        clear.Click += (_, _) =>
-        {
-            _bar.Text = string.Empty;
-            _appBarBar.Text = string.Empty;
-            _query.Text = string.Empty;
-            if (_view.IsOpen)
-                _view.Clear();
-            Filter();
-        };
-        Settings.Children.Add(clear);
+        InspectorLayout.ActionButton(
+            actionsSection,
+            "Очистить запрос",
+            () =>
+            {
+                _bar.Text = string.Empty;
+                _appBarBar.Text = string.Empty;
+                _query.Text = string.Empty;
+                if (_view.IsOpen)
+                    _view.Clear();
+                Filter();
+            },
+            MaterialButtonVariant.Outlined);
 
-        Settings.Children.Add(new TextBlock
-        {
-            Text =
-                $"Pinned androidx.compose.material3 SearchBar.kt @ {PinnedCommit}. " +
-                "Экспрессивный вариант = два контейнера (поле 28, список 12, зазор 2, scrim 32%): " +
-                "ExpandedFullScreenContainedSearchBar / ExpandedDockedSearchBarWithGap. " +
-                "Baseline = один контейнер с разделителем 1 dp и строками 72 dp: " +
-                "ExpandedFullScreenSearchBar / ExpandedDockedSearchBar. " +
-                "Search app bar = AppBarWithSearch: навигация, поле 360–720 dp и действия в одной " +
-                "строке; при прокрутке контейнер уезжает вверх (снимок высоты и клип), цвета " +
-                "переходят в SurfaceContainer / SurfaceContainerHighest на доле перекрытия > 0.01, " +
-                "а обратный layout и reduced motion переключаются ниже. " +
-                "Строка 56 dp, ширина 360–720 dp. Full-screen занимает поверхность примера, " +
-                "не всё окно каталога: Android-диалог, window insets и predictive back — " +
-                "платформенные ограничения, на десктопе размер задаёт вызывающий layout. " +
-                "Enter выполняет поиск; Down переходит к подсказкам, Up возвращает в поле, " +
-                "Escape сначала очищает запрос, затем закрывает view. " +
-                "Клик вне docked-view и клик по scrim закрывают его.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        var statesSection = InspectorLayout.Section(Settings, "Состояния");
+        var stateSwitches = InspectorLayout.Switches(statesSection);
+        _enabled = InspectorLayout.Switch(stateSwitches, "Поиск доступен", true);
+        _rtl = InspectorLayout.Switch(stateSwitches, "Справа налево (RTL)", false);
+        _reducedMotion = InspectorLayout.Switch(stateSwitches, "Reduce motion", false);
+
+        InspectorLayout.Note(
+            Settings,
+            $"Pinned androidx.compose.material3 SearchBar.kt @ {PinnedCommit}. " +
+            "Экспрессивный вариант = два контейнера (поле 28, список 12, зазор 2, scrim 32%): " +
+            "ExpandedFullScreenContainedSearchBar / ExpandedDockedSearchBarWithGap. " +
+            "Baseline = один контейнер с разделителем 1 dp и строками 72 dp: " +
+            "ExpandedFullScreenSearchBar / ExpandedDockedSearchBar. " +
+            "Search app bar = AppBarWithSearch: навигация, поле 360–720 dp и действия в одной " +
+            "строке; при прокрутке контейнер уезжает вверх (снимок высоты и клип), цвета " +
+            "переходят в SurfaceContainer / SurfaceContainerHighest на доле перекрытия > 0.01, " +
+            "а обратный layout и reduced motion переключаются ниже. " +
+            "Строка 56 dp, ширина 360–720 dp. Full-screen занимает поверхность примера, " +
+            "не всё окно каталога: Android-диалог, window insets и predictive back — " +
+            "платформенные ограничения, на десктопе размер задаёт вызывающий layout. " +
+            "Enter выполняет поиск; Down переходит к подсказкам, Up возвращает в поле, " +
+            "Escape сначала очищает запрос, затем закрывает view. " +
+            "Клик вне docked-view и клик по scrim закрывают его.");
 
         _kind.SelectionChanged += (_, _) => Apply();
         _mode.SelectionChanged += (_, _) => Apply();
@@ -228,10 +224,8 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         _alignment.SelectionChanged += (_, _) => Apply();
         _width.PropertyChanged += (_, e) =>
         {
-            if (e.Property != Avalonia.Controls.Primitives.RangeBase.ValueProperty)
-                return;
-            widthLabel.Text = $"Ширина: {_width.Value:0} dp";
-            Apply();
+            if (e.Property == RangeBase.ValueProperty)
+                Apply();
         };
         _query.TextChanged += (_, _) =>
         {
@@ -304,40 +298,6 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         Apply();
     }
 
-    private TextBox TextField(string label, string text)
-    {
-        var field = new TextBox { Text = text };
-        MaterialTextField.SetLabel(field, label);
-        MaterialTextField.SetVariant(field, MaterialTextFieldVariant.Outlined);
-        Settings.Children.Add(field);
-        return field;
-    }
-
-    private MaterialButtonGroup Choice(string label, string[] options)
-    {
-        Settings.Children.Add(new TextBlock { Text = label });
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            ButtonShape = MaterialButtonShape.Round,
-            ControlSize = MaterialControlSize.Small,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = 0;
-        Settings.Children.Add(group);
-        return group;
-    }
-
-    private ToggleSwitch Toggle(string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        Settings.Children.Add(toggle);
-        return toggle;
-    }
-
     private void ShowView()
     {
         if (_kind.SelectedIndex == 2)
@@ -403,20 +363,24 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         {
             var showView = _kind.SelectedIndex == 1;
             var showAppBar = _kind.SelectedIndex == 2;
-            _mode.IsEnabled = showView || showAppBar;
-            _variant.IsEnabled = showView;
-            _configuration.IsEnabled = showView;
-            _alignment.IsEnabled = !showView;
-            _showSuggestions.IsEnabled = showView || showAppBar;
-            _scrim.IsEnabled = showView;
-            _anchor.IsEnabled = showView;
-            _leading.IsEnabled = !showView;
-            _trailing.IsEnabled = !showView;
-            _secondary.IsEnabled = !showView;
-            _avatar.IsEnabled = !showView && !showAppBar;
-            _scrollAppBar.IsEnabled = showAppBar;
-            _reverseLayout.IsEnabled = showAppBar;
-            _reducedMotion.IsEnabled = showAppBar;
+
+            _barAnatomySection.IsVisible = !showView;
+            _viewBehaviorSection.IsVisible = showView || showAppBar;
+            _appBarBehaviorSection.IsVisible = showAppBar;
+
+            _mode.IsVisible = showView || showAppBar;
+            _variant.IsVisible = showView;
+            _configuration.IsVisible = showView;
+            _alignment.IsVisible = !showView;
+            _showSuggestions.IsVisible = showView || showAppBar;
+            _scrim.IsVisible = showView;
+            _anchor.IsVisible = showView;
+            _leading.IsVisible = !showView;
+            _trailing.IsVisible = !showView;
+            _secondary.IsVisible = !showView;
+            _avatar.IsVisible = !showView && !showAppBar;
+            _scrollAppBar.IsVisible = showAppBar;
+            _reverseLayout.IsVisible = showAppBar;
 
             _host.ClipToBounds = showView || showAppBar;
             _host.Width = _width.Value;
@@ -475,12 +439,9 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
             else if (_secondary.IsChecked != true)
                 _appBar.Actions.Remove(_appBarSecondaryAction);
 
-            MaterialMotion.SetIsReduced(_host, _reducedMotion.IsChecked == true);
-
             _host.IsEnabled = _enabled.IsChecked == true;
-            _host.FlowDirection = _rtl.IsChecked == true
-                ? FlowDirection.RightToLeft
-                : FlowDirection.LeftToRight;
+            InspectorLayout.ApplyFlowDirection(_host, _rtl);
+            InspectorLayout.ApplyReducedMotion(_host, _reducedMotion.IsChecked == true);
 
             if (showView)
                 _view.Open();
@@ -599,6 +560,7 @@ internal sealed class SearchPlayground : Grid, IComponentPlayground
         "13.8042 21.0208 13.4125 21.4125C13.0208 21.8042 12.55 22 12 22ZM8 17H16V10C16 8.9 15.6083 " +
         "7.95833 14.825 7.175C14.0417 6.39167 13.1 6 12 6C10.9 6 9.95833 6.39167 9.175 7.175C8.39167 " +
         "7.95833 8 8.9 8 10V17Z");
+
     private sealed class ActionCommand(Action execute) : ICommand
     {
         public event EventHandler? CanExecuteChanged { add { } remove { } }

@@ -299,6 +299,12 @@ public sealed class MaterialMenu : AvaloniaObject
             RoutingStrategies.Tunnel);
     }
 
+    internal static bool IsNavigableMenuItem(MenuItem item) =>
+        item.Focusable &&
+        item.IsEffectivelyVisible &&
+        item.IsEffectivelyEnabled &&
+        !GetIsSectionLabel(item);
+
     private static void HandleGroupedMenuKey(ItemsControl menu, KeyEventArgs args)
     {
         if (menu is not (MenuBase or MenuItem or MenuFlyoutPresenter))
@@ -322,25 +328,27 @@ public sealed class MaterialMenu : AvaloniaObject
             for (var step = 0; step < count; step++)
             {
                 var candidate = args.Key == Key.Home ? step : count - 1 - step;
-                if (items[candidate].IsEffectivelyEnabled)
+                if (IsNavigableMenuItem(items[candidate]))
                 {
                     items[candidate].Focus(NavigationMethod.Directional);
                     args.Handled = true;
                     return;
                 }
             }
+            args.Handled = true;
             return;
         }
 
         for (var step = 1; step <= count; step++)
         {
             var candidate = ((index + direction * step) % count + count) % count;
-            if (!items[candidate].IsEffectivelyEnabled)
+            if (!IsNavigableMenuItem(items[candidate]))
                 continue;
             items[candidate].Focus(NavigationMethod.Directional);
             args.Handled = true;
             return;
         }
+        args.Handled = true;
     }
 
     /// <summary>Flattens direct menu items and the items of every nested group, in visual order.</summary>
@@ -352,9 +360,12 @@ public sealed class MaterialMenu : AvaloniaObject
         {
             foreach (var child in container.Items.OfType<Control>())
             {
+                if (!child.IsEffectivelyVisible)
+                    continue;
+
                 switch (child)
                 {
-                    case MenuItem item when item.IsEffectivelyVisible:
+                    case MenuItem item:
                         result.Add(item);
                         break;
                     case MaterialMenuGroup group:
@@ -1047,6 +1058,8 @@ public sealed class MaterialMenu : AvaloniaObject
         private MaterialMotion.SpringAnimation? _opacityAnimation;
         private MaterialMotion.SpringAnimation? _scaleAnimation;
         private DispatcherTimer? _timer;
+        private Interactive? _exitRoot;
+        private Control? _exitTarget;
         private bool _exiting;
         private bool _allowClose;
 
@@ -1070,7 +1083,9 @@ public sealed class MaterialMenu : AvaloniaObject
                 args.Cancel = true;
                 return;
             }
-            if (MaterialMotion.GetIsReduced(_menu) || !_menu.IsAttachedToVisualTree())
+            if (MaterialMotion.GetIsReduced(_menu) ||
+                !_menu.IsAttachedToVisualTree() ||
+                (_menu.PlacementTarget is { } target && !target.IsAttachedToVisualTree()))
                 return;
 
             args.Cancel = true;
@@ -1081,6 +1096,7 @@ public sealed class MaterialMenu : AvaloniaObject
         {
             _exiting = true;
             _menu.IsHitTestVisible = false;
+            HookExitRoot();
             if (_scale is null)
             {
                 _scale = new ScaleTransform(1, 1);
@@ -1104,32 +1120,73 @@ public sealed class MaterialMenu : AvaloniaObject
             {
                 if (_opacityAnimation is { IsRunning: true } || _scaleAnimation is { IsRunning: true })
                     return;
-                _timer?.Stop();
-                _timer = null;
-                if (!_exiting) return;
-                _exiting = false;
-                Cleanup();
-                _allowClose = true;
-                try
-                {
-                    _menu.Close();
-                }
-                finally
-                {
-                    _allowClose = false;
-                }
-
-                // A different Closing subscriber may have cancelled the real close.
-                if (_menu.IsOpen)
-                    Restore();
+                CompleteExitNow();
             });
             _timer.Start();
+        }
+
+        private void HookExitRoot()
+        {
+            UnhookExitRoot();
+            if (_menu.PlacementTarget is { } target)
+            {
+                _exitTarget = target;
+                target.DetachedFromVisualTree += OnExitTargetDetached;
+                _exitRoot = TopLevel.GetTopLevel(target) ?? (Interactive)target;
+                _exitRoot.AddHandler(Control.ContextRequestedEvent, OnContextRequestedWhileExiting,
+                    RoutingStrategies.Tunnel, handledEventsToo: true);
+            }
+        }
+
+        private void UnhookExitRoot()
+        {
+            if (_exitTarget is not null)
+            {
+                _exitTarget.DetachedFromVisualTree -= OnExitTargetDetached;
+                _exitTarget = null;
+            }
+            if (_exitRoot is not null)
+            {
+                _exitRoot.RemoveHandler(Control.ContextRequestedEvent, OnContextRequestedWhileExiting);
+                _exitRoot = null;
+            }
+        }
+
+        private void OnExitTargetDetached(object? sender, VisualTreeAttachmentEventArgs args) =>
+            CompleteExitNow();
+
+        private void OnContextRequestedWhileExiting(object? sender, ContextRequestedEventArgs args) =>
+            CompleteExitNow();
+
+        private void CompleteExitNow()
+        {
+            UnhookExitRoot();
+            _timer?.Stop();
+            _timer = null;
+            if (!_exiting)
+                return;
+            _exiting = false;
+            Cleanup();
+            _allowClose = true;
+            try
+            {
+                _menu.Close();
+            }
+            finally
+            {
+                _allowClose = false;
+            }
+
+            // A different Closing subscriber may have cancelled the real close.
+            if (_menu.IsOpen)
+                Restore();
         }
 
         private void OnOpened(object? sender, EventArgs args)
         {
             if (_exiting)
             {
+                UnhookExitRoot();
                 _timer?.Stop();
                 _timer = null;
                 _exiting = false;
@@ -1139,6 +1196,7 @@ public sealed class MaterialMenu : AvaloniaObject
                 return;
             }
 
+            UnhookExitRoot();
             Cleanup();
             if (MaterialMotion.GetIsReduced(_menu) || !_menu.IsAttachedToVisualTree())
             {
@@ -1183,6 +1241,7 @@ public sealed class MaterialMenu : AvaloniaObject
 
         private void OnClosed(object? sender, EventArgs args)
         {
+            UnhookExitRoot();
             _exiting = false;
             _timer?.Stop();
             _timer = null;

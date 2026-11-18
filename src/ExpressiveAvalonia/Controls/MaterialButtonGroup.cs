@@ -888,6 +888,10 @@ public class MaterialButtonGroup : ItemsControl
         {
             RefreshItems();
         }
+        else if (e.Property == InputElement.IsEffectivelyEnabledProperty)
+        {
+            UpdateTabStops();
+        }
         else if (e.Property == MaterialButtonGroupItem.IsIconOnlyProperty)
         {
             SetCompressionLimit(item);
@@ -1059,14 +1063,14 @@ public class MaterialButtonGroup : ItemsControl
         if (Kind == MaterialButtonGroupKind.Standard)
         {
             foreach (var item in items)
-                item.IsTabStop = item.IsVisible;
+                item.IsTabStop = item.IsEffectivelyVisible;
             return;
         }
 
-        var tabIndex = items.FindIndex(static i => i.IsEffectivelyEnabled && i.IsVisible);
+        var tabIndex = items.FindIndex(static i => i.IsEffectivelyEnabled && i.IsEffectivelyVisible);
 
         for (var i = 0; i < items.Count; i++)
-            items[i].IsTabStop = i == tabIndex && items[i].IsVisible;
+            items[i].IsTabStop = i == tabIndex && items[i].IsEffectivelyVisible;
     }
 
     private void OnGroupKeyDown(object? sender, KeyEventArgs e)
@@ -1075,7 +1079,7 @@ public class MaterialButtonGroup : ItemsControl
             return;
 
         var items = GetGroupItems();
-        var enabled = items.Where(static i => i.IsEffectivelyEnabled && i.IsVisible).ToList();
+        var enabled = items.Where(static i => i.IsEffectivelyEnabled && i.IsEffectivelyVisible).ToList();
         if (enabled.Count == 0)
             return;
 
@@ -1172,6 +1176,7 @@ public class MaterialButtonGroup : ItemsControl
             _hiddenByOverflow.Clear();
             if (_overflowButton is not null)
                 _overflowButton.IsVisible = false;
+            UpdateTabStops();
             _applyingOverflow = false;
             return;
         }

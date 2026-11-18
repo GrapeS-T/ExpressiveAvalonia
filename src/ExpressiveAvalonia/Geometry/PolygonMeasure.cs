@@ -81,7 +81,7 @@ internal sealed class MeasuredPolygon : IReadOnlyList<MeasuredPolygon.MeasuredCu
     /// </summary>
     public MeasuredPolygon CutAndShift(double cuttingPoint)
     {
-        if (cuttingPoint is < 0 or > 1)
+        if (!(cuttingPoint is >= 0 and <= 1))
             throw new ArgumentOutOfRangeException(nameof(cuttingPoint), cuttingPoint,
                 "Cutting point is expected to be between 0 and 1.");
         if (cuttingPoint < ShapeMath.DistanceEpsilon)
@@ -233,9 +233,9 @@ internal sealed class MeasuredPolygon : IReadOnlyList<MeasuredPolygon.MeasuredCu
             var bounded = Math.Clamp(cutOutlineProgress, StartOutlineProgress, EndOutlineProgress);
             var outlineProgressSize = EndOutlineProgress - StartOutlineProgress;
             var progressFromStart = bounded - StartOutlineProgress;
-            var relativeProgress = progressFromStart / outlineProgressSize;
+            var relativeProgress = outlineProgressSize > 0 ? progressFromStart / outlineProgressSize : 0;
             var t = _owner._measurer.FindCubicCutPoint(Cubic, relativeProgress * MeasuredSize);
-            if (t is < 0 or > 1)
+            if (!(t is >= 0 and <= 1))
             {
                 throw new InvalidOperationException(
                     "Cubic cut point is expected to be between 0 and 1.");
@@ -264,7 +264,7 @@ internal sealed class LengthMeasurer : IMeasurer
         ClosestProgressTo(cubic, double.PositiveInfinity).Total;
 
     public double FindCubicCutPoint(Cubic cubic, double measure) =>
-        ClosestProgressTo(cubic, measure).Progress;
+        measure <= 0 ? 0 : ClosestProgressTo(cubic, measure).Progress;
 
     private static (double Progress, double Total) ClosestProgressTo(Cubic cubic,
         double threshold)
@@ -281,6 +281,8 @@ internal sealed class LengthMeasurer : IMeasurer
 
             if (segment >= remainder)
             {
+                if (segment <= 0)
+                    return ((double)(index - 1) / Segments, threshold);
                 return (progress - (1 - remainder / segment) / Segments, threshold);
             }
 

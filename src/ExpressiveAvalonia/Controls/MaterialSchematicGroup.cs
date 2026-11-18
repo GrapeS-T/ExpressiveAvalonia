@@ -202,7 +202,17 @@ public sealed class MaterialSchematicGroup : TemplatedControl
 
         AutomationProperties.SetName(button, role.Name);
         AutomationProperties.SetHelpText(button, $"Copy {role.BrushKey} as hex");
-        button.Click += async (_, _) => await CopyAsync(role, dark);
+        button.Click += async (_, _) =>
+        {
+            try
+            {
+                await CopyAsync(role, dark);
+            }
+            catch (Exception)
+            {
+                // Clipboard contention must not fault an async void event handler.
+            }
+        };
         return button;
     }
 
@@ -216,7 +226,16 @@ public sealed class MaterialSchematicGroup : TemplatedControl
         SwatchCopied?.Invoke(this, args);
         if (_status is not null) _status.Text = $"Copied {role.Name} {args.Hex}";
         if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
-            await clipboard.SetTextAsync(args.Hex);
+        {
+            try
+            {
+                await clipboard.SetTextAsync(args.Hex);
+            }
+            catch (Exception)
+            {
+                // Headless or contended platform clipboards may refuse writes.
+            }
+        }
     }
 
     private void UpdateTokens()

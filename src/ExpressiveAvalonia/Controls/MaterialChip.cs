@@ -208,7 +208,7 @@ public class MaterialChip : Button
         AddHandler(PointerPressedEvent, OnDragPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerMovedEvent, OnDragPointerMoved, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnDragPointerReleased, RoutingStrategies.Tunnel);
-        AddHandler(PointerCaptureLostEvent, OnDragPointerCaptureLost, RoutingStrategies.Tunnel);
+        AddHandler(PointerCaptureLostEvent, OnDragPointerCaptureLost, RoutingStrategies.Direct, handledEventsToo: true);
     }
 
     public MaterialChipKind Kind { get => GetValue(KindProperty); set => SetValue(KindProperty, value); }
@@ -682,6 +682,7 @@ public class MaterialChip : Button
     private void AnimateOpacity(ref MaterialMotion.SpringAnimation? spring,
         StyledProperty<double> property, double target, bool animate)
     {
+        target = Math.Clamp(target, 0, 1);
         if (!animate)
         {
             DisposeSpring(ref spring);
@@ -699,7 +700,7 @@ public class MaterialChip : Button
             return;
 
         spring = MaterialMotion.Animate(this, GetValue(property), target,
-            value => SetCurrentValue(property, value), MaterialSpring.EffectsDefault, 0.001);
+            value => SetCurrentValue(property, Math.Clamp(value, 0, 1)), MaterialSpring.EffectsDefault, 0.001);
     }
 
     private static void DisposeSpring(ref MaterialMotion.SpringAnimation? spring)
@@ -734,7 +735,7 @@ public class MaterialChip : Button
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (CanRemove && e.KeyModifiers == KeyModifiers.None && e.Key is Key.Delete or Key.Back)
+        if (!e.Handled && CanRemove && e.KeyModifiers == KeyModifiers.None && e.Key is Key.Delete or Key.Back)
         {
             RequestRemove();
             e.Handled = true;
@@ -853,6 +854,8 @@ public class MaterialChip : Button
 
     private void OnDragPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (e.Pointer.Type == PointerType.Mouse && e.InitialPressMouseButton != MouseButton.Left)
+            return;
         if (IsDragging)
             _suppressClick = true;
         EndDrag();

@@ -130,23 +130,25 @@ public sealed class MaterialSurface : AvaloniaObject
     internal static void Connect(TemplatedControl host, Border? part)
     {
         ArgumentNullException.ThrowIfNull(host);
+        var wasSurface = host.GetValue(IsSurfaceProperty);
         host.SetValue(IsSurfaceProperty, true);
-        if (Trackers.TryGetValue(host, out var tracker))
+        if (!Trackers.TryGetValue(host, out var tracker))
         {
-            tracker.Attach(part);
-            return;
+            tracker = new SurfaceTracker(host);
+            Trackers.Add(host, tracker);
+            Active.Add(new WeakReference<SurfaceTracker>(tracker));
         }
 
-        tracker = new SurfaceTracker(host);
-        Trackers.Add(host, tracker);
-        Active.Add(new WeakReference<SurfaceTracker>(tracker));
         tracker.Attach(part);
+        if (!wasSurface && GetTonalElevation(host) > 0)
+            SurfaceTracker.RefreshAll();
     }
 
     /// <summary>Releases the tonal-elevation tracking of <paramref name="host"/>.</summary>
     internal static void Disconnect(TemplatedControl host)
     {
         ArgumentNullException.ThrowIfNull(host);
+        var wasSurface = host.GetValue(IsSurfaceProperty);
         if (Trackers.TryGetValue(host, out var tracker))
         {
             Trackers.Remove(host);
@@ -154,6 +156,8 @@ public sealed class MaterialSurface : AvaloniaObject
         }
 
         host.ClearValue(IsSurfaceProperty);
+        if (wasSurface && GetTonalElevation(host) > 0)
+            SurfaceTracker.RefreshAll();
     }
 
     private static Control? Parent(Control control) => control is TopLevel ? null :
@@ -184,6 +188,9 @@ public sealed class MaterialSurface : AvaloniaObject
 
         public void Attach(Border? part)
         {
+            if (_part is not null && !ReferenceEquals(_part, part))
+                _part.SetCurrentValue(Border.BackgroundProperty, _host.Background);
+
             _part = part;
             Refresh();
         }
@@ -198,7 +205,11 @@ public sealed class MaterialSurface : AvaloniaObject
             _host.ResourcesChanged -= OnResourcesChanged;
             _host.ActualThemeVariantChanged -= OnThemeVariantChanged;
             _host.AttachedToVisualTree -= OnAttachedToVisualTree;
-            _part = null;
+            if (_part is not null)
+            {
+                _part.SetCurrentValue(Border.BackgroundProperty, _host.Background);
+                _part = null;
+            }
         }
 
         private void OnHostPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
@@ -221,7 +232,13 @@ public sealed class MaterialSurface : AvaloniaObject
 
         private void OnThemeVariantChanged(object? sender, EventArgs e) => Refresh();
 
-        private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e) => Refresh();
+        private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            if (GetTonalElevation(_host) > 0)
+                RefreshAll();
+            else
+                Refresh();
+        }
 
         private void Refresh()
         {
@@ -272,7 +289,7 @@ public sealed class MaterialSurface : AvaloniaObject
             return absolute > 0 ? MaterialAssist.SurfaceColorAtElevation(surface.Value, tint.Value, absolute) : null;
         }
 
-        private static void RefreshAll()
+        public static void RefreshAll()
         {
             for (var i = Active.Count - 1; i >= 0; i--)
             {

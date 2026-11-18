@@ -121,7 +121,7 @@ public sealed class MaterialTransitionHost : Panel
     {
         // Asking again for the destination that is already current or still arriving must not
         // restart its enter animation.
-        if (Equals(content, _content) && _incoming.Presenter.Content is not null)
+        if (Equals(content, _content) && (_incoming.Presenter.Content is not null || content is null))
             return;
 
         var spec = CreateSpec(Transition, forward);
@@ -158,7 +158,8 @@ public sealed class MaterialTransitionHost : Panel
             outgoing = _incoming;
             incoming = _outgoing;
             incoming.Discard();
-            incoming.PrepareEnter(content, spec, width);
+            if (content is not null)
+                incoming.PrepareEnter(content, spec, width);
         }
 
         _incoming = incoming;
@@ -167,10 +168,12 @@ public sealed class MaterialTransitionHost : Panel
         if (ReferenceEquals(incoming, outgoing))
             return;
 
-        incoming.Frame.IsVisible = true;
-        incoming.Frame.IsHitTestVisible = true;
-        incoming.Frame.ZIndex = (int)Math.Round(spec.TargetContentZIndex);
-        AutomationProperties.SetAccessibilityView(incoming.Frame, AccessibilityView.Content);
+        var hasIncoming = content is not null;
+        incoming.Frame.IsVisible = hasIncoming;
+        incoming.Frame.IsHitTestVisible = hasIncoming;
+        incoming.Frame.ZIndex = hasIncoming ? (int)Math.Round(spec.TargetContentZIndex) : 0;
+        AutomationProperties.SetAccessibilityView(incoming.Frame,
+            hasIncoming ? AccessibilityView.Content : AccessibilityView.Raw);
 
         outgoing.Frame.IsHitTestVisible = false;
         outgoing.Frame.ZIndex = 0;
@@ -181,14 +184,16 @@ public sealed class MaterialTransitionHost : Panel
 
         if (MaterialMotion.GetIsReduced(this) || !this.IsAttachedToVisualTree())
         {
-            incoming.SnapEnter();
+            if (hasIncoming)
+                incoming.SnapEnter();
             outgoing.SnapExit(spec, width);
             FinalizeOutgoing();
             return;
         }
 
         outgoing.BeginExit(spec, width);
-        incoming.BeginEnter(spec, width);
+        if (hasIncoming)
+            incoming.BeginEnter(spec, width);
         _outgoingFadeLifetime = spec.ExitLifetimeSeconds;
         _outgoingClock.Restart();
         SchedulePump();
@@ -249,6 +254,15 @@ public sealed class MaterialTransitionHost : Panel
     {
         _outgoingClock.Stop();
         _outgoing.Discard();
+        if (_incoming.Content is null)
+        {
+            _incoming.Discard();
+            _hasContent = false;
+        }
+        else
+        {
+            _hasContent = true;
+        }
         SetTransitioning(false);
         TransitionCompleted?.Invoke(this, EventArgs.Empty);
     }

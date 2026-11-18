@@ -85,9 +85,13 @@ public sealed class MaterialNavigationBarPanel : Panel
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        var count = Children.Count;
+        var count = CountVisibleChildren();
         if (count == 0)
+        {
+            _widths = null;
+            _barPadding = 0;
             return default;
+        }
 
         if (Orientation == Avalonia.Layout.Orientation.Vertical)
         {
@@ -98,10 +102,13 @@ public sealed class MaterialNavigationBarPanel : Panel
             var maxHeight = 0d;
             foreach (var child in Children)
             {
+                if (!child.IsVisible)
+                    continue;
                 child.Measure(new Size(availableSize.Width, height));
                 maxWidth = Math.Max(maxWidth, child.DesiredSize.Width);
                 maxHeight = Math.Max(maxHeight, child.DesiredSize.Height);
             }
+            _widths = null;
             var desiredHeight = boundedHeight ? availableSize.Height : (maxHeight * count) + (gap * (count - 1));
             return new Size(double.IsFinite(availableSize.Width) ? availableSize.Width : maxWidth, desiredHeight);
         }
@@ -112,13 +119,17 @@ public sealed class MaterialNavigationBarPanel : Panel
             var gap = Spacing;
             var itemWidth = bounded ? Math.Max(0, (availableSize.Width - (gap * (count - 1))) / count) : double.PositiveInfinity;
             var height = 0d;
+            var maxItemWidth = 0d;
             foreach (var child in Children)
             {
+                if (!child.IsVisible)
+                    continue;
                 child.Measure(new Size(itemWidth, availableSize.Height));
                 height = Math.Max(height, child.DesiredSize.Height);
+                maxItemWidth = Math.Max(maxItemWidth, child.DesiredSize.Width);
             }
             _widths = null;
-            return new Size(bounded ? availableSize.Width : (itemWidth * count), height);
+            return new Size(bounded ? availableSize.Width : (maxItemWidth * count) + (gap * (count - 1)), height);
         }
 
         if (Arrangement == MaterialShortNavigationBarArrangement.EqualWeight)
@@ -126,13 +137,17 @@ public sealed class MaterialNavigationBarPanel : Panel
             var bounded = double.IsFinite(availableSize.Width);
             var itemWidth = bounded ? Math.Max(0, availableSize.Width / count) : double.PositiveInfinity;
             var height = 0d;
+            var maxItemWidth = 0d;
             foreach (var child in Children)
             {
+                if (!child.IsVisible)
+                    continue;
                 child.Measure(new Size(itemWidth, availableSize.Height));
                 height = Math.Max(height, child.DesiredSize.Height);
+                maxItemWidth = Math.Max(maxItemWidth, child.DesiredSize.Width);
             }
             _widths = null;
-            return new Size(bounded ? availableSize.Width : itemWidth * count, height);
+            return new Size(bounded ? availableSize.Width : maxItemWidth * count, height);
         }
 
         // CenteredContentMeasurePolicy: group the items with the source side padding and let an
@@ -141,11 +156,14 @@ public sealed class MaterialNavigationBarPanel : Panel
         {
             var height = 0d;
             var widths = new double[count];
-            for (var i = 0; i < count; i++)
+            var visibleIndex = 0;
+            foreach (var child in Children)
             {
-                Children[i].Measure(new Size(double.PositiveInfinity, availableSize.Height));
-                widths[i] = Children[i].DesiredSize.Width;
-                height = Math.Max(height, Children[i].DesiredSize.Height);
+                if (!child.IsVisible)
+                    continue;
+                child.Measure(new Size(double.PositiveInfinity, availableSize.Height));
+                widths[visibleIndex++] = child.DesiredSize.Width;
+                height = Math.Max(height, child.DesiredSize.Height);
             }
             _widths = widths;
             _barPadding = 0;
@@ -158,12 +176,14 @@ public sealed class MaterialNavigationBarPanel : Panel
         var itemMaxWidth = barWidth / count;
         var itemWidths = new double[count];
         var measuredHeight = 0d;
-        for (var i = 0; i < count; i++)
+        var itemIndex = 0;
+        foreach (var child in Children)
         {
-            var child = Children[i];
+            if (!child.IsVisible)
+                continue;
             child.Measure(new Size(itemMaxWidth, availableSize.Height));
             var currentWidth = Math.Max(itemMinWidth, Math.Min(itemMaxWidth, child.DesiredSize.Width));
-            itemWidths[i] = currentWidth;
+            itemWidths[itemIndex++] = currentWidth;
             padding -= (currentWidth - itemMinWidth) / 2;
             measuredHeight = Math.Max(measuredHeight, child.DesiredSize.Height);
         }
@@ -175,9 +195,13 @@ public sealed class MaterialNavigationBarPanel : Panel
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        var count = Children.Count;
+        var count = CountVisibleChildren();
         if (count == 0)
+        {
+            foreach (var child in Children)
+                child.Arrange(default);
             return finalSize;
+        }
 
         if (Orientation == Avalonia.Layout.Orientation.Vertical)
         {
@@ -186,6 +210,11 @@ public sealed class MaterialNavigationBarPanel : Panel
             var y = 0d;
             foreach (var child in Children)
             {
+                if (!child.IsVisible)
+                {
+                    child.Arrange(default);
+                    continue;
+                }
                 child.Arrange(new Rect(0, y, finalSize.Width, height));
                 y += height + gap;
             }
@@ -199,6 +228,11 @@ public sealed class MaterialNavigationBarPanel : Panel
             var x = 0d;
             foreach (var child in Children)
             {
+                if (!child.IsVisible)
+                {
+                    child.Arrange(default);
+                    continue;
+                }
                 Arrange(child, x, 0, width, finalSize.Height);
                 x += width + gap;
             }
@@ -211,6 +245,11 @@ public sealed class MaterialNavigationBarPanel : Panel
             var x = 0d;
             foreach (var child in Children)
             {
+                if (!child.IsVisible)
+                {
+                    child.Arrange(default);
+                    continue;
+                }
                 Arrange(child, x, 0, width, finalSize.Height);
                 x += width;
             }
@@ -227,12 +266,30 @@ public sealed class MaterialNavigationBarPanel : Panel
         }
 
         var cursor = _barPadding;
-        for (var i = 0; i < count; i++)
+        var arrangedIndex = 0;
+        foreach (var child in Children)
         {
-            Arrange(Children[i], cursor, 0, widths[i], finalSize.Height);
-            cursor += widths[i];
+            if (!child.IsVisible)
+            {
+                child.Arrange(default);
+                continue;
+            }
+            var itemW = widths[arrangedIndex++];
+            Arrange(child, cursor, 0, itemW, finalSize.Height);
+            cursor += itemW;
         }
         return finalSize;
+    }
+
+    private int CountVisibleChildren()
+    {
+        var count = 0;
+        foreach (var child in Children)
+        {
+            if (child.IsVisible)
+                count++;
+        }
+        return count;
     }
 
     private static void Arrange(Control child, double x, double y, double width, double height)

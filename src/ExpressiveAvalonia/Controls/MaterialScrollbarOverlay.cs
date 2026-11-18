@@ -163,6 +163,7 @@ public sealed class MaterialScrollbarOverlay : Control
     static MaterialScrollbarOverlay()
     {
         AffectsRender<MaterialScrollbarOverlay>(
+            BoundsProperty,
             FlowDirectionProperty,
             OrientationProperty,
             ThumbColorProperty,
@@ -287,8 +288,36 @@ public sealed class MaterialScrollbarOverlay : Control
         var viewportSize = vertical ? viewport.Height : viewport.Width;
         var offset = vertical ? scroll.Offset.Y : scroll.Offset.X;
 
+        var refVisual = (Visual?)_presenter ?? scroll;
+        var refSize = refVisual.Bounds.Size;
+        var ownSize = Bounds.Size;
+        var geometrySize = refSize;
+        var geometryOffset = default(Point);
+
+        if (ownSize.Width > 0 && ownSize.Height > 0)
+        {
+            if (refVisual.TranslatePoint(default, this) is { } origin)
+            {
+                var overlapWidth = Math.Min(origin.X + refSize.Width, ownSize.Width) - Math.Max(origin.X, 0);
+                var overlapHeight = Math.Min(origin.Y + refSize.Height, ownSize.Height) - Math.Max(origin.Y, 0);
+                if (overlapWidth > 0.01 && overlapHeight > 0.01)
+                {
+                    geometrySize = refSize;
+                    geometryOffset = origin;
+                }
+                else
+                {
+                    geometrySize = ownSize;
+                }
+            }
+            else
+            {
+                geometrySize = ownSize;
+            }
+        }
+
         if (!MaterialScrollbarGeometry.TryCalculate(
-                _presenter?.Bounds.Size ?? scroll.Bounds.Size,
+                geometrySize,
                 Orientation,
                 FlowDirection,
                 offset,
@@ -303,6 +332,12 @@ public sealed class MaterialScrollbarOverlay : Control
                 out var thumb))
         {
             return;
+        }
+
+        if (geometryOffset != default)
+        {
+            track = track.Translate(geometryOffset);
+            thumb = thumb.Translate(geometryOffset);
         }
 
         var fadeAlpha = IsFadeEnabled ? Math.Clamp(_fadeAlpha, 0, 1) : 1;
@@ -447,24 +482,44 @@ public sealed class MaterialScrollbarOverlay : Control
         Unsubscribe();
         _subscribedTarget = target;
         _subscribedTarget.ScrollChanged += OnTargetScrollChanged;
+        _subscribedTarget.SizeChanged += OnTargetSizeChanged;
         target.TemplateApplied += OnTargetTemplateApplied;
-        _presenter = target.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
+        SetPresenter(target.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault());
         BaselineOffset();
     }
 
     private void Unsubscribe()
     {
+        SetPresenter(null);
         if (_subscribedTarget is null)
             return;
 
         _subscribedTarget.ScrollChanged -= OnTargetScrollChanged;
+        _subscribedTarget.SizeChanged -= OnTargetSizeChanged;
         _subscribedTarget.TemplateApplied -= OnTargetTemplateApplied;
-        _presenter = null;
         _subscribedTarget = null;
     }
 
-    private void OnTargetTemplateApplied(object? sender, TemplateAppliedEventArgs e) =>
-        _presenter = e.NameScope.Find<ScrollContentPresenter>("PART_ContentPresenter");
+    private void SetPresenter(ScrollContentPresenter? presenter)
+    {
+        if (ReferenceEquals(_presenter, presenter))
+            return;
+
+        if (_presenter is not null)
+            _presenter.SizeChanged -= OnTargetSizeChanged;
+
+        _presenter = presenter;
+        if (_presenter is not null)
+            _presenter.SizeChanged += OnTargetSizeChanged;
+    }
+
+    private void OnTargetSizeChanged(object? sender, SizeChangedEventArgs e) => InvalidateVisual();
+
+    private void OnTargetTemplateApplied(object? sender, TemplateAppliedEventArgs e)
+    {
+        SetPresenter(e.NameScope.Find<ScrollContentPresenter>("PART_ContentPresenter"));
+        InvalidateVisual();
+    }
 
     private void OnTargetScrollChanged(object? sender, ScrollChangedEventArgs e)
     {

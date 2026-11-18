@@ -40,6 +40,7 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
     private readonly ContentControl _stage = new() { HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 480 };
     private readonly ComboBox _type;
+    private readonly Slider _count;
     private readonly ComboBox _density;
     private readonly ComboBox _lines;
     private readonly ComboBox _selectionMode;
@@ -52,12 +53,11 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _supporting;
     private readonly ToggleSwitch _dividers;
     private readonly ToggleSwitch _multiple;
-    private readonly Slider _count;
     private bool _initialized;
     private bool _accordionVisited;
     private bool _sync;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal ListsPlayground()
     {
@@ -98,22 +98,27 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
         stage.Children.Add(card);
         Children.Add(stage);
 
-        _type = Combo("Тип списка", ["Обычный", "Сегменты", "Раскрывающийся", "Свайп", "Перетаскивание", "Аккордеон"]);
-        _count = Number("Количество элементов", 3, 8, 5, 1);
-        _density = Combo("Плотность", ["0 (по умолчанию)", "-2", "-4"]);
-        _lines = Combo("Строк в элементе", ["1", "2", "3"]);
-        _lines.SelectedIndex = 1;
-        _selectionMode = Combo("Выбор", ["Один", "Несколько", "Переключаемый"]);
-        _swipeActions = Combo("Действия свайпа", ["1", "2", "3"]);
-        _swipeActions.SelectedIndex = 2;
-        _leading = Toggle("Ведущая иконка", true);
-        _trailing = Toggle("Стрелка справа", true);
-        _counter = Toggle("Счётчик справа", true);
-        _badge = Toggle("Бейдж", false);
-        _overline = Toggle("Надзаголовок", false);
-        _supporting = Toggle("Описание", true);
-        _dividers = Toggle("Разделители", true);
-        _multiple = Toggle("Несколько раскрытых", false);
+        var layout = InspectorLayout.Section(Settings, "Тип и макет", divider: false);
+        _type = InspectorLayout.Combo(
+            layout,
+            "Тип списка",
+            new[] { "Обычный", "Сегменты", "Раскрывающийся", "Свайп", "Перетаскивание", "Аккордеон" });
+        _count = InspectorLayout.Slider(layout, "Количество элементов", 3, 8, 5, 1, format: "0");
+        _density = InspectorLayout.Combo(layout, "Плотность", new[] { "0 (по умолчанию)", "-2", "-4" });
+        _lines = InspectorLayout.Combo(layout, "Строк в элементе", new[] { "1", "2", "3" }, selected: 1);
+        _selectionMode = InspectorLayout.Combo(layout, "Выбор", new[] { "Один", "Несколько", "Переключаемый" });
+        _swipeActions = InspectorLayout.Combo(layout, "Действия свайпа", new[] { "1", "2", "3" }, selected: 2);
+
+        var anatomy = InspectorLayout.Section(Settings, "Анатомия строки");
+        var switches = InspectorLayout.Switches(anatomy);
+        _leading = InspectorLayout.Switch(switches, "Ведущая иконка", true);
+        _trailing = InspectorLayout.Switch(switches, "Стрелка справа", true);
+        _counter = InspectorLayout.Switch(switches, "Счётчик справа", true);
+        _badge = InspectorLayout.Switch(switches, "Бейдж", false);
+        _overline = InspectorLayout.Switch(switches, "Надзаголовок", false);
+        _supporting = InspectorLayout.Switch(switches, "Описание", true);
+        _dividers = InspectorLayout.Switch(switches, "Разделители", true);
+        _multiple = InspectorLayout.Switch(switches, "Несколько раскрытых", false);
 
         _list.SelectionChanged += (_, _) => { if (!_sync) UpdateSelectionStatus(); };
         MaterialList.AddItemMovedHandler(_list, (_, e) =>
@@ -422,46 +427,5 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
             Padding = new Thickness(0, 4, 0, 8),
             Child = block,
         };
-    }
-
-    private ComboBox Combo(string label, string[] options)
-    {
-        Settings.Children.Add(new TextBlock { Text = label });
-        var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
-        foreach (var option in options)
-            combo.Items.Add(option);
-        combo.SelectedIndex = 0;
-        AutomationProperties.SetName(combo, label);
-        Settings.Children.Add(combo);
-        return combo;
-    }
-
-    private ToggleSwitch Toggle(string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        Settings.Children.Add(toggle);
-        return toggle;
-    }
-
-    private Slider Number(string label, double min, double max, double value, double step)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0}" };
-        Settings.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = step,
-            IsSnapToTickEnabled = true,
-        };
-        AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                caption.Text = $"{label}: {slider.Value:0}";
-        };
-        Settings.Children.Add(slider);
-        return slider;
     }
 }

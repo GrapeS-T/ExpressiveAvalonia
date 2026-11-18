@@ -47,6 +47,8 @@ public sealed class MaterialSlotHost : ContentControl
     private ContentPresenter? _contentHost;
     private Control? _placeholder;
     private ContentPresenter? _customPlaceholder;
+    private Rectangle? _safetyZone;
+    private Border? _surface;
 
     static MaterialSlotHost()
     {
@@ -54,6 +56,10 @@ public sealed class MaterialSlotHost : ContentControl
         PlaceholderContentProperty.Changed.AddClassHandler<MaterialSlotHost>(static (host, _) => host.UpdateFilled());
         SlotTitleProperty.Changed.AddClassHandler<MaterialSlotHost>(static (host, _) => host.UpdatePlaceholderText());
         SlotDescriptionProperty.Changed.AddClassHandler<MaterialSlotHost>(static (host, _) => host.UpdatePlaceholderText());
+        SlotCornerRadiusProperty.Changed.AddClassHandler<MaterialSlotHost>(static (host, _) =>
+        {
+            if (host._surface is not null) host._surface.CornerRadius = host.SlotCornerRadius;
+        });
     }
 
     public MaterialSlotHost()
@@ -132,6 +138,7 @@ public sealed class MaterialSlotHost : ContentControl
         layer.Children.Add(prompt);
         layer.Children.Add(_customPlaceholder);
         _placeholder = prompt;
+        _safetyZone = safetyZone;
 
         var surface = new Border
         {
@@ -139,6 +146,7 @@ public sealed class MaterialSlotHost : ContentControl
             Padding = new Thickness(8),
             Child = layer
         };
+        _surface = surface;
         surface.Bind(Border.BackgroundProperty, surface.GetResourceObservable("MaterialPrimaryContainerBrush"));
 
         UpdateFilled();
@@ -150,6 +158,7 @@ public sealed class MaterialSlotHost : ContentControl
     {
         var filled = IsFilled;
         if (_contentHost is not null) _contentHost.IsVisible = filled;
+        if (_safetyZone is not null) _safetyZone.IsVisible = !filled;
         var showDefault = !filled && PlaceholderContent is null;
         if (_placeholder is not null) _placeholder.IsVisible = showDefault;
         if (_customPlaceholder is not null) _customPlaceholder.IsVisible = !filled && PlaceholderContent is not null;

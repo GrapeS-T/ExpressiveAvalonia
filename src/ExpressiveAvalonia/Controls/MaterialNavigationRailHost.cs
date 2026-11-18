@@ -142,7 +142,9 @@ public sealed class MaterialNavigationRailHost : ContentControl
     private MaterialMotion.SpringAnimation? _slideSpring;
     private MaterialMotion.SpringAnimation? _scrimSpring;
     private MaterialNavigationRail? _generatedCollapsedRail;
+    private readonly List<IDisposable> _generatedCollapsedBindings = [];
     private MaterialNavigationRail? _collapsedPresentation;
+    private MaterialNavigationRail? _subscribedRail;
     private MaterialNavigationRail? _subscribedCollapsedRail;
     private IDisposable? _collapsedSelectionBinding;
     private InputElement? _previousFocus;
@@ -311,6 +313,10 @@ public sealed class MaterialNavigationRailHost : ContentControl
     {
         if (_scrim is not null)
             _scrim.PointerPressed -= OnScrimPointerPressed;
+        if (_railHost is not null)
+            _railHost.SizeChanged -= OnHostSlotSizeChanged;
+        if (_collapsedHost is not null)
+            _collapsedHost.SizeChanged -= OnHostSlotSizeChanged;
 
         base.OnApplyTemplate(e);
 
@@ -328,7 +334,15 @@ public sealed class MaterialNavigationRailHost : ContentControl
 
         if (_scrim is not null)
             _scrim.PointerPressed += OnScrimPointerPressed;
+        if (_railHost is not null)
+            _railHost.SizeChanged += OnHostSlotSizeChanged;
+        if (_collapsedHost is not null)
+            _collapsedHost.SizeChanged += OnHostSlotSizeChanged;
 
+        UpdateRailSubscription();
+        if (_generatedCollapsedRail is null)
+            RebuildGeneratedCollapsedRail();
+        RebindCollapsedRail();
         UpdatePresentation(animate: false);
 
         // A rail opened in XAML has no OnOpenChanged transition after the template is applied.
@@ -347,47 +361,86 @@ public sealed class MaterialNavigationRailHost : ContentControl
         _scrimSpring?.Dispose();
         _scrimSpring = null;
         _closing = false;
+        _previousFocus = null;
         ResetRailDrag();
         UnregisterOverlay();
         base.OnDetachedFromVisualTree(e);
+        UpdateRailSubscription();
+        RebuildGeneratedCollapsedRail();
+        RebindCollapsedRail();
+        SetCollapsedPresentation(null);
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        UpdateRailSubscription();
+        if (_generatedCollapsedRail is null)
+            RebuildGeneratedCollapsedRail();
+        RebindCollapsedRail();
         UpdatePresentation(animate: false);
     }
 
     private void OnRailChanged(AvaloniaPropertyChangedEventArgs change)
     {
-        if (change.GetOldValue<MaterialNavigationRail?>() is { } oldRail)
-        {
-            oldRail.ItemInvoked -= OnRailItemInvoked;
-            oldRail.PropertyChanged -= OnRailPropertyChanged;
-        }
-
         if (change.GetNewValue<MaterialNavigationRail?>() is { } newRail)
         {
-            newRail.ItemInvoked += OnRailItemInvoked;
-            newRail.PropertyChanged += OnRailPropertyChanged;
             // The floating surface treatment lives on the rail; the host owns placement.
             newRail.IsFloating = Placement == MaterialNavigationRailHostPlacement.Floating;
             ApplyRailMotion(newRail);
         }
 
+        UpdateRailSubscription();
         RebuildGeneratedCollapsedRail();
         RebindCollapsedRail();
         UpdatePresentation(animate: false);
     }
 
+    private void UpdateRailSubscription()
+    {
+        var target = this.IsAttachedToVisualTree() ? Rail : null;
+        if (ReferenceEquals(_subscribedRail, target))
+            return;
+
+        if (_subscribedRail is { } previous)
+        {
+            previous.ItemInvoked -= OnRailItemInvoked;
+            previous.PropertyChanged -= OnRailPropertyChanged;
+            previous.ExpansionProgressChanged -= OnRailExpansionProgressChanged;
+        }
+
+        _subscribedRail = target;
+        if (target is not null)
+        {
+            target.ItemInvoked += OnRailItemInvoked;
+            target.PropertyChanged += OnRailPropertyChanged;
+            target.ExpansionProgressChanged += OnRailExpansionProgressChanged;
+        }
+    }
+
     private void OnRailPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property != ItemsControl.ItemsSourceProperty)
+        if (e.Property == ItemsControl.ItemsSourceProperty)
+        {
+            RebuildGeneratedCollapsedRail();
+            RebindCollapsedRail();
+            UpdatePresentation(animate: false);
             return;
-        RebuildGeneratedCollapsedRail();
-        RebindCollapsedRail();
-        UpdatePresentation(animate: false);
+        }
+
+        if (e.Property == WidthProperty ||
+            e.Property == Visual.BoundsProperty ||
+            e.Property == MaterialNavigationRail.ExpansionWidthProperty ||
+            e.Property == MaterialNavigationRail.ModeProperty ||
+            e.Property == MaterialNavigationRail.IsExpandedProperty)
+        {
+            RefreshContentInset();
+        }
     }
+
+    private void OnRailExpansionProgressChanged(object? sender, EventArgs e) => RefreshContentInset();
+
+    private void OnHostSlotSizeChanged(object? sender, SizeChangedEventArgs e) => RefreshContentInset();
 
     private void OnCollapsedRailChanged()
     {
@@ -402,8 +455,9 @@ public sealed class MaterialNavigationRailHost : ContentControl
     /// </summary>
     private void RebuildGeneratedCollapsedRail()
     {
+        DisposeGeneratedCollapsedBindings();
         var itemsSource = Rail?.ItemsSource;
-        if (CollapsedRail is not null || Rail is not { } source ||
+        if (!this.IsAttachedToVisualTree() || CollapsedRail is not null || Rail is not { } source ||
             itemsSource is null || !CanShareItems(itemsSource))
         {
             _generatedCollapsedRail = null;
@@ -417,45 +471,57 @@ public sealed class MaterialNavigationRailHost : ContentControl
             IsFloating = false,
             SelectionMode = SelectionMode.Single,
         };
-        clone.Bind(InputElement.FocusableProperty,
-            new Binding(nameof(Focusable)) { Source = source });
-        clone.Bind(ItemsControl.ItemsSourceProperty,
-            new Binding(nameof(ItemsControl.ItemsSource)) { Source = source });
-        clone.Bind(MaterialNavigationRail.RailAlignmentProperty,
-            new Binding(nameof(MaterialNavigationRail.RailAlignment)) { Source = source });
-        clone.Bind(MaterialNavigationRail.ItemIconPositionProperty,
-            new Binding(nameof(MaterialNavigationRail.ItemIconPosition)) { Source = source });
-        clone.Bind(MaterialNavigationRail.ShowMenuButtonProperty,
-            new Binding(nameof(MaterialNavigationRail.ShowMenuButton)) { Source = source });
-        clone.Bind(MaterialNavigationRail.ShowFabProperty,
-            new Binding(nameof(MaterialNavigationRail.ShowFab)) { Source = source });
-        clone.Bind(MaterialNavigationRail.MenuIconProperty,
-            new Binding(nameof(MaterialNavigationRail.MenuIcon)) { Source = source });
-        clone.Bind(MaterialNavigationRail.FabIconProperty,
-            new Binding(nameof(MaterialNavigationRail.FabIcon)) { Source = source });
-        clone.Bind(MaterialNavigationRail.FabTextProperty,
-            new Binding(nameof(MaterialNavigationRail.FabText)) { Source = source });
-        clone.Bind(MaterialNavigationRail.MenuCommandProperty,
-            new Binding(nameof(MaterialNavigationRail.MenuCommand)) { Source = source });
-        clone.Bind(MaterialNavigationRail.MenuCommandParameterProperty,
-            new Binding(nameof(MaterialNavigationRail.MenuCommandParameter)) { Source = source });
-        clone.Bind(MaterialNavigationRail.FabCommandProperty,
-            new Binding(nameof(MaterialNavigationRail.FabCommand)) { Source = source });
-        clone.Bind(MaterialNavigationRail.FabCommandParameterProperty,
-            new Binding(nameof(MaterialNavigationRail.FabCommandParameter)) { Source = source });
-        clone.Bind(MaterialNavigationRail.HeaderProperty,
-            new Binding(nameof(MaterialNavigationRail.Header)) { Source = source });
-        clone.Bind(MaterialNavigationRail.HeaderTemplateProperty,
-            new Binding(nameof(MaterialNavigationRail.HeaderTemplate)) { Source = source });
-        clone.Bind(ItemsControl.ItemTemplateProperty,
-            new Binding(nameof(ItemsControl.ItemTemplate)) { Source = source });
-        clone.Bind(ItemsControl.ItemContainerThemeProperty,
-            new Binding(nameof(ItemsControl.ItemContainerTheme)) { Source = source });
-        clone.Bind(IsEnabledProperty,
-            new Binding(nameof(IsEnabled)) { Source = source });
-        clone.Bind(Visual.FlowDirectionProperty,
-            new Binding(nameof(FlowDirection)) { Source = source });
+        _generatedCollapsedBindings.Add(clone.Bind(InputElement.FocusableProperty,
+            new Binding(nameof(Focusable)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(ItemsControl.ItemsSourceProperty,
+            new Binding(nameof(ItemsControl.ItemsSource)) { Source = source }));
+        clone.SelectedIndex = source.SelectedIndex;
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.RailAlignmentProperty,
+            new Binding(nameof(MaterialNavigationRail.RailAlignment)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.ItemIconPositionProperty,
+            new Binding(nameof(MaterialNavigationRail.ItemIconPosition)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.ShowMenuButtonProperty,
+            new Binding(nameof(MaterialNavigationRail.ShowMenuButton)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.ShowFabProperty,
+            new Binding(nameof(MaterialNavigationRail.ShowFab)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.MenuIconProperty,
+            new Binding(nameof(MaterialNavigationRail.MenuIcon)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.FabIconProperty,
+            new Binding(nameof(MaterialNavigationRail.FabIcon)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.FabTextProperty,
+            new Binding(nameof(MaterialNavigationRail.FabText)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.MenuCommandProperty,
+            new Binding(nameof(MaterialNavigationRail.MenuCommand)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.MenuCommandParameterProperty,
+            new Binding(nameof(MaterialNavigationRail.MenuCommandParameter)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.FabCommandProperty,
+            new Binding(nameof(MaterialNavigationRail.FabCommand)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.FabCommandParameterProperty,
+            new Binding(nameof(MaterialNavigationRail.FabCommandParameter)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.HeaderProperty,
+            new Binding(nameof(MaterialNavigationRail.Header)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(MaterialNavigationRail.HeaderTemplateProperty,
+            new Binding(nameof(MaterialNavigationRail.HeaderTemplate)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(ItemsControl.ItemTemplateProperty,
+            new Binding(nameof(ItemsControl.ItemTemplate)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(ItemsControl.ItemContainerThemeProperty,
+            new Binding(nameof(ItemsControl.ItemContainerTheme)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(IsEnabledProperty,
+            new Binding(nameof(IsEnabled)) { Source = source }));
+        _generatedCollapsedBindings.Add(clone.Bind(Visual.FlowDirectionProperty,
+            new Binding(nameof(FlowDirection)) { Source = source }));
         _generatedCollapsedRail = clone;
+    }
+
+    private void DisposeGeneratedCollapsedBindings()
+    {
+        // Unbind the two-way SelectedIndex sync before tearing down the clone's ItemsSource,
+        // otherwise clearing clone.ItemsSource pushes SelectedIndex = -1 back onto Rail.
+        _collapsedSelectionBinding?.Dispose();
+        _collapsedSelectionBinding = null;
+        for (var i = 0; i < _generatedCollapsedBindings.Count; i++)
+            _generatedCollapsedBindings[i].Dispose();
+        _generatedCollapsedBindings.Clear();
     }
 
     private MaterialNavigationRail? EffectiveCollapsedRail => CollapsedRail ?? _generatedCollapsedRail;
@@ -494,13 +560,15 @@ public sealed class MaterialNavigationRailHost : ContentControl
         if (_subscribedCollapsedRail is not null)
         {
             _subscribedCollapsedRail.ItemInvoked -= OnCollapsedItemInvoked;
+            _subscribedCollapsedRail.PropertyChanged -= OnCollapsedRailPropertyChanged;
             _subscribedCollapsedRail = null;
         }
 
-        if (EffectiveCollapsedRail is not { } collapsed)
+        if (!this.IsAttachedToVisualTree() || EffectiveCollapsedRail is not { } collapsed)
             return;
 
         collapsed.ItemInvoked += OnCollapsedItemInvoked;
+        collapsed.PropertyChanged += OnCollapsedRailPropertyChanged;
         _subscribedCollapsedRail = collapsed;
         if (Rail is { } rail)
         {
@@ -510,6 +578,17 @@ public sealed class MaterialNavigationRailHost : ContentControl
                     Source = rail,
                     Mode = BindingMode.TwoWay
                 });
+        }
+    }
+
+    private void OnCollapsedRailPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == WidthProperty ||
+            e.Property == Visual.BoundsProperty ||
+            e.Property == MaterialNavigationRail.ExpansionWidthProperty ||
+            e.Property == MaterialNavigationRail.ModeProperty)
+        {
+            RefreshContentInset();
         }
     }
 
@@ -836,13 +915,33 @@ public sealed class MaterialNavigationRailHost : ContentControl
     // The host travels its full slide distance so a floating surface clears its margin as well.
     private double ClosedOffset() => -SlideDistance();
 
+    private void RefreshContentInset()
+    {
+        if (_railHost is null || _overlay is null)
+            return;
+
+        var floating = Placement == MaterialNavigationRailHostPlacement.Floating;
+        if (!IsModal)
+        {
+            SetContentInset(IsRailOpen && !floating ? RailWidth() : 0);
+            return;
+        }
+
+        var collapsed = !HideOnCollapse ? EffectiveCollapsedRail : null;
+        SetContentInset(collapsed is null
+            ? 0
+            : CollapsedWidth() + (floating ? RailMargin.Left + RailMargin.Right : 0));
+    }
+
     private double RailWidth()
     {
         if (Rail is { } rail && double.IsFinite(rail.Width) && rail.Width > 0)
             return rail.Width;
         if (_railHost is { Bounds.Width: > 0 } host)
             return host.Bounds.Width;
-        // The expanded rail is 220 wide; the compact one is 96.
+        if (Rail?.Mode == MaterialNavigationRailMode.Compact)
+            return 80;
+        // The expanded wide rail is 220 wide; the collapsed wide rail is 96.
         return Rail?.IsExpanded == false ? 96 : 220;
     }
 

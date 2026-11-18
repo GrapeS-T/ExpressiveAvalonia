@@ -75,7 +75,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         Geometry.Parse("M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"),
         Geometry.Parse("M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"),
         Geometry.Parse("M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.9959.9959 0 0 0 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"),
-        Geometry.Parse("M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"),
+        Geometry.Parse("M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"),
         Geometry.Parse("M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"),
     ];
 
@@ -120,7 +120,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         HorizontalAlignment = HorizontalAlignment.Stretch,
     };
     private readonly TextBlock _scaffoldSnackbar = new() { Text = "Snackbar", FontSize = 14 };
-    private readonly TextBlock _scaffoldPaddingLabel = new() { FontSize = 13, Opacity = 0.8 };
+    private readonly TextBlock _scaffoldPaddingLabel;
     private readonly ScrollViewer _scaffoldScroll;
     private readonly MaterialFab _scaffoldFab;
     private readonly MaterialFab _bottomFab;
@@ -193,7 +193,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
     private MaterialBarScrollMode? _appBarMode;
     private MaterialFloatingToolbarExitDirection? _toolbarExit;
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal AppBarsPlayground()
     {
@@ -261,11 +261,6 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _scaffold.SnackbarHost = snackbar;
         _scaffold.FloatingActionButton = _scaffoldFab;
         _scaffold.ContentInsets = new Thickness(16, 12, 16, 12);
-        _scaffold.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == MaterialScaffold.ContentPaddingProperty)
-                _scaffoldPaddingLabel.Text = $"ContentPadding = {_scaffold.ContentPadding}";
-        };
 
         _pageHeader.Logo = new PathIcon { Data = ActionIcons[5], Width = 40, Height = 40 };
         _pageHeader.LinkCommand = Command("See design guideline");
@@ -297,153 +292,85 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         };
         Children.Add(stageColumn);
 
-        _component = Select(Settings, "Компонент", ComponentNames, 0);
+        var selectorSection = InspectorLayout.Section(Settings, divider: false);
+        _component = InspectorLayout.Combo(selectorSection, "Компонент", ComponentNames, 0);
 
-        _appBarGroup = new StackPanel { Spacing = 12 };
-        _appBarGroup.Children.Add(new TextBlock { Text = "App bar", FontSize = 16, FontWeight = FontWeight.Bold });
-        _appBarGroup.Children.Add(new TextBlock { Text = "Конфигурация" });
-        _appBarConfiguration = new ComboBox
-        {
-            ItemsSource = AppBarConfigurationNames,
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _appBarGroup = InspectorLayout.Section(Settings, "App bar");
+        _appBarConfiguration = InspectorLayout.Combo(_appBarGroup, "Конфигурация", AppBarConfigurationNames, 0);
         AutomationProperties.SetName(_appBarConfiguration, "Конфигурация app bar");
-        _appBarGroup.Children.Add(_appBarConfiguration);
-        _appBarGroup.Children.Add(new TextBlock { Text = "Прокрутка" });
-        _appBarScrollMode = new ComboBox
-        {
-            ItemsSource = AppBarScrollModeNames,
-            SelectedIndex = 3,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _appBarScrollMode = InspectorLayout.Combo(_appBarGroup, "Прокрутка", AppBarScrollModeNames, 3);
         AutomationProperties.SetName(_appBarScrollMode, "Поведение прокрутки app bar");
-        _appBarGroup.Children.Add(_appBarScrollMode);
-        _appBarTitle = Field(_appBarGroup, "Заголовок", "Входящие и важные сообщения для вас");
-        _appBarSubtitle = Field(_appBarGroup, "Подпись", "Поддерживающий текст");
-        _appBarImage = Toggle(_appBarGroup, "Изображение", false);
-        _appBarGroup.Children.Add(new TextBlock { Text = "Выравнивание заголовка" });
-        _appBarTitleAlignment = new ComboBox { ItemsSource = new[] { "По началу", "По центру" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-        AutomationProperties.SetName(_appBarTitleAlignment, "Выравнивание заголовка");
-        _appBarGroup.Children.Add(_appBarTitleAlignment);
-        _appBarGroup.Children.Add(new TextBlock { Text = "Тень" });
-        _appBarElevation = new ComboBox
-        {
-            ItemsSource = new[] { "Flat", "On-scroll" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _appBarTitle = InspectorLayout.TextField(_appBarGroup, "Заголовок", "Входящие и важные сообщения для вас");
+        _appBarTitle.TextWrapping = TextWrapping.Wrap;
+        _appBarSubtitle = InspectorLayout.TextField(_appBarGroup, "Подпись", "Поддерживающий текст");
+        _appBarTitleAlignment = InspectorLayout.Combo(_appBarGroup, "Выравнивание заголовка", new[] { "По началу", "По центру" }, 0);
+        _appBarElevation = InspectorLayout.Combo(_appBarGroup, "Тень", new[] { "Flat", "On-scroll" }, 0);
         AutomationProperties.SetName(_appBarElevation, "Тень app bar");
-        _appBarGroup.Children.Add(_appBarElevation);
-        _appBarGroup.Children.Add(new TextBlock { Text = "Аватар" });
-        _appBarAvatar = new ComboBox
-        {
-            ItemsSource = new[] { "Нет", "Монограмма", "Аватар" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _appBarAvatar = InspectorLayout.Combo(_appBarGroup, "Аватар", new[] { "Нет", "Монограмма", "Аватар" }, 0);
         AutomationProperties.SetName(_appBarAvatar, "Аватар app bar");
-        _appBarGroup.Children.Add(_appBarAvatar);
-        _appBarLeading = Toggle(_appBarGroup, "Ведущая иконка", true);
-        _appBarActions = Number(_appBarGroup, "Действий", 0, 6, 2);
-        _appBarVisible = Number(_appBarGroup, "Лимит действий", 0, 4, 3);
-        Settings.Children.Add(_appBarGroup);
+        _appBarActions = InspectorLayout.Slider(_appBarGroup, "Действий", 0, 6, 2, step: 1, format: "0");
+        _appBarVisible = InspectorLayout.Slider(_appBarGroup, "Лимит действий", 0, 4, 3, step: 1, format: "0");
+        var appBarSwitches = InspectorLayout.Switches(_appBarGroup);
+        _appBarLeading = InspectorLayout.Switch(appBarSwitches, "Ведущая иконка", true);
+        _appBarImage = InspectorLayout.Switch(appBarSwitches, "Изображение", false);
 
-        _bottomGroup = new StackPanel { Spacing = 12 };
-        _bottomGroup.Children.Add(new TextBlock { Text = "Bottom app bar", FontSize = 16, FontWeight = FontWeight.Bold });
-        _bottomGroup.Children.Add(new TextBlock { Text = "Конфигурация" });
-        _bottomConfiguration = new ComboBox
-        {
-            ItemsSource = BottomConfigurationNames,
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _bottomGroup = InspectorLayout.Section(Settings, "Bottom app bar");
+        _bottomConfiguration = InspectorLayout.Combo(_bottomGroup, "Конфигурация", BottomConfigurationNames, 0);
         AutomationProperties.SetName(_bottomConfiguration, "Конфигурация bottom app bar");
-        _bottomGroup.Children.Add(_bottomConfiguration);
-        _bottomActions = Number(_bottomGroup, "Действий", 0, 6, 4);
-        _bottomFabToggle = Toggle(_bottomGroup, "FAB в трейлинге", true);
-        _bottomScrollToggle = Toggle(_bottomGroup, "Скрывать при прокрутке", true);
-        Settings.Children.Add(_bottomGroup);
+        _bottomActions = InspectorLayout.Slider(_bottomGroup, "Действий", 0, 6, 4, step: 1, format: "0");
+        var bottomSwitches = InspectorLayout.Switches(_bottomGroup);
+        _bottomFabToggle = InspectorLayout.Switch(bottomSwitches, "FAB в трейлинге", true);
+        _bottomScrollToggle = InspectorLayout.Switch(bottomSwitches, "Скрывать при прокрутке", true);
 
-        _toolbarGroup = new StackPanel { Spacing = 12 };
-        _toolbarGroup.Children.Add(new TextBlock { Text = "Toolbar", FontSize = 16, FontWeight = FontWeight.Bold });
-        _toolbarGroup.Children.Add(new TextBlock { Text = "Конфигурация" });
-        _toolbarConfiguration = new ComboBox
-        {
-            ItemsSource = new[] { "Docked", "Floating" },
-            SelectedIndex = 1,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _toolbarGroup = InspectorLayout.Section(Settings, "Toolbar");
+        _toolbarConfiguration = InspectorLayout.Combo(_toolbarGroup, "Конфигурация", new[] { "Docked", "Floating" }, 1);
         AutomationProperties.SetName(_toolbarConfiguration, "Конфигурация toolbar");
-        _toolbarGroup.Children.Add(_toolbarConfiguration);
-        _toolbarGroup.Children.Add(new TextBlock { Text = "Ориентация" });
-        _toolbarOrientation = new ComboBox
-        {
-            ItemsSource = new[] { "Горизонтальная", "Вертикальная" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _toolbarOrientation = InspectorLayout.Combo(_toolbarGroup, "Ориентация", new[] { "Горизонтальная", "Вертикальная" }, 0);
         AutomationProperties.SetName(_toolbarOrientation, "Ориентация toolbar");
-        _toolbarGroup.Children.Add(_toolbarOrientation);
-        _toolbarGroup.Children.Add(new TextBlock { Text = "Цвет" });
-        _toolbarColor = new ComboBox
-        {
-            ItemsSource = new[] { "Standard", "Vibrant" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _toolbarColor = InspectorLayout.Combo(_toolbarGroup, "Цвет", new[] { "Standard", "Vibrant" }, 0);
         AutomationProperties.SetName(_toolbarColor, "Цвет toolbar");
-        _toolbarGroup.Children.Add(_toolbarColor);
-        _toolbarGroup.Children.Add(new TextBlock { Text = "Направление выхода" });
-        _toolbarExitDirection = new ComboBox
-        {
-            ItemsSource = ToolbarExitDirectionNames,
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        _toolbarExitDirection = InspectorLayout.Combo(_toolbarGroup, "Направление выхода", ToolbarExitDirectionNames, 0);
         AutomationProperties.SetName(_toolbarExitDirection, "Направление выхода toolbar");
-        _toolbarGroup.Children.Add(_toolbarExitDirection);
-        _toolbarActions = Number(_toolbarGroup, "Действий", 0, 6, 6);
-        _toolbarFabToggle = Toggle(_toolbarGroup, "FAB рядом", true);
-        _toolbarExpandedToggle = Toggle(_toolbarGroup, "Развёрнут", true);
-        _toolbarCollapseScrollToggle = Toggle(_toolbarGroup, "Сворачивать при прокрутке", true);
-        _toolbarExitScrollToggle = Toggle(_toolbarGroup, "Скрывать при прокрутке", false);
-        Settings.Children.Add(_toolbarGroup);
+        _toolbarActions = InspectorLayout.Slider(_toolbarGroup, "Действий", 0, 6, 6, step: 1, format: "0");
+        var toolbarSwitches = InspectorLayout.Switches(_toolbarGroup);
+        _toolbarFabToggle = InspectorLayout.Switch(toolbarSwitches, "FAB рядом", true);
+        _toolbarExpandedToggle = InspectorLayout.Switch(toolbarSwitches, "Развёрнут", true);
+        _toolbarCollapseScrollToggle = InspectorLayout.Switch(toolbarSwitches, "Сворачивать при прокрутке", true);
+        _toolbarExitScrollToggle = InspectorLayout.Switch(toolbarSwitches, "Скрывать при прокрутке", false);
 
-        _sectionGroup = new StackPanel { Spacing = 12 };
-        _sectionGroup.Children.Add(new TextBlock { Text = "Section header", FontSize = 16, FontWeight = FontWeight.Bold });
-        _sectionLabel = Field(_sectionGroup, "Заголовок", "Компоненты");
-        _sectionLeading = Toggle(_sectionGroup, "Ведущая иконка", true);
-        _sectionTrailing = Toggle(_sectionGroup, "Счётчик справа", true);
-        Settings.Children.Add(_sectionGroup);
+        _sectionGroup = InspectorLayout.Section(Settings, "Section header");
+        _sectionLabel = InspectorLayout.TextField(_sectionGroup, "Заголовок", "Компоненты");
+        var sectionSwitches = InspectorLayout.Switches(_sectionGroup);
+        _sectionLeading = InspectorLayout.Switch(sectionSwitches, "Ведущая иконка", true);
+        _sectionTrailing = InspectorLayout.Switch(sectionSwitches, "Счётчик справа", true);
 
-        _pageGroup = new StackPanel { Spacing = 12 };
-        _pageGroup.Children.Add(new TextBlock { Text = "Page header", FontSize = 16, FontWeight = FontWeight.Bold });
-        _pageTitle = Field(_pageGroup, "Заголовок", "Typography");
-        _pageDefinition = Field(_pageGroup, "Определение",
-            "Use typography to present your design and content as clearly and efficiently as possible.");
-        _pageLink = Field(_pageGroup, "Текст ссылки", "See design guideline");
-        _pageDivider = Toggle(_pageGroup, "Разделитель", true);
-        Settings.Children.Add(_pageGroup);
+        _pageGroup = InspectorLayout.Section(Settings, "Page header");
+        _pageTitle = InspectorLayout.TextField(_pageGroup, "Заголовок", "Typography");
+        _pageDefinition = InspectorLayout.TextField(
+            _pageGroup,
+            "Определение",
+            "Use typography to present your design and content as clearly and efficiently as possible.",
+            multiline: true);
+        _pageLink = InspectorLayout.TextField(_pageGroup, "Текст ссылки", "See design guideline");
+        var pageSwitches = InspectorLayout.Switches(_pageGroup);
+        _pageDivider = InspectorLayout.Switch(pageSwitches, "Разделитель", true);
 
-        _scaffoldGroup = new StackPanel { Spacing = 12 };
-        _scaffoldGroup.Children.Add(new TextBlock
+        _scaffoldGroup = InspectorLayout.Section(Settings, "Scaffold");
+        var scaffoldSwitches = InspectorLayout.Switches(_scaffoldGroup);
+        _scaffoldInsetsToggle = InspectorLayout.Switch(scaffoldSwitches, "Отступы контента", true);
+        _scaffoldConsumedToggle = InspectorLayout.Switch(scaffoldSwitches, "Отступы уже потреблены", false);
+        _scaffoldPaddingLabel = InspectorLayout.Readout(_scaffoldGroup, $"ContentPadding = {_scaffold.ContentPadding}");
+        _scaffold.PropertyChanged += (_, e) =>
         {
-            Text = "Scaffold", FontSize = 16, FontWeight = FontWeight.Bold,
-        });
-        _scaffoldInsetsToggle = Toggle(_scaffoldGroup, "Отступы контента", true);
-        _scaffoldConsumedToggle = Toggle(_scaffoldGroup, "Отступы уже потреблены", false);
-        _scaffoldGroup.Children.Add(_scaffoldPaddingLabel);
-        Settings.Children.Add(_scaffoldGroup);
+            if (e.Property == MaterialScaffold.ContentPaddingProperty)
+                _scaffoldPaddingLabel.Text = $"ContentPadding = {_scaffold.ContentPadding}";
+        };
 
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Tab и стрелки перемещают фокус между действиями, Home/End — к краям, Enter/Space " +
-                   "выполняют команду, Escape закрывает overflow. Действия сверх лимита уходят в меню " +
-                   "«ещё»; On-scroll поднимает тень, когда список прокручивается под полосой.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        InspectorLayout.Note(
+            Settings,
+            "Tab и стрелки перемещают фокус между действиями, Home/End — к краям, Enter/Space " +
+            "выполняют команду, Escape закрывает overflow. Действия сверх лимита уходят в меню " +
+            "«ещё»; On-scroll поднимает тень, когда список прокручивается под полосой.");
 
         _appBar.SearchSubmitted += (_, _) => _status.Text = $"Поиск: «{_appBar.SearchText}»";
         _appBar.SearchDismissed += (_, _) => _status.Text = "Поиск закрыт (Escape)";
@@ -481,7 +408,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _pageDefinition.TextChanged += (_, _) => Apply();
         _pageLink.TextChanged += (_, _) => Apply();
         foreach (var slider in new[] { _appBarActions, _appBarVisible, _bottomActions, _toolbarActions })
-            slider.PropertyChanged += (_, e) => { if (e.Property == Slider.ValueProperty) Apply(); };
+            slider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) Apply(); };
         foreach (var toggle in new[]
                  {
                      _appBarLeading, _appBarImage, _bottomFabToggle, _bottomScrollToggle, _toolbarFabToggle,
@@ -550,7 +477,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
                 MaterialBarScrollMode.EnterAlways => MaterialAppBarScrollBehavior.EnterAlways(),
                 MaterialBarScrollMode.ExitUntilCollapsed =>
                     MaterialAppBarScrollBehavior.ExitUntilCollapsed(),
-                _ => null
+                _ => null,
             };
         }
         _appBar.ScrollSource = _appBarScroll;
@@ -636,7 +563,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
             {
                 MaterialFloatingToolbarExitDirection.Top => VerticalAlignment.Top,
                 MaterialFloatingToolbarExitDirection.Bottom => VerticalAlignment.Bottom,
-                _ => VerticalAlignment.Center
+                _ => VerticalAlignment.Center,
             };
             _toolbar.Margin = new Thickness(16);
         }
@@ -646,7 +573,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
             {
                 MaterialFloatingToolbarExitDirection.Start => HorizontalAlignment.Left,
                 MaterialFloatingToolbarExitDirection.End => HorizontalAlignment.Right,
-                _ => HorizontalAlignment.Center
+                _ => HorizontalAlignment.Center,
             };
             _toolbar.VerticalAlignment = exit == MaterialFloatingToolbarExitDirection.Top
                 ? VerticalAlignment.Top
@@ -778,54 +705,6 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         };
         avatar.Bind(Border.BackgroundProperty, avatar.GetResourceObservable("MaterialSecondaryContainerBrush"));
         return avatar;
-    }
-
-    private static ComboBox Select(StackPanel target, string label, string[] options, int selected)
-    {
-        target.Children.Add(new TextBlock { Text = label });
-        var combo = new ComboBox { ItemsSource = options, SelectedIndex = selected, HorizontalAlignment = HorizontalAlignment.Stretch };
-        AutomationProperties.SetName(combo, label);
-        target.Children.Add(combo);
-        return combo;
-    }
-
-    private static TextBox Field(StackPanel target, string label, string text)
-    {
-        var field = new TextBox { Text = text, TextWrapping = TextWrapping.Wrap };
-        MaterialTextField.SetVariant(field, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(field, label);
-        AutomationProperties.SetName(field, label);
-        target.Children.Add(field);
-        return field;
-    }
-
-    private static ToggleSwitch Toggle(StackPanel target, string label, bool value)
-    {
-        var toggle = new ToggleSwitch { Content = label, IsChecked = value };
-        target.Children.Add(toggle);
-        return toggle;
-    }
-
-    private static Slider Number(StackPanel target, string label, double min, double max, double value)
-    {
-        var caption = new TextBlock { Text = $"{label}: {value:0}" };
-        target.Children.Add(caption);
-        var slider = new Slider
-        {
-            Minimum = min,
-            Maximum = max,
-            Value = value,
-            TickFrequency = 1,
-            IsSnapToTickEnabled = true,
-        };
-        AutomationProperties.SetName(slider, label);
-        slider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == Slider.ValueProperty)
-                caption.Text = $"{label}: {slider.Value:0}";
-        };
-        target.Children.Add(slider);
-        return slider;
     }
 
     private sealed class ActionCommand(Action action) : ICommand

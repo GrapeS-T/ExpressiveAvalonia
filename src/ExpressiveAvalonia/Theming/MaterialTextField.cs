@@ -695,6 +695,7 @@ public sealed class MaterialTextField : AvaloniaObject
 
         private void ApplyPlaceholderOpacity(double value)
         {
+            value = Math.Clamp(value, 0, 1);
             _placeholderOpacity = value;
             if (_placeholder is not null)
                 _placeholder.Opacity = value;
@@ -702,6 +703,7 @@ public sealed class MaterialTextField : AvaloniaObject
 
         private void ApplyAffixOpacity(double value)
         {
+            value = Math.Clamp(value, 0, 1);
             _affixOpacity = value;
             if (_prefix is not null)
                 _prefix.Opacity = value;
@@ -715,8 +717,8 @@ public sealed class MaterialTextField : AvaloniaObject
                 return;
 
             // The source lerps bodyLarge (expanded) to bodySmall (minimized) with labelProgress.
-            _floatingLabel.FontSize = Lerp(_largeFontSize, _smallFontSize, _labelProgress);
-            _floatingLabel.LineHeight = Lerp(_largeLineHeight, _smallLineHeight, _labelProgress);
+            _floatingLabel.FontSize = Math.Max(1, Lerp(_largeFontSize, _smallFontSize, _labelProgress));
+            _floatingLabel.LineHeight = Math.Max(1, Lerp(_largeLineHeight, _smallLineHeight, _labelProgress));
             _floatingLabel.LetterSpacing = Lerp(_largeLetterSpacing, _smallLetterSpacing, _labelProgress);
             ApplyLabelGeometry();
             UpdateCutout();
@@ -793,6 +795,7 @@ public sealed class MaterialTextField : AvaloniaObject
 
         private void ApplyBorderThickness(double value)
         {
+            value = Math.Max(0, value);
             _borderThickness = value;
             if (_outline is null)
                 return;
@@ -1014,6 +1017,8 @@ public sealed class MaterialTextField : AvaloniaObject
 
         private void OnKeyDown(object? sender, KeyEventArgs args)
         {
+            if (args.Handled || args.KeyModifiers != KeyModifiers.None)
+                return;
             if (args.Key == Key.Escape && GetIsClearAvailable(_box))
             {
                 ClearText();

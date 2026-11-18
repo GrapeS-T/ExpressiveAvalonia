@@ -1197,7 +1197,7 @@ public sealed class MaterialSwitchKnobTrack : Canvas
             owner.AddHandler(InputElement.PointerReleasedEvent, OnPointerReleasedTunnel,
                 RoutingStrategies.Tunnel, handledEventsToo: true);
             owner.AddHandler(InputElement.PointerCaptureLostEvent, OnPointerCaptureLost,
-                RoutingStrategies.Tunnel, handledEventsToo: true);
+                RoutingStrategies.Direct, handledEventsToo: true);
         }
 
         if (_knobs is not null)
@@ -1383,6 +1383,7 @@ public sealed class MaterialSwitchKnobTrack : Canvas
 
     private void ApplyThumbSize(double value)
     {
+        value = Math.Max(0, value);
         if (_thumb is null)
             return;
         // The source measures one square handle; the icon slot stays centred in it.

@@ -55,13 +55,12 @@ internal sealed class SnackbarPlayground : Grid, IComponentPlayground
     private readonly TextBox _action;
     private readonly MaterialButtonGroup _lines;
     private readonly MaterialButtonGroup _placement;
-    private readonly StackPanel _placementGroup;
-    private readonly ToggleSwitch _close;
     private readonly ComboBox _duration;
+    private readonly ToggleSwitch _close;
     private MaterialSnackbar? _open;
     private readonly List<(MaterialSnackbarHost Host, MaterialSnackbar Snackbar)> _overlaySnackbars = [];
 
-    public StackPanel Settings { get; } = new() { Spacing = 16 };
+    public StackPanel Settings { get; } = InspectorLayout.CreatePane();
 
     internal SnackbarPlayground()
     {
@@ -118,50 +117,28 @@ internal sealed class SnackbarPlayground : Grid, IComponentPlayground
         };
         Children.Add(stage);
 
-        _message = new TextBox
-        {
-            Text = ShortText,
-            TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
-            MinHeight = 88,
-        };
-        MaterialTextField.SetVariant(_message, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(_message, "Текст сообщения");
-        AutomationProperties.SetName(_message, "Текст сообщения");
-        Settings.Children.Add(_message);
-
-        _action = new TextBox { Text = "Отменить" };
-        MaterialTextField.SetVariant(_action, MaterialTextFieldVariant.Outlined);
-        MaterialTextField.SetLabel(_action, "Действие (пусто — без действия)");
+        var messageSection = InspectorLayout.Section(Settings, "Сообщение и действие", divider: false);
+        _message = InspectorLayout.TextField(messageSection, "Текст сообщения", ShortText, multiline: true);
+        _action = InspectorLayout.TextField(messageSection, "Действие (пусто — без действия)", "Отменить");
         AutomationProperties.SetName(_action, "Текст действия");
-        Settings.Children.Add(_action);
 
-        _lines = Choice(Settings, "Строк текста", ["По тексту (auto)", "1 строка", "2 строки"]);
-        _placementGroup = new StackPanel { Spacing = 6 };
-        _placementGroup.Children.Add(new TextBlock { Text = "Размещение действия" });
-        _placement = Group(_placementGroup, ["В строке текста", "Под текстом"]);
-        Settings.Children.Add(_placementGroup);
-
-        _close = new ToggleSwitch { Content = "Кнопка закрытия", IsChecked = true };
-        Settings.Children.Add(_close);
-
-        Settings.Children.Add(new TextBlock { Text = "Длительность" });
-        _duration = new ComboBox
-        {
-            ItemsSource = new[] { "По умолчанию", "4 секунды", "10 секунд", "Бесконечно" },
-            SelectedIndex = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        var layoutSection = InspectorLayout.Section(Settings, "Макет и тайминг");
+        _lines = InspectorLayout.Choice(layoutSection, "Строк текста", new[] { "По тексту (auto)", "1 строка", "2 строки" }, 0);
+        _placement = InspectorLayout.Choice(layoutSection, "Размещение действия", new[] { "В строке текста", "Под текстом" }, 0);
+        _duration = InspectorLayout.Combo(
+            layoutSection,
+            "Длительность",
+            new[] { "По умолчанию", "4 секунды", "10 секунд", "Бесконечно" },
+            0);
         AutomationProperties.SetName(_duration, "Длительность показа");
-        Settings.Children.Add(_duration);
 
-        Settings.Children.Add(new TextBlock
-        {
-            Text = "Escape закрывает snackbar с клавиатурным фокусом, а автоматическое закрытие " +
-                   "приостанавливается, пока фокус внутри. Несколько вызовов встают в очередь host.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 13,
-        });
+        var switches = InspectorLayout.Switches(layoutSection);
+        _close = InspectorLayout.Switch(switches, "Кнопка закрытия", true);
+
+        InspectorLayout.Note(
+            Settings,
+            "Escape закрывает snackbar с клавиатурным фокусом, а автоматическое закрытие " +
+            "приостанавливается, пока фокус внутри. Несколько вызовов встают в очередь host.");
 
         _message.TextChanged += (_, _) => Apply();
         _action.TextChanged += (_, _) => Apply();
@@ -175,7 +152,7 @@ internal sealed class SnackbarPlayground : Grid, IComponentPlayground
     private void Apply()
     {
         var hasAction = !string.IsNullOrWhiteSpace(_action.Text);
-        _placementGroup.IsVisible = hasAction;
+        _placement.IsVisible = hasAction;
 
         if (_open is not { IsOpen: true } snackbar)
             return;
@@ -298,27 +275,4 @@ internal sealed class SnackbarPlayground : Grid, IComponentPlayground
         MaterialSnackbarCloseReason.Action => "после действия",
         _ => "программно",
     };
-
-    private static MaterialButtonGroup Choice(StackPanel target, string label, string[] options)
-    {
-        target.Children.Add(new TextBlock { Text = label });
-        var group = Group(target, options);
-        return group;
-    }
-
-    private static MaterialButtonGroup Group(StackPanel target, string[] options)
-    {
-        var group = new MaterialButtonGroup
-        {
-            Kind = MaterialButtonGroupKind.Connected,
-            SelectionMode = MaterialButtonGroupSelectionMode.Single,
-            ShowSelectedIcon = true,
-            ControlSize = MaterialControlSize.Small,
-        };
-        foreach (var option in options)
-            group.Items.Add(new MaterialButtonGroupItem { Content = option });
-        group.SelectedIndex = 0;
-        target.Children.Add(group);
-        return group;
-    }
 }

@@ -48,6 +48,7 @@ public sealed class MaterialStatusBar : TemplatedControl
         AvaloniaProperty.Register<MaterialStatusBar, double>(nameof(BarHeight), 52,
             validate: static value => double.IsFinite(value) && value > 0);
 
+    private Grid? _grid;
     private TextBlock? _clock;
     private Control? _cutout;
     private DispatcherTimer? _timer;
@@ -55,8 +56,20 @@ public sealed class MaterialStatusBar : TemplatedControl
     static MaterialStatusBar()
     {
         AffectsMeasure<MaterialStatusBar>(BarHeightProperty);
-        ShowClockProperty.Changed.AddClassHandler<MaterialStatusBar>(static (bar, _) => bar.UpdateClockState());
-        TimeTextProperty.Changed.AddClassHandler<MaterialStatusBar>(static (bar, _) => bar.UpdateClockText());
+        BarHeightProperty.Changed.AddClassHandler<MaterialStatusBar>(static (bar, _) =>
+        {
+            if (bar._grid is not null) bar._grid.Height = bar.BarHeight;
+        });
+        ShowClockProperty.Changed.AddClassHandler<MaterialStatusBar>(static (bar, _) =>
+        {
+            bar.UpdateClockText();
+            bar.UpdateClockState();
+        });
+        TimeTextProperty.Changed.AddClassHandler<MaterialStatusBar>(static (bar, _) =>
+        {
+            bar.UpdateClockText();
+            bar.UpdateClockState();
+        });
         ShowCameraCutoutProperty.Changed.AddClassHandler<MaterialStatusBar>(
             static (bar, _) => bar.UpdateCutoutVisibility());
     }
@@ -75,6 +88,7 @@ public sealed class MaterialStatusBar : TemplatedControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        UpdateClockText();
         UpdateClockState();
     }
 
@@ -116,6 +130,7 @@ public sealed class MaterialStatusBar : TemplatedControl
             ColumnDefinitions = new ColumnDefinitions("*,Auto,*"),
             Height = BarHeight
         };
+        _grid = grid;
         grid.Children.Add(_clock);
         Grid.SetColumn(cutout, 1);
         grid.Children.Add(cutout);

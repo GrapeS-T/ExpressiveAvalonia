@@ -10,8 +10,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
-using ExpressiveAvalonia.Controls;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
+using ExpressiveAvalonia.Controls;
 
 namespace ExpressiveAvalonia.Theming;
 
@@ -201,7 +202,7 @@ public sealed class MaterialSliderNativeTrack : Track
     {
         if (e.Handled || _owner is not { IsEffectivelyEnabled: true, Orientation: Orientation.Horizontal,
                 FlowDirection: FlowDirection.RightToLeft } slider || e.KeyModifiers != KeyModifiers.None ||
-            e.Key is not (Key.Left or Key.Right) || slider.SmallChange == 0)
+            e.Key is not (Key.Left or Key.Right) || slider.SmallChange == 0 || slider.Maximum <= slider.Minimum)
             return;
         var increase = (e.Key == Key.Left) != slider.IsDirectionReversed;
         var value = slider.Value;
@@ -376,6 +377,8 @@ public sealed class MaterialSliderTrack : Control
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+        if (!this.IsAttachedToVisualTree())
+            return;
         if (change.Property == OwnerProperty)
             SubscribeOwner();
         else if (change.Property == ThumbProperty)
@@ -392,11 +395,9 @@ public sealed class MaterialSliderTrack : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         UnsubscribeOwner();
+        UnsubscribeThumb();
         _indicatorAnchor = null;
         ValueLabel?.SetCurrentValue(Popup.IsOpenProperty, false);
-        if (_subscribedThumb is not null)
-            _subscribedThumb.PropertyChanged -= ThumbChanged;
-        _subscribedThumb = null;
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -409,7 +410,8 @@ public sealed class MaterialSliderTrack : Control
             _subscribedOwner.PropertyChanged += OwnerChanged;
             _subscribedOwner.AddHandler(InputElement.PointerPressedEvent, OwnerPointerPressed, RoutingStrategies.Tunnel);
             _subscribedOwner.AddHandler(InputElement.PointerReleasedEvent, OwnerPointerReleased, RoutingStrategies.Tunnel);
-            _subscribedOwner.AddHandler(InputElement.PointerCaptureLostEvent, OwnerPointerCaptureLost, RoutingStrategies.Tunnel);
+            _subscribedOwner.AddHandler(InputElement.PointerCaptureLostEvent, OwnerPointerCaptureLost,
+                RoutingStrategies.Direct, handledEventsToo: true);
             _subscribedOwner.AddHandler(InputElement.GotFocusEvent, OwnerGotFocus, RoutingStrategies.Bubble);
             _subscribedOwner.AddHandler(InputElement.LostFocusEvent, OwnerLostFocus, RoutingStrategies.Bubble);
         }
@@ -445,7 +447,7 @@ public sealed class MaterialSliderTrack : Control
 
     private void OwnerPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (!_ownerPressed)
+        if (!_ownerPressed || (e.Pointer.Type == PointerType.Mouse && e.InitialPressMouseButton != MouseButton.Left))
             return;
         _ownerPressed = false;
         InvalidateVisual();
@@ -474,12 +476,25 @@ public sealed class MaterialSliderTrack : Control
 
     private void SubscribeThumb()
     {
-        if (_subscribedThumb is not null)
-            _subscribedThumb.PropertyChanged -= ThumbChanged;
+        UnsubscribeThumb();
         _subscribedThumb = Thumb;
         if (_subscribedThumb is not null)
+        {
             _subscribedThumb.PropertyChanged += ThumbChanged;
+            _subscribedThumb.AddHandler(InputElement.PointerCaptureLostEvent, OwnerPointerCaptureLost,
+                RoutingStrategies.Direct, handledEventsToo: true);
+        }
         InvalidateVisual();
+    }
+
+    private void UnsubscribeThumb()
+    {
+        if (_subscribedThumb is not null)
+        {
+            _subscribedThumb.PropertyChanged -= ThumbChanged;
+            _subscribedThumb.RemoveHandler(InputElement.PointerCaptureLostEvent, OwnerPointerCaptureLost);
+            _subscribedThumb = null;
+        }
     }
 
     private void ThumbChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -529,7 +544,8 @@ public sealed class MaterialSliderTrack : Control
         _indicatorUpdateQueued = false;
         if (ValueLabel is not { } popup)
             return;
-        if (_indicatorAnchor is not { } anchor || Owner is not { IsEffectivelyEnabled: true, IsEffectivelyVisible: true })
+        if (!this.IsAttachedToVisualTree() || _indicatorAnchor is not { } anchor ||
+            Owner is not { IsEffectivelyEnabled: true, IsEffectivelyVisible: true })
         {
             popup.SetCurrentValue(Popup.IsOpenProperty, false);
             return;

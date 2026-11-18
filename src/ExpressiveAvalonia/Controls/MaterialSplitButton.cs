@@ -365,7 +365,9 @@ public class MaterialSplitButton : ContentControl
             SyncNativeCommands();
             UpdateEnabledFlags();
         }
-        else if (change.Property == IsEnabledProperty || change.Property == IsPrimaryEnabledProperty ||
+        else if (change.Property == IsEnabledProperty ||
+                 change.Property == InputElement.IsEffectivelyEnabledProperty ||
+                 change.Property == IsPrimaryEnabledProperty ||
                  change.Property == IsTrailingEnabledProperty)
         {
             UpdateEnabledFlags();
@@ -374,7 +376,7 @@ public class MaterialSplitButton : ContentControl
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && IsMenuOpen)
+        if (!e.Handled && e.KeyModifiers == KeyModifiers.None && e.Key == Key.Escape && IsMenuOpen)
         {
             HideMenu();
             _trailingButton?.Focus(NavigationMethod.Tab);
@@ -479,7 +481,7 @@ public class MaterialSplitButton : ContentControl
     private void AttachFlyout()
     {
         DetachFlyout();
-        if (Flyout is not { } flyout)
+        if (!this.IsAttachedToVisualTree() || Flyout is not { } flyout)
             return;
 
         _attachedFlyout = flyout;
@@ -603,10 +605,10 @@ public class MaterialSplitButton : ContentControl
     }
 
     private bool IsEffectivePrimaryEnabled() =>
-        IsEnabled && IsPrimaryEnabled && CanExecute(Command, CommandParameter);
+        IsEffectivelyEnabled && IsPrimaryEnabled && CanExecute(Command, CommandParameter);
 
     private bool IsEffectiveTrailingEnabled() =>
-        IsEnabled && IsTrailingEnabled &&
+        IsEffectivelyEnabled && IsTrailingEnabled &&
         (Flyout is not null || CanExecute(TrailingCommand, TrailingCommandParameter));
 
     /// <summary>
