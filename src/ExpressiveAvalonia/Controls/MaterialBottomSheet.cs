@@ -451,6 +451,7 @@ public sealed class MaterialBottomSheet : MaterialSheet
     protected override void OnSheetLayoutPassed()
     {
         UpdateMetrics();
+        UpdateContentMaxHeight();
 
         if (SheetSurface is not null)
         {
@@ -502,7 +503,8 @@ public sealed class MaterialBottomSheet : MaterialSheet
             _wheelSettle?.Dispose();
             _wheelSettle = null;
         }
-        else if (change.Property == ShowDragHandleProperty || change.Property == ShowActionsProperty)
+        else if (change.Property == ShowDragHandleProperty || change.Property == ShowActionsProperty ||
+                 change.Property == SafeAreaPaddingProperty)
         {
             UpdateContentMaxHeight();
         }

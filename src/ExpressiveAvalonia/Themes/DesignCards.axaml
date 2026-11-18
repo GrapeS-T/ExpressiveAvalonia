@@ -18,12 +18,13 @@
        Disabled: content = on-surface at 38% (source contentColor.copy(DisabledAlpha), the same
        value as MaterialDisabledContentBrush). Filled keeps surface-container-highest and
        composites surface-variant at 38% over it (source disabledContainerColor =
-       surfaceVariant@0.38 compositeOver surfaceContainerHighest); elevated and outlined use the
-       surface token. The outlined disabled stroke is the source composite
-       outline@0.12 over surface-container-low (Card.kt outlinedCardBorder(enabled = false)
-       composites OutlinedCardTokens.DisabledOutlineColor over ElevatedCardTokens.ContainerColor);
-       MaterialTheme generates that opaque brush, so the stroke is not a translucent layer over
-       the outlined card's own surface container.
+       surfaceVariant@0.38 compositeOver surfaceContainerHighest); elevated composites
+       surface@0.38 over surface-container-low (MaterialCardElevatedDisabledContainerBrush);
+       outlined uses surface@0.38 (MaterialCardDisabledSurfaceBrush). The outlined disabled
+       stroke is the source composite outline@0.12 over surface-container-low (Card.kt
+       outlinedCardBorder(enabled = false) composites OutlinedCardTokens.DisabledOutlineColor over
+       ElevatedCardTokens.ContainerColor); MaterialTheme generates that opaque brush, so the
+       stroke is not a translucent layer over the outlined card's own surface container.
 
        Interaction feedback is the shared theming:MaterialRipple (source RippleNode): a bounded
        press ripple from the pointer origin plus the hover/focus/drag state layer at 0.08/0.10/0.16
@@ -60,7 +61,8 @@
                         VerticalAlignment="Center"
                         IsVisible="{TemplateBinding HasAvatar}">
                   <Panel>
-                    <TextBlock Text="{TemplateBinding AvatarInitial}"
+                    <TextBlock Name="PART_AvatarInitial"
+                               Text="{TemplateBinding AvatarInitial}"
                                IsVisible="{TemplateBinding HasAvatarInitial}"
                                FontSize="{DynamicResource MaterialTitleMediumFontSize}"
                                FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
@@ -68,7 +70,8 @@
                                LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
                                Foreground="{DynamicResource MaterialOnPrimaryContainerBrush}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    <ContentPresenter Content="{TemplateBinding Avatar}"
+                    <ContentPresenter Name="PART_AvatarPresenter"
+                                      Content="{TemplateBinding Avatar}"
                                       HorizontalContentAlignment="Center"
                                       VerticalContentAlignment="Center" />
                   </Panel>
@@ -99,7 +102,8 @@
             <Border Name="PART_Media" Grid.Row="1" Height="188" ClipToBounds="True"
                     Background="{DynamicResource MaterialSurfaceContainerHighBrush}"
                     IsVisible="{TemplateBinding HasMedia}">
-              <ContentPresenter Content="{TemplateBinding Media}"
+              <ContentPresenter Name="PART_MediaPresenter"
+                                Content="{TemplateBinding Media}"
                                 HorizontalContentAlignment="Stretch"
                                 VerticalContentAlignment="Stretch" />
             </Border>
@@ -113,7 +117,8 @@
                            LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
                            LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}"
                            TextWrapping="Wrap" />
-                <TextBlock Text="{TemplateBinding Subtitle}"
+                <TextBlock Name="PART_Subtitle"
+                           Text="{TemplateBinding Subtitle}"
                            Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                            FontSize="{DynamicResource MaterialBodyMediumFontSize}"
                            FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
@@ -121,7 +126,8 @@
                            LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
                            TextWrapping="Wrap" />
               </StackPanel>
-              <TextBlock Text="{TemplateBinding SupportingText}"
+              <TextBlock Name="PART_SupportingText"
+                         Text="{TemplateBinding SupportingText}"
                          Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}"
                          FontSize="{DynamicResource MaterialBodyMediumFontSize}"
                          FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
@@ -172,7 +178,7 @@
                   CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
         </Panel>
       </Border>
-      <Border Name="FocusRing" Margin="-2" IsHitTestVisible="False"
+      <Border Name="FocusRing" Margin="-5" IsHitTestVisible="False"
               CornerRadius="{TemplateBinding FocusRingCornerRadius}"
               BorderBrush="{DynamicResource MaterialSecondaryBrush}"
               BorderThickness="3" />
@@ -201,7 +207,8 @@
                         VerticalAlignment="Center"
                         IsVisible="{TemplateBinding HasAvatar}">
                   <Panel>
-                    <TextBlock Text="{TemplateBinding AvatarInitial}"
+                    <TextBlock Name="PART_AvatarInitial"
+                               Text="{TemplateBinding AvatarInitial}"
                                IsVisible="{TemplateBinding HasAvatarInitial}"
                                FontSize="{DynamicResource MaterialTitleMediumFontSize}"
                                FontWeight="{DynamicResource MaterialTitleMediumFontWeight}"
@@ -209,7 +216,8 @@
                                LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
                                Foreground="{DynamicResource MaterialOnPrimaryContainerBrush}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    <ContentPresenter Content="{TemplateBinding Avatar}"
+                    <ContentPresenter Name="PART_AvatarPresenter"
+                                      Content="{TemplateBinding Avatar}"
                                       HorizontalContentAlignment="Center"
                                       VerticalContentAlignment="Center" />
                   </Panel>
@@ -238,7 +246,8 @@
                     BorderBrush="{DynamicResource MaterialOutlineBrush}"
                     BorderThickness="1"
                     IsVisible="{TemplateBinding HasMedia}">
-              <ContentPresenter Content="{TemplateBinding Media}"
+              <ContentPresenter Name="PART_MediaPresenter"
+                                Content="{TemplateBinding Media}"
                                 HorizontalContentAlignment="Stretch"
                                 VerticalContentAlignment="Stretch" />
             </Border>
@@ -267,7 +276,7 @@
                   CornerRadius="{TemplateBinding CornerRadius}" IsHitTestVisible="False" />
         </Panel>
       </Border>
-      <Border Name="FocusRing" Margin="-2" IsHitTestVisible="False"
+      <Border Name="FocusRing" Margin="-5" IsHitTestVisible="False"
               CornerRadius="{TemplateBinding FocusRingCornerRadius}"
               BorderBrush="{DynamicResource MaterialSecondaryBrush}"
               BorderThickness="3" />
@@ -281,6 +290,7 @@
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeMediumCornerRadius}" />
     <Setter Property="Padding" Value="0" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="VerticalContentAlignment" Value="Stretch" />
@@ -309,10 +319,10 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^[Variant=Elevated]:disabled">
-      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialCardElevatedDisabledContainerBrush}" />
     </Style>
     <Style Selector="^[Variant=Outlined]:disabled">
-      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialCardDisabledSurfaceBrush}" />
       <Setter Property="BorderThickness" Value="0" />
     </Style>
     <Style Selector="^[Variant=Outlined]:disabled /template/ Border#PART_DisabledOutline">
@@ -323,6 +333,22 @@
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
       <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+    <Style Selector="^:disabled /template/ TextBlock#PART_Subtitle,
+                     ^:disabled /template/ TextBlock#PART_SupportingText,
+                     ^:disabled /template/ TextBlock#PART_AvatarInitial">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_Avatar">
+      <Setter Property="Background" Value="{DynamicResource MaterialDisabledSurface12Brush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_Media">
+      <Setter Property="Background" Value="{DynamicResource MaterialDisabledSurface12Brush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialDisabledOutlineBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ ContentPresenter#PART_AvatarPresenter,
+                     ^:disabled /template/ ContentPresenter#PART_MediaPresenter">
+      <Setter Property="Opacity" Value="0.38" />
     </Style>
 
     <!-- Interactive cards get the 48 DIP minimum interactive size and focus reachability. -->

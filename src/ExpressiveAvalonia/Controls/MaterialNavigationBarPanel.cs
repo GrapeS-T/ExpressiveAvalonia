@@ -179,7 +179,6 @@ public sealed class MaterialNavigationBarPanel : Panel
         if (count == 0)
             return finalSize;
 
-        var mirrored = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
         if (Orientation == Avalonia.Layout.Orientation.Vertical)
         {
             var gap = Kind == MaterialNavigationBarKind.Classic ? Spacing : 0;
@@ -200,7 +199,7 @@ public sealed class MaterialNavigationBarPanel : Panel
             var x = 0d;
             foreach (var child in Children)
             {
-                Arrange(child, x, 0, width, finalSize.Height, mirrored, finalSize.Width);
+                Arrange(child, x, 0, width, finalSize.Height);
                 x += width + gap;
             }
             return finalSize;
@@ -212,7 +211,7 @@ public sealed class MaterialNavigationBarPanel : Panel
             var x = 0d;
             foreach (var child in Children)
             {
-                Arrange(child, x, 0, width, finalSize.Height, mirrored, finalSize.Width);
+                Arrange(child, x, 0, width, finalSize.Height);
                 x += width;
             }
             return finalSize;
@@ -230,17 +229,15 @@ public sealed class MaterialNavigationBarPanel : Panel
         var cursor = _barPadding;
         for (var i = 0; i < count; i++)
         {
-            Arrange(Children[i], cursor, 0, widths[i], finalSize.Height, mirrored, finalSize.Width);
+            Arrange(Children[i], cursor, 0, widths[i], finalSize.Height);
             cursor += widths[i];
         }
         return finalSize;
     }
 
-    private static void Arrange(Control child, double x, double y, double width, double height,
-        bool mirrored, double finalWidth)
+    private static void Arrange(Control child, double x, double y, double width, double height)
     {
-        var physicalX = mirrored ? Math.Max(0, finalWidth - x - width) : x;
-        child.Arrange(new Rect(physicalX, y, Math.Max(0, width), Math.Max(0, height)));
+        child.Arrange(new Rect(x, y, Math.Max(0, width), Math.Max(0, height)));
     }
 
     private static double CenteredPadding(int itemsCount, double barWidth)

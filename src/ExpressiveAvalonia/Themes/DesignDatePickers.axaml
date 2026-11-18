@@ -26,16 +26,6 @@
   <StreamGeometry x:Key="MaterialDatePickerNextGeometry">M8.59,16.59L10,18l6,-6 -6,-6 -1.41,1.41L13.17,12z</StreamGeometry>
   <StreamGeometry x:Key="MaterialDatePickerClearGeometry">M19,6.41L17.59,5 12,10.59 6.41,5 5,6.41 10.59,12 5,17.59 6.41,19 12,13.41 17.59,19 19,17.59 13.41,12z</StreamGeometry>
 
-  <!-- Per-component disabled colors from DatePickerColors defaults (DisabledAlpha = 0.38). -->
-  <SolidColorBrush x:Key="MaterialDatePickerDisabledDayContentBrush"
-                   Color="{DynamicResource MaterialOnSurfaceColor}" Opacity="0.38" />
-  <SolidColorBrush x:Key="MaterialDatePickerDisabledYearContentBrush"
-                   Color="{DynamicResource MaterialOnSurfaceVariantColor}" Opacity="0.38" />
-  <SolidColorBrush x:Key="MaterialDatePickerDisabledSelectedContentBrush"
-                   Color="{DynamicResource MaterialOnPrimaryColor}" Opacity="0.38" />
-  <SolidColorBrush x:Key="MaterialDatePickerDisabledSelectedContainerBrush"
-                   Color="{DynamicResource MaterialPrimaryColor}" Opacity="0.38" />
-
   <!-- Template strings. Override these keys to localize the whole family. -->
   <x:String x:Key="MaterialDatePickerSelectDateText">Select date</x:String>
   <x:String x:Key="MaterialDatePickerEnterDateText">Enter date</x:String>
@@ -77,10 +67,11 @@
     <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="Transparent">
+        <Panel Background="Transparent" ClipToBounds="False">
           <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                             ContentTemplate="{TemplateBinding ContentTemplate}"
                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
@@ -95,7 +86,7 @@
                                   HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
                                   FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                   EnableDrag="False" IsHitTestVisible="False" />
-          <Border Name="FocusRing" Margin="2" CornerRadius="{TemplateBinding CornerRadius}"
+          <Border Name="FocusRing" Margin="-1" CornerRadius="{TemplateBinding CornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
@@ -109,9 +100,9 @@
     </Style>
   </ControlTheme>
 
-  <!-- Local text action (Clear/Cancel/OK/Save): labelLarge, 40-high pill. -->
+  <!-- Local text action (Clear/Cancel/OK/Save): labelLarge, 40-high pill inside a 48dp hit target. -->
   <ControlTheme x:Key="MaterialDatePickerTextButton" TargetType="Button">
-    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="MinHeight" Value="48" />
     <Setter Property="Padding" Value="16,10" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}" />
@@ -121,30 +112,33 @@
     <Setter Property="LetterSpacing" Value="{DynamicResource MaterialLabelLargeLetterSpacing}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="Transparent">
-          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
-                            ContentTemplate="{TemplateBinding ContentTemplate}"
-                            Padding="{TemplateBinding Padding}"
-                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                            TextElement.Foreground="{TemplateBinding Foreground}"
-                            TextElement.FontSize="{TemplateBinding FontSize}"
-                            TextElement.FontWeight="{TemplateBinding FontWeight}"
-                            TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}" />
-          <!-- Source TextButton (M3 Button): the ripple is bounded by the pill shape. -->
-          <theming:MaterialRipple Name="StateLayer"
-                                  CornerRadius="{TemplateBinding CornerRadius}"
-                                  Fill="{TemplateBinding Foreground}"
-                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
-                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
-                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
-                                  EnableDrag="False" IsHitTestVisible="False" />
-          <Border Name="FocusRing" Margin="-4" CornerRadius="{TemplateBinding CornerRadius}"
-                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
-                  IsVisible="False" IsHitTestVisible="False" />
+        <Panel Background="Transparent" ClipToBounds="False">
+          <Panel Margin="0,4" ClipToBounds="False">
+            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Padding="{TemplateBinding Padding}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              TextElement.Foreground="{TemplateBinding Foreground}"
+                              TextElement.FontSize="{TemplateBinding FontSize}"
+                              TextElement.FontWeight="{TemplateBinding FontWeight}"
+                              TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}" />
+            <!-- Source TextButton (M3 Button): the ripple is bounded by the pill shape. -->
+            <theming:MaterialRipple Name="StateLayer"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    Fill="{TemplateBinding Foreground}"
+                                    PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                    EnableDrag="False" IsHitTestVisible="False" />
+            <Border Name="FocusRing" Margin="-5" CornerRadius="{TemplateBinding CornerRadius}"
+                    BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                    IsVisible="False" IsHitTestVisible="False" />
+          </Panel>
         </Panel>
       </ControlTemplate>
     </Setter>
@@ -156,9 +150,9 @@
     </Style>
   </ControlTheme>
 
-  <!-- Month/year dropdown trigger: labelLarge + 18px chevron, 40 high. -->
+  <!-- Month/year dropdown trigger: labelLarge + 18px chevron, 40-high pill inside a 48dp hit target. -->
   <ControlTheme x:Key="MaterialDatePickerMenuButton" TargetType="Button">
-    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="MinHeight" Value="48" />
     <Setter Property="Padding" Value="8,10,4,10" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
@@ -168,36 +162,39 @@
     <Setter Property="LetterSpacing" Value="{DynamicResource MaterialLabelLargeLetterSpacing}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="Transparent">
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="{TemplateBinding Padding}"
-                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
-            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
-                              ContentTemplate="{TemplateBinding ContentTemplate}"
-                              VerticalAlignment="Center"
-                              TextElement.Foreground="{TemplateBinding Foreground}"
-                              TextElement.FontSize="{TemplateBinding FontSize}"
-                              TextElement.FontWeight="{TemplateBinding FontWeight}"
-                              TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}" />
-            <PathIcon Name="PART_Chevron" Width="18" Height="18" VerticalAlignment="Center"
-                      Foreground="{TemplateBinding Foreground}"
-                      Data="{StaticResource MaterialDatePickerChevronGeometry}" />
-          </StackPanel>
-          <!-- Source YearPickerMenuButton: a TextButton with CircleShape, so the bounded ripple
-               covers the 40 high pill and reuses the content color. -->
-          <theming:MaterialRipple Name="StateLayer"
-                                  CornerRadius="{TemplateBinding CornerRadius}"
-                                  Fill="{TemplateBinding Foreground}"
-                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
-                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
-                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
-                                  EnableDrag="False" IsHitTestVisible="False" />
-          <Border Name="FocusRing" Margin="0" CornerRadius="{TemplateBinding CornerRadius}"
-                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
-                  IsVisible="False" IsHitTestVisible="False" />
+        <Panel Background="Transparent" ClipToBounds="False">
+          <Panel Margin="0,4" ClipToBounds="False">
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="{TemplateBinding Padding}"
+                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+              <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                VerticalAlignment="Center"
+                                TextElement.Foreground="{TemplateBinding Foreground}"
+                                TextElement.FontSize="{TemplateBinding FontSize}"
+                                TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}" />
+              <PathIcon Name="PART_Chevron" Width="18" Height="18" VerticalAlignment="Center"
+                        Foreground="{TemplateBinding Foreground}"
+                        Data="{StaticResource MaterialDatePickerChevronGeometry}" />
+            </StackPanel>
+            <!-- Source YearPickerMenuButton: a TextButton with CircleShape, so the bounded ripple
+                 covers the 40 high pill and reuses the content color. -->
+            <theming:MaterialRipple Name="StateLayer"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    Fill="{TemplateBinding Foreground}"
+                                    PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                    EnableDrag="False" IsHitTestVisible="False" />
+            <Border Name="FocusRing" Margin="-5" CornerRadius="{TemplateBinding CornerRadius}"
+                    BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                    IsVisible="False" IsHitTestVisible="False" />
+          </Panel>
         </Panel>
       </ControlTemplate>
     </Setter>
@@ -227,10 +224,11 @@
     <Setter Property="LetterSpacing" Value="{DynamicResource MaterialBodyLargeLetterSpacing}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="Transparent">
+        <Panel Background="Transparent" ClipToBounds="False">
           <Border Name="HighlightMiddle" Height="40" VerticalAlignment="Center"
                   Background="{DynamicResource MaterialSecondaryContainerBrush}" IsVisible="False" />
           <Border Name="HighlightLeft" Width="24" Height="40" HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -254,8 +252,9 @@
                             TextElement.FontSize="{TemplateBinding FontSize}"
                             TextElement.FontWeight="{TemplateBinding FontWeight}"
                             TextBlock.LineHeight="{DynamicResource MaterialBodyLargeLineHeight}" />
-          <Border Name="FocusRing" Width="44" Height="44" HorizontalAlignment="Center" VerticalAlignment="Center"
-                  CornerRadius="8" BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+          <Border Name="FocusRing" Margin="-1"
+                  CornerRadius="{DynamicResource MaterialShapeFullCornerRadius}"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
@@ -375,10 +374,11 @@
     <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyLargeFontWeight}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="Transparent">
+        <Panel Background="Transparent" ClipToBounds="False">
           <Border Name="Surface" Margin="0,8" CornerRadius="{TemplateBinding CornerRadius}" />
           <Border Name="StateLayer" Margin="0,8" CornerRadius="{TemplateBinding CornerRadius}"
                   Background="{TemplateBinding Foreground}" Opacity="0" IsHitTestVisible="False" />
@@ -389,7 +389,7 @@
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             TextElement.FontSize="{TemplateBinding FontSize}"
                             TextElement.FontWeight="{TemplateBinding FontWeight}" />
-          <Border Name="FocusRing" Margin="0,6" CornerRadius="{TemplateBinding CornerRadius}"
+          <Border Name="FocusRing" Margin="-5,3" CornerRadius="{TemplateBinding CornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
@@ -446,10 +446,11 @@
     <Setter Property="HorizontalContentAlignment" Value="Left" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel Background="Transparent">
+        <Panel Background="Transparent" ClipToBounds="False">
           <Border Name="Surface" CornerRadius="4" Margin="8,0" />
           <Border Name="StateLayer" Background="{TemplateBinding Foreground}" CornerRadius="4" Margin="8,0"
                   Opacity="0" IsHitTestVisible="False" />
@@ -460,7 +461,7 @@
                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                             TextElement.FontSize="{TemplateBinding FontSize}"
                             TextElement.FontWeight="{TemplateBinding FontWeight}" />
-          <Border Name="FocusRing" Margin="8,2" CornerRadius="4"
+          <Border Name="FocusRing" Margin="3,-5" CornerRadius="9"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                   IsVisible="False" IsHitTestVisible="False" />
         </Panel>
@@ -516,188 +517,228 @@
     <Setter Property="MinWidth" Value="360" />
     <Setter Property="Focusable" Value="True" />
     <Setter Property="IsTabStop" Value="True" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template">
       <ControlTemplate>
         <Border Name="PART_Surface" Background="{TemplateBinding Background}"
-                CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
-          <Grid RowDefinitions="Auto,Auto,*,Auto">
-            <!-- Header: modal/input supporting label + headline + edit, or full-screen close/save. -->
-            <Border Name="PART_Header" Grid.Row="0" Padding="24,16,12,12"
-                    BorderBrush="{DynamicResource MaterialOutlineVariantBrush}" BorderThickness="0,0,0,1">
-              <Panel>
-                <Grid Name="PART_ModalHeader" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                  <StackPanel Spacing="36" VerticalAlignment="Center">
-                    <TextBlock Name="PART_HeaderLabel" Text="{TemplateBinding EffectiveLabel}"
-                               FontSize="{DynamicResource MaterialLabelLargeFontSize}"
-                               FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
-                               LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
-                               LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}"
-                               Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-                    <TextBlock Name="PART_HeaderHeadline" Text="{TemplateBinding Headline}"
-                               FontSize="{DynamicResource MaterialHeadlineLargeFontSize}"
-                               LineHeight="{DynamicResource MaterialHeadlineLargeLineHeight}"
-                               LetterSpacing="{DynamicResource MaterialHeadlineLargeLetterSpacing}"
-                               TextWrapping="Wrap" />
-                  </StackPanel>
-                  <Button Name="PART_EditButton" Grid.Column="1" Theme="{StaticResource MaterialDatePickerIconButton}"
-                          AutomationProperties.Name="{DynamicResource MaterialDatePickerEditDateText}"
-                          ToolTip.Tip="{DynamicResource MaterialDatePickerEditDateText}">
-                    <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerEditGeometry}" />
+                CornerRadius="{TemplateBinding CornerRadius}"
+                BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}">
+          <Border Name="PART_SurfaceClip"
+                  CornerRadius="{Binding CornerRadius, ElementName=PART_Surface}"
+                  ClipToBounds="True">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+              <!-- Header: modal/input supporting label + headline + edit, or full-screen close/save. -->
+              <Border Name="PART_Header" Grid.Row="0" Padding="24,16,12,12"
+                      BorderBrush="{DynamicResource MaterialOutlineVariantBrush}" BorderThickness="0,0,0,1">
+                <Panel>
+                  <Grid Name="PART_ModalHeader" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                    <StackPanel Spacing="36" VerticalAlignment="Center">
+                      <TextBlock Name="PART_HeaderLabel" Text="{TemplateBinding EffectiveLabel}"
+                                 FontSize="{DynamicResource MaterialLabelLargeFontSize}"
+                                 FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
+                                 LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
+                                 LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}"
+                                 Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+                      <TextBlock Name="PART_HeaderHeadline" Text="{TemplateBinding Headline}"
+                                 FontSize="{DynamicResource MaterialHeadlineLargeFontSize}"
+                                 FontWeight="{DynamicResource MaterialHeadlineLargeFontWeight}"
+                                 LineHeight="{DynamicResource MaterialHeadlineLargeLineHeight}"
+                                 LetterSpacing="{DynamicResource MaterialHeadlineLargeLetterSpacing}"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Name="PART_EditButton" Grid.Column="1" Theme="{StaticResource MaterialDatePickerIconButton}"
+                            VerticalAlignment="Bottom"
+                            AutomationProperties.Name="{DynamicResource MaterialDatePickerEditDateText}"
+                            ToolTip.Tip="{DynamicResource MaterialDatePickerEditDateText}">
+                      <PathIcon Name="PART_EditIcon" Width="24" Height="24" />
+                    </Button>
+                  </Grid>
+                  <Grid Name="PART_FullScreenHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto"
+                        IsVisible="False">
+                    <Button Name="PART_CloseButton" Grid.Row="0" Grid.Column="0" Theme="{StaticResource MaterialDatePickerIconButton}"
+                            HorizontalAlignment="Left"
+                            AutomationProperties.Name="{DynamicResource MaterialDatePickerCloseText}"
+                            ToolTip.Tip="{DynamicResource MaterialDatePickerCloseText}">
+                      <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerCloseGeometry}" />
+                    </Button>
+                    <Button Name="PART_SaveButton" Grid.Row="0" Grid.Column="1" Theme="{StaticResource MaterialDatePickerTextButton}"
+                            Content="{DynamicResource MaterialDatePickerSaveText}" HorizontalAlignment="Right" />
+                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="64,0,0,4" Spacing="4">
+                      <TextBlock Text="{TemplateBinding EffectiveLabel}"
+                                 FontSize="{DynamicResource MaterialLabelLargeFontSize}"
+                                 FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
+                                 Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+                      <TextBlock Text="{TemplateBinding Headline}" TextWrapping="Wrap"
+                                 FontSize="{DynamicResource MaterialTitleLargeFontSize}"
+                                 FontWeight="{DynamicResource MaterialTitleLargeFontWeight}"
+                                 LineHeight="{DynamicResource MaterialTitleLargeLineHeight}"
+                                 LetterSpacing="{DynamicResource MaterialTitleLargeLetterSpacing}" />
+                    </StackPanel>
+                  </Grid>
+                </Panel>
+              </Border>
+
+              <!-- Docked navigation: independent month and year dropdown groups. -->
+              <Grid Name="PART_DockedSelectionRow" Grid.Row="1" Height="64" IsVisible="False"
+                    ColumnDefinitions="Auto,*,Auto" Margin="4,0">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                  <Button Name="PART_PrevMonthButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                          AutomationProperties.Name="{DynamicResource MaterialDatePickerPreviousMonthText}"
+                          ToolTip.Tip="{DynamicResource MaterialDatePickerPreviousMonthText}">
+                    <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerPreviousGeometry}" />
                   </Button>
-                </Grid>
-                <Grid Name="PART_FullScreenHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto"
-                      IsVisible="False">
-                  <Button Name="PART_CloseButton" Grid.Row="0" Grid.Column="0" Theme="{StaticResource MaterialDatePickerIconButton}"
-                          HorizontalAlignment="Left"
-                          AutomationProperties.Name="{DynamicResource MaterialDatePickerCloseText}"
-                          ToolTip.Tip="{DynamicResource MaterialDatePickerCloseText}">
-                    <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerCloseGeometry}" />
+                  <Button Name="PART_MonthMenuButton" Theme="{StaticResource MaterialDatePickerMenuButton}"
+                          AutomationProperties.Name="{DynamicResource MaterialDatePickerChooseMonthText}" />
+                  <Button Name="PART_NextMonthButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                          AutomationProperties.Name="{DynamicResource MaterialDatePickerNextMonthText}"
+                          ToolTip.Tip="{DynamicResource MaterialDatePickerNextMonthText}">
+                    <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerNextGeometry}" />
                   </Button>
-                  <Button Name="PART_SaveButton" Grid.Row="0" Grid.Column="1" Theme="{StaticResource MaterialDatePickerTextButton}"
-                          Content="{DynamicResource MaterialDatePickerSaveText}" HorizontalAlignment="Right" />
-                  <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="64,0,0,4" Spacing="4">
-                    <TextBlock Text="{TemplateBinding EffectiveLabel}"
-                               FontSize="{DynamicResource MaterialLabelLargeFontSize}"
-                               FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
-                               Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-                    <TextBlock Text="{TemplateBinding Headline}" TextWrapping="Wrap"
-                               FontSize="{DynamicResource MaterialTitleLargeFontSize}"
-                               LineHeight="{DynamicResource MaterialTitleLargeLineHeight}" />
-                  </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                  <Button Name="PART_PrevYearButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                          AutomationProperties.Name="{DynamicResource MaterialDatePickerPreviousYearText}"
+                          ToolTip.Tip="{DynamicResource MaterialDatePickerPreviousYearText}">
+                    <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerPreviousGeometry}" />
+                  </Button>
+                  <Button Name="PART_YearMenuButton" Theme="{StaticResource MaterialDatePickerMenuButton}"
+                          AutomationProperties.Name="{DynamicResource MaterialDatePickerChooseYearText}" />
+                  <Button Name="PART_NextYearButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                          AutomationProperties.Name="{DynamicResource MaterialDatePickerNextYearText}"
+                          ToolTip.Tip="{DynamicResource MaterialDatePickerNextYearText}">
+                    <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerNextGeometry}" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+
+              <!-- Modal navigation: one month/year caption with previous/next controls. -->
+              <Grid Name="PART_ModalSelectionRow" Grid.Row="1" Height="56" ColumnDefinitions="Auto,*,Auto"
+                    Margin="12,0">
+                <Button Name="PART_MonthYearButton" Theme="{StaticResource MaterialDatePickerMenuButton}"
+                        HorizontalAlignment="Left" VerticalAlignment="Center"
+                        AutomationProperties.Name="{DynamicResource MaterialDatePickerMonthYearText}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                  <Button Name="PART_PrevButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                          AutomationProperties.Name="{DynamicResource MaterialDatePickerPreviousMonthText}"
+                          ToolTip.Tip="{DynamicResource MaterialDatePickerPreviousMonthText}">
+                    <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerPreviousGeometry}" />
+                  </Button>
+                  <Button Name="PART_NextButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                          AutomationProperties.Name="{DynamicResource MaterialDatePickerNextMonthText}"
+                          ToolTip.Tip="{DynamicResource MaterialDatePickerNextMonthText}">
+                    <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerNextGeometry}" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+
+              <!-- Day, month, year, full-screen and text-input content. -->
+              <Grid Grid.Row="2">
+                <Grid Name="PART_DayView" RowDefinitions="Auto,Auto" Margin="12,0"
+                      Background="{TemplateBinding Background}">
+                  <UniformGrid Name="PART_WeekdayRow" Grid.Row="0" Columns="7" />
+                  <!-- DatePicker.kt HorizontalMonthsList: the month pages form one horizontal
+                       paging surface. PART_DayGrid is the page that owns the live 6x7 cells; the
+                       picker composes at most two neighbouring month pages beside it while a
+                       previous/next animation or a swipe is in flight. A 4dp padded clip frame
+                       preserves 2dp outer focus rings on edge day cells while clipping pages. -->
+                  <Border Grid.Row="1" Margin="-4" Padding="4" ClipToBounds="True">
+                    <Panel Name="PART_MonthPager" ClipToBounds="False" Background="Transparent">
+                      <UniformGrid Name="PART_DayGrid" Columns="7" />
+                    </Panel>
+                  </Border>
                 </Grid>
-              </Panel>
-            </Border>
 
-            <!-- Docked navigation: independent month and year dropdown groups. -->
-            <Grid Name="PART_DockedSelectionRow" Grid.Row="1" Height="64" IsVisible="False"
-                  ColumnDefinitions="Auto,*,Auto" Margin="4,0">
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
-                <Button Name="PART_PrevMonthButton" Theme="{StaticResource MaterialDatePickerIconButton}"
-                        AutomationProperties.Name="{DynamicResource MaterialDatePickerPreviousMonthText}"
-                        ToolTip.Tip="{DynamicResource MaterialDatePickerPreviousMonthText}">
-                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerPreviousGeometry}" />
-                </Button>
-                <Button Name="PART_MonthMenuButton" Theme="{StaticResource MaterialDatePickerMenuButton}"
-                        AutomationProperties.Name="{DynamicResource MaterialDatePickerChooseMonthText}" />
-                <Button Name="PART_NextMonthButton" Theme="{StaticResource MaterialDatePickerIconButton}"
-                        AutomationProperties.Name="{DynamicResource MaterialDatePickerNextMonthText}"
-                        ToolTip.Tip="{DynamicResource MaterialDatePickerNextMonthText}">
-                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerNextGeometry}" />
-                </Button>
-              </StackPanel>
-              <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <Button Name="PART_PrevYearButton" Theme="{StaticResource MaterialDatePickerIconButton}"
-                        AutomationProperties.Name="{DynamicResource MaterialDatePickerPreviousYearText}"
-                        ToolTip.Tip="{DynamicResource MaterialDatePickerPreviousYearText}">
-                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerPreviousGeometry}" />
-                </Button>
-                <Button Name="PART_YearMenuButton" Theme="{StaticResource MaterialDatePickerMenuButton}"
-                        AutomationProperties.Name="{DynamicResource MaterialDatePickerChooseYearText}" />
-                <Button Name="PART_NextYearButton" Theme="{StaticResource MaterialDatePickerIconButton}"
-                        AutomationProperties.Name="{DynamicResource MaterialDatePickerNextYearText}"
-                        ToolTip.Tip="{DynamicResource MaterialDatePickerNextYearText}">
-                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerNextGeometry}" />
-                </Button>
-              </StackPanel>
-            </Grid>
+                <!-- DatePicker.kt 1672-1688 overlays the year picker on the calendar inside a
+                     clipped Box; its column is opaque (YearPicker background = containerColor) and
+                     expands/shrinks vertically while it fades. -->
+                <ScrollViewer Name="PART_ChoiceScroll" IsVisible="False" MaxHeight="336"
+                              Background="{TemplateBinding Background}" ClipToBounds="True"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                  <Panel Name="PART_ChoiceHost" Margin="12,6" />
+                </ScrollViewer>
 
-            <!-- Modal navigation: one month/year caption with previous/next controls. -->
-            <Grid Name="PART_ModalSelectionRow" Grid.Row="1" Height="56" ColumnDefinitions="Auto,*,Auto"
-                  Margin="12,0">
-              <Button Name="PART_MonthYearButton" Theme="{StaticResource MaterialDatePickerMenuButton}"
-                      HorizontalAlignment="Left" VerticalAlignment="Center"
-                      AutomationProperties.Name="{DynamicResource MaterialDatePickerMonthYearText}" />
-              <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <Button Name="PART_PrevButton" Theme="{StaticResource MaterialDatePickerIconButton}"
-                        AutomationProperties.Name="{DynamicResource MaterialDatePickerPreviousMonthText}"
-                        ToolTip.Tip="{DynamicResource MaterialDatePickerPreviousMonthText}">
-                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerPreviousGeometry}" />
-                </Button>
-                <Button Name="PART_NextButton" Theme="{StaticResource MaterialDatePickerIconButton}"
-                        AutomationProperties.Name="{DynamicResource MaterialDatePickerNextMonthText}"
-                        ToolTip.Tip="{DynamicResource MaterialDatePickerNextMonthText}">
-                  <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerNextGeometry}" />
-                </Button>
-              </StackPanel>
-            </Grid>
+                <Grid Name="PART_FullScreenView" RowDefinitions="Auto,*" IsVisible="False"
+                      Background="{TemplateBinding Background}">
+                  <UniformGrid Name="PART_FullScreenWeekdayRow" Grid.Row="0" Columns="7" Margin="12,0" />
+                  <!-- DateRangePicker.kt VerticalMonthsList: a LazyColumn over every month in
+                       yearRange. The Canvas carries the full virtual extent; the picker
+                       materializes and recycles only the viewport window (PART_MonthGroup). -->
+                  <ScrollViewer Name="PART_FullScreenScroll" Grid.Row="1" Margin="12,0" Padding="4,0"
+                                HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer.Styles>
+                      <Style Selector="ScrollContentPresenter#PART_ContentPresenter">
+                        <Setter Property="Margin" Value="-4,0" />
+                      </Style>
+                    </ScrollViewer.Styles>
+                    <Canvas Name="PART_MonthGroup" ClipToBounds="False" />
+                  </ScrollViewer>
+                </Grid>
 
-            <!-- Day, month, year, full-screen and text-input content. -->
-            <Grid Grid.Row="2">
-              <Grid Name="PART_DayView" RowDefinitions="Auto,Auto" Margin="12,0"
-                    Background="{TemplateBinding Background}">
-                <UniformGrid Name="PART_WeekdayRow" Grid.Row="0" Columns="7" />
-                <!-- DatePicker.kt HorizontalMonthsList: the month pages form one horizontal
-                     paging surface. PART_DayGrid is the page that owns the live 6x7 cells; the
-                     picker composes at most two neighbouring month pages beside it while a
-                     previous/next animation or a swipe is in flight. -->
-                <Panel Name="PART_MonthPager" Grid.Row="1" ClipToBounds="True" Background="Transparent">
-                  <UniformGrid Name="PART_DayGrid" Columns="7" />
+                <Panel Name="PART_InputPanel" IsVisible="False" Margin="24,18,24,16">
+                  <Grid Name="PART_InputGrid" ColumnDefinitions="*,Auto,*">
+                    <TextBox Name="PART_StartInput" Grid.Column="0" Grid.ColumnSpan="3" MinWidth="0"
+                             HorizontalAlignment="Stretch"
+                             theming:MaterialTextField.Variant="Outlined"
+                             PlaceholderText="{TemplateBinding Placeholder}"
+                             theming:MaterialTextField.Label="{DynamicResource MaterialDatePickerDateText}" />
+                    <Border Name="PART_InputSpacer" Grid.Column="1" Width="8" IsVisible="False" />
+                    <TextBox Name="PART_EndInput" Grid.Column="2" MinWidth="0"
+                             HorizontalAlignment="Stretch"
+                             theming:MaterialTextField.Variant="Outlined"
+                             PlaceholderText="{TemplateBinding Placeholder}"
+                             theming:MaterialTextField.Label="{DynamicResource MaterialDatePickerEndDateText}" />
+                  </Grid>
                 </Panel>
               </Grid>
 
-              <!-- DatePicker.kt 1672-1688 overlays the year picker on the calendar inside a
-                   clipped Box; its column is opaque (YearPicker background = containerColor) and
-                   expands/shrinks vertically while it fades. -->
-              <ScrollViewer Name="PART_ChoiceScroll" IsVisible="False" MaxHeight="336"
-                            Background="{TemplateBinding Background}" ClipToBounds="True"
-                            HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                <Panel Name="PART_ChoiceHost" Margin="12,0" />
-              </ScrollViewer>
-
-              <Grid Name="PART_FullScreenView" RowDefinitions="Auto,*" IsVisible="False"
-                    Background="{TemplateBinding Background}">
-                <UniformGrid Name="PART_FullScreenWeekdayRow" Grid.Row="0" Columns="7" Margin="12,0" />
-                <!-- DateRangePicker.kt VerticalMonthsList: a LazyColumn over every month in
-                     yearRange. The Canvas carries the full virtual extent; the picker
-                     materializes and recycles only the viewport window (PART_MonthGroup). -->
-                <ScrollViewer Name="PART_FullScreenScroll" Grid.Row="1" Margin="12,0"
-                              HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="Auto">
-                  <Canvas Name="PART_MonthGroup" ClipToBounds="True" />
-                </ScrollViewer>
-              </Grid>
-
-              <Panel Name="PART_InputPanel" IsVisible="False" Margin="24,18,24,16">
-                <StackPanel Spacing="12">
-                  <TextBox Name="PART_StartInput" PlaceholderText="{TemplateBinding Placeholder}"
-                           theming:MaterialTextField.Label="{DynamicResource MaterialDatePickerDateText}" />
-                  <TextBox Name="PART_EndInput" PlaceholderText="{TemplateBinding Placeholder}"
-                           theming:MaterialTextField.Label="{DynamicResource MaterialDatePickerEndDateText}" />
-                  <TextBlock Name="PART_InputError" TextWrapping="Wrap" IsVisible="False"
-                             Foreground="{DynamicResource MaterialErrorBrush}"
-                             FontSize="{DynamicResource MaterialBodySmallFontSize}"
-                             AutomationProperties.LiveSetting="Assertive" />
-                </StackPanel>
-              </Panel>
-            </Grid>
-
-            <!-- Local actions. -->
-            <Border Name="PART_Actions" Grid.Row="3" Padding="12,4,12,8" MinHeight="56">
-              <Grid ColumnDefinitions="Auto,*,Auto">
-                <Button Name="PART_ClearButton" Theme="{StaticResource MaterialDatePickerTextButton}"
-                        HorizontalAlignment="Left" VerticalAlignment="Center">
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <PathIcon Width="20" Height="20" Data="{StaticResource MaterialDatePickerClearGeometry}"
-                              Foreground="{DynamicResource MaterialPrimaryBrush}" />
-                    <TextBlock Text="{DynamicResource MaterialDatePickerClearText}" VerticalAlignment="Center" />
+              <!-- Local actions. -->
+              <Border Name="PART_Actions" Grid.Row="3" Padding="12,4,12,8" MinHeight="56">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Button Name="PART_ClearButton" Theme="{StaticResource MaterialDatePickerTextButton}"
+                          HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <PathIcon Width="20" Height="20" Data="{StaticResource MaterialDatePickerClearGeometry}"
+                                Foreground="{Binding $parent[Button].Foreground}" />
+                      <TextBlock Text="{DynamicResource MaterialDatePickerClearText}" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right"
+                              VerticalAlignment="Center">
+                    <Button Name="PART_CancelButton" Theme="{StaticResource MaterialDatePickerTextButton}"
+                            Content="{DynamicResource MaterialDatePickerCancelText}" />
+                    <Button Name="PART_OkButton" Theme="{StaticResource MaterialDatePickerTextButton}"
+                            Content="{DynamicResource MaterialDatePickerOkText}" />
                   </StackPanel>
-                </Button>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right"
-                            VerticalAlignment="Center">
-                  <Button Name="PART_CancelButton" Theme="{StaticResource MaterialDatePickerTextButton}"
-                          Content="{DynamicResource MaterialDatePickerCancelText}" />
-                  <Button Name="PART_OkButton" Theme="{StaticResource MaterialDatePickerTextButton}"
-                          Content="{DynamicResource MaterialDatePickerOkText}" />
-                </StackPanel>
-              </Grid>
-            </Border>
-          </Grid>
+                </Grid>
+              </Border>
+            </Grid>
+          </Border>
         </Border>
       </ControlTemplate>
     </Setter>
 
     <!-- Presentation and view visibility. Local code controls action and edit-button visibility. -->
+    <Style Selector="^ /template/ PathIcon#PART_EditIcon">
+      <Setter Property="Data" Value="{StaticResource MaterialDatePickerEditGeometry}" />
+    </Style>
+    <Style Selector="^:text-input /template/ PathIcon#PART_EditIcon">
+      <Setter Property="Data" Value="{StaticResource MaterialDatePickerCalendarGeometry}" />
+    </Style>
+    <Style Selector="^:modal:range /template/ TextBlock#PART_HeaderHeadline">
+      <Setter Property="FontSize" Value="{DynamicResource MaterialTitleLargeFontSize}" />
+      <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleLargeFontWeight}" />
+      <Setter Property="LineHeight" Value="{DynamicResource MaterialTitleLargeLineHeight}" />
+      <Setter Property="LetterSpacing" Value="{DynamicResource MaterialTitleLargeLetterSpacing}" />
+    </Style>
+    <Style Selector="^:range /template/ TextBox#PART_StartInput">
+      <Setter Property="Grid.ColumnSpan" Value="1" />
+      <Setter Property="theming:MaterialTextField.Label" Value="{DynamicResource MaterialDatePickerStartDateText}" />
+    </Style>
+    <Style Selector="^:range /template/ Border#PART_InputSpacer">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
     <Style Selector="^:docked /template/ Border#PART_Surface">
       <Setter Property="CornerRadius" Value="16" />
     </Style>
@@ -716,6 +757,13 @@
     <Style Selector="^:text-input /template/ Grid#PART_DockedSelectionRow">
       <Setter Property="IsVisible" Value="False" />
     </Style>
+    <Style Selector="^:fullscreen">
+      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeNoneCornerRadius}" />
+    </Style>
+    <Style Selector="^:fullscreen /template/ Border#PART_Surface">
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
+    </Style>
     <Style Selector="^:fullscreen /template/ Grid#PART_ModalSelectionRow">
       <Setter Property="IsVisible" Value="False" />
     </Style>
@@ -729,7 +777,7 @@
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="^:fullscreen /template/ Border#PART_Header">
-      <Setter Property="Padding" Value="0,12,12,0" />
+      <Setter Property="Padding" Value="4,12,12,0" />
     </Style>
     <Style Selector="^:view-month /template/ Grid#PART_DayView">
       <Setter Property="IsVisible" Value="False" />
@@ -775,33 +823,31 @@
     </Style>
   </ControlTheme>
 
-  <!-- Docked desktop field: Material TextBox with a calendar trigger and a popup picker. -->
+  <!-- Docked desktop field: Material Outlined TextBox with a 48dp calendar trigger and popup picker. -->
   <ControlTheme x:Key="{x:Type controls:MaterialDatePickerField}" TargetType="controls:MaterialDatePickerField">
     <Setter Property="MinWidth" Value="280" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Grid RowDefinitions="Auto,Auto">
-          <Panel>
-            <TextBox Name="PART_Input" Padding="16,16,56,16"
-                     PlaceholderText="{TemplateBinding PlaceholderText}"
-                     IsReadOnly="{Binding !IsEditable, RelativeSource={RelativeSource TemplatedParent}}"
-                     theming:MaterialTextField.Label="{TemplateBinding Label}"
-                     theming:MaterialTextField.SupportingText="{TemplateBinding SupportingText}" />
-            <Button Name="PART_OpenButton" Theme="{StaticResource MaterialDatePickerIconButton}"
-                    Width="40" Height="40" HorizontalAlignment="Right" VerticalAlignment="Top"
-                    Margin="0,8,8,0"
-                    AutomationProperties.Name="{DynamicResource MaterialDatePickerOpenCalendarText}"
-                    ToolTip.Tip="{DynamicResource MaterialDatePickerOpenCalendarText}">
-              <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerCalendarGeometry}" />
-            </Button>
-            <Popup Name="PART_Popup" Placement="BottomEdgeAlignedLeft" IsLightDismissEnabled="True" />
-          </Panel>
-          <TextBlock Name="PART_Error" Grid.Row="1" Margin="16,4,16,0" TextWrapping="Wrap" IsVisible="False"
-                     Foreground="{DynamicResource MaterialErrorBrush}"
-                     FontSize="{DynamicResource MaterialBodySmallFontSize}"
-                     AutomationProperties.LiveSetting="Assertive" />
-        </Grid>
+        <Panel ClipToBounds="False">
+          <TextBox Name="PART_Input" Padding="16,16,56,16"
+                   theming:MaterialTextField.Variant="Outlined"
+                   PlaceholderText="{TemplateBinding PlaceholderText}"
+                   IsReadOnly="{Binding !IsEditable, RelativeSource={RelativeSource TemplatedParent}}"
+                   theming:MaterialTextField.Label="{TemplateBinding Label}"
+                   theming:MaterialTextField.SupportingText="{TemplateBinding SupportingText}" />
+          <Button Name="PART_OpenButton" Theme="{StaticResource MaterialDatePickerIconButton}"
+                  HorizontalAlignment="Right" VerticalAlignment="Top"
+                  Margin="0,4,4,0"
+                  AutomationProperties.Name="{DynamicResource MaterialDatePickerOpenCalendarText}"
+                  ToolTip.Tip="{DynamicResource MaterialDatePickerOpenCalendarText}">
+            <PathIcon Width="24" Height="24" Data="{StaticResource MaterialDatePickerCalendarGeometry}" />
+          </Button>
+          <Popup Name="PART_Popup" Placement="BottomEdgeAlignedLeft"
+                 HorizontalOffset="-16" VerticalOffset="-4"
+                 IsLightDismissEnabled="True" />
+        </Panel>
       </ControlTemplate>
     </Setter>
   </ControlTheme>

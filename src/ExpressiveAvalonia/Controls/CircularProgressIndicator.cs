@@ -106,6 +106,9 @@ public sealed class CircularProgressIndicator : RangeBase
     private bool _hasDefaultTrackBrush;
     private double _wavePhase;
     private double _lastClockMilliseconds;
+    private CircularProgressAutomationPeer? _peer;
+
+    protected override bool BypassFlowDirectionPolicies => true;
 
     static CircularProgressIndicator()
     {
@@ -127,12 +130,14 @@ public sealed class CircularProgressIndicator : RangeBase
         {
             _hasDefaultTrackBrush = false;
             _defaultTrackBrush = null;
+            _peer?.NotifyResourcesChanged();
             InvalidateVisual();
         };
         ActualThemeVariantChanged += (_, _) =>
         {
             _hasDefaultTrackBrush = false;
             _defaultTrackBrush = null;
+            _peer?.NotifyResourcesChanged();
             InvalidateVisual();
         };
     }
@@ -237,7 +242,7 @@ public sealed class CircularProgressIndicator : RangeBase
         return new Size(side, side);
     }
 
-    protected override AutomationPeer OnCreateAutomationPeer() => new CircularProgressAutomationPeer(this);
+    protected override AutomationPeer OnCreateAutomationPeer() => _peer = new CircularProgressAutomationPeer(this);
 
     public override void Render(DrawingContext context)
     {
@@ -464,23 +469,54 @@ public sealed class CircularProgressIndicator : RangeBase
         context.DrawGeometry(null, pen, geometry);
     }
 
-    private sealed class CircularProgressAutomationPeer(CircularProgressIndicator owner) : ProgressBarAutomationPeer(owner)
+    private string ResolveIndeterminateText() =>
+        this.TryFindResource("MaterialProgressIndeterminateText", ActualThemeVariant, out var value) &&
+        value is string text && text.Length > 0
+            ? text
+            : "Indeterminate";
+
+    private sealed class CircularProgressAutomationPeer : ProgressBarAutomationPeer
     {
+        private readonly CircularProgressIndicator _owner;
+        private string? _lastStatus;
+
+        public CircularProgressAutomationPeer(CircularProgressIndicator owner) : base(owner)
+        {
+            _owner = owner;
+            _lastStatus = GetItemStatusCore();
+        }
+
         protected override string GetClassNameCore() => nameof(CircularProgressIndicator);
+
         protected override string? GetItemStatusCore() =>
-            AutomationProperties.GetItemStatus(owner) ?? (owner.IsIndeterminate ? "Indeterminate" : base.GetItemStatusCore());
+            AutomationProperties.GetItemStatus(_owner) ??
+            (_owner.IsIndeterminate ? _owner.ResolveIndeterminateText() : base.GetItemStatusCore());
 
         protected override void OwnerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
         {
             base.OwnerPropertyChanged(sender, e);
-            if (e.Property == IsIndeterminateProperty)
-                RaisePropertyChangedEvent(AutomationElementIdentifiers.ItemStatusProperty,
-                    e.OldValue is true ? "Indeterminate" : null, GetItemStatusCore());
+            if (e.Property == AutomationProperties.ItemStatusProperty)
+                _lastStatus = GetItemStatusCore();
+            else if (e.Property == IsIndeterminateProperty)
+                RefreshStatus();
+        }
+
+        internal void NotifyResourcesChanged() => RefreshStatus();
+
+        private void RefreshStatus()
+        {
+            var current = GetItemStatusCore();
+            if (!string.Equals(_lastStatus, current, StringComparison.Ordinal))
+            {
+                var previous = _lastStatus;
+                _lastStatus = current;
+                RaisePropertyChangedEvent(AutomationElementIdentifiers.ItemStatusProperty, previous, current);
+            }
         }
 
         // Unknown progress has no numeric value, rather than falsely announcing zero percent.
         protected override object? GetProviderCore(Type providerType) =>
-            providerType == typeof(IRangeValueProvider) && owner.IsIndeterminate ? null : base.GetProviderCore(providerType);
+            providerType == typeof(IRangeValueProvider) && _owner.IsIndeterminate ? null : base.GetProviderCore(providerType);
     }
 }
 
@@ -807,9 +843,8 @@ internal sealed class LinearProgressPresenter : Control
     private void DrawFlatSegment(DrawingContext context, IBrush brush, double startFraction,
         double endFraction, double length, double band, double strokeWidth, bool vertical)
     {
-        var rtl = !vertical && FlowDirection == FlowDirection.RightToLeft;
-        var barStart = (rtl ? 1 - endFraction : startFraction) * length;
-        var barEnd = (rtl ? 1 - startFraction : endFraction) * length;
+        var barStart = startFraction * length;
+        var barEnd = endFraction * length;
 
         // Source: when there is not enough room to draw the caps, fall back to a butt line.
         if (StrokeCap == PenLineCap.Flat || band > length)
@@ -848,8 +883,6 @@ internal sealed class LinearProgressPresenter : Control
         // offset at StopIndicatorTrailingSpace = 6 dp.
         var offset = Math.Min((band - size) / 2, 6);
         var centerX = length - size / 2 - offset;
-        if (!vertical && FlowDirection == FlowDirection.RightToLeft)
-            centerX = length - centerX;
         var center = vertical ? new Point(band / 2, length - centerX) : new Point(centerX, band / 2);
         if (StrokeCap == PenLineCap.Round)
             context.DrawEllipse(brush, null, center, size / 2, size / 2);
@@ -910,20 +943,8 @@ internal sealed class LinearProgressPresenter : Control
         _trackPen.Thickness = trackStroke;
         _trackPen.LineCap = TrackStrokeCap;
 
-        if (!vertical && FlowDirection == FlowDirection.RightToLeft)
-        {
-            using (context.PushTransform(Matrix.CreateRotation(Math.PI,
-                       new Point(Bounds.Width / 2, Bounds.Height / 2))))
-            {
-                DrawWavyCore(context, length, band, vertical, fractions, pairCount, active, track,
-                    activeStroke, trackStroke, wavelength, amplitude, capWidth);
-            }
-        }
-        else
-        {
-            DrawWavyCore(context, length, band, vertical, fractions, pairCount, active, track,
-                activeStroke, trackStroke, wavelength, amplitude, capWidth);
-        }
+        DrawWavyCore(context, length, band, vertical, fractions, pairCount, active, track,
+            activeStroke, trackStroke, wavelength, amplitude, capWidth);
     }
 
     private void DrawWavyCore(DrawingContext context, double length, double band, bool vertical,
@@ -979,6 +1000,11 @@ internal sealed class LinearProgressPresenter : Control
                 continue;
             var barTail = Math.Clamp(startFraction * length, capWidth, length - capWidth);
             var barHead = Math.Clamp(endFraction * length, capWidth, length - capWidth);
+            if (barHead <= barTail)
+            {
+                DrawLogicalLine(context, _activePen, active, barHead, barHead, length, band, vertical);
+                continue;
+            }
             var geometry = BuildLinearWave(barTail, barHead, length, band, activeStroke,
                 wavelength, amplitude, vertical);
             if (geometry is not null)
@@ -1272,17 +1298,21 @@ internal sealed class ProgressAmplitudeAnimator
 
     private void Apply(double value)
     {
+        var wasPositive = _value > 0;
         _value = value;
         var completed = value == _animationTarget;
         if (completed)
             _animating = false;
         _changed();
-        if (completed)
+        if (completed && _requestedTarget != _animationTarget)
         {
-            if (_requestedTarget != _animationTarget)
-                Start(_requestedTarget);
-            else
+            Start(_requestedTarget);
+            if (!wasPositive && _value > 0)
                 _settled();
+        }
+        else if (completed || (!wasPositive && _value > 0))
+        {
+            _settled();
         }
     }
 

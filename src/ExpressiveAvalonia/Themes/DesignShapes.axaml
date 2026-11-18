@@ -102,7 +102,14 @@
       </ControlTemplate>
     </Setter>
 
-    <!-- Horizontal is the default orientation: hide the vertical line. -->
+    <!-- Horizontal is the default orientation: center vertically so parent slot height never
+         stretches the 4 dp gap between the 1 dp line and PART_Subheader, and hide PART_VLine. -->
+    <Style Selector="^[Orientation=Horizontal]">
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="^[Orientation=Horizontal] /template/ Grid#PART_Root">
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
     <Style Selector="^[Orientation=Horizontal] /template/ Border#PART_VLine">
       <Setter Property="IsVisible" Value="False" />
     </Style>
@@ -159,11 +166,6 @@
     <Setter Property="AutomationProperties.Name" Value="{DynamicResource MaterialScrimDismissText}" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="VerticalAlignment" Value="Stretch" />
-    <Setter Property="Transitions">
-      <Transitions>
-        <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationMedium2}" Easing="0.2,0,0,1" />
-      </Transitions>
-    </Setter>
   </ControlTheme>
 
   <!-- ========================== Focus indicator ========================== -->

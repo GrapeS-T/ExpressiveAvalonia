@@ -227,8 +227,8 @@ public sealed class MaterialAvatar : MaterialInteractionSurface
 
     private void UpdateFocusRing() =>
         FocusRingCornerRadius = new CornerRadius(
-            CornerRadius.TopLeft + 2, CornerRadius.TopRight + 2,
-            CornerRadius.BottomRight + 2, CornerRadius.BottomLeft + 2);
+            CornerRadius.TopLeft + 5, CornerRadius.TopRight + 5,
+            CornerRadius.BottomRight + 5, CornerRadius.BottomLeft + 5);
 
     private void OnIsCheckedChanged(bool value)
     {

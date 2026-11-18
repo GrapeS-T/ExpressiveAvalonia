@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -38,9 +39,12 @@ public sealed class MaterialSnackbarHost : TemplatedControl
     private readonly Queue<MaterialSnackbar> _queue = new();
     private readonly List<MaterialSnackbar> _retiring = [];
     private readonly Dictionary<MaterialSnackbar, TaskCompletionSource<MaterialSnackbarCloseReason>> _pending = new();
+    private readonly HashSet<MaterialSnackbar> _stretchedAlignment = [];
     private Panel? _items;
     private MaterialSnackbar? _current;
     private bool _currentShown;
+    private TopLevel? _topLevel;
+    private IInputElement? _lastOutsideFocus;
     private IInputElement? _previousFocus;
 
     /// <summary>The snackbar currently on screen, or null when the host is idle.</summary>
@@ -109,6 +113,7 @@ public sealed class MaterialSnackbarHost : TemplatedControl
             snackbar.Closing -= OnCurrentClosing;
             snackbar.Closed -= OnCurrentClosed;
             _items?.Children.Remove(snackbar);
+            ReleaseAlignment(snackbar);
         }
 
         var completion = new TaskCompletionSource<MaterialSnackbarCloseReason>(
@@ -223,8 +228,16 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         AttachCurrent();
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        HookTopLevel();
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        UnhookTopLevel();
+
         // Complete waiters so callers are not left hanging when the window goes away.
         while (_queue.Count > 0)
         {
@@ -238,6 +251,7 @@ public sealed class MaterialSnackbarHost : TemplatedControl
             retiring.Closing -= OnCurrentClosing;
             retiring.Closed -= OnCurrentClosed;
             _items?.Children.Remove(retiring);
+            ReleaseAlignment(retiring);
         }
         _retiring.Clear();
 
@@ -248,10 +262,12 @@ public sealed class MaterialSnackbarHost : TemplatedControl
             _current.Closed -= OnCurrentClosed;
             _current.Dismiss(MaterialSnackbarCloseReason.Programmatic);
             _items?.Children.Remove(_current);
+            ReleaseAlignment(_current);
         }
 
         _current = null;
         _currentShown = false;
+        _lastOutsideFocus = null;
         _previousFocus = null;
 
         base.OnDetachedFromVisualTree(e);
@@ -261,6 +277,7 @@ public sealed class MaterialSnackbarHost : TemplatedControl
     {
         if (_current is null || _items is null)
             return;
+        HookTopLevel();
         if (ReferenceEquals(_current.GetVisualParent(), _items))
         {
             if (!_currentShown)
@@ -280,7 +297,10 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         }
         else
         {
-            _previousFocus ??= TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+            var currentFocus = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+            if (currentFocus is not null && !IsFocusWithin(_current, currentFocus))
+                _lastOutsideFocus = currentFocus;
+            _previousFocus = null;
             _currentShown = false;
         }
 
@@ -288,8 +308,13 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         _current.Closed -= OnCurrentClosed;
         _current.Closing += OnCurrentClosing;
         _current.Closed += OnCurrentClosed;
-        _current.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _current.VerticalAlignment = VerticalAlignment.Bottom;
+        if (_stretchedAlignment.Contains(_current) || !_current.IsSet(HorizontalAlignmentProperty))
+        {
+            _current.HorizontalAlignment = HorizontalAlignment.Stretch;
+            _stretchedAlignment.Add(_current);
+        }
+        if (!_current.IsSet(VerticalAlignmentProperty))
+            _current.VerticalAlignment = VerticalAlignment.Bottom;
         _items.Children.Add(_current);
 
         if (_currentShown)
@@ -347,6 +372,7 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         snackbar.Closing -= OnCurrentClosing;
         snackbar.Closed -= OnCurrentClosed;
         _items?.Children.Remove(snackbar);
+        ReleaseAlignment(snackbar);
         _retiring.Remove(snackbar);
 
         if (ReferenceEquals(_current, snackbar))
@@ -376,9 +402,67 @@ public sealed class MaterialSnackbarHost : TemplatedControl
         snackbar.Closing -= OnCurrentClosing;
         snackbar.Closed -= OnCurrentClosed;
         _items?.Children.Remove(snackbar);
+        ReleaseAlignment(snackbar);
 
         if (_pending.Remove(snackbar, out var completion))
             completion.TrySetResult(reason);
+    }
+
+    private void ReleaseAlignment(MaterialSnackbar snackbar)
+    {
+        if (_stretchedAlignment.Remove(snackbar) && snackbar.HorizontalAlignment == HorizontalAlignment.Stretch)
+            snackbar.ClearValue(HorizontalAlignmentProperty);
+    }
+
+    private void HookTopLevel()
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (ReferenceEquals(_topLevel, topLevel))
+            return;
+        UnhookTopLevel();
+        _topLevel = topLevel;
+        if (_topLevel is not null)
+        {
+            _topLevel.AddHandler(InputElement.GotFocusEvent, OnTopLevelGotFocus, RoutingStrategies.Tunnel, handledEventsToo: true);
+            _topLevel.AddHandler(InputElement.LostFocusEvent, OnTopLevelLostFocus, RoutingStrategies.Bubble, handledEventsToo: true);
+            var currentFocus = _topLevel.FocusManager?.GetFocusedElement();
+            if (currentFocus is not null && (_current is null || !IsFocusWithin(_current, currentFocus)))
+                _lastOutsideFocus = currentFocus;
+        }
+    }
+
+    private void UnhookTopLevel()
+    {
+        if (_topLevel is null)
+            return;
+        _topLevel.RemoveHandler(InputElement.GotFocusEvent, OnTopLevelGotFocus);
+        _topLevel.RemoveHandler(InputElement.LostFocusEvent, OnTopLevelLostFocus);
+        _topLevel = null;
+    }
+
+    private void OnTopLevelGotFocus(object? sender, FocusChangedEventArgs e)
+    {
+        var focused = _topLevel?.FocusManager?.GetFocusedElement() ?? e.Source as IInputElement;
+        if (_current is not null && IsFocusWithin(_current, focused))
+        {
+            _previousFocus ??= _lastOutsideFocus;
+        }
+        else
+        {
+            _lastOutsideFocus = focused;
+            _previousFocus = null;
+        }
+    }
+
+    private void OnTopLevelLostFocus(object? sender, FocusChangedEventArgs e)
+    {
+        var focused = _topLevel?.FocusManager?.GetFocusedElement();
+        if (focused is not null)
+            return;
+        if (_current is not null && IsFocusWithin(_current, e.Source as IInputElement))
+            _previousFocus = null;
+        else
+            _lastOutsideFocus = null;
     }
 
     private static bool IsFocusWithin(Visual root, IInputElement? focus) =>

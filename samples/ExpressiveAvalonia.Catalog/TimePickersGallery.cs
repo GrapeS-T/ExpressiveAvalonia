@@ -20,9 +20,16 @@ public static class TimePickersGallery
 internal sealed class TimePickerPlayground : Grid, IComponentPlayground
 {
     private static readonly string[] MinuteSteps = { "1", "5", "10", "15", "30" };
-    private static readonly string[] FieldShapes = { "8", "16", "24", "28" };
-    private static readonly string[] PeriodShapes = { "8", "16", "999" };
+    private static readonly string[] FieldShapes = { "Default", "8", "16", "24", "28" };
+    private static readonly string[] PeriodShapes = { "Default", "8", "16", "999" };
     private static readonly string[] Cultures = { "Current", "en-US", "ar-EG", "fa-IR", "ru-RU" };
+
+    private static readonly MaterialTimeInputMode[] StandardModes =
+        { MaterialTimeInputMode.Dial, MaterialTimeInputMode.Keyboard };
+    private static readonly MaterialTimeInputMode[] VibrantModes =
+        { MaterialTimeInputMode.Dial, MaterialTimeInputMode.Keyboard, MaterialTimeInputMode.Scroll };
+    private static readonly MaterialTimeInputMode[] UncontainedModes =
+        { MaterialTimeInputMode.Keyboard, MaterialTimeInputMode.Scroll };
 
     private readonly MaterialTimePicker _picker = new()
     {
@@ -36,7 +43,7 @@ internal sealed class TimePickerPlayground : Grid, IComponentPlayground
         HorizontalAlignment = HorizontalAlignment.Center,
         TextWrapping = TextWrapping.Wrap,
     };
-    private readonly ComboBox _mode = new() { ItemsSource = Enum.GetNames<MaterialTimeInputMode>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _mode = new() { ItemsSource = StandardModes, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ComboBox _variant = new() { ItemsSource = Enum.GetNames<MaterialTimePickerVariant>(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ComboBox _fieldShape = new() { ItemsSource = FieldShapes, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ComboBox _periodShape = new() { ItemsSource = PeriodShapes, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -52,6 +59,7 @@ internal sealed class TimePickerPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _autoAdvance;
     private readonly TextBox _headline;
     private readonly Button _dialog;
+    private MaterialTimeInputMode[] _allowedModes = StandardModes;
     private bool _syncing;
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
@@ -170,37 +178,114 @@ internal sealed class TimePickerPlayground : Grid, IComponentPlayground
         _headline.TextChanged += (_, _) => { if (!_syncing) ApplyOptions(); };
         _hour.PropertyChanged += (_, e) => { if (!_syncing && e.Property == RangeBase.ValueProperty) ApplyTime(); };
         _minute.PropertyChanged += (_, e) => { if (!_syncing && e.Property == RangeBase.ValueProperty) ApplyTime(); };
-        _picker.PropertyChanged += (_, e) => { if (!_syncing && e.Property == MaterialTimePicker.TimeProperty) SyncTime(); };
+        _picker.PropertyChanged += (_, e) =>
+        {
+            if (_syncing)
+                return;
+            if (e.Property == MaterialTimePicker.TimeProperty)
+                SyncTime();
+            else if (e.Property == MaterialTimePicker.InputModeProperty)
+                SyncInputMode();
+        };
         _picker.Confirmed += (_, e) => _status.Text = $"Подтверждено: {Format(e.Time)}";
         _picker.Cancelled += (_, _) => _status.Text = $"Отменено, значение {Format(_picker.Time)}";
 
         ApplyOptions();
     }
 
+    private static MaterialTimeInputMode[] AllowedModesFor(MaterialTimePickerVariant variant) =>
+        variant switch
+        {
+            MaterialTimePickerVariant.Vibrant => VibrantModes,
+            MaterialTimePickerVariant.Uncontained => UncontainedModes,
+            _ => StandardModes,
+        };
+
     private void ApplyOptions()
     {
         _syncing = true;
-        _picker.Variant = (MaterialTimePickerVariant)Math.Clamp(_variant.SelectedIndex, 0,
-            Enum.GetValues<MaterialTimePickerVariant>().Length - 1);
-        _picker.InputMode = (MaterialTimeInputMode)Math.Clamp(_mode.SelectedIndex, 0,
-            Enum.GetValues<MaterialTimeInputMode>().Length - 1);
-        _picker.TimeFieldShape = new CornerRadius(double.Parse(
-            FieldShapes[Math.Clamp(_fieldShape.SelectedIndex, 0, FieldShapes.Length - 1)]));
-        _picker.PeriodSelectorShape = new CornerRadius(double.Parse(
-            PeriodShapes[Math.Clamp(_periodShape.SelectedIndex, 0, PeriodShapes.Length - 1)]));
-        _picker.Format = (MaterialTimeFormat)Math.Clamp(_format.SelectedIndex, 0, 1);
-        _picker.Orientation = (Orientation)Math.Clamp(_orientation.SelectedIndex, 0, 1);
-        _picker.MinuteIncrement = int.Parse(MinuteSteps[Math.Clamp(_increment.SelectedIndex, 0, MinuteSteps.Length - 1)]);
-        var cultureIndex = Math.Clamp(_culture.SelectedIndex, 0, Cultures.Length - 1);
-        _picker.Culture = cultureIndex == 0 ? null : CultureInfo.GetCultureInfo(Cultures[cultureIndex]);
-        _picker.Width = _width.Value;
-        _picker.ShowActions = _actions.IsChecked == true;
-        _picker.AutoAdvance = _autoAdvance.IsChecked == true;
-        _picker.MinTime = _limit.IsChecked == true ? TimeSpan.FromHours(9) : null;
-        _picker.MaxTime = _limit.IsChecked == true ? TimeSpan.FromHours(17) : null;
-        _picker.Headline = string.IsNullOrWhiteSpace(_headline.Text) ? null : _headline.Text;
-        _syncing = false;
+        try
+        {
+            var variant = (MaterialTimePickerVariant)Math.Clamp(_variant.SelectedIndex, 0,
+                Enum.GetValues<MaterialTimePickerVariant>().Length - 1);
+            var allowedModes = AllowedModesFor(variant);
+            var currentSelectedMode = _mode.SelectedIndex >= 0 && _mode.SelectedIndex < _allowedModes.Length
+                ? _allowedModes[_mode.SelectedIndex]
+                : _picker.InputMode;
+            if (!ReferenceEquals(_allowedModes, allowedModes))
+            {
+                _allowedModes = allowedModes;
+                _mode.ItemsSource = allowedModes;
+            }
+            var modeIndex = Array.IndexOf(allowedModes, currentSelectedMode);
+            if (modeIndex < 0)
+                modeIndex = 0;
+            _mode.SelectedIndex = modeIndex;
+            var mode = allowedModes[modeIndex];
+
+            var canHorizontal = mode == MaterialTimeInputMode.Dial &&
+                                variant != MaterialTimePickerVariant.Uncontained;
+            _orientation.IsEnabled = canHorizontal;
+            if (!canHorizontal)
+                _orientation.SelectedIndex = 1; // Orientation.Vertical
+
+            _picker.Variant = variant;
+            _picker.InputMode = mode;
+
+            var fieldShapeIndex = Math.Clamp(_fieldShape.SelectedIndex, 0, FieldShapes.Length - 1);
+            _picker.TimeFieldShape = fieldShapeIndex == 0
+                ? null
+                : new CornerRadius(double.Parse(FieldShapes[fieldShapeIndex], CultureInfo.InvariantCulture));
+
+            var periodShapeIndex = Math.Clamp(_periodShape.SelectedIndex, 0, PeriodShapes.Length - 1);
+            _picker.PeriodSelectorShape = periodShapeIndex == 0
+                ? null
+                : new CornerRadius(double.Parse(PeriodShapes[periodShapeIndex], CultureInfo.InvariantCulture));
+
+            _picker.Format = (MaterialTimeFormat)Math.Clamp(_format.SelectedIndex, 0, 1);
+            _picker.Orientation = canHorizontal
+                ? (Orientation)Math.Clamp(_orientation.SelectedIndex, 0, 1)
+                : Orientation.Vertical;
+            _picker.MinuteIncrement = int.Parse(MinuteSteps[Math.Clamp(_increment.SelectedIndex, 0, MinuteSteps.Length - 1)], CultureInfo.InvariantCulture);
+            var cultureIndex = Math.Clamp(_culture.SelectedIndex, 0, Cultures.Length - 1);
+            _picker.Culture = cultureIndex == 0 ? null : CultureInfo.GetCultureInfo(Cultures[cultureIndex]);
+            _picker.Width = _width.Value;
+            _picker.ShowActions = _actions.IsChecked == true;
+            _picker.AutoAdvance = _autoAdvance.IsChecked == true;
+            _picker.MinTime = _limit.IsChecked == true ? TimeSpan.FromHours(9) : null;
+            _picker.MaxTime = _limit.IsChecked == true ? TimeSpan.FromHours(17) : null;
+            _picker.Headline = string.IsNullOrWhiteSpace(_headline.Text) ? null : _headline.Text;
+        }
+        finally
+        {
+            _syncing = false;
+        }
         SyncTime();
+    }
+
+    private void SyncInputMode()
+    {
+        _syncing = true;
+        try
+        {
+            var mode = _picker.InputMode;
+            var index = Array.IndexOf(_allowedModes, mode);
+            if (index >= 0)
+                _mode.SelectedIndex = index;
+
+            var canHorizontal = mode == MaterialTimeInputMode.Dial &&
+                                _picker.Variant != MaterialTimePickerVariant.Uncontained;
+            _orientation.IsEnabled = canHorizontal;
+            if (!canHorizontal && _picker.Orientation == Orientation.Horizontal)
+            {
+                _orientation.SelectedIndex = 1;
+                _picker.Orientation = Orientation.Vertical;
+            }
+        }
+        finally
+        {
+            _syncing = false;
+        }
     }
 
     private void ApplyTime()

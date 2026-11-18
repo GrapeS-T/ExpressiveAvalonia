@@ -48,7 +48,7 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
         TextWrapping = TextWrapping.Wrap,
     };
     private readonly ComboBox _layout = new() { ItemsSource = Layouts, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private static readonly string[] FlingBehaviors = { "Single advance", "Velocity", "No snap" };
+    private static readonly string[] FlingBehaviors = { "Layout default", "Single advance", "Velocity", "No snap" };
     private readonly ComboBox _fling = new() { ItemsSource = FlingBehaviors, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBlock _current = new() { Text = "CurrentItem: —", FontSize = 13 };
     private readonly Slider _count;
@@ -63,6 +63,7 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _rtl;
     private readonly ToggleSwitch _fillHeight;
     private MaterialCarouselLayout _builtLayout = (MaterialCarouselLayout)(-1);
+    private bool _spacingOverridden;
     private bool _rebuilding;
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
@@ -127,7 +128,16 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
         _layout.SelectionChanged += (_, _) => { if (!_rebuilding) Apply(); };
         _fling.SelectionChanged += (_, _) => { if (!_rebuilding) Apply(); };
         foreach (var slider in new[] { _count, _height, _spacing, _width, _fullHeight })
-            slider.PropertyChanged += (_, e) => { if (!_rebuilding && e.Property == RangeBase.ValueProperty) Apply(); };
+        {
+            slider.PropertyChanged += (_, e) =>
+            {
+                if (_rebuilding || e.Property != RangeBase.ValueProperty)
+                    return;
+                if (ReferenceEquals(slider, _spacing))
+                    _spacingOverridden = true;
+                Apply();
+            };
+        }
         foreach (var toggle in new[] { _text, _snap, _userScroll, _disableLast, _rtl, _fillHeight })
             toggle.IsCheckedChanged += (_, _) => { if (!_rebuilding) Apply(); };
 
@@ -155,12 +165,17 @@ internal sealed class CarouselPlayground : Grid, IComponentPlayground
         var layout = (MaterialCarouselLayout)Math.Clamp(_layout.SelectedIndex, 0, Layouts.Length - 1);
         var full = layout == MaterialCarouselLayout.FullScreen;
         var fill = _fillHeight.IsChecked == true;
+        if (layout != _builtLayout && !_spacingOverridden)
+            _spacing.Value = full ? 16 : 8;
         _carousel.Layout = layout;
         _carousel.FlowDirection = _rtl.IsChecked == true
             ? FlowDirection.RightToLeft
             : FlowDirection.LeftToRight;
         _carousel.ItemHeight = fill ? double.NaN : _height.Value;
-        _carousel.ItemSpacing = _spacing.Value;
+        if (_spacingOverridden)
+            _carousel.ItemSpacing = _spacing.Value;
+        else
+            _carousel.ClearValue(MaterialCarousel.ItemSpacingProperty);
         _carousel.Width = _width.Value;
         _carousel.Height = full || fill ? _fullHeight.Value : double.NaN;
         _carousel.IsSnapToItems = _snap.IsChecked == true;

@@ -57,6 +57,7 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
     };
     private readonly ComboBox _type;
     private readonly MaterialButtonGroup _surface;
+    private readonly StackPanel _surfacePanel = new() { Spacing = 8 };
     private readonly ComboBox _variant;
     private readonly ComboBox _density;
     private readonly ToggleSwitch _scroll;
@@ -70,6 +71,16 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
     private readonly StackPanel _densityPanel = new() { Spacing = 8 };
     private readonly StackPanel _countPanel = new() { Spacing = 8 };
     private readonly TextBlock _countCaption = new();
+    private Control? _exposedPanel;
+    private Border? _groupsCard;
+    private readonly MaterialMenuGroup[] _groups = new MaterialMenuGroup[3];
+    private MaterialMenuButton? _menuButton;
+    private MaterialMenuFlyout? _flyout;
+    private Button? _contextButton;
+    private ContextMenu? _contextMenu;
+    private Menu? _menuBar;
+    private bool _showGridChecked = true;
+    private bool _menuBarVibrantChecked;
     private bool _syncing;
     public StackPanel Settings { get; } = new() { Spacing = 16 };
 
@@ -108,7 +119,8 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         };
         AutomationProperties.SetName(_type, "Тип меню");
         Settings.Children.Add(_type);
-        _surface = Choice("Поверхность", new[] { "Baseline", "Expressive" }, 1);
+        _surface = Choice(_surfacePanel, "Поверхность", new[] { "Baseline", "Expressive" }, 1);
+        Settings.Children.Add(_surfacePanel);
 
         _variantPanel.Children.Add(new TextBlock { Text = "Вариант" });
         _variant = new ComboBox
@@ -203,33 +215,46 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         _syncing = true;
         CloseMenus();
 
+        var type = Math.Clamp(_type.SelectedIndex, 0, 4);
+        var isPopupMenu = type is 0 or 1 or 2;
+        var isGroups = type == 4;
+        var usesSurface = isPopupMenu || isGroups;
+
         var surface = Surface;
         var expressive = surface == MaterialMenuSurfaceStyle.Expressive;
-        _variantPanel.IsVisible = expressive;
-        _densityPanel.IsVisible = !expressive;
+
+        _surfacePanel.IsVisible = usesSurface;
+        _variantPanel.IsVisible = usesSurface && expressive;
+        _densityPanel.IsVisible = usesSurface && !expressive;
+        _scroll.IsVisible = isPopupMenu;
+        _icons.IsVisible = isPopupMenu || isGroups;
+        _supporting.IsVisible = isPopupMenu || isGroups;
+        _divider.IsVisible = isPopupMenu;
+        _active.IsVisible = isPopupMenu;
+        _labels.IsVisible = isPopupMenu || isGroups;
+        _countPanel.IsVisible = isPopupMenu;
         _countCaption.Text = $"Пунктов в меню: {(int)Math.Round(_count.Value)}";
 
-        var type = Math.Clamp(_type.SelectedIndex, 0, 4);
         switch (type)
         {
             case 1:
-                _host.Content = BuildContextMenu();
+                _host.Content = EnsureContextMenu();
                 _hint.Text = "Нажмите кнопку или откройте контекстное меню правой кнопкой / клавишей меню.";
                 break;
             case 2:
-                _host.Content = BuildMenuBar();
-                _hint.Text = "Откройте «Файл» или «Вид»: подменю и радиопункты работают нативно.";
+                _host.Content = EnsureMenuBar();
+                _hint.Text = "Откройте «Файл» или «Вид»: подменю и радиопункты сохраняют выбранное состояние.";
                 break;
             case 3:
-                _host.Content = BuildExposedDropdown();
+                _host.Content = EnsureExposedDropdown();
                 _hint.Text = "Exposed dropdown сохраняет выбор ComboBox и IME; поле поиска фильтрует строки, ↑/↓/Enter/Escape работают из поля.";
                 break;
             case 4:
-                _host.Content = BuildGroups();
+                _host.Content = EnsureGroups();
                 _hint.Text = "Три группы: Leading 16/8, Middle 8 и Trailing 8/16. Наведите и уведите курсор — углы переходят в inactive 8.";
                 break;
             default:
-                _host.Content = BuildMenuButton();
+                _host.Content = EnsureMenuButton();
                 _hint.Text = "Нажмите кнопку, Enter, Space или ↓ — меню откроется как MenuFlyout.";
                 break;
         }
@@ -253,8 +278,11 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
             combo.IsDropDownOpen = false;
     }
 
-    private Control BuildExposedDropdown()
+    private Control EnsureExposedDropdown()
     {
+        if (_exposedPanel is not null)
+            return _exposedPanel;
+
         var panel = new StackPanel { Spacing = 16, MinWidth = 260 };
 
         var dropdown = new ComboBox
@@ -281,124 +309,167 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         search.ItemInvoked += (_, args) => Report($"Поле меню: {args.Item.Label}");
         panel.Children.Add(search);
 
-        // The exposed dropdown stays on the baseline menu surface: the keyed ComboBox theme is the
-        // source ExposedDropdownMenuBox anchor and its popup is the MenuTokens container.
+        // Reuse the same instance across inspector updates so search text and dropdown selection persist.
+        _exposedPanel = panel;
         return panel;
     }
 
-    private Control BuildGroups()
+    private Control EnsureGroups()
     {
-        var card = new Border
-        {
-            Padding = new Thickness(8),
-            CornerRadius = new CornerRadius(16),
-            MinWidth = 240,
-        };
-        card.Bind(Border.BackgroundProperty, card.GetResourceObservable("MaterialSurfaceContainerBrush"));
-
-        var stack = new StackPanel { Spacing = 0 };
-        var positions = new[]
-        {
-            MaterialMenuGroupPosition.Leading,
-            MaterialMenuGroupPosition.Middle,
-            MaterialMenuGroupPosition.Trailing,
-        };
         var labels = new[] { "Первая", "Средняя", "Последняя" };
-        for (var index = 0; index < positions.Length; index++)
+        if (_groupsCard is null)
         {
-            var label = labels[index];
-            var group = new MaterialMenuGroup { Header = label, Position = positions[index] };
-            MaterialMenu.SetSurfaceStyle(group, MaterialMenuSurfaceStyle.Expressive);
-            MaterialMenu.SetVariant(group, Variant);
-            for (var row = 1; row <= 2; row++)
+            var card = new Border
             {
-                var item = new MenuItem { Header = $"{label}: пункт {row}" };
-                MaterialMenu.SetItemPosition(item,
-                    row == 1 ? MaterialMenuItemPosition.Leading : MaterialMenuItemPosition.Trailing);
-                item.Click += (_, _) => Report($"Группа: {label}");
-                group.Items.Add(item);
+                Padding = new Thickness(8),
+                CornerRadius = new CornerRadius(16),
+                MinWidth = 240,
+            };
+            card.Bind(Border.BackgroundProperty, card.GetResourceObservable("MaterialSurfaceContainerBrush"));
+
+            var stack = new StackPanel { Spacing = 0 };
+            var positions = new[]
+            {
+                MaterialMenuGroupPosition.Leading,
+                MaterialMenuGroupPosition.Middle,
+                MaterialMenuGroupPosition.Trailing,
+            };
+            for (var index = 0; index < positions.Length; index++)
+            {
+                var label = labels[index];
+                var group = new MaterialMenuGroup { Header = label, Position = positions[index] };
+                for (var row = 1; row <= 2; row++)
+                {
+                    var item = new MenuItem { Header = $"{label}: пункт {row}" };
+                    MaterialMenu.SetItemPosition(item,
+                        row == 1 ? MaterialMenuItemPosition.Leading : MaterialMenuItemPosition.Trailing);
+                    item.Click += (_, _) => Report($"Группа: {label}");
+                    group.Items.Add(item);
+                }
+                _groups[index] = group;
+                stack.Children.Add(group);
             }
-            stack.Children.Add(group);
+            card.Child = stack;
+            _groupsCard = card;
         }
-        card.Child = stack;
-        return card;
+
+        Geometry[] groupIcons = [Edit, Copy, Share];
+        for (var index = 0; index < _groups.Length; index++)
+        {
+            var group = _groups[index];
+            MaterialMenu.SetSurfaceStyle(group, Surface);
+            MaterialMenu.SetVariant(group, Variant);
+            MaterialMenu.SetDensity(group, Density);
+            group.Header = _labels.IsChecked == true ? labels[index] : null;
+            var rowIndex = 0;
+            foreach (var item in group.Items.OfType<MenuItem>())
+            {
+                item.Icon = _icons.IsChecked == true && rowIndex == 0
+                    ? new PathIcon { Data = groupIcons[index % groupIcons.Length] }
+                    : null;
+                MaterialMenu.SetSupportingText(item,
+                    _supporting.IsChecked == true && index == 0 && rowIndex == 0 ? "Второй строкой" : null);
+                rowIndex++;
+            }
+        }
+        return _groupsCard;
     }
 
-    private Control BuildMenuButton()
+    private Control EnsureMenuButton()
     {
-        var button = new MaterialMenuButton { Content = "Открыть меню" };
-        MaterialMenu.SetVariant(button, Variant);
-        button.Flyout = BuildFlyout();
-        AutomationProperties.SetName(button, "Открыть меню");
-        return button;
+        if (_menuButton is null || _flyout is null)
+        {
+            _flyout = new MaterialMenuFlyout
+            {
+                Placement = PlacementMode.Bottom,
+                PlacementConstraintAdjustment = PopupPositionerConstraintAdjustment.FlipX
+                    | PopupPositionerConstraintAdjustment.FlipY
+                    | PopupPositionerConstraintAdjustment.SlideX
+                    | PopupPositionerConstraintAdjustment.SlideY,
+            };
+            _menuButton = new MaterialMenuButton { Content = "Открыть меню", Flyout = _flyout };
+            AutomationProperties.SetName(_menuButton, "Открыть меню");
+        }
+
+        MaterialMenu.SetVariant(_menuButton, Variant);
+        _flyout.FlyoutPresenterTheme = FlyoutPresenterTheme();
+        _flyout.Items.Clear();
+        Populate(item => _flyout.Items.Add(item));
+        return _menuButton;
     }
 
-    private Control BuildContextMenu()
+    private Control EnsureContextMenu()
     {
-        var button = new Button { Content = "Открыть контекстное меню" };
-        MaterialAssist.SetButtonVariant(button, MaterialButtonVariant.Tonal);
-        var menu = new ContextMenu();
-        MaterialMenu.SetSurfaceStyle(menu, Surface);
-        MaterialMenu.SetVariant(menu, Variant);
-        MaterialMenu.SetDensity(menu, Density);
-        MaterialMenu.SetShowScrollBar(menu, _scroll.IsChecked == true);
-        MaterialMenu.SetAnimateContextMenu(menu, true);
-        Populate(item => menu.Items.Add(item));
-        button.ContextMenu = menu;
-        button.Click += (_, _) => menu.Open(button);
-        AutomationProperties.SetName(button, "Открыть контекстное меню");
-        return button;
+        if (_contextButton is null || _contextMenu is null)
+        {
+            _contextButton = new Button { Content = "Открыть контекстное меню" };
+            MaterialAssist.SetButtonVariant(_contextButton, MaterialButtonVariant.Tonal);
+            _contextMenu = new ContextMenu();
+            MaterialMenu.SetAnimateContextMenu(_contextMenu, true);
+            _contextButton.ContextMenu = _contextMenu;
+            _contextButton.Click += (_, _) => _contextMenu.Open(_contextButton);
+            AutomationProperties.SetName(_contextButton, "Открыть контекстное меню");
+        }
+
+        MaterialMenu.SetSurfaceStyle(_contextMenu, Surface);
+        MaterialMenu.SetVariant(_contextMenu, Variant);
+        MaterialMenu.SetDensity(_contextMenu, Density);
+        MaterialMenu.SetShowScrollBar(_contextMenu, _scroll.IsChecked == true);
+        _contextMenu.Items.Clear();
+        Populate(item => _contextMenu.Items.Add(item));
+        return _contextButton;
     }
 
-    private Control BuildMenuBar()
+    private Control EnsureMenuBar()
     {
-        var menu = new Menu { HorizontalAlignment = HorizontalAlignment.Center };
-        MaterialMenu.SetSurfaceStyle(menu, Surface);
-        MaterialMenu.SetVariant(menu, Variant);
-        MaterialMenu.SetDensity(menu, Density);
-        MaterialMenu.SetShowScrollBar(menu, _scroll.IsChecked == true);
+        _menuBar ??= new Menu { HorizontalAlignment = HorizontalAlignment.Center };
+        MaterialMenu.SetSurfaceStyle(_menuBar, Surface);
+        MaterialMenu.SetVariant(_menuBar, Variant);
+        MaterialMenu.SetDensity(_menuBar, Density);
+        MaterialMenu.SetShowScrollBar(_menuBar, _scroll.IsChecked == true);
 
         var file = new MenuItem { Header = "Файл" };
         Populate(item => file.Items.Add(item));
         var view = new MenuItem { Header = "Вид" };
         var theme = new MenuItem { Header = "Тема" };
+        MaterialMenu.SetItemPosition(theme, MaterialMenuItemPosition.Leading);
         var standard = new MenuItem
         {
             Header = "Standard",
             ToggleType = MenuItemToggleType.Radio,
             GroupName = "menu-bar-theme",
-            IsChecked = true,
+            IsChecked = !_menuBarVibrantChecked,
         };
-        standard.Click += (_, _) => Report("Тема: Standard");
+        MaterialMenu.SetItemPosition(standard, MaterialMenuItemPosition.Leading);
+        standard.Click += (_, _) =>
+        {
+            _menuBarVibrantChecked = false;
+            Report("Тема: Standard");
+        };
         var vibrant = new MenuItem
         {
             Header = "Vibrant",
             ToggleType = MenuItemToggleType.Radio,
             GroupName = "menu-bar-theme",
+            IsChecked = _menuBarVibrantChecked,
         };
-        vibrant.Click += (_, _) => Report("Тема: Vibrant");
+        MaterialMenu.SetItemPosition(vibrant, MaterialMenuItemPosition.Trailing);
+        vibrant.Click += (_, _) =>
+        {
+            _menuBarVibrantChecked = true;
+            Report("Тема: Vibrant");
+        };
         theme.Items.Add(standard);
         theme.Items.Add(vibrant);
         view.Items.Add(theme);
-        view.Items.Add(Item("Свойства", null, null, Chevron));
-        menu.Items.Add(file);
-        menu.Items.Add(view);
-        return menu;
-    }
+        var viewProperties = Item("Свойства", null, null, Chevron);
+        MaterialMenu.SetItemPosition(viewProperties, MaterialMenuItemPosition.Trailing);
+        view.Items.Add(viewProperties);
 
-    private MenuFlyout BuildFlyout()
-    {
-        var flyout = new MaterialMenuFlyout
-        {
-            FlyoutPresenterTheme = FlyoutPresenterTheme(),
-            Placement = PlacementMode.Bottom,
-            PlacementConstraintAdjustment = PopupPositionerConstraintAdjustment.FlipX
-                | PopupPositionerConstraintAdjustment.FlipY
-                | PopupPositionerConstraintAdjustment.SlideX
-                | PopupPositionerConstraintAdjustment.SlideY,
-        };
-        Populate(item => flyout.Items.Add(item));
-        return flyout;
+        _menuBar.Items.Clear();
+        _menuBar.Items.Add(file);
+        _menuBar.Items.Add(view);
+        return _menuBar;
     }
 
     /// <summary>
@@ -463,19 +534,35 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         {
             Header = "Показать сетку",
             ToggleType = MenuItemToggleType.CheckBox,
-            IsChecked = true,
+            IsChecked = _showGridChecked,
         };
-        grid.Click += (_, _) => Report($"Показать сетку: {(grid.IsChecked == true ? "вкл" : "выкл")}");
+        MaterialMenu.SetDensity(grid, Density);
+        MaterialMenu.SetItemPosition(grid, MaterialMenuItemPosition.Leading);
+        grid.Click += (_, _) =>
+        {
+            _showGridChecked = grid.IsChecked;
+            Report($"Показать сетку: {(grid.IsChecked ? "вкл" : "выкл")}");
+        };
         add(grid);
 
         var more = new MenuItem { Header = "Ещё" };
-        more.Items.Add(Item("Переместить", null, null, null));
-        more.Items.Add(Item("В архив", null, null, null));
+        MaterialMenu.SetDensity(more, Density);
+        MaterialMenu.SetItemPosition(more, MaterialMenuItemPosition.Middle);
+        var move = Item("Переместить", null, null, null);
+        MaterialMenu.SetItemPosition(move, MaterialMenuItemPosition.Leading);
+        var archive = Item("В архив", null, null, null);
+        MaterialMenu.SetItemPosition(archive, MaterialMenuItemPosition.Trailing);
+        var delete = Item("Удалить", null, null, null);
+        MaterialMenu.SetItemPosition(delete, MaterialMenuItemPosition.Trailing);
+        more.Items.Add(move);
+        more.Items.Add(archive);
         more.Items.Add(SeparatorItem());
-        more.Items.Add(Item("Удалить", null, null, null));
+        more.Items.Add(delete);
         add(more);
 
-        add(Item("Свойства", null, null, Chevron));
+        var properties = Item("Свойства", null, null, Chevron);
+        MaterialMenu.SetItemPosition(properties, MaterialMenuItemPosition.Trailing);
+        add(properties);
     }
 
     private MenuItem Item(string header, KeyGesture? gesture, Geometry? icon, Geometry? trailing)
@@ -510,10 +597,9 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         return toggle;
     }
 
-    private MaterialButtonGroup Choice(string label, string[] options, int selected)
+    private static MaterialButtonGroup Choice(StackPanel host, string label, string[] options, int selected)
     {
-        var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock { Text = label });
+        host.Children.Add(new TextBlock { Text = label });
         var group = new MaterialButtonGroup
         {
             Kind = MaterialButtonGroupKind.Connected,
@@ -525,8 +611,7 @@ internal sealed class MenusPlayground : Grid, IComponentPlayground
         foreach (var option in options)
             group.Items.Add(new MaterialButtonGroupItem { Content = option });
         group.SelectedIndex = selected;
-        panel.Children.Add(group);
-        Settings.Children.Add(panel);
+        host.Children.Add(group);
         return group;
     }
 

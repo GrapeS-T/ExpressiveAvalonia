@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Specialized;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Automation;
@@ -124,7 +125,13 @@ public sealed class MaterialTimeInputSegment : TemplatedControl
     public static readonly StyledProperty<bool> AutoAdvanceSingleDigitProperty =
         AvaloniaProperty.Register<MaterialTimeInputSegment, bool>(nameof(AutoAdvanceSingleDigit));
 
+    /// <summary>Outer corner radius of the 3dp focus ring at a 2dp gap around the cell.</summary>
+    public static readonly DirectProperty<MaterialTimeInputSegment, CornerRadius> FocusRingCornerRadiusProperty =
+        AvaloniaProperty.RegisterDirect<MaterialTimeInputSegment, CornerRadius>(
+            nameof(FocusRingCornerRadius), o => o.FocusRingCornerRadius);
+
     private TextBox? _editor;
+    private CornerRadius _focusRingCornerRadius = new(13);
     private bool _updatingText;
     private bool _updatingValue;
 
@@ -256,6 +263,9 @@ public sealed class MaterialTimeInputSegment : TemplatedControl
         set => SetValue(AutoAdvanceSingleDigitProperty, value);
     }
 
+    /// <summary>Outer corner radius of the 3dp focus ring at a 2dp gap around the cell.</summary>
+    public CornerRadius FocusRingCornerRadius => _focusRingCornerRadius;
+
     /// <summary>Raised when the value changes, from typing, stepping or the owner.</summary>
     public event EventHandler? ValueChanged;
 
@@ -295,6 +305,7 @@ public sealed class MaterialTimeInputSegment : TemplatedControl
             _editor.GotFocus -= EditorGotFocus;
             _editor.LostFocus -= EditorLostFocus;
             _editor.KeyDown -= EditorKeyDown;
+            _editor.Classes.CollectionChanged -= EditorClassesChanged;
         }
 
         base.OnApplyTemplate(e);
@@ -311,10 +322,13 @@ public sealed class MaterialTimeInputSegment : TemplatedControl
             _editor.GotFocus += EditorGotFocus;
             _editor.LostFocus += EditorLostFocus;
             _editor.KeyDown += EditorKeyDown;
+            _editor.Classes.CollectionChanged += EditorClassesChanged;
         }
 
         UpdateAutomation();
         UpdateVariantClasses();
+        UpdateFocusRingCornerRadius();
+        UpdateFocusVisible();
         PseudoClasses.Set(":selected", IsSelected);
         PseudoClasses.Set(":invalid", IsInvalid);
         // The template may be re-applied (theme change, detach/attach); the editor is the only
@@ -377,7 +391,13 @@ public sealed class MaterialTimeInputSegment : TemplatedControl
         {
             UpdateVariantClasses();
         }
-        else if (change.Property == LabelProperty || change.Property == HelpTextProperty)
+        else if (change.Property == CornerRadiusProperty)
+        {
+            UpdateFocusRingCornerRadius();
+        }
+        else if (change.Property == LabelProperty || change.Property == HelpTextProperty ||
+                 change.Property == AutomationProperties.NameProperty ||
+                 change.Property == AutomationProperties.HelpTextProperty)
         {
             UpdateAutomation();
         }
@@ -391,14 +411,34 @@ public sealed class MaterialTimeInputSegment : TemplatedControl
         PseudoClasses.Set(":uncontained", Variant == MaterialTimeSegmentVariant.Uncontained);
     }
 
+    private void UpdateFocusRingCornerRadius()
+    {
+        var r = CornerRadius;
+        var next = new CornerRadius(r.TopLeft + 5, r.TopRight + 5, r.BottomRight + 5, r.BottomLeft + 5);
+        SetAndRaise(FocusRingCornerRadiusProperty, ref _focusRingCornerRadius, next);
+    }
+
+    private void UpdateFocusVisible()
+    {
+        var visible = _editor is { IsFocused: true } editor && editor.Classes.Contains(":focus-visible");
+        PseudoClasses.Set(":segment-focus-visible", visible);
+    }
+
+    private void EditorClassesChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdateFocusVisible();
+
     private void UpdateAutomation()
     {
         if (_editor is null) return;
-        AutomationProperties.SetName(_editor, Label ?? string.Empty);
-        if (string.IsNullOrEmpty(HelpText))
+        var callerName = AutomationProperties.GetName(this);
+        AutomationProperties.SetName(_editor,
+            !string.IsNullOrEmpty(callerName) ? callerName : Label ?? string.Empty);
+
+        var callerHelp = AutomationProperties.GetHelpText(this);
+        var help = !string.IsNullOrEmpty(callerHelp) ? callerHelp : HelpText;
+        if (string.IsNullOrEmpty(help))
             AutomationProperties.SetHelpText(_editor, null);
         else
-            AutomationProperties.SetHelpText(_editor, HelpText);
+            AutomationProperties.SetHelpText(_editor, help);
     }
 
     private int CoerceSegmentValue(int value)
@@ -584,12 +624,14 @@ public sealed class MaterialTimeInputSegment : TemplatedControl
 
     private void EditorGotFocus(object? sender, RoutedEventArgs e)
     {
+        UpdateFocusVisible();
         _editor?.SelectAll();
         SelectionRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void EditorLostFocus(object? sender, RoutedEventArgs e)
     {
+        UpdateFocusVisible();
         // The source keeps hourInput/minuteInput drafts independently from the valid hour and
         // minute, so an invalid draft survives focus changes and only an external value update
         // replaces it. A valid draft is merely formatted with its two-digit display text.

@@ -31,6 +31,7 @@
     <Setter Property="FocusRingBrush" Value="{DynamicResource MaterialSecondaryBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="Focusable" Value="False" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Grid>
@@ -78,8 +79,8 @@
                                   EnableHover="{TemplateBinding IsInteractive}"
                                   EnableFocus="{TemplateBinding IsInteractive}"
                                   IsHitTestVisible="False" />
-          <Border Name="PART_FocusRing" BorderBrush="{TemplateBinding FocusRingBrush}" BorderThickness="2"
-                  CornerRadius="{TemplateBinding FocusRingCornerRadius}" Margin="-2"
+          <Border Name="PART_FocusRing" BorderBrush="{TemplateBinding FocusRingBrush}" BorderThickness="3"
+                  CornerRadius="{TemplateBinding FocusRingCornerRadius}" Margin="-5"
                   IsVisible="False" IsHitTestVisible="False" />
         </Grid>
       </ControlTemplate>
@@ -129,6 +130,7 @@
     <Setter Property="StateLayerBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="FocusRingBrush" Value="{DynamicResource MaterialSecondaryBrush}" />
     <Setter Property="Focusable" Value="False" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Grid>
@@ -150,8 +152,8 @@
                                   EnableHover="{TemplateBinding IsInteractive}"
                                   EnableFocus="{TemplateBinding IsInteractive}"
                                   IsHitTestVisible="False" />
-          <Border Name="PART_FocusRing" BorderBrush="{TemplateBinding FocusRingBrush}" BorderThickness="2"
-                  CornerRadius="{TemplateBinding FocusRingCornerRadius}" Margin="-2"
+          <Border Name="PART_FocusRing" BorderBrush="{TemplateBinding FocusRingBrush}" BorderThickness="3"
+                  CornerRadius="{TemplateBinding FocusRingCornerRadius}" Margin="-5"
                   IsVisible="False" IsHitTestVisible="False" />
         </Grid>
       </ControlTemplate>

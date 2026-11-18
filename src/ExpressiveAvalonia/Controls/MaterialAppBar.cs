@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -438,14 +437,14 @@ public sealed class MaterialTopAppBarRow : Panel
     /// <summary>Horizontal alignment of the title within the bar.</summary>
     public static readonly StyledProperty<TextAlignment> TitleAlignmentProperty =
         AvaloniaProperty.Register<MaterialTopAppBarRow, TextAlignment>(
-            nameof(TitleAlignment), TextAlignment.Left);
+            nameof(TitleAlignment), TextAlignment.Start);
 
     /// <summary>Vertical arrangement of the title: center for single/collapsed rows, bottom for expanded rows.</summary>
     public static readonly StyledProperty<VerticalAlignment> TitleVerticalArrangementProperty =
         AvaloniaProperty.Register<MaterialTopAppBarRow, VerticalAlignment>(
             nameof(TitleVerticalArrangement), VerticalAlignment.Center);
 
-    /// <summary>Bottom padding of an expanded title, 24 for medium and 28 for large variants.</summary>
+    /// <summary>Bottom padding of an expanded title.</summary>
     public static readonly StyledProperty<double> TitleBottomPaddingProperty =
         AvaloniaProperty.Register<MaterialTopAppBarRow, double>(nameof(TitleBottomPadding));
 
@@ -466,6 +465,8 @@ public sealed class MaterialTopAppBarRow : Panel
     {
         AffectsMeasure<MaterialTopAppBarRow>(TitleAlignmentProperty, TitleVerticalArrangementProperty,
             TitleBottomPaddingProperty, TitleInsetProperty);
+        AffectsArrange<MaterialTopAppBarRow>(TitleAlignmentProperty, TitleVerticalArrangementProperty,
+            TitleBottomPaddingProperty, TitleInsetProperty, FlowDirectionProperty);
     }
 
     public TextAlignment TitleAlignment
@@ -526,32 +527,34 @@ public sealed class MaterialTopAppBarRow : Panel
         var width = finalSize.Width;
         var height = finalSize.Height;
         var navW = _navigation.DesiredSize.Width;
-        var titleW = Math.Min(_title.DesiredSize.Width, Math.Max(0, width - Math.Max(TitleInset, navW) - _actions.DesiredSize.Width));
-        var titleH = _title.DesiredSize.Height;
         var actionsW = _actions.DesiredSize.Width;
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
-
-        var navX = rtl ? width - navW : 0;
-        var actionsX = rtl ? 0 : width - actionsW;
-        _navigation.Arrange(new Rect(navX, (height - _navigation.DesiredSize.Height) / 2, navW,
-            _navigation.DesiredSize.Height));
-        _actions.Arrange(new Rect(actionsX, (height - _actions.DesiredSize.Height) / 2, actionsW,
-            _actions.DesiredSize.Height));
-
-        // LTR title placement, then mirror for RTL. The title is centred against the whole bar and
-        // pushed inward only when it would cross a slot.
         var start = Math.Max(TitleInset, navW);
         var end = actionsW;
-        var titleX = TitleAlignment switch
-        {
-            TextAlignment.Center => (width - titleW) / 2,
-            TextAlignment.Right => width - titleW,
-            _ => 0
-        };
+        var titleW = Math.Min(_title.DesiredSize.Width, Math.Max(0, width - start - end));
+        var titleH = _title.DesiredSize.Height;
+        var rtl = FlowDirection == FlowDirection.RightToLeft;
+
+        // Avalonia mirrors the panel's X-coordinate plane in RTL (x = 0 is logical start /
+        // physical right, x = width is logical end / physical left). Place slots and title in
+        // logical coordinates so they are not double-mirrored in RTL.
+        _navigation.Arrange(new Rect(0, (height - _navigation.DesiredSize.Height) / 2, navW,
+            _navigation.DesiredSize.Height));
+        _actions.Arrange(new Rect(width - actionsW, (height - _actions.DesiredSize.Height) / 2, actionsW,
+            _actions.DesiredSize.Height));
+
+        var alignEnd = TitleAlignment == TextAlignment.End
+            || (!rtl && TitleAlignment == TextAlignment.Right)
+            || (rtl && TitleAlignment == TextAlignment.Left);
+        var titleX = TitleAlignment == TextAlignment.Center
+            ? (width - titleW) / 2
+            : alignEnd
+                ? width - titleW
+                : 0;
         if (titleX < start)
             titleX += start - titleX;
         else if (titleX + titleW > width - end)
             titleX += (width - end) - (titleX + titleW);
+        titleX = Math.Max(start, titleX);
 
         var titleY = TitleVerticalArrangement switch
         {
@@ -560,8 +563,6 @@ public sealed class MaterialTopAppBarRow : Panel
             _ => (height - titleH) / 2
         };
         titleY = Math.Max(0, titleY);
-        if (rtl)
-            titleX = width - titleX - titleW;
         _title.Arrange(new Rect(titleX, titleY, titleW, titleH));
         return finalSize;
     }
@@ -1024,9 +1025,9 @@ public partial class MaterialAppBar : MaterialBarBase
     public static readonly StyledProperty<object?> SubtitleProperty =
         AvaloniaProperty.Register<MaterialAppBar, object?>(nameof(Subtitle));
 
-    /// <summary>Text alignment of the title; Left/Center map to upstream Start/Center.</summary>
+    /// <summary>Text alignment of the title; Start/Center/End map to upstream alignment.</summary>
     public static readonly StyledProperty<TextAlignment> TitleAlignmentProperty =
-        AvaloniaProperty.Register<MaterialAppBar, TextAlignment>(nameof(TitleAlignment), TextAlignment.Left);
+        AvaloniaProperty.Register<MaterialAppBar, TextAlignment>(nameof(TitleAlignment), TextAlignment.Start);
 
     /// <summary>Expanded height in DIPs; NaN selects the configuration token height.</summary>
     public static readonly StyledProperty<double> ExpandedHeightProperty =
@@ -1150,6 +1151,10 @@ public partial class MaterialAppBar : MaterialBarBase
         AvaloniaProperty.RegisterDirect<MaterialAppBar, bool>(
             nameof(HasLeadingIcon), bar => bar.HasLeadingIcon, (bar, value) => bar.HasLeadingIcon = value);
 
+    public static readonly DirectProperty<MaterialAppBar, bool> HasNavigationProperty =
+        AvaloniaProperty.RegisterDirect<MaterialAppBar, bool>(
+            nameof(HasNavigation), bar => bar.HasNavigation);
+
     public static readonly DirectProperty<MaterialAppBar, double> EffectiveExpandedHeightProperty =
         AvaloniaProperty.RegisterDirect<MaterialAppBar, double>(
             nameof(EffectiveExpandedHeight), bar => bar.EffectiveExpandedHeight);
@@ -1195,10 +1200,11 @@ public partial class MaterialAppBar : MaterialBarBase
     private bool _showCollapsedSubtitle;
     private bool _showExpandedSubtitle;
     private bool _showTopSubtitle;
-    private double _expandedTitleBottomPadding = 24;
+    private double _expandedTitleBottomPadding = 16;
     private bool _hasThumbnail;
     private bool _hasAvatar;
     private bool _hasLeadingIcon;
+    private bool _hasNavigation;
     private double _effectiveExpandedHeight = 64;
     private double _effectiveCollapsedHeight = 64;
     private double _measuredExpandedPart = 64;
@@ -1208,9 +1214,13 @@ public partial class MaterialAppBar : MaterialBarBase
     private double _topTitleOpacity = 1;
     private double _bottomTitleOpacity;
     private Panel? _searchHost;
+    private Border? _safeArea;
     private MaterialTopAppBarStack? _stack;
+    private MaterialTopAppBarRow? _row1;
+    private Panel? _searchContainer;
     private Border? _searchField;
     private TextBox? _searchBox;
+    private MaterialFocusIndicator? _searchFocusRing;
     private IDisposable? _searchBackgroundBinding;
     private MaterialBarScrollAdapter? _adapter;
     private MaterialAppBarState? _state;
@@ -1227,6 +1237,7 @@ public partial class MaterialAppBar : MaterialBarBase
     private Control? _topTitlePresenter;
     private Control? _bottomTitlePresenter;
     private bool _dragging;
+    private Visual? _dragSpace;
     private double _dragLastY;
     private double _dragVelocity;
     private ulong _dragLastTimestamp;
@@ -1398,7 +1409,10 @@ public partial class MaterialAppBar : MaterialBarBase
         private set
         {
             if (SetAndRaise(IsScrolledProperty, ref _isScrolled, value))
+            {
                 PseudoClasses.Set(":scrolled", value);
+                UpdateSearchBackground();
+            }
         }
     }
 
@@ -1488,6 +1502,12 @@ public partial class MaterialAppBar : MaterialBarBase
         private set => SetAndRaise(HasLeadingIconProperty, ref _hasLeadingIcon, value);
     }
 
+    public bool HasNavigation
+    {
+        get => _hasNavigation;
+        private set => SetAndRaise(HasNavigationProperty, ref _hasNavigation, value);
+    }
+
     /// <summary>Resolved expanded height in DIPs (token or <see cref="ExpandedHeight"/>).</summary>
     public double EffectiveExpandedHeight => _effectiveExpandedHeight;
 
@@ -1539,7 +1559,8 @@ public partial class MaterialAppBar : MaterialBarBase
         if (IsInteractiveSource(e.Source))
             return;
         _dragging = true;
-        _dragLastY = e.GetPosition(this).Y;
+        _dragSpace = (Visual?)TopLevel.GetTopLevel(this) ?? this.GetVisualParent() ?? this;
+        _dragLastY = e.GetPosition(_dragSpace).Y;
         _dragVelocity = 0;
         _dragLastTimestamp = e.Timestamp;
         e.Pointer.Capture(this);
@@ -1551,7 +1572,7 @@ public partial class MaterialAppBar : MaterialBarBase
         base.OnPointerMoved(e);
         if (!_dragging || ScrollBehavior is not { } behavior)
             return;
-        var y = e.GetPosition(this).Y;
+        var y = e.GetPosition(_dragSpace ?? this).Y;
         var delta = y - _dragLastY;
         _dragLastY = y;
         var dt = Math.Max(1, e.Timestamp - _dragLastTimestamp) / 1000d;
@@ -1569,6 +1590,7 @@ public partial class MaterialAppBar : MaterialBarBase
         if (!_dragging)
             return;
         _dragging = false;
+        _dragSpace = null;
         e.Pointer.Capture(null);
         ScrollBehavior?.OnPostFling(_dragVelocity, this);
         _dragVelocity = 0;
@@ -1579,6 +1601,7 @@ public partial class MaterialAppBar : MaterialBarBase
     {
         base.OnPointerCaptureLost(e);
         _dragging = false;
+        _dragSpace = null;
     }
 
     private static bool IsInteractiveSource(object? source)
@@ -1599,7 +1622,9 @@ public partial class MaterialAppBar : MaterialBarBase
         base.OnApplyTemplate(e);
 
         _searchHost = e.NameScope.Find<Panel>("PART_DefaultSearchHost");
+        _safeArea = e.NameScope.Find<Border>("PART_SafeArea");
         _stack = e.NameScope.Find<MaterialTopAppBarStack>("PART_Stack");
+        _row1 = e.NameScope.Find<MaterialTopAppBarRow>("PART_Row1");
         if (_searchHost is not null)
         {
             var field = EnsureSearchField();
@@ -1608,12 +1633,14 @@ public partial class MaterialAppBar : MaterialBarBase
                 _searchHost.Children.Clear();
                 _searchHost.Children.Add(field);
             }
+            ApplySearchBoxTheme();
             UpdateSearchBackground();
         }
 
         _topTitlePresenter = e.NameScope.Find<Control>("PART_Title");
         _bottomTitlePresenter = e.NameScope.Find<Control>("PART_ExpandedTitle");
         UpdateTitleAccessibility();
+        UpdateSearchClipState();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -1621,6 +1648,8 @@ public partial class MaterialAppBar : MaterialBarBase
         base.OnAttachedToVisualTree(e);
         _scrollColorSubscription = this.GetResourceObservable("MaterialSurfaceContainerColor")
             .Subscribe(new ScrollColorObserver(this));
+        ApplySearchBoxTheme();
+        UpdateSearchBackground();
         UpdateAdapter();
         SubscribeState();
         UpdateScrollDerived();
@@ -1759,12 +1788,18 @@ public partial class MaterialAppBar : MaterialBarBase
         ShowCollapsedSubtitle = IsFlexibleLayout && HasSubtitle;
         ShowExpandedSubtitle = IsFlexibleLayout && HasSubtitle;
         ShowTopSubtitle = IsSingleRowLayout && HasSubtitle || ShowCollapsedSubtitle;
-        ExpandedTitleBottomPadding = configuration is MaterialAppBarConfiguration.Large
-            or MaterialAppBarConfiguration.LargeFlexible
-            ? 28
-            : 24;
+        ExpandedTitleBottomPadding = configuration switch
+        {
+            MaterialAppBarConfiguration.Medium => 16,
+            MaterialAppBarConfiguration.Large => 20,
+            MaterialAppBarConfiguration.MediumFlexible => HasSubtitle ? 16 : 12,
+            MaterialAppBarConfiguration.LargeFlexible => HasSubtitle ? 16 : 12,
+            _ => 16
+        };
         HasAvatar = AvatarContent is not null || !string.IsNullOrEmpty(AvatarText);
         HasLeadingIcon = LeadingIcon is not null && LeadingContent is null;
+        HasNavigation = HasLeadingIcon || LeadingContent is not null;
+        UpdateSearchClipState();
 
         _effectiveCollapsedHeight = double.IsFinite(CollapsedHeight)
             ? Math.Max(0, CollapsedHeight)
@@ -1875,6 +1910,18 @@ public partial class MaterialAppBar : MaterialBarBase
         }
         UpdateTitleContents();
         UpdateTitleAccessibility();
+        UpdateSearchClipState();
+    }
+
+    private void UpdateSearchClipState()
+    {
+        var clip = !(IsSearchLayout && CollapsedFraction <= 0.001);
+        if (_safeArea is not null)
+            _safeArea.ClipToBounds = clip;
+        if (_stack is not null)
+            _stack.ClipToBounds = clip;
+        if (_row1 is not null)
+            _row1.ClipToBounds = clip;
     }
 
     private void UpdateTitleContents()
@@ -1985,19 +2032,21 @@ public partial class MaterialAppBar : MaterialBarBase
 
     private Control EnsureSearchField()
     {
-        if (_searchField is not null)
-            return _searchField;
+        if (_searchContainer is not null)
+            return _searchContainer;
 
         _searchBox = new TextBox
         {
             MinWidth = 0,
-            MinHeight = 56,
-            Padding = new Thickness(20, 16),
+            MinHeight = 48,
+            Padding = new Thickness(0),
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(0),
-            VerticalContentAlignment = VerticalAlignment.Center
+            VerticalContentAlignment = VerticalAlignment.Center,
+            FocusAdorner = null
         };
+        ApplySearchBoxTheme();
         _searchBox.Bind(TextBox.TextProperty, new Binding(nameof(SearchText))
         {
             Source = this,
@@ -2005,30 +2054,62 @@ public partial class MaterialAppBar : MaterialBarBase
         });
         _searchBox.Bind(TextBox.PlaceholderTextProperty, new Binding(nameof(SearchPlaceholder)) { Source = this });
         _searchBox.Bind(AutomationProperties.NameProperty, new Binding(nameof(SearchPlaceholder)) { Source = this });
+        _searchBox.Bind(TextBox.TextAlignmentProperty, new Binding(nameof(TitleAlignment)) { Source = this });
         _searchBox.KeyDown += OnSearchKeyDown;
 
         _searchField = new Border
         {
             Height = 56,
+            Padding = new Thickness(16, 0),
             CornerRadius = new CornerRadius(28),
             ClipToBounds = true,
             Child = _searchBox
         };
-        return _searchField;
+
+        _searchFocusRing = new MaterialFocusIndicator
+        {
+            Name = "FocusRing",
+            Margin = new Thickness(-5),
+            StrokeThickness = 3,
+            CornerRadius = new CornerRadius(33),
+            FocusTarget = _searchBox,
+            IsHitTestVisible = false,
+            UseLayoutRounding = false
+        };
+        _searchFocusRing.Bind(MaterialFocusIndicator.StrokeProperty,
+            this.GetResourceObservable("MaterialSecondaryBrush"));
+
+        _searchContainer = new Panel
+        {
+            Height = 56,
+            ClipToBounds = false,
+            Children = { _searchField, _searchFocusRing }
+        };
+        return _searchContainer;
+    }
+
+    private void ApplySearchBoxTheme()
+    {
+        if (_searchBox is null)
+            return;
+        if (this.TryFindResource("MaterialSearchTextBox", out var resource) && resource is ControlTheme theme)
+            _searchBox.Theme = theme;
     }
 
     private void UpdateSearchBackground()
     {
         if (_searchField is null)
             return;
-        // Extension: flat search sits on the surface container; the optional elevated variant
-        // uses the next container tone.
-        var key = Elevation == MaterialAppBarElevation.OnScroll
-            ? "MaterialSurfaceContainerHighBrush"
-            : "MaterialSurfaceContainerBrush";
+        // Scrolled state switches the search pill to SurfaceContainerHighest so contrast against
+        // the scrolled SurfaceContainer app bar is preserved (matching MaterialSearchAppBar).
+        var key = IsScrolled
+            ? "MaterialSurfaceContainerHighestBrush"
+            : Elevation == MaterialAppBarElevation.OnScroll
+                ? "MaterialSurfaceContainerHighBrush"
+                : "MaterialSurfaceContainerBrush";
         _searchBackgroundBinding?.Dispose();
         _searchBackgroundBinding = _searchField.Bind(Border.BackgroundProperty,
-            _searchField.GetResourceObservable(key));
+            this.GetResourceObservable(key));
     }
 
     private void OnSearchKeyDown(object? sender, KeyEventArgs e)

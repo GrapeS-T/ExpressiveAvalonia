@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Avalonia;
@@ -211,6 +212,27 @@ public sealed class MaterialMenu : AvaloniaObject
     public static readonly AttachedProperty<IBrush?> AnimatedBackgroundProperty =
         AvaloniaProperty.RegisterAttached<MaterialMenu, MenuItem, IBrush?>("AnimatedBackground");
 
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<CornerRadius> AnimatedCornerRadiusProperty =
+        AvaloniaProperty.RegisterAttached<MaterialMenu, MenuItem, CornerRadius>("AnimatedCornerRadius");
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<CornerRadius> FocusRingCornerRadiusProperty =
+        AvaloniaProperty.RegisterAttached<MaterialMenu, MenuItem, CornerRadius>(
+            "FocusRingCornerRadius", new CornerRadius(5));
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<bool> ShowLeadingProperty =
+        AvaloniaProperty.RegisterAttached<MaterialMenu, MenuItem, bool>("ShowLeading");
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<bool> ShowTrailingProperty =
+        AvaloniaProperty.RegisterAttached<MaterialMenu, MenuItem, bool>("ShowTrailing");
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static readonly AttachedProperty<bool> HasGroupsProperty =
+        AvaloniaProperty.RegisterAttached<MaterialMenu, ItemsControl, bool>("HasGroups");
+
     static MaterialMenu()
     {
         SupportingTextProperty.Changed.AddClassHandler<MenuItem>((item, _) => UpdateItemPadding(item));
@@ -218,16 +240,45 @@ public sealed class MaterialMenu : AvaloniaObject
         {
             UpdateItemPadding(item);
             RowContainerColor.Get(item).Set(item.Background);
+            RowCornerShape.Get(item).Set(item.CornerRadius);
         });
-        IsSectionLabelProperty.Changed.AddClassHandler<MenuItem>((item, _) => UpdateItemPadding(item));
+        IsSectionLabelProperty.Changed.AddClassHandler<MenuItem>((item, _) =>
+        {
+            UpdateItemPadding(item);
+            UpdateSlotVisibility(item);
+        });
+        MenuItem.IconProperty.Changed.AddClassHandler<MenuItem>(static (item, _) => UpdateSlotVisibility(item));
+        MenuItem.ToggleTypeProperty.Changed.AddClassHandler<MenuItem>(static (item, _) => UpdateSlotVisibility(item));
+        MenuItem.InputGestureProperty.Changed.AddClassHandler<MenuItem>(static (item, _) => UpdateSlotVisibility(item));
+        TrailingIconProperty.Changed.AddClassHandler<MenuItem>(static (item, _) => UpdateSlotVisibility(item));
+        ItemsControl.ItemCountProperty.Changed.AddClassHandler<ItemsControl>(static (control, _) =>
+        {
+            if (control is MenuItem item)
+                UpdateSlotVisibility(item);
+            GroupHostTracker.Ensure(control);
+        });
+        TemplatedControl.TemplateAppliedEvent.AddClassHandler<ItemsControl>(
+            static (control, _) => GroupHostTracker.Ensure(control));
 
-        // The style still owns Background (it is what :checked changes); the row spring follows
-        // that target. Template application seeds the first composition so a menu that opens with
-        // a checked row does not animate from an unset brush.
+        // The style still owns Background and CornerRadius; the row springs follow those targets.
+        // Template application seeds the first composition so a menu that opens with a checked or
+        // leading/trailing row does not animate from an unset value.
         TemplatedControl.BackgroundProperty.Changed.AddClassHandler<MenuItem>(
             static (item, _) => RowContainerColor.Get(item).Set(item.Background));
-        TemplatedControl.TemplateAppliedEvent.AddClassHandler<MenuItem>(
-            static (item, _) => RowContainerColor.Get(item).Set(item.Background));
+        TemplatedControl.CornerRadiusProperty.Changed.AddClassHandler<MenuItem>(
+            static (item, _) => RowCornerShape.Get(item).Set(item.CornerRadius));
+        AnimatedCornerRadiusProperty.Changed.AddClassHandler<MenuItem>(static (item, args) =>
+        {
+            var r = args.NewValue is CornerRadius c ? c : default;
+            item.SetValue(FocusRingCornerRadiusProperty,
+                new CornerRadius(r.TopLeft + 5, r.TopRight + 5, r.BottomRight + 5, r.BottomLeft + 5));
+        });
+        TemplatedControl.TemplateAppliedEvent.AddClassHandler<MenuItem>(static (item, _) =>
+        {
+            UpdateSlotVisibility(item);
+            RowContainerColor.Get(item).Set(item.Background);
+            RowCornerShape.Get(item).Set(item.CornerRadius);
+        });
         AnimatePopupProperty.Changed.AddClassHandler<Popup>((popup, args) =>
         {
             if (args.NewValue is true)
@@ -322,8 +373,9 @@ public sealed class MaterialMenu : AvaloniaObject
 
     /// <summary>
     /// Recomputes <see cref="ItemPaddingProperty"/>: the expressive selection surface is inset
-    /// 4 DIP horizontally and 2 DIP vertically when the row has supporting text. Baseline rows and
-    /// section labels have no outer inset.
+    /// 4 DIP horizontally, plus 1 DIP vertically on single-line items (giving SegmentedMenuTokens'
+    /// 2 DIP vertical gap between rows) and 2 DIP vertically when supporting text is shown.
+    /// Baseline rows and section labels have no vertical outer inset.
     /// </summary>
     private static void UpdateItemPadding(MenuItem item)
     {
@@ -333,10 +385,27 @@ public sealed class MaterialMenu : AvaloniaObject
             return;
         }
 
-        // Section labels use the same 4 DIP horizontal inset as items but have no supporting-text
-        // axis; regular rows add 2 DIP above and below only when the second line exists.
-        var vertical = GetIsSectionLabel(item) || string.IsNullOrEmpty(GetSupportingText(item)) ? 0 : 2;
+        // Section labels use the same 4 DIP horizontal inset as items; regular single-line rows
+        // add 1 DIP above and below (2 DIP inter-item gap), and two-line rows add 2 DIP.
+        var vertical = GetIsSectionLabel(item)
+            ? 0
+            : string.IsNullOrEmpty(GetSupportingText(item)) ? 1 : 2;
         item.SetValue(ItemPaddingProperty, new Thickness(4, vertical));
+    }
+
+    private static void UpdateSlotVisibility(MenuItem item)
+    {
+        if (GetIsSectionLabel(item))
+        {
+            item.SetValue(ShowLeadingProperty, false);
+            item.SetValue(ShowTrailingProperty, false);
+            return;
+        }
+
+        item.SetValue(ShowLeadingProperty,
+            item.Icon is not null || item.ToggleType != MenuItemToggleType.None);
+        item.SetValue(ShowTrailingProperty,
+            item.InputGesture is not null || GetTrailingIcon(item) is not null || item.ItemCount > 0);
     }
 
     /// <summary>
@@ -436,6 +505,224 @@ public sealed class MaterialMenu : AvaloniaObject
     public static IBrush? GetAnimatedBackground(MenuItem item) => item.GetValue(AnimatedBackgroundProperty);
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static void SetAnimatedBackground(MenuItem item, IBrush? value) => item.SetValue(AnimatedBackgroundProperty, value);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static CornerRadius GetAnimatedCornerRadius(MenuItem item) => item.GetValue(AnimatedCornerRadiusProperty);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void SetAnimatedCornerRadius(MenuItem item, CornerRadius value) => item.SetValue(AnimatedCornerRadiusProperty, value);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static CornerRadius GetFocusRingCornerRadius(MenuItem item) => item.GetValue(FocusRingCornerRadiusProperty);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void SetFocusRingCornerRadius(MenuItem item, CornerRadius value) => item.SetValue(FocusRingCornerRadiusProperty, value);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static bool GetShowLeading(MenuItem item) => item.GetValue(ShowLeadingProperty);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void SetShowLeading(MenuItem item, bool value) => item.SetValue(ShowLeadingProperty, value);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static bool GetShowTrailing(MenuItem item) => item.GetValue(ShowTrailingProperty);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void SetShowTrailing(MenuItem item, bool value) => item.SetValue(ShowTrailingProperty, value);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static bool GetHasGroups(ItemsControl control) => control.GetValue(HasGroupsProperty);
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void SetHasGroups(ItemsControl control, bool value) => control.SetValue(HasGroupsProperty, value);
+
+    private sealed class GroupHostTracker
+    {
+        private static readonly ConditionalWeakTable<ItemsControl, GroupHostTracker> Trackers = new();
+
+        private readonly ItemsControl _control;
+        private ItemsSourceView? _itemsView;
+
+        private GroupHostTracker(ItemsControl control)
+        {
+            _control = control;
+            AttachView();
+            Refresh();
+        }
+
+        internal static void Ensure(ItemsControl control)
+        {
+            if (control is not (MenuBase or MenuItem or MenuFlyoutPresenter))
+                return;
+
+            if (Trackers.TryGetValue(control, out var tracker))
+            {
+                tracker.AttachView();
+                tracker.Refresh();
+                return;
+            }
+
+            Trackers.Add(control, new GroupHostTracker(control));
+        }
+
+        private void AttachView()
+        {
+            var view = _control.ItemsView;
+            if (ReferenceEquals(view, _itemsView))
+                return;
+
+            if (_itemsView is not null)
+                _itemsView.CollectionChanged -= OnItemsChanged;
+            _itemsView = view;
+            if (_itemsView is not null)
+                _itemsView.CollectionChanged += OnItemsChanged;
+        }
+
+        private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            AttachView();
+            Refresh();
+        }
+
+        private void Refresh()
+        {
+            var hasGroups = false;
+            foreach (var child in _control.Items)
+            {
+                if (child is MaterialMenuGroup)
+                {
+                    hasGroups = true;
+                    break;
+                }
+            }
+
+            _control.SetValue(HasGroupsProperty, hasGroups);
+        }
+    }
+
+    /// <summary>
+    /// Expressive menu item corner morph (Menu.kt SegmentedMenuTokens / shapeByInteraction:
+    /// MotionSchemeKeyTokens.FastSpatial). Initial composition and non-expressive items snap.
+    /// </summary>
+    private sealed class RowCornerShape
+    {
+        private static readonly ConditionalWeakTable<MenuItem, RowCornerShape> States = new();
+
+        private readonly MenuItem _item;
+        private readonly double[] _values = new double[4];
+        private readonly MaterialMotion.SpringAnimation?[] _springs = new MaterialMotion.SpringAnimation?[4];
+        private readonly Action<double>[] _apply;
+        private bool _attached;
+        private bool _readyToAnimate;
+
+        private RowCornerShape(MenuItem item)
+        {
+            _item = item;
+            _apply =
+            [
+                value => SetCorner(0, value),
+                value => SetCorner(1, value),
+                value => SetCorner(2, value),
+                value => SetCorner(3, value),
+            ];
+            _attached = item.IsAttachedToVisualTree();
+            item.AttachedToVisualTree += OnAttachedToVisualTree;
+            item.DetachedFromVisualTree += OnDetachedFromVisualTree;
+            if (_attached)
+                ArmAnimation();
+        }
+
+        internal static RowCornerShape Get(MenuItem item)
+        {
+            if (States.TryGetValue(item, out var state))
+                return state;
+            state = new RowCornerShape(item);
+            States.Add(item, state);
+            return state;
+        }
+
+        internal void Set(CornerRadius target)
+        {
+            Span<double> targets = stackalloc double[4]
+            {
+                target.TopLeft,
+                target.TopRight,
+                target.BottomRight,
+                target.BottomLeft,
+            };
+
+            var animate = _readyToAnimate
+                          && _attached
+                          && GetSurfaceStyle(_item) == MaterialMenuSurfaceStyle.Expressive
+                          && !MaterialMotion.GetIsReduced(_item)
+                          && target.TopLeft < 1000 && target.TopRight < 1000
+                          && target.BottomRight < 1000 && target.BottomLeft < 1000;
+            if (!animate)
+            {
+                StopSprings();
+                for (var i = 0; i < 4; i++)
+                    _values[i] = targets[i];
+                _item.SetValue(AnimatedCornerRadiusProperty, target);
+                return;
+            }
+
+            for (var i = 0; i < 4; i++)
+            {
+                var cornerTarget = targets[i];
+                var spring = _springs[i];
+                if (spring is not null)
+                {
+                    spring.Retarget(cornerTarget);
+                }
+                else if (Math.Abs(_values[i] - cornerTarget) > 0.05)
+                {
+                    _springs[i] = MaterialMotion.Animate(
+                        _item, _values[i], cornerTarget, _apply[i],
+                        MaterialSpring.SpatialFast, visibilityThreshold: 0.05);
+                }
+                else
+                {
+                    _values[i] = cornerTarget;
+                }
+            }
+            Publish();
+        }
+
+        private void SetCorner(int index, double value)
+        {
+            _values[index] = Math.Max(0, value);
+            Publish();
+        }
+
+        private void Publish()
+        {
+            _item.SetValue(AnimatedCornerRadiusProperty,
+                new CornerRadius(_values[0], _values[1], _values[2], _values[3]));
+        }
+
+        private void StopSprings()
+        {
+            for (var i = 0; i < _springs.Length; i++)
+            {
+                _springs[i]?.Dispose();
+                _springs[i] = null;
+            }
+        }
+
+        private void ArmAnimation()
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_attached)
+                    _readyToAnimate = true;
+            }, DispatcherPriority.Loaded);
+        }
+
+        private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            _attached = true;
+            _readyToAnimate = false;
+            Set(_item.CornerRadius);
+            ArmAnimation();
+        }
+
+        private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            _attached = false;
+            _readyToAnimate = false;
+            StopSprings();
+        }
+    }
 
     /// <summary>
     /// The expressive row container color animation (Menu.kt:2012-2020:
@@ -745,13 +1032,15 @@ public sealed class MaterialMenu : AvaloniaObject
     }
 
     /// <summary>
-    /// Close transition for a <see cref="ContextMenu"/>. The menu is the popup child, so it is
-    /// animated directly; <see cref="ContextMenu.Closing"/> cancels the first close attempt and the
-    /// deferred <see cref="ContextMenu.Close"/> performs the real one.
+    /// Entrance and close transitions for a <see cref="ContextMenu"/>. The menu is the popup child,
+    /// so it is animated directly with FastSpatial scale (0.8..1) and FastEffects opacity (0..1)
+    /// from the anchor/top-start pivot; <see cref="ContextMenu.Closing"/> cancels the first close
+    /// attempt and the deferred <see cref="ContextMenu.Close"/> performs the real one.
     /// </summary>
     private sealed class ContextMenuExit
     {
         private static readonly ConditionalWeakTable<ContextMenu, ContextMenuExit> States = new();
+        private const double ClosedScale = 0.8d;
 
         private readonly ContextMenu _menu;
         private ScaleTransform? _scale;
@@ -795,9 +1084,9 @@ public sealed class MaterialMenu : AvaloniaObject
             if (_scale is null)
             {
                 _scale = new ScaleTransform(1, 1);
-                _menu.RenderTransformOrigin = RelativePoint.Center;
+                _menu.RenderTransformOrigin = Origin();
                 _menu.RenderTransform = _scale;
-                _scaleAnimation = MaterialMotion.Animate(_menu, 1, 0.8, value =>
+                _scaleAnimation = MaterialMotion.Animate(_menu, 1, ClosedScale, value =>
                 {
                     if (_scale is { } scale)
                         scale.ScaleX = scale.ScaleY = value;
@@ -807,7 +1096,7 @@ public sealed class MaterialMenu : AvaloniaObject
             }
             else
             {
-                _scaleAnimation?.Retarget(0.8);
+                _scaleAnimation?.Retarget(ClosedScale);
                 _opacityAnimation?.Retarget(0);
             }
 
@@ -839,13 +1128,57 @@ public sealed class MaterialMenu : AvaloniaObject
 
         private void OnOpened(object? sender, EventArgs args)
         {
-            if (!_exiting) return;
-            _timer?.Stop();
-            _timer = null;
-            _exiting = false;
-            _opacityAnimation?.Retarget(1);
-            _scaleAnimation?.Retarget(1);
+            if (_exiting)
+            {
+                _timer?.Stop();
+                _timer = null;
+                _exiting = false;
+                _opacityAnimation?.Retarget(1);
+                _scaleAnimation?.Retarget(1);
+                _menu.IsHitTestVisible = true;
+                return;
+            }
+
+            Cleanup();
+            if (MaterialMotion.GetIsReduced(_menu) || !_menu.IsAttachedToVisualTree())
+            {
+                Restore();
+                return;
+            }
+
+            _menu.RenderTransformOrigin = Origin();
+            _scale = new ScaleTransform(ClosedScale, ClosedScale);
+            _menu.RenderTransform = _scale;
+            _menu.Opacity = 0;
             _menu.IsHitTestVisible = true;
+            _scaleAnimation = MaterialMotion.Animate(_menu, ClosedScale, 1, value =>
+            {
+                if (_scale is { } scale)
+                    scale.ScaleX = scale.ScaleY = value;
+            }, MaterialSpring.SpatialFast);
+            _opacityAnimation = MaterialMotion.Animate(_menu, 0, 1,
+                value => _menu.Opacity = value, MaterialSpring.EffectsFast);
+        }
+
+        private RelativePoint Origin()
+        {
+            if (_menu.Placement != PlacementMode.Pointer &&
+                _menu.PlacementTarget is { } target &&
+                TopLevel.GetTopLevel(_menu) is { } menuRoot &&
+                TopLevel.GetTopLevel(target) is { } targetRoot &&
+                ReferenceEquals(menuRoot, targetRoot))
+            {
+                var menuOrigin = _menu.TranslatePoint(default, menuRoot);
+                var anchorOrigin = target.TranslatePoint(default, targetRoot);
+                if (menuOrigin is { } menuPoint && anchorOrigin is { } anchorPoint)
+                {
+                    return CalculatePopupTransformOrigin(
+                        new Rect(anchorPoint, target.Bounds.Size),
+                        new Rect(menuPoint, _menu.Bounds.Size));
+                }
+            }
+
+            return RelativePoint.TopLeft;
         }
 
         private void OnClosed(object? sender, EventArgs args)

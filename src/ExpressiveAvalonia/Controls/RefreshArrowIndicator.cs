@@ -14,6 +14,8 @@ internal sealed class RefreshArrowIndicator : TemplatedControl
     private StreamGeometry? _arc, _arrow;
     private double _geometryProgress = double.NaN;
 
+    protected override bool BypassFlowDirectionPolicies => true;
+
     public RefreshArrowIndicator()
     {
         Width = Height = 16;

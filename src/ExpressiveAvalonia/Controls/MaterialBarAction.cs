@@ -125,14 +125,18 @@ public sealed class MaterialBarAction : AvaloniaObject
         AvaloniaProperty.RegisterDirect<MaterialBarAction, string?>(
             nameof(EffectiveAutomationName), action => action.EffectiveAutomationName);
 
+    private string? _effectiveAutomationName;
+
     /// <summary>Creates an empty clickable action; use the initializer or a factory method.</summary>
     public MaterialBarAction()
     {
         PropertyChanged += (_, args) =>
         {
             if (args.Property == TextProperty || args.Property == AutomationNameProperty)
-                RaisePropertyChanged(EffectiveAutomationNameProperty,
-                    args.GetOldValue<string?>(), EffectiveAutomationName);
+            {
+                var next = string.IsNullOrEmpty(AutomationName) ? Text : AutomationName;
+                SetAndRaise(EffectiveAutomationNameProperty, ref _effectiveAutomationName, next);
+            }
         };
     }
 
@@ -217,8 +221,7 @@ public sealed class MaterialBarAction : AvaloniaObject
         set => SetValue(MenuContentFactoryProperty, value);
     }
 
-    public string? EffectiveAutomationName =>
-        string.IsNullOrEmpty(AutomationName) ? Text : AutomationName;
+    public string? EffectiveAutomationName => _effectiveAutomationName;
 
     /// <summary>Creates a clickable item.</summary>
     public static MaterialBarAction Clickable(string label, Geometry? icon, ICommand? command,

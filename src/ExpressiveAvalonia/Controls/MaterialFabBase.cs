@@ -62,7 +62,7 @@ public abstract class MaterialFabBase : Button
             nameof(ColorRole), MaterialFabColorRole.PrimaryContainer);
 
     /// <summary>
-    /// The focus indicator radius: the surface radius plus the source's two unit inset.
+    /// The focus indicator radius: the surface radius plus the 5-DIP outset (2-DIP gap + 3-DIP stroke).
     /// </summary>
     /// <remarks>Template plumbing; set from <see cref="Border.CornerRadius"/>.</remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -129,7 +129,10 @@ public abstract class MaterialFabBase : Button
     private void UpdateFocusRingRadius()
     {
         var radius = CornerRadius;
-        var uniform = Math.Max(0, radius.TopLeft + 2);
-        FocusRingCornerRadius = new CornerRadius(uniform, radius.TopRight + 2, radius.BottomRight + 2, radius.BottomLeft + 2);
+        FocusRingCornerRadius = new CornerRadius(
+            Math.Max(0, radius.TopLeft + 5),
+            Math.Max(0, radius.TopRight + 5),
+            Math.Max(0, radius.BottomRight + 5),
+            Math.Max(0, radius.BottomLeft + 5));
     }
 }

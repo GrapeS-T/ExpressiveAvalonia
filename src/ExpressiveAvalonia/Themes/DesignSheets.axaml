@@ -17,6 +17,7 @@
   <x:String x:Key="MaterialSheetBackText">Back</x:String>
   <x:String x:Key="MaterialSheetDragHandleText">Resize bottom sheet</x:String>
   <x:String x:Key="MaterialBottomSheetText">Bottom sheet</x:String>
+  <x:String x:Key="MaterialSideSheetText">Side sheet</x:String>
 
   <!-- Affordances reuse the implicit Material Button theme (icon button, Small, Standard,
        Round) so disabled, hover, focus and pressed states stay identical to other icon buttons. -->
@@ -38,7 +39,7 @@
                   BorderThickness="1,0,0,0">
             <Grid RowDefinitions="Auto,*,Auto">
               <Grid Name="PART_Header" ColumnDefinitions="Auto,*,Auto" Margin="24,12,12,16">
-                <Button Name="PART_BackButton"
+                <Button Name="PART_BackButton" Margin="0,0,12,0"
                         theming:MaterialAssist.IsIconButton="True"
                         theming:MaterialAssist.ControlSize="Small"
                         theming:MaterialAssist.ButtonVariant="Standard"
@@ -54,7 +55,7 @@
                           Fill="{Binding $parent[Button].Foreground}" />
                   </Grid>
                 </Button>
-                <TextBlock Name="PART_Headline" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                <TextBlock Name="PART_Headline" Grid.Column="1" VerticalAlignment="Center"
                            Text="{TemplateBinding Headline}" TextWrapping="Wrap"
                            FontSize="{DynamicResource MaterialTitleLargeFontSize}"
                            FontWeight="{DynamicResource MaterialTitleLargeFontWeight}"
@@ -90,7 +91,7 @@
               </ScrollViewer>
               <StackPanel Name="PART_Actions" Grid.Row="2">
                 <Border Height="1" Background="{DynamicResource MaterialOutlineVariantBrush}" />
-                <ContentControl Name="PART_ActionsHost" Margin="24,16,24,24"
+                <ContentControl Name="PART_ActionsHost" Margin="24,12,24,20"
                                 Content="{TemplateBinding Actions}" ContentTemplate="{TemplateBinding ActionsTemplate}"
                                 HorizontalContentAlignment="Left" VerticalContentAlignment="Center" />
               </StackPanel>
@@ -100,9 +101,10 @@
       </ControlTemplate>
     </Setter>
 
-    <!-- Modal sheets use the surface container low fill; standard sheets sit on Surface. -->
+    <!-- Modal sheets use the surface container low fill at Elevation Level 1; standard sheets sit on Surface. -->
     <Style Selector="^[IsModal=True] /template/ Border#PART_Surface">
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
     </Style>
   </ControlTheme>
 
@@ -119,17 +121,35 @@
                   HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
                   MaxWidth="{TemplateBinding SheetMaxWidth}"
                   Background="{DynamicResource MaterialSurfaceContainerLowBrush}">
-            <Grid RowDefinitions="Auto,Auto,Auto">
-              <!-- BottomSheetDefaults.DragHandle: 32x4 inverted capsule in the docked drag-handle
-                   color, with 22 DIP above and below (48 DIP header). SheetDragHandle keeps this
-                   Border anatomy while exposing Invoke plus gesture-gated expand/collapse/dismiss
-                   through its native automation peer. -->
-              <controls:SheetDragHandle Name="PART_DragHandle" Background="Transparent" Padding="0,22"
+            <Grid RowDefinitions="Auto,*,Auto">
+              <!-- BottomSheetDefaults.DragHandle: 32x4 inverted capsule at 40% OnSurfaceVariant
+                   inside a 48 DIP interactive header, with state layer and M3 Secondary focus ring. -->
+              <controls:SheetDragHandle Name="PART_DragHandle" Background="Transparent" Height="48" MinWidth="48"
                       IsVisible="{TemplateBinding ShowDragHandle}"
                       AutomationProperties.Name="{DynamicResource MaterialSheetDragHandleText}">
-                <Border Width="32" Height="4" CornerRadius="9999"
-                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Background="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+                <controls:SheetDragHandle.Styles>
+                  <Style Selector="controls|SheetDragHandle:focus-visible Border#FocusRing">
+                    <Setter Property="IsVisible" Value="True" />
+                  </Style>
+                </controls:SheetDragHandle.Styles>
+                <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Border Width="32" Height="4" CornerRadius="9999" Opacity="0.4"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Background="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+                  <theming:MaterialRipple Width="48" Height="24" CornerRadius="9999"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          InteractionTarget="{Binding #PART_DragHandle}"
+                                          Fill="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                                          IsBounded="True"
+                                          PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                          HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                          FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                          EnableDrag="False" />
+                  <Border Name="FocusRing" Width="42" Height="14" CornerRadius="9999"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                          BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                          IsVisible="False" IsHitTestVisible="False" />
+                </Panel>
               </controls:SheetDragHandle>
               <ScrollViewer Name="PART_ContentScroll" Grid.Row="1"
                             HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">

@@ -59,6 +59,7 @@ public sealed class MaterialPullToRefresh : ContentControl
     private MaterialRefreshIndicatorBox? _indicator;
     private Grid? _builtInPanel;
     private ContentPresenter? _customIndicator;
+    private MaterialFocusIndicator? _focusIndicator;
     private readonly RotateTransform _rotation = new();
     private MaterialMotion.SpringAnimation? _settle, _crossfade;
     private double _distanceFraction, _distancePulled, _fade;
@@ -101,9 +102,19 @@ public sealed class MaterialPullToRefresh : ContentControl
         AddHandler(PointerCaptureLostEvent, CaptureLost, RoutingStrategies.Tunnel, true);
         GestureRecognizers.Add(new ScrollGestureRecognizer { CanVerticallyScroll = true });
         AddHandler(ScrollGestureEvent, GesturePostScroll, RoutingStrategies.Bubble, true);
-        AttachedToVisualTree += (_, _) => { ApplyIndicatorAppearance(); ApplyFraction(IsRefreshing ? 1 : 0); ApplyFade(IsRefreshing ? 1 : 0); };
+        AttachedToVisualTree += (_, _) => { ApplyIndicatorAppearance(); ApplyFraction(IsRefreshing ? 1 : 0); ApplyFade(IsRefreshing ? 1 : 0); UpdateFocusIndicator(); };
         DetachedFromVisualTree += (_, _) => CancelGesture();
-        ActualThemeVariantChanged += (_, _) => ApplyIndicatorAppearance();
+        ResourcesChanged += (_, _) =>
+        {
+            ApplyIndicatorAppearance();
+            _peer?.NotifyResourcesChanged();
+        };
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            ApplyIndicatorAppearance();
+            _peer?.NotifyResourcesChanged();
+        };
+        Classes.CollectionChanged += (_, _) => UpdateFocusIndicator();
     }
 
     public bool IsRefreshing { get => GetValue(IsRefreshingProperty); set => SetValue(IsRefreshingProperty, value); }
@@ -177,22 +188,31 @@ public sealed class MaterialPullToRefresh : ContentControl
             VerticalContentAlignment = VerticalAlignment.Top,
             IsHitTestVisible = false,
         };
+        _focusIndicator = new MaterialFocusIndicator
+        {
+            IsActive = true,
+            IsVisible = false,
+            IsHitTestVisible = false,
+        };
+        _focusIndicator.Bind(MaterialFocusIndicator.StrokeProperty,
+            _focusIndicator.GetResourceObservable("MaterialSecondaryBrush"));
         BuildIndicator();
         ApplyIndicatorMode();
         ApplyFraction(_distanceFraction);
         ApplyFade(IsRefreshing ? 1 : 0);
-        return new Grid { Children = { content, _indicator, _customIndicator } };
+        UpdateFocusIndicator();
+        return new Grid { Children = { content, _indicator, _customIndicator, _focusIndicator } };
     }
 
     private void BuildIndicator()
     {
         var loading = IndicatorType == MaterialRefreshIndicator.Loading;
         _rotation.Angle = 0;
-        _pull = loading ? new LoadingIndicator { IsIndeterminate = false, ShowContainer = true,
+        _pull = loading ? new LoadingIndicator { IsIndeterminate = false, ShowContainer = false,
             RenderTransform = _rotation, RenderTransformOrigin = RelativePoint.Center } : null;
         _arrow = loading ? null : new RefreshArrowIndicator();
         _pullVisual = (Control?)_pull ?? _arrow!;
-        _busyVisual = loading ? new LoadingIndicator { IsIndeterminate = true, ShowContainer = true }
+        _busyVisual = loading ? new LoadingIndicator { IsIndeterminate = true, ShowContainer = false }
             : new CircularProgressIndicator { Width = 16, Height = 16, MinWidth = 0, MinHeight = 0,
                 IsIndeterminate = true, StrokeThickness = 2.5, ShowTrack = false };
         if (_builtInPanel is not null)
@@ -246,7 +266,7 @@ public sealed class MaterialPullToRefresh : ContentControl
     }
 
     private IBrush? ResolveBrush(IBrush? custom, string resourceKey) =>
-        custom ?? (this.TryFindResource(resourceKey, out var value) ? value as IBrush : null);
+        custom ?? (this.TryFindResource(resourceKey, ActualThemeVariant, out var value) ? value as IBrush : null);
 
     private void ApplyIndicatorMode()
     {
@@ -305,8 +325,17 @@ public sealed class MaterialPullToRefresh : ContentControl
             change.Property == IndicatorContainerColorProperty || change.Property == IndicatorColorProperty ||
             change.Property == IndicatorElevationProperty)
             ApplyIndicatorAppearance();
+        if (change.Property == IsFocusedProperty || change.Property == CornerRadiusProperty)
+            UpdateFocusIndicator();
         if ((change.Property == IsEffectivelyEnabledProperty && !IsEffectivelyEnabled) ||
             (change.Property == IsVisibleProperty && !IsEffectivelyVisible)) CancelGesture();
+    }
+
+    private void UpdateFocusIndicator()
+    {
+        if (_focusIndicator is null) return;
+        _focusIndicator.IsVisible = IsFocused && Classes.Contains(":focus-visible");
+        _focusIndicator.CornerRadius = CornerRadius == default ? new CornerRadius(2) : CornerRadius;
     }
 
     private void ApplyFade(double value)
@@ -473,20 +502,55 @@ public sealed class MaterialPullToRefresh : ContentControl
         ApplyFade(IsRefreshing ? 1 : 0);
     }
 
+    private string ResolveRefreshingText() =>
+        this.TryFindResource("MaterialPullToRefreshRefreshingText", ActualThemeVariant, out var value) &&
+        value is string text && text.Length > 0
+            ? text
+            : "Refreshing";
+
     protected override AutomationPeer OnCreateAutomationPeer() => _peer = new RefreshAutomationPeer(this);
-    private sealed class RefreshAutomationPeer(MaterialPullToRefresh owner) : ControlAutomationPeer(owner), IInvokeProvider
+
+    private sealed class RefreshAutomationPeer : ControlAutomationPeer, IInvokeProvider
     {
+        private readonly MaterialPullToRefresh _owner;
+        private string? _lastStatus;
+
+        public RefreshAutomationPeer(MaterialPullToRefresh owner) : base(owner)
+        {
+            _owner = owner;
+            _lastStatus = GetItemStatusCore();
+        }
+
         protected override string GetClassNameCore() => nameof(MaterialPullToRefresh);
-        protected override string? GetItemStatusCore() => AutomationProperties.GetItemStatus(owner) ?? (owner.IsRefreshing ? "Refreshing" : null);
+
+        protected override string? GetItemStatusCore() =>
+            AutomationProperties.GetItemStatus(_owner) ?? (_owner.IsRefreshing ? _owner.ResolveRefreshingText() : null);
+
         public void Invoke()
         {
-            if (!owner.IsEffectivelyEnabled || owner.IsRefreshing) throw new ElementNotEnabledException();
-            owner.RequestRefresh();
+            if (!_owner.IsEffectivelyEnabled || _owner.IsRefreshing) throw new ElementNotEnabledException();
+            _owner.RequestRefresh();
         }
+
         internal void NotifyChanged(AvaloniaPropertyChangedEventArgs e)
         {
             if (e.Property == IsRefreshingProperty)
-                RaisePropertyChangedEvent(AutomationElementIdentifiers.ItemStatusProperty, e.OldValue is true ? "Refreshing" : null, GetItemStatusCore());
+                RefreshStatus();
+            else if (e.Property == AutomationProperties.ItemStatusProperty)
+                _lastStatus = GetItemStatusCore();
+        }
+
+        internal void NotifyResourcesChanged() => RefreshStatus();
+
+        private void RefreshStatus()
+        {
+            var current = GetItemStatusCore();
+            if (!string.Equals(_lastStatus, current, StringComparison.Ordinal))
+            {
+                var previous = _lastStatus;
+                _lastStatus = current;
+                RaisePropertyChangedEvent(AutomationElementIdentifiers.ItemStatusProperty, previous, current);
+            }
         }
     }
 }

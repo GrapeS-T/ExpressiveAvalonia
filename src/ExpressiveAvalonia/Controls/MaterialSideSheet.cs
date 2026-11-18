@@ -40,7 +40,7 @@ public sealed class MaterialSideSheet : MaterialSheet
 {
     /// <summary>Identifies the <see cref="Headline"/> property.</summary>
     public static readonly StyledProperty<string?> HeadlineProperty =
-        AvaloniaProperty.Register<MaterialSideSheet, string?>(nameof(Headline), "Title");
+        AvaloniaProperty.Register<MaterialSideSheet, string?>(nameof(Headline));
 
     /// <summary>Identifies the <see cref="ShowBackButton"/> property.</summary>
     public static readonly StyledProperty<bool> ShowBackButtonProperty =
@@ -80,7 +80,7 @@ public sealed class MaterialSideSheet : MaterialSheet
     /// <summary>Raised when the back affordance is used.</summary>
     public event System.EventHandler<SheetBackRequestedEventArgs>? BackRequested;
 
-    /// <summary>The localized headline. The default "Title" mirrors the design-source default.</summary>
+    /// <summary>Optional localized headline displayed in the sheet header.</summary>
     public string? Headline
     {
         get => GetValue(HeadlineProperty);
@@ -129,22 +129,27 @@ public sealed class MaterialSideSheet : MaterialSheet
         set => SetValue(SheetWidthProperty, value);
     }
 
-    private bool IsSurfaceOnRight =>
-        Side == MaterialSheetSide.End
-            ? FlowDirection != FlowDirection.RightToLeft
-            : FlowDirection == FlowDirection.RightToLeft;
+    private bool IsSurfaceAtEnd => Side == MaterialSheetSide.End;
 
     protected override bool CanUseValue(MaterialSheetValue value) =>
         value != MaterialSheetValue.PartiallyExpanded;
 
-    protected override string? GetSheetAccessibleName() => Headline;
+    protected override string? GetSheetAccessibleName() =>
+        !string.IsNullOrWhiteSpace(Headline)
+            ? Headline
+            : this.TryFindResource("MaterialSideSheetText", out var value) && value is string text
+                ? text
+                : "Side sheet";
 
     protected override double GetPosition(MaterialSheetValue value)
     {
         if (value == MaterialSheetValue.Hidden)
         {
             var width = SheetSurface?.Bounds.Width ?? 0;
-            return width > 0 ? width : SheetWidth;
+            var baseWidth = width > 0 ? width : SheetWidth;
+            // Modal side sheets sit 16 DIP off the host edge; include horizontal inset so the
+            // detached surface and its Level 1 shadow leave PART_Root completely when hidden.
+            return baseWidth + (IsModal ? 32d : 0d);
         }
 
         return 0;
@@ -155,8 +160,8 @@ public sealed class MaterialSideSheet : MaterialSheet
         if (SheetTransform is null)
             return;
 
-        // The offset is always a positive travel distance; only the sign depends on the edge.
-        SheetTransform.X = IsSurfaceOnRight ? position : -position;
+        // Keep logical coordinates inside PART_Root; Avalonia mirrors End/Start once in RTL.
+        SheetTransform.X = IsSurfaceAtEnd ? position : -position;
         SheetTransform.Y = 0;
     }
 
@@ -198,12 +203,15 @@ public sealed class MaterialSideSheet : MaterialSheet
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == ShowBackButtonProperty)
+        if (change.Property == ShowBackButtonProperty || change.Property == ShowCloseButtonProperty)
             UpdateHeaderLayout();
-        else if (change.Property == SideProperty || change.Property == FlowDirectionProperty || change.Property == IsModalProperty)
+        else if (change.Property == SideProperty || change.Property == IsModalProperty)
             UpdateSideLayout();
         else if (change.Property == HeadlineProperty)
+        {
+            UpdateHeaderLayout();
             UpdateAccessibleName();
+        }
     }
 
     private void UpdateHeaderLayout()
@@ -211,8 +219,9 @@ public sealed class MaterialSideSheet : MaterialSheet
         if (_header is null)
             return;
 
+        _header.IsVisible = ShowBackButton || ShowCloseButton || !string.IsNullOrEmpty(Headline);
         // Header: 12 top, 12 trailing, 16 bottom and 24 leading; the back affordance replaces
-        // the leading 24 with 4 (48-wide target plus the headline's 12 inset).
+        // the leading 24 with 4 (48-wide target plus its 12 trailing margin).
         _header.Margin = new Thickness(ShowBackButton ? 4 : 24, 12, 12, 16);
     }
 
@@ -221,11 +230,11 @@ public sealed class MaterialSideSheet : MaterialSheet
         if (SheetSurface is null)
             return;
 
-        var right = IsSurfaceOnRight;
-        SheetSurface.HorizontalAlignment = right
+        var end = IsSurfaceAtEnd;
+        SheetSurface.HorizontalAlignment = end
             ? Avalonia.Layout.HorizontalAlignment.Right
             : Avalonia.Layout.HorizontalAlignment.Left;
-        SheetSurface.BorderThickness = right ? new Thickness(1, 0, 0, 0) : new Thickness(0, 0, 1, 0);
+        SheetSurface.BorderThickness = end ? new Thickness(1, 0, 0, 0) : new Thickness(0, 0, 1, 0);
 
         // Modal sheets are detached from the host edge; standard sheets remain docked.
         SheetSurface.Margin = IsModal ? new Thickness(16) : default;

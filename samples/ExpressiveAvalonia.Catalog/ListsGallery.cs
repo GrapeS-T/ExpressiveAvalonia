@@ -34,8 +34,8 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
         "Входящие", "Избранное", "Архив", "Корзина", "Черновики", "Отправленные", "Спам", "Метки",
     ];
 
-    private readonly ListBox _list = new() { Width = 480, Padding = new Thickness(0, 4), MaxHeight = 500 };
-    private readonly MaterialAccordion _accordion = new() { Width = 480 };
+    private readonly ListBox _list = new() { Width = 492, Padding = new Thickness(6), MaxHeight = 500 };
+    private readonly MaterialAccordion _accordion = new() { Width = 480, Margin = new Thickness(6) };
     private readonly ScrollViewer _accordionScroll;
     private readonly ContentControl _stage = new() { HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 480 };
@@ -69,7 +69,7 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
         MaterialTypography.SetStyle(_status, MaterialTypeStyle.BodyMedium);
-        _status.Foreground = Brushes.Gray;
+        _status.Bind(TextBlock.ForegroundProperty, _status.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
 
         var card = new Border
         {
@@ -155,6 +155,7 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
             _selectionMode.IsVisible = type != 5;
             _swipeActions.IsVisible = type == 3;
             _multiple.IsVisible = type == 5;
+            _dividers.IsEnabled = type != 1;
 
             if (type == 5)
             {
@@ -194,17 +195,18 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
             2 => SelectionMode.Toggle,
             _ => SelectionMode.Single,
         };
+        MaterialList.SetDensity(_list, density);
         MaterialList.SetSegmented(_list, type == 1);
-        MaterialList.SetShowDividers(_list, _dividers.IsChecked == true);
+        MaterialList.SetShowDividers(_list, type != 1 && _dividers.IsChecked == true);
         MaterialList.SetAllowItemDrag(_list, type == 4);
 
         for (var i = 0; i < count; i++)
         {
             ListBoxItem item;
             if (type == 3)
-                item = CreateSwipeRow(i, density, lines);
+                item = CreateSwipeRow(i, lines);
             else
-                item = CreateRow(i, density, lines, type == 2, type == 4);
+                item = CreateRow(i, lines, type == 2, type == 4);
 
             _list.Items.Add(item);
             if (type == 2 && expanded.Contains(i))
@@ -231,10 +233,10 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
         }
     }
 
-    private ListBoxItem CreateRow(int index, int density, int lines, bool expandable, bool drag)
+    private ListBoxItem CreateRow(int index, int lines, bool expandable, bool drag)
     {
         var item = new ListBoxItem();
-        ConfigureRow(item, index, density, lines);
+        ConfigureRow(item, index, lines);
         if (expandable)
         {
             // The accordion toggle owns the trailing slot; a decorative chevron would compete.
@@ -260,10 +262,10 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
         return item;
     }
 
-    private MaterialSwipeListItem CreateSwipeRow(int index, int density, int lines)
+    private MaterialSwipeListItem CreateSwipeRow(int index, int lines)
     {
         var item = new MaterialSwipeListItem();
-        ConfigureRow(item, index, density, lines);
+        ConfigureRow(item, index, lines);
         var actionCount = Math.Clamp(_swipeActions.SelectedIndex + 1, 1, 3);
         if (actionCount >= 1)
             item.SwipeActions.Add(new MaterialSwipeAction { Label = "Архив", Icon = Archive, IsPrimary = true });
@@ -286,7 +288,7 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
         return item;
     }
 
-    private void ConfigureRow(ListBoxItem item, int index, int density, int lines)
+    private void ConfigureRow(ListBoxItem item, int index, int lines)
     {
         var headline = Names[index % Names.Length];
         var hasText = _supporting.IsChecked == true || _overline.IsChecked == true;
@@ -310,6 +312,8 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
     private void BuildAccordion(int count, int density, int[] expanded)
     {
         _accordion.Items.Clear();
+        MaterialList.SetDensity(_accordion, density);
+        MaterialList.SetShowDividers(_accordion, _dividers.IsChecked == true);
         _accordion.IsMultipleExpanded = _multiple.IsChecked == true;
         for (var i = 0; i < count; i++)
         {
@@ -405,16 +409,20 @@ internal sealed class ListsPlayground : Grid, IComponentPlayground
         };
     }
 
-    private Control Body(string text) => new Border
+    private static Control Body(string text)
     {
-        Padding = new Thickness(0, 4, 0, 8),
-        Child = new TextBlock
+        var block = new TextBlock
         {
             Text = text,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = Brushes.Gray,
-        },
-    };
+        };
+        block.Bind(TextBlock.ForegroundProperty, block.GetResourceObservable("MaterialOnSurfaceVariantBrush"));
+        return new Border
+        {
+            Padding = new Thickness(0, 4, 0, 8),
+            Child = block,
+        };
+    }
 
     private ComboBox Combo(string label, string[] options)
     {

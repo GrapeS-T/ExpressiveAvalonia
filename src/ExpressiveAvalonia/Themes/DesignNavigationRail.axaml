@@ -22,8 +22,8 @@
   <!-- Rail destination. Child order is the source layout contract used by the panel:
        0 indicator, 1 state layer/ripple, 2 icon slot (with badge), 3 label slot, 4 focus ring. -->
   <ControlTemplate x:Key="MaterialNavigationRailItemTemplate" TargetType="controls:MaterialNavigationRailItem">
-    <Panel Name="PART_ItemRoot" Background="Transparent" ClipToBounds="True">
-      <controls:MaterialNavigationItemLayout Name="PART_Layout"
+    <Panel Name="PART_ItemRoot" Background="Transparent" ClipToBounds="False">
+      <controls:MaterialNavigationItemLayout Name="PART_Layout" ClipToBounds="False"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
         <Border Name="PART_Indicator" CornerRadius="16"
                 Background="{DynamicResource MaterialSecondaryContainerBrush}" />
@@ -36,36 +36,33 @@
                                 HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
                                 FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                 EnableDrag="False" IsHitTestVisible="False" />
-        <Grid Name="PART_IconHost" Width="24" Height="24"
+        <Grid Name="PART_IconHost" Width="24" Height="24" ClipToBounds="False"
               HorizontalAlignment="Center" VerticalAlignment="Center">
-          <Viewbox Width="24" Height="24" Stretch="Uniform"
-                   HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Path Name="PART_Icon" Data="{TemplateBinding Icon}" Stretch="Uniform" />
-          </Viewbox>
-          <Viewbox Width="24" Height="24" Stretch="Uniform"
-                   HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Stretch="Uniform" />
-          </Viewbox>
-          <Border Name="PART_BadgeSmall" Width="6" Height="6" CornerRadius="3"
-                  AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
-                  Background="{DynamicResource MaterialErrorBrush}"
-                  HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-2,0" IsVisible="False" />
-          <Border Name="PART_BadgeLarge" MinWidth="16" Height="16" CornerRadius="8" Padding="4,0"
-                  AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
-                  Background="{DynamicResource MaterialErrorBrush}"
-                  HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,-6,0" IsVisible="False">
-            <TextBlock Name="PART_BadgeText" Text="{TemplateBinding BadgeText}"
-                       Foreground="{DynamicResource MaterialOnErrorBrush}"
-                       FontSize="{DynamicResource MaterialLabelSmallFontSize}"
-                       FontWeight="Medium"
-                       LetterSpacing="{DynamicResource MaterialLabelSmallLetterSpacing}"
-                       LineHeight="{DynamicResource MaterialLabelSmallLineHeight}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-          </Border>
+          <controls:MaterialBadgeAnchorPanel ClipToBounds="False">
+            <Panel Width="24" Height="24">
+              <Viewbox Width="24" Height="24" Stretch="Uniform"
+                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Canvas Width="24" Height="24">
+                  <Path Name="PART_Icon" Data="{TemplateBinding Icon}" Stretch="None" />
+                </Canvas>
+              </Viewbox>
+              <Viewbox Width="24" Height="24" Stretch="Uniform"
+                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Canvas Width="24" Height="24">
+                  <Path Name="PART_SelectedIcon" Data="{TemplateBinding EffectiveSelectedIcon}" Stretch="None" />
+                </Canvas>
+              </Viewbox>
+            </Panel>
+            <controls:MaterialBadge Name="PART_BadgeSmall" Size="Small" IsVisible="False" />
+            <controls:MaterialBadge Name="PART_BadgeLarge" Size="Large" Text="{TemplateBinding BadgeText}"
+                                    IsVisible="False" />
+          </controls:MaterialBadgeAnchorPanel>
         </Grid>
         <Grid Name="PART_LabelHost" ColumnDefinitions="*,Auto,Auto"
               HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock Name="PART_Label" Text="{TemplateBinding EffectiveLabel}"
+                     AutomationProperties.AccessibilityView="Raw"
+                     AutomationProperties.IsControlElementOverride="False"
                      FontSize="{DynamicResource MaterialLabelMediumFontSize}"
                      FontWeight="Medium"
                      LetterSpacing="{DynamicResource MaterialLabelMediumLetterSpacing}"
@@ -73,23 +70,19 @@
                      TextAlignment="Center" HorizontalAlignment="Center"
                      TextWrapping="Wrap" />
           <ContentPresenter Name="PART_Content"
+                            AutomationProperties.AccessibilityView="Raw"
+                            AutomationProperties.IsControlElementOverride="False"
                             Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                             HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" />
-          <Border Name="PART_LabelBadgeSmall" Grid.Column="1" Margin="8,0,0,0" Width="6" Height="6" CornerRadius="3"
-                  AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
-                  Background="{DynamicResource MaterialErrorBrush}" VerticalAlignment="Center" IsVisible="False" />
-          <Border Name="PART_LabelBadgeLarge" Grid.Column="2" Margin="8,0,0,0" MinWidth="16" Height="16" CornerRadius="8" Padding="4,0"
-                  AutomationProperties.AccessibilityView="Raw" AutomationProperties.IsControlElementOverride="False"
-                  Background="{DynamicResource MaterialErrorBrush}" VerticalAlignment="Center" IsVisible="False">
-            <TextBlock Text="{TemplateBinding BadgeText}" Foreground="{DynamicResource MaterialOnErrorBrush}"
-                       FontSize="{DynamicResource MaterialLabelSmallFontSize}" FontWeight="Medium"
-                       LetterSpacing="{DynamicResource MaterialLabelSmallLetterSpacing}"
-                       LineHeight="{DynamicResource MaterialLabelSmallLineHeight}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-          </Border>
+          <controls:MaterialBadge Name="PART_LabelBadgeSmall" Grid.Column="1" Size="Small" Margin="8,0,0,0"
+                                  VerticalAlignment="Center" IsVisible="False" />
+          <controls:MaterialBadge Name="PART_LabelBadgeLarge" Grid.Column="2" Size="Large"
+                                  Text="{TemplateBinding BadgeText}" Margin="8,0,0,0"
+                                  VerticalAlignment="Center" IsVisible="False" />
         </Grid>
-        <Border Name="PART_FocusRing" Margin="-2" CornerRadius="16" BorderThickness="3"
-                BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsVisible="False" />
+        <Border Name="PART_FocusRing" Margin="-5" CornerRadius="21" BorderThickness="3"
+                BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                IsVisible="False" IsHitTestVisible="False" />
       </controls:MaterialNavigationItemLayout>
     </Panel>
   </ControlTemplate>
@@ -99,6 +92,9 @@
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource MaterialFontFamily}" />
     <Setter Property="Focusable" Value="True" />
+    <!-- Roving IsTabStop is managed by the owning rail so destinations form one tab stop. -->
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -106,7 +102,7 @@
     <Setter Property="Template" Value="{StaticResource MaterialNavigationRailItemTemplate}" />
 
     <!-- Source icon positions: vertical item uses a 16 radius icon pill, expanded horizontal
-         item a full-radius 56 high row pill. -->
+         item a full-radius 56 high row pill. Focus rings use radius + 5 at Margin="-5". -->
     <Style Selector="^:top /template/ Border#PART_Indicator">
       <Setter Property="CornerRadius" Value="16" />
     </Style>
@@ -114,7 +110,7 @@
       <Setter Property="CornerRadius" Value="16" />
     </Style>
     <Style Selector="^:top /template/ Border#PART_FocusRing">
-      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="CornerRadius" Value="21" />
     </Style>
     <Style Selector="^:top:no-label /template/ Border#PART_Indicator">
       <Setter Property="CornerRadius" Value="28" />
@@ -123,7 +119,7 @@
       <Setter Property="CornerRadius" Value="28" />
     </Style>
     <Style Selector="^:top:no-label /template/ Border#PART_FocusRing">
-      <Setter Property="CornerRadius" Value="28" />
+      <Setter Property="CornerRadius" Value="33" />
     </Style>
     <Style Selector="^:start /template/ Border#PART_Indicator">
       <Setter Property="CornerRadius" Value="28" />
@@ -132,7 +128,7 @@
       <Setter Property="CornerRadius" Value="28" />
     </Style>
     <Style Selector="^:start /template/ Border#PART_FocusRing">
-      <Setter Property="CornerRadius" Value="28" />
+      <Setter Property="CornerRadius" Value="33" />
     </Style>
     <Style Selector="^:start /template/ TextBlock#PART_Label">
       <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
@@ -145,8 +141,7 @@
       <Setter Property="HorizontalAlignment" Value="Left" />
     </Style>
 
-    <!-- Focus ring: the source ripple(focusRingShape) ring, kept as a border. The indicator
-         ripple itself is painted by the shared MaterialRipple, so no theme style fades it. -->
+    <!-- Focus ring: 3dp Secondary stroke with 2dp outside offset. -->
     <Style Selector="^:focus-visible /template/ Border#PART_FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
@@ -165,41 +160,44 @@
       <Setter Property="IsVisible" Value="False" />
     </Style>
 
-    <Style Selector="^:badge-small /template/ Border#PART_BadgeSmall">
+    <Style Selector="^:badge-small /template/ controls|MaterialBadge#PART_BadgeSmall">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:badge-large /template/ Border#PART_BadgeLarge">
+    <Style Selector="^:badge-large /template/ controls|MaterialBadge#PART_BadgeLarge">
       <Setter Property="IsVisible" Value="True" />
     </Style>
     <!-- Expanded horizontal destinations place badges after the label, not over the icon. -->
-    <Style Selector="^:start:badge-small /template/ Border#PART_BadgeSmall">
+    <Style Selector="^:start:badge-small /template/ controls|MaterialBadge#PART_BadgeSmall">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <Style Selector="^:start:badge-large /template/ Border#PART_BadgeLarge">
+    <Style Selector="^:start:badge-large /template/ controls|MaterialBadge#PART_BadgeLarge">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <Style Selector="^:start:badge-small /template/ Border#PART_LabelBadgeSmall">
+    <Style Selector="^:start:badge-small /template/ controls|MaterialBadge#PART_LabelBadgeSmall">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:start:badge-large /template/ Border#PART_LabelBadgeLarge">
+    <Style Selector="^:start:badge-large /template/ controls|MaterialBadge#PART_LabelBadgeLarge">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:start:no-label:badge-small /template/ Border#PART_BadgeSmall">
+    <Style Selector="^:start:no-label:badge-small /template/ controls|MaterialBadge#PART_BadgeSmall">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:start:no-label:badge-large /template/ Border#PART_BadgeLarge">
+    <Style Selector="^:start:no-label:badge-large /template/ controls|MaterialBadge#PART_BadgeLarge">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^:start:no-label:badge-small /template/ Border#PART_LabelBadgeSmall">
+    <Style Selector="^:start:no-label:badge-small /template/ controls|MaterialBadge#PART_LabelBadgeSmall">
       <Setter Property="IsVisible" Value="False" />
     </Style>
-    <Style Selector="^:start:no-label:badge-large /template/ Border#PART_LabelBadgeLarge">
+    <Style Selector="^:start:no-label:badge-large /template/ controls|MaterialBadge#PART_LabelBadgeLarge">
       <Setter Property="IsVisible" Value="False" />
     </Style>
 
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
       <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_FocusRing">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
   </ControlTheme>
 
@@ -214,30 +212,34 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
-          <Panel>
-            <ContentPresenter Name="PART_ContentPresenter"
-                              Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
-                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
-            <!-- Source icon button (local-002054, Square/Medium): the 8% hover, 10% focus and
-                 10% pressed ripple of the on-surface-variant content color, bounded by the
-                 16 radius container. -->
-            <theming:MaterialRipple Name="PART_StateLayer"
-                                    CornerRadius="{TemplateBinding CornerRadius}"
-                                    Fill="{TemplateBinding Foreground}"
-                                    PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
-                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
-                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
-                                    EnableDrag="False" IsHitTestVisible="False" />
-            <Border Name="PART_FocusRing" Margin="2" CornerRadius="14" BorderThickness="2"
-                    BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsVisible="False" />
-          </Panel>
-        </Border>
+        <Panel Background="Transparent">
+          <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
+            <Panel>
+              <ContentPresenter Name="PART_ContentPresenter"
+                                Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+              <!-- Source icon button (local-002054, Square/Medium): the 8% hover, 10% focus and
+                   10% pressed ripple of the on-surface-variant content color, bounded by the
+                   16 radius container. -->
+              <theming:MaterialRipple Name="PART_StateLayer"
+                                      CornerRadius="{TemplateBinding CornerRadius}"
+                                      Fill="{TemplateBinding Foreground}"
+                                      PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                      HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                      FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                      EnableDrag="False" IsHitTestVisible="False" />
+            </Panel>
+          </Border>
+          <Border Name="PART_FocusRing" Margin="-5" CornerRadius="21" BorderThickness="3"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
       </ControlTemplate>
     </Setter>
     <Style Selector="^:focus-visible /template/ Border#PART_FocusRing">
@@ -245,6 +247,9 @@
     </Style>
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_FocusRing">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
   </ControlTheme>
 
@@ -256,33 +261,47 @@
     <Setter Property="Background" Value="{DynamicResource MaterialPrimaryContainerBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnPrimaryContainerBrush}" />
     <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
-          <Panel>
-            <ContentPresenter Name="PART_ContentPresenter" Margin="{TemplateBinding Padding}"
+        <Panel Background="Transparent">
+          <Border Name="PART_Surface"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}"
+                  IsHitTestVisible="False" />
+          <Border Padding="{TemplateBinding Padding}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  ClipToBounds="True">
+            <ContentPresenter Name="PART_ContentPresenter"
                               Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                               HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                               VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
-            <!-- Source FAB (local-001450, Default size, Primary container): the press snapshot is the
-                 8% content-color state layer. DesignFab renders this same component with the
-                 shared ripple at the 8% pressed alpha, so the rail FAB uses the same value and
-                 never paints a second press layer. -->
-            <theming:MaterialRipple Name="PART_StateLayer"
-                                    CornerRadius="{TemplateBinding CornerRadius}"
-                                    Fill="{TemplateBinding Foreground}"
-                                    PressOpacity="0.08"
-                                    HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
-                                    FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
-                                    EnableDrag="False" IsHitTestVisible="False" />
-            <Border Name="PART_FocusRing" Margin="2" CornerRadius="14" BorderThickness="2"
-                    BorderBrush="{DynamicResource MaterialSecondaryBrush}" IsVisible="False" />
-          </Panel>
-        </Border>
+          </Border>
+          <theming:MaterialRipple Name="PART_StateLayer"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  Fill="{TemplateBinding Foreground}"
+                                  PressOpacity="{DynamicResource MaterialPressedStateLayerOpacity}"
+                                  HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
+                                  FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
+                                  EnableDrag="False" IsHitTestVisible="False" />
+          <Border Name="PART_FocusRing" Margin="-5" CornerRadius="21" BorderThickness="3"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^:pointerover /template/ Border#PART_Surface">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel4Shadow}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Border#PART_Surface">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel3Shadow}" />
+    </Style>
+    <Style Selector="^:focus-visible /template/ Border#PART_Surface">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel3Shadow}" />
+    </Style>
     <Style Selector="^:focus-visible /template/ Border#PART_FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
@@ -290,13 +309,26 @@
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
       <Setter Property="Background" Value="{DynamicResource MaterialDisabledContainerBrush}" />
     </Style>
+    <Style Selector="^:disabled /template/ Border#PART_Surface">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
+    </Style>
+    <Style Selector="^:disabled /template/ theming|MaterialRipple#PART_StateLayer">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="MaterialNavigationRailTheme" TargetType="controls:MaterialNavigationRail">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="SelectionMode" Value="Single" />
-    <!-- Continue keeps the menu button and FAB in the tab order; the item list is a single
-         stop of its own (Once on the presenter) so destinations are reached with arrows. -->
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="ClipToBounds" Value="False" />
+    <Setter Property="AutomationProperties.Name" Value="{DynamicResource MaterialNavigationRailName}" />
+    <!-- Continue keeps the menu button, FAB, header focusables, and single roving destination
+         item in natural tab order so destinations are traversed with arrow keys. -->
     <Setter Property="KeyboardNavigation.TabNavigation" Value="Continue" />
     <Setter Property="ItemContainerTheme" Value="{StaticResource MaterialNavigationRailItemTheme}" />
     <Setter Property="ItemsPanel">
@@ -309,7 +341,7 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Border Name="PART_Root" Background="{TemplateBinding Background}"
-                CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
+                CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="False">
           <Panel>
             <StackPanel Name="PART_HeaderHost" Orientation="Vertical" Spacing="4"
                         HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,44,0,0">
@@ -320,21 +352,27 @@
                         Command="{TemplateBinding MenuCommand}" CommandParameter="{TemplateBinding MenuCommandParameter}"
                         IsVisible="{TemplateBinding ShowMenuButton}"
                         AutomationProperties.Name="{DynamicResource MaterialNavigationRailMenuText}">
-                  <Path Data="{TemplateBinding MenuIcon}" Fill="{Binding $parent[Button].Foreground}"
-                        Width="18" Height="12" Stretch="Fill"
-                        HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  <Viewbox Width="24" Height="24" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Canvas Width="24" Height="24">
+                      <Path Data="{TemplateBinding MenuIcon}" Fill="{Binding $parent[Button].Foreground}"
+                            Stretch="None" />
+                    </Canvas>
+                  </Viewbox>
                 </Button>
                 <Button Name="PART_FabButton" Theme="{StaticResource MaterialNavigationRailFabTheme}"
                         HorizontalAlignment="Left"
                         Command="{TemplateBinding FabCommand}" CommandParameter="{TemplateBinding FabCommandParameter}"
-                        IsVisible="{TemplateBinding ShowFab}"
-                        AutomationProperties.Name="{DynamicResource MaterialNavigationRailFabText}">
+                        IsVisible="{TemplateBinding ShowFab}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <!-- 24 unit icon slot holding the 18 unit glyph, as in the source state layer. -->
                     <Grid Name="PART_FabIconSlot" Width="24" Height="24" VerticalAlignment="Center">
-                      <Path Name="PART_FabIcon" Data="{TemplateBinding FabIcon}" Width="18" Height="18" Stretch="Uniform"
-                            Fill="{Binding $parent[Button].Foreground}"
-                            HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <Viewbox Width="24" Height="24" Stretch="Uniform"
+                               HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Canvas Width="24" Height="24">
+                          <Path Name="PART_FabIcon" Data="{TemplateBinding FabIcon}" Stretch="None"
+                                Fill="{Binding $parent[Button].Foreground}" />
+                        </Canvas>
+                      </Viewbox>
                     </Grid>
                     <TextBlock Name="PART_FabLabel" Text="{TemplateBinding FabText}"
                                Foreground="{Binding $parent[Button].Foreground}"
@@ -342,7 +380,7 @@
                                FontWeight="Medium"
                                LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
                                LineHeight="{DynamicResource MaterialTitleMediumLineHeight}"
-                               MaxWidth="40" TextTrimming="CharacterEllipsis"
+                               MaxWidth="256" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center" />
                   </StackPanel>
                 </Button>
@@ -354,7 +392,7 @@
                                 HorizontalAlignment="Center" />
             </StackPanel>
             <ItemsPresenter Name="PART_ItemsPresenter" VerticalAlignment="Top"
-                            KeyboardNavigation.TabNavigation="Once" />
+                            KeyboardNavigation.TabNavigation="Continue" />
           </Panel>
         </Border>
       </ControlTemplate>
@@ -363,12 +401,14 @@
     <Style Selector="^">
       <Setter Property="Width" Value="96" />
     </Style>
-    <!-- Source FAB: 56x56 icon FAB in the compact rail, fixed 104x56 extended FAB when expanded. -->
+    <!-- Source FAB: 56x56 icon FAB when collapsed/compact, natural Extended FAB width up to the
+         360dp expanded rail cap minus 40dp horizontal header insets (320dp) when expanded. -->
     <Style Selector="^ /template/ Button#PART_FabButton">
       <Setter Property="Width" Value="56" />
     </Style>
     <Style Selector="^:expanded /template/ Button#PART_FabButton">
-      <Setter Property="Width" Value="104" />
+      <Setter Property="Width" Value="NaN" />
+      <Setter Property="MaxWidth" Value="320" />
     </Style>
     <Style Selector="^:compact">
       <Setter Property="Width" Value="80" />

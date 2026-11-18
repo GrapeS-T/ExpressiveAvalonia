@@ -154,7 +154,7 @@
                                   FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                   EnableDrag="False" />
           <Border Name="FocusRing" Margin="2" BorderBrush="{DynamicResource MaterialSecondaryBrush}"
-                  BorderThickness="2" CornerRadius="{TemplateBinding CornerRadius}"
+                  BorderThickness="3" CornerRadius="{TemplateBinding CornerRadius}"
                   IsVisible="False" IsHitTestVisible="False" />
         </Grid>
       </ControlTemplate>
@@ -220,10 +220,10 @@
   <ControlTheme x:Key="{x:Type controls:MaterialSearchAppBar}" TargetType="controls:MaterialSearchAppBar">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
     <Setter Property="ScrolledBackground" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
-    <Setter Property="SearchBarBackground" Value="{DynamicResource MaterialSurfaceContainerBrush}" />
+    <Setter Property="SearchBarBackground" Value="{DynamicResource MaterialSurfaceContainerHighBrush}" />
     <Setter Property="ScrolledSearchBarBackground" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
-    <Setter Property="SearchBarForeground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-    <Setter Property="NavigationForeground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+    <Setter Property="SearchBarForeground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="NavigationForeground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="ActionsForeground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     <Setter Property="ContentPadding" Value="0" />
     <Setter Property="SafeAreaPadding" Value="0" />
@@ -242,13 +242,13 @@
                       IsVisible="{Binding NavigationContent, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <ContentPresenter Content="{TemplateBinding NavigationContent}" />
               </Border>
-              <Border Name="PART_SearchHost" Margin="8,4" ClipToBounds="True">
+              <Border Name="PART_SearchHost" Margin="8,4">
                 <ContentPresenter Name="PART_SearchBarHost"
                                   Content="{TemplateBinding SearchBar}"
                                   VerticalAlignment="Center" />
               </Border>
               <controls:MaterialBarActionsPanel Name="PART_ActionsPanel" Orientation="Horizontal" Arrangement="Start"
-                                                VerticalAlignment="Center" ClipToBounds="True"
+                                                VerticalAlignment="Center"
                                                 TextElement.Foreground="{TemplateBinding ActionsForeground}">
                 <Button Name="PART_OverflowButton" theming:MaterialAssist.IsIconButton="True"
                         Background="Transparent" BorderThickness="0" Padding="0" MinWidth="48" MinHeight="48"
@@ -268,6 +268,11 @@
         </Border>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^:disabled">
+      <Setter Property="NavigationForeground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <Setter Property="ActionsForeground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+      <Setter Property="SearchBarForeground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type controls:MaterialSearchBar}" TargetType="controls:MaterialSearchBar">
@@ -290,25 +295,17 @@
     <Setter Property="TrailingIconName" Value="{DynamicResource MaterialSearchSubmitText}" />
     <Setter Property="SecondaryIconName" Value="{DynamicResource MaterialSearchAssistText}" />
     <Setter Property="AvatarInitial" Value="A" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Name="PART_Container"
-                Background="{TemplateBinding Background}"
-                BorderBrush="{TemplateBinding BorderBrush}"
-                BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="{TemplateBinding CornerRadius}"
-                Padding="{TemplateBinding Padding}"
-                ClipToBounds="True">
-          <Panel>
-            <!-- The pinned SearchBar input field deliberately has no hover, press or drag
-                 indication on its container: SearchBar.kt's decorator container applies
-                 ripple(enablePressIndication = false, enableHoverIndication = false,
-                 enableDragIndication = false), and only a focus InsetRing in non-touch mode. The
-                 old bar-wide 8/10 % Border StateLayer is therefore removed instead of being
-                 replaced by a ripple: a ripple here would paint press feedback over the editing
-                 root every time the user clicks into the field or one of its icon buttons, which
-                 the source does not do. The icon buttons keep their own Button ripple themes and
-                 the TextBox keeps its native editing focus. -->
+        <Panel>
+          <Border Name="PART_Container"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Padding="{TemplateBinding Padding}"
+                  ClipToBounds="True">
             <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
               <Button Name="PART_LeadingButton"
                       theming:MaterialAssist.IsIconButton="True"
@@ -323,8 +320,7 @@
                        Margin="4,0,8,0"
                        MinHeight="48"
                        Text="{TemplateBinding Text, Mode=TwoWay}"
-                       PlaceholderText="{TemplateBinding PlaceholderText}"
-                       AutomationProperties.Name="{TemplateBinding PlaceholderText}" />
+                       PlaceholderText="{TemplateBinding PlaceholderText}" />
               <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Name="PART_ClearButton"
                         theming:MaterialAssist.IsIconButton="True"
@@ -375,17 +371,40 @@
                 </Border>
               </StackPanel>
             </Grid>
-          </Panel>
-        </Border>
+          </Border>
+          <Border Name="PART_StateLayer"
+                  Background="{DynamicResource MaterialOnSurfaceBrush}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Opacity="0"
+                  IsHitTestVisible="False" />
+          <controls:MaterialFocusIndicator Name="FocusRing"
+                                           Margin="-5"
+                                           UseLayoutRounding="False"
+                                           Stroke="{DynamicResource MaterialSecondaryBrush}"
+                                           StrokeThickness="3"
+                                           IsHitTestVisible="False" />
+        </Panel>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^:not(:expanded):pointerover:not(:disabled) /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:not(:expanded):pressed:not(:disabled) /template/ Border#PART_StateLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialPressedStateLayerOpacity}" />
+    </Style>
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
-      <Setter Property="Background" Value="{DynamicResource MaterialDisabledContainerBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialDisabledSurface12Brush}" />
     </Style>
     <Style Selector="^:disabled /template/ TextBox#PART_TextBox">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
       <Setter Property="PlaceholderForeground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_AvatarTarget">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <Style Selector="^:disabled /template/ controls|MaterialFocusIndicator#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
     </Style>
     <!-- Centered building block: the query and its hint share the content area's center. -->
     <Style Selector="^:centered /template/ TextBox#PART_TextBox">
@@ -460,10 +479,18 @@
     <!-- Full screen (contained, expressive): SurfaceContainerLow surface, 8 DIP field inset and
          the source's square full-screen container shape. -->
     <Style Selector="^:full-screen">
-      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="Padding" Value="8,8" />
       <Setter Property="CornerRadius" Value="0" />
       <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
       <Setter Property="VerticalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="^:full-screen /template/ Border#PART_Root">
+      <Setter Property="KeyboardNavigation.TabNavigation" Value="Cycle" />
+    </Style>
+    <Style Selector="^:full-screen /template/ Border#PART_SuggestionsHost">
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="0" />
     </Style>
     <!-- Baseline: one container; flat header, divider and flush list. The source header has no
          field card, so the bar loses its pill radius and the container shows through. -->

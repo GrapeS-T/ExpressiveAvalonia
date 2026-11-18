@@ -49,14 +49,23 @@
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="theming:MaterialAssist.FocusRingCornerRadius" Value="5" />
     <Setter Property="Template">
       <ControlTemplate>
-        <ContentPresenter Name="PART_ContentPresenter" Background="{TemplateBinding Background}"
-                          BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                          CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"
-                          Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
-                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True" />
+        <Panel ClipToBounds="False">
+          <ContentPresenter Name="PART_ContentPresenter" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"
+                            Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True" />
+          <Border Name="FocusRing" Margin="-5"
+                  CornerRadius="{TemplateBinding theming:MaterialAssist.FocusRingCornerRadius}"
+                  BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                  IsVisible="False" IsHitTestVisible="False" />
+        </Panel>
       </ControlTemplate>
     </Setter>
     <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
@@ -72,9 +81,8 @@
     <Style Selector="^:disabled">
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
     </Style>
-    <Style Selector="^:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
-      <Setter Property="BorderThickness" Value="2" />
+    <Style Selector="^:focus-visible /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
     </Style>
   </ControlTheme>
 
@@ -176,6 +184,8 @@
 
   <ControlTheme x:Key="{x:Type Separator}" TargetType="Separator">
     <Setter Property="Focusable" Value="False" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="AutomationProperties.AccessibilityView" Value="Raw" />
     <Setter Property="Background" Value="{DynamicResource MaterialOutlineVariantBrush}" />
     <Setter Property="Height" Value="1" />
     <Setter Property="Margin" Value="0,8" />
@@ -273,8 +283,11 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
     <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="ClipToBounds" Value="False" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+    <Setter Property="theming:MaterialAssist.FocusRingCornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
     <Setter Property="Template"><ControlTemplate>
-      <Panel>
+      <Panel ClipToBounds="False">
         <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                           ContentTemplate="{TemplateBinding ContentTemplate}" Background="{TemplateBinding Background}"
                           BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
@@ -289,8 +302,10 @@
                                 HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
                                 FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                 EnableDrag="False" />
-        <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2"
-                CornerRadius="{TemplateBinding CornerRadius}" IsVisible="False" IsHitTestVisible="False" />
+        <Border Name="FocusRing" Margin="-5"
+                BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                CornerRadius="{TemplateBinding theming:MaterialAssist.FocusRingCornerRadius}"
+                IsVisible="False" IsHitTestVisible="False" />
       </Panel>
     </ControlTemplate></Setter>
     <Style Selector="^:focus-visible /template/ Border#FocusRing"><Setter Property="IsVisible" Value="True" /></Style>
@@ -303,13 +318,14 @@
   <ControlTheme x:Key="MaterialComboBoxToggle" TargetType="ToggleButton" BasedOn="{StaticResource MaterialInfrastructureButton}">
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Width" Value="48" />
+    <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type ComboBox}" TargetType="ComboBox">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerHighestBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="PlaceholderForeground" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource MaterialOutlineBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceVariantBrush}" />
     <Setter Property="BorderThickness" Value="0,0,0,1" />
     <Setter Property="CornerRadius" Value="4,4,0,0" />
     <Setter Property="Padding" Value="16,12" />
@@ -324,47 +340,61 @@
     <Setter Property="Template"><ControlTemplate>
       <Border Name="FieldBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
               BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
-        <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Margin="{TemplateBinding Padding}" Text="{TemplateBinding PlaceholderText}"
-                     Foreground="{TemplateBinding PlaceholderForeground}"
-                     HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                     VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
-            <TextBlock.IsVisible><MultiBinding Converter="{x:Static BoolConverters.And}">
-              <Binding Path="SelectionBoxItem" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNull}" />
-              <Binding Path="!IsEditable" RelativeSource="{RelativeSource TemplatedParent}" />
-            </MultiBinding></TextBlock.IsVisible>
-          </TextBlock>
-          <ContentControl Margin="{TemplateBinding Padding}" Content="{TemplateBinding SelectionBoxItem}"
-                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                          IsVisible="{TemplateBinding IsEditable, Converter={x:Static BoolConverters.Not}}" />
-          <TextBox Name="PART_EditableTextBox" Theme="{StaticResource MaterialComboBoxEditor}"
-                   Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
-                   PlaceholderText="{TemplateBinding PlaceholderText}" PlaceholderForeground="{TemplateBinding PlaceholderForeground}"
-                   VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                   HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                   Text="{TemplateBinding Text, Mode=TwoWay}" IsVisible="{TemplateBinding IsEditable}" />
-          <ToggleButton Grid.Column="1" Theme="{StaticResource MaterialComboBoxToggle}" ClickMode="Press"
-                        IsChecked="{TemplateBinding IsDropDownOpen, Mode=TwoWay}">
-            <Path Width="12" Height="6" Stretch="Uniform" Data="M 0,0 L 6,6 L 12,0 Z" Fill="{TemplateBinding Foreground}" />
-          </ToggleButton>
-          <Popup Name="PART_Popup" PlacementTarget="{TemplateBinding}" Placement="BottomEdgeAlignedLeft"
-                 MinWidth="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}}"
-                 MaxHeight="{TemplateBinding MaxDropDownHeight}" IsLightDismissEnabled="True"
-                 IsOpen="{TemplateBinding IsDropDownOpen, Mode=TwoWay}" InheritsTransform="True">
-            <Border Background="{DynamicResource MaterialSurfaceContainerBrush}" Padding="0,8"
-                    CornerRadius="{DynamicResource MaterialShapeExtraSmallCornerRadius}"
-                    BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
-              <ScrollViewer Name="PART_ScrollViewer" IsScrollChainingEnabled="False"
-                            HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
-                            VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
-                            IsDeferredScrollingEnabled="{TemplateBinding (ScrollViewer.IsDeferredScrollingEnabled)}">
-                <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
-              </ScrollViewer>
-            </Border>
-          </Popup>
-        </Grid>
+        <Panel>
+          <Border Name="HoverLayer" Background="{DynamicResource MaterialOnSurfaceBrush}"
+                  CornerRadius="{TemplateBinding CornerRadius}" Opacity="0" IsHitTestVisible="False" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Margin="{TemplateBinding Padding}" Text="{TemplateBinding PlaceholderText}"
+                       Foreground="{TemplateBinding PlaceholderForeground}"
+                       HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+              <TextBlock.IsVisible><MultiBinding Converter="{x:Static BoolConverters.And}">
+                <Binding Path="SelectionBoxItem" RelativeSource="{RelativeSource TemplatedParent}" Converter="{x:Static ObjectConverters.IsNull}" />
+                <Binding Path="!IsEditable" RelativeSource="{RelativeSource TemplatedParent}" />
+              </MultiBinding></TextBlock.IsVisible>
+            </TextBlock>
+            <ContentControl Margin="{TemplateBinding Padding}" Content="{TemplateBinding SelectionBoxItem}"
+                            ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            IsVisible="{TemplateBinding IsEditable, Converter={x:Static BoolConverters.Not}}" />
+            <TextBox Name="PART_EditableTextBox" Theme="{StaticResource MaterialComboBoxEditor}"
+                     Padding="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
+                     PlaceholderText="{TemplateBinding PlaceholderText}" PlaceholderForeground="{TemplateBinding PlaceholderForeground}"
+                     VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                     HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                     Text="{TemplateBinding Text, Mode=TwoWay}" IsVisible="{TemplateBinding IsEditable}" />
+            <ToggleButton Grid.Column="1" Theme="{StaticResource MaterialComboBoxToggle}" ClickMode="Press"
+                          IsChecked="{TemplateBinding IsDropDownOpen, Mode=TwoWay}">
+              <Path Name="Chevron" Width="12" Height="6" Stretch="Uniform" Data="M 0,0 L 6,6 L 12,0 Z"
+                    Fill="{DynamicResource MaterialOnSurfaceVariantBrush}"
+                    RenderTransformOrigin="50%,50%" />
+            </ToggleButton>
+            <Popup Name="PART_Popup" PlacementTarget="{TemplateBinding}" Placement="BottomEdgeAlignedLeft"
+                   HorizontalOffset="-10" VerticalOffset="-6"
+                   IsLightDismissEnabled="True"
+                   IsOpen="{TemplateBinding IsDropDownOpen, Mode=TwoWay}" InheritsTransform="True">
+              <Border Margin="10,6,10,12"
+                      MinWidth="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}}"
+                      MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                      Background="{DynamicResource MaterialSurfaceContainerBrush}"
+                      CornerRadius="{DynamicResource MaterialShapeExtraSmallCornerRadius}"
+                      BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
+                <ScrollViewer Name="PART_ScrollViewer" Padding="8,0" IsScrollChainingEnabled="False"
+                              HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                              VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                              IsDeferredScrollingEnabled="{TemplateBinding (ScrollViewer.IsDeferredScrollingEnabled)}">
+                  <ScrollViewer.Styles>
+                    <Style Selector="ScrollContentPresenter#PART_ContentPresenter">
+                      <Setter Property="Margin" Value="-8,0" />
+                    </Style>
+                  </ScrollViewer.Styles>
+                  <ItemsPresenter Name="PART_ItemsPresenter" Margin="0,8" ItemsPanel="{TemplateBinding ItemsPanel}" />
+                </ScrollViewer>
+              </Border>
+            </Popup>
+          </Grid>
+        </Panel>
       </Border>
     </ControlTemplate></Setter>
     <Style Selector="^ /template/ Border#FieldBorder">
@@ -376,18 +406,47 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="^:pointerover /template/ Border#FieldBorder"><Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" /></Style>
-    <Style Selector="^:focus-within /template/ Border#FieldBorder">
+    <Style Selector="^ /template/ Border#HoverLayer">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MaterialDurationShort4}" Easing="0.2,0,0,1" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="^:pointerover:not(:disabled) /template/ Border#HoverLayer">
+      <Setter Property="Opacity" Value="{DynamicResource MaterialHoverStateLayerOpacity}" />
+    </Style>
+    <Style Selector="^:pointerover:not(:disabled) /template/ Border#FieldBorder">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
+    <Style Selector="^:focus-within:not(:disabled) /template/ Border#FieldBorder">
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}" />
       <Setter Property="BorderThickness" Value="0,0,0,2" />
     </Style>
-    <Style Selector="^:error /template/ Border#FieldBorder"><Setter Property="BorderBrush" Value="{DynamicResource MaterialErrorBrush}" /></Style>
+    <Style Selector="^:error:not(:disabled) /template/ Border#FieldBorder, ^:error:focus-within:not(:disabled) /template/ Border#FieldBorder">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialErrorBrush}" />
+    </Style>
+    <Style Selector="^:error:not(:disabled) /template/ Path#Chevron">
+      <Setter Property="Fill" Value="{DynamicResource MaterialErrorBrush}" />
+    </Style>
+    <Style Selector="^:error:pointerover:not(:focus-within):not(:disabled) /template/ Border#FieldBorder">
+      <Setter Property="BorderBrush" Value="{DynamicResource MaterialOnErrorContainerBrush}" />
+    </Style>
+    <Style Selector="^:error:pointerover:not(:focus-within):not(:disabled) /template/ Path#Chevron">
+      <Setter Property="Fill" Value="{DynamicResource MaterialOnErrorContainerBrush}" />
+    </Style>
+    <Style Selector="^[IsDropDownOpen=True] /template/ Path#Chevron">
+      <Setter Property="RenderTransform" Value="rotate(180deg)" />
+    </Style>
     <!-- Disabled roles replace the container and indicator colors instead of dimming the control. -->
     <Style Selector="^:disabled">
       <Setter Property="Background" Value="{DynamicResource MaterialDisabledContainerBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MaterialDisabledOutlineBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource MaterialDisabledContentBrush}" />
       <Setter Property="PlaceholderForeground" Value="{DynamicResource MaterialDisabledContentBrush}" />
+    </Style>
+    <Style Selector="^:disabled /template/ Path#Chevron">
+      <Setter Property="Fill" Value="{DynamicResource MaterialDisabledContentBrush}" />
     </Style>
     <Style Selector="^[IsEditable=true]">
       <Setter Property="IsTabStop" Value="False" />
@@ -398,19 +457,25 @@
   <ControlTheme x:Key="{x:Type ComboBoxItem}" TargetType="ComboBoxItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource MaterialLabelLargeFontSize}" />
+    <Setter Property="FontWeight" Value="{DynamicResource MaterialLabelLargeFontWeight}" />
     <Setter Property="MinHeight" Value="48" />
     <Setter Property="Padding" Value="16,8" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ClipToBounds" Value="False" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="Template"><ControlTemplate>
-      <Panel>
+      <Panel ClipToBounds="False">
         <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
                           ContentTemplate="{TemplateBinding ContentTemplate}" Background="{TemplateBinding Background}"
                           BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                           CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"
                           HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                          TextBlock.LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
+                          TextBlock.LetterSpacing="{DynamicResource MaterialLabelLargeLetterSpacing}" />
         <!-- Source rows use a ripple indication above the row content; the selected container is
              the separate persistent paint below. The ripple is the only pressed alpha. -->
         <theming:MaterialRipple Name="Ripple"
@@ -421,7 +486,9 @@
                                 HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
                                 FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                 EnableDrag="False" />
-        <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2" IsVisible="False" IsHitTestVisible="False" />
+        <Border Name="FocusRing" Margin="-5" CornerRadius="5"
+                BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
+                IsVisible="False" IsHitTestVisible="False" />
       </Panel>
     </ControlTemplate></Setter>
     <Style Selector="^:selected">
@@ -447,8 +514,9 @@
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
     <Setter Property="HeaderBackground" Value="Transparent" />
     <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeExtraLargeCornerRadius}" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template"><ControlTemplate>
-      <StackPanel Name="PART_Root" HorizontalAlignment="Center" ClipToBounds="True">
+      <StackPanel Name="PART_Root" HorizontalAlignment="Center" ClipToBounds="False">
         <CalendarItem Name="PART_CalendarItem" Background="{TemplateBinding Background}"
                       BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                       CornerRadius="{TemplateBinding CornerRadius}" HeaderBackground="{TemplateBinding HeaderBackground}" />
@@ -477,8 +545,12 @@
 
   <ControlTheme x:Key="{x:Type CalendarItem}" TargetType="CalendarItem">
     <Setter Property="DayTitleTemplate"><Template x:DataType="x:String">
-      <TextBlock Text="{Binding}" MinWidth="48" Height="40" TextAlignment="Center" VerticalAlignment="Center"
-                 FontSize="{DynamicResource MaterialBodyMediumFontSize}" Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
+      <TextBlock Text="{Binding}" MinWidth="48" Height="48" Padding="0,12" TextAlignment="Center" VerticalAlignment="Center"
+                 FontSize="{DynamicResource MaterialBodyLargeFontSize}"
+                 FontWeight="{DynamicResource MaterialBodyLargeFontWeight}"
+                 LineHeight="{DynamicResource MaterialBodyLargeLineHeight}"
+                 LetterSpacing="{DynamicResource MaterialBodyLargeLetterSpacing}"
+                 Foreground="{DynamicResource MaterialOnSurfaceBrush}" />
     </Template></Setter>
     <Setter Property="Template"><ControlTemplate>
       <Border Name="CalendarSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
@@ -509,8 +581,9 @@
     <Setter Property="MinWidth" Value="48" />
     <Setter Property="MinHeight" Value="48" />
     <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeFullCornerRadius}" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template"><ControlTemplate>
-      <Panel Background="Transparent">
+      <Panel Background="Transparent" ClipToBounds="False">
         <Border Margin="4" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" />
         <Border Name="TodayRing" Margin="4" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="1"
                 CornerRadius="{TemplateBinding CornerRadius}" IsVisible="False" />
@@ -531,7 +604,7 @@
                                 FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                 EnableFocus="False"
                                 EnableDrag="False" />
-        <Border Name="FocusRing" Margin="1" BorderBrush="{DynamicResource MaterialPrimaryBrush}" BorderThickness="2"
+        <Border Name="FocusRing" Margin="-1" BorderBrush="{DynamicResource MaterialSecondaryBrush}" BorderThickness="3"
                 CornerRadius="{TemplateBinding CornerRadius}" IsVisible="False" IsHitTestVisible="False" />
         <Path Name="BlackoutVisual" Width="24" Height="24" Data="M 0,24 L 24,0" Stroke="{TemplateBinding Foreground}"
               StrokeThickness="1" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />

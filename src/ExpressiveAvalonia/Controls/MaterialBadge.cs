@@ -107,9 +107,10 @@ public class MaterialBadge : TemplatedControl
 /// The box reports the anchor's size and overlays the badge inside those bounds. A dot keeps the
 /// 6 dp end/top offsets; a badge with content keeps the 12 dp end and 14 dp top offsets, so a
 /// content badge overhangs the anchor's end and top edges exactly like the source
-/// <c>placeRelative</c> placement. The horizontal position is mirrored for right-to-left flow.
+/// <c>placeRelative</c> placement. Avalonia's visual mirror reflects the logical trailing placement
+/// once in right-to-left flow.
 /// <para>
-/// Badge placement is a pure adapter: the panel lays out the two template children directly and
+/// Badge placement is a pure adapter: the panel lays out the template children directly and
 /// does not alter their own layout, alignment or content.
 /// </para>
 /// </remarks>
@@ -129,8 +130,8 @@ public sealed class MaterialBadgeAnchorPanel : Panel
         anchor.Measure(availableSize);
         var anchorSize = anchor.DesiredSize;
 
-        if (Children.Count > 1)
-            Children[1].Measure(new Size(availableSize.Width, double.PositiveInfinity));
+        for (var i = 1; i < Children.Count; i++)
+            Children[i].Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
         // Compose lays the box out at the anchor's size; the badge may not enlarge it.
         return anchorSize;
@@ -145,9 +146,9 @@ public sealed class MaterialBadgeAnchorPanel : Panel
         var anchorSize = anchor.DesiredSize;
         anchor.Arrange(new Rect(anchorSize));
 
-        if (Children.Count > 1)
+        for (var i = 1; i < Children.Count; i++)
         {
-            var badge = Children[1];
+            var badge = Children[i];
             var badgeSize = badge.DesiredSize;
             if (badgeSize.Width > 0 || badgeSize.Height > 0)
             {
@@ -156,15 +157,12 @@ public sealed class MaterialBadgeAnchorPanel : Panel
                 var horizontalOffset = hasContent ? ContentHorizontalOffset : DotOffset;
                 var verticalOffset = hasContent ? ContentVerticalOffset : DotOffset;
 
-                // Source places the badge end horizontalOffset from the anchor's top-end corner
+                // Source places the badge start horizontalOffset from the anchor's top-end corner
                 // and overlaps the anchor by verticalOffset; the badge therefore overhangs the
-                // anchor's end/top edges instead of being clamped inside it.
+                // anchor's end/top edges instead of being clamped inside it. Avalonia's
+                // Visual.HasMirrorTransform reflects this logical x once in right-to-left flow.
                 var x = anchorSize.Width - horizontalOffset;
                 var y = verticalOffset - badgeSize.Height;
-
-                // Compose uses placeRelative, which mirrors the horizontal position in RTL.
-                if (FlowDirection == FlowDirection.RightToLeft)
-                    x = anchorSize.Width - x - badgeSize.Width;
 
                 badge.Arrange(new Rect(new Point(x, y), badgeSize));
             }

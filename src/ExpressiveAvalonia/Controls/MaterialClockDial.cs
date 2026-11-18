@@ -152,8 +152,8 @@ public sealed class MaterialClockDial : Control
         TextElement.FontFamilyProperty.AddOwner<MaterialClockDial>();
 
     private const double LineThickness = 2;
-    private const double FocusRingThickness = 2;
-    private const double FocusRingGap = 2;
+    private const double FocusRingThickness = 3;
+    private const double FocusRingOffset = 3.5;
 
     private readonly Pen _linePen = new() { LineCap = PenLineCap.Round };
     private readonly Pen _focusPen = new() { LineCap = PenLineCap.Round };
@@ -201,6 +201,13 @@ public sealed class MaterialClockDial : Control
             SelectedBrushProperty, SelectedTextBrushProperty, LineBrushProperty, StateLayerBrushProperty,
             StateLayerOpacityProperty, FocusRingBrushProperty, DisabledNumberBrushProperty, FontFamilyProperty);
         FocusableProperty.OverrideDefaultValue<MaterialClockDial>(true);
+    }
+
+    public MaterialClockDial()
+    {
+        Classes.CollectionChanged += (_, _) => InvalidateVisual();
+        ResourcesChanged += (_, _) => InvalidateVisual();
+        ActualThemeVariantChanged += (_, _) => InvalidateVisual();
     }
 
     /// <summary>The selected hour (0-23) or minute (0-59).</summary>
@@ -451,6 +458,18 @@ public sealed class MaterialClockDial : Control
         if (handled) e.Handled = true;
     }
 
+    protected override void OnGotFocus(FocusChangedEventArgs e)
+    {
+        base.OnGotFocus(e);
+        InvalidateVisual();
+    }
+
+    protected override void OnLostFocus(FocusChangedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        InvalidateVisual();
+    }
+
     public override void Render(DrawingContext context)
     {
         var faceSize = Math.Min(Bounds.Width, Bounds.Height);
@@ -462,17 +481,40 @@ public sealed class MaterialClockDial : Control
 
         var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
         var radius = faceSize / 2;
+        var enabled = IsEffectivelyEnabled;
+        var disabledContainer = !enabled && this.TryFindResource("MaterialTimePickerDisabledContainerBrush", out var dc)
+            ? dc as IBrush
+            : null;
+        var disabledContent = !enabled
+            ? DisabledNumberBrush ?? (this.TryFindResource("MaterialTimePickerDisabledContentBrush", out var dcnt) ? dcnt as IBrush : null)
+            : null;
 
-        if (FaceBrush is { } face)
-            context.DrawEllipse(face, null, center, radius, radius);
+        var faceBrush = enabled ? FaceBrush : disabledContainer ?? FaceBrush;
+        if (faceBrush is { } face)
+        {
+            if (!enabled && disabledContainer is null)
+            {
+                using (context.PushOpacity(0.12))
+                    context.DrawEllipse(face, null, center, radius, radius);
+            }
+            else
+            {
+                context.DrawEllipse(face, null, center, radius, radius);
+            }
+        }
 
-        var selectedPoint = PointOnRing(center, SelectedRingRadius(radius), _displayAngle);
+        var ringRadius = SelectedRingRadius(radius);
+        var selectedPoint = PointOnRing(center, ringRadius, _displayAngle);
+        var lineEnd = enabled
+            ? selectedPoint
+            : PointOnRing(center, Math.Max(0, ringRadius - CellRadius), _displayAngle);
 
-        if (LineBrush is { } lineBrush)
+        var lineBrush = enabled ? LineBrush : disabledContent;
+        if (lineBrush is not null)
         {
             _linePen.Brush = lineBrush;
             _linePen.Thickness = LineThickness;
-            context.DrawLine(_linePen, center, selectedPoint);
+            context.DrawLine(_linePen, center, lineEnd);
         }
 
         var cells = BuildCells(center, radius);
@@ -482,24 +524,31 @@ public sealed class MaterialClockDial : Control
         using (context.PushOpacity(Math.Clamp(_faceOpacity, 0, 1)))
             foreach (var cell in cells) DrawCell(context, cell);
 
-        if (SelectedBrush is { } selected)
+        var selectedBrush = enabled ? SelectedBrush : disabledContainer;
+        var selectedTextBrush = enabled ? SelectedTextBrush : disabledContent;
+        if (selectedBrush is { } selected)
         {
             context.DrawEllipse(selected, null, selectedPoint, CellRadius, CellRadius);
-            DrawNumber(context, selectedPoint, SelectedLabel(), SelectedTextBrush);
+            DrawNumber(context, selectedPoint, SelectedLabel(), selectedTextBrush);
             // Selected + hovered: the 8% state layer sits on top of the filled cell.
-            if (IsSelectedCellHovered() && StateLayerBrush is { } selectedHover)
+            if (enabled && IsSelectedCellHovered() && StateLayerBrush is { } selectedHover)
                 DrawStateLayer(context, selectedHover, selectedPoint);
         }
+        else if (!enabled)
+        {
+            DrawNumber(context, selectedPoint, SelectedLabel(), selectedTextBrush);
+        }
 
-        if (SelectedBrush is { } dot)
+        var dotBrush = enabled ? SelectedBrush : disabledContent;
+        if (dotBrush is { } dot)
             context.DrawEllipse(dot, null, center, CenterDotRadius, CenterDotRadius);
 
-        if (IsFocused && FocusRingBrush is { } ringBrush)
+        if (enabled && IsFocused && Classes.Contains(":focus-visible") && FocusRingBrush is { } ringBrush)
         {
             _focusPen.Brush = ringBrush;
             _focusPen.Thickness = FocusRingThickness;
-            context.DrawEllipse(null, _focusPen, selectedPoint, CellRadius + FocusRingGap,
-                CellRadius + FocusRingGap);
+            context.DrawEllipse(null, _focusPen, selectedPoint, CellRadius + FocusRingOffset,
+                CellRadius + FocusRingOffset);
         }
     }
 
@@ -507,19 +556,12 @@ public sealed class MaterialClockDial : Control
     {
         if (current && IsCellSelected(cell)) return;
 
-        var isHovered = _hoveredValue is { } hovered && hovered == cell.Value;
-        var numberBrush = IsEffectivelyEnabled ? NumberBrush : DisabledNumberBrush;
+        var enabled = IsEffectivelyEnabled;
+        var isHovered = enabled && _hoveredValue is { } hovered && hovered == cell.Value;
+        var numberBrush = enabled ? NumberBrush : DisabledNumberBrush;
 
         if (isHovered && StateLayerBrush is { } hover)
             DrawStateLayer(context, hover, cell.Center);
-
-        if (isHovered && IsFocused && FocusRingBrush is { } hoverRing)
-        {
-            _focusPen.Brush = hoverRing;
-            _focusPen.Thickness = FocusRingThickness;
-            context.DrawEllipse(null, _focusPen, cell.Center, CellRadius + FocusRingGap,
-                CellRadius + FocusRingGap);
-        }
 
         DrawNumber(context, cell.Center, cell.Label, numberBrush);
     }

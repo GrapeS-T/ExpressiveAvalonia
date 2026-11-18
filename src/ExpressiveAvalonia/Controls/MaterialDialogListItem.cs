@@ -1,6 +1,8 @@
+using System;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Data;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
@@ -45,6 +47,8 @@ public class MaterialDialogListItem : ListBoxItem
     /// <summary>Shows the trailing checkbox. Disable it for navigation-only rows.</summary>
     public static readonly StyledProperty<bool> ShowCheckBoxProperty =
         AvaloniaProperty.Register<MaterialDialogListItem, bool>(nameof(ShowCheckBox), true);
+
+    private IDisposable? _autoAutomationName;
 
     public MaterialDialogListItem()
     {
@@ -98,7 +102,9 @@ public class MaterialDialogListItem : ListBoxItem
     private void UpdateAutomationName()
     {
         var name = !string.IsNullOrWhiteSpace(Headline) ? Headline : Content?.ToString();
-        if (!string.IsNullOrWhiteSpace(name))
-            AutomationProperties.SetName(this, name);
+        _autoAutomationName?.Dispose();
+        _autoAutomationName = !string.IsNullOrWhiteSpace(name)
+            ? SetValue(AutomationProperties.NameProperty, name, BindingPriority.Style)
+            : null;
     }
 }

@@ -10,32 +10,54 @@
        drag handle 4x48 DIP, full-radius pill, 12x52 pressed/dragged silhouette. -->
 
   <ControlTheme x:Key="{x:Type controls:MaterialNavigationDrawer}" TargetType="controls:MaterialNavigationDrawer">
-    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
-    <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeCornerRadius}" />
+    <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+    <Setter Property="CornerRadius" Value="0" />
     <Setter Property="Padding" Value="12" />
     <Setter Property="Width" Value="360" />
     <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="ClipToBounds" Value="False" />
+    <Setter Property="AutomationProperties.Name" Value="{DynamicResource MaterialNavigationDrawerName}" />
     <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
     <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Background="{TemplateBinding Background}"
-                BorderBrush="{TemplateBinding BorderBrush}"
-                BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="{TemplateBinding CornerRadius}"
-                ClipToBounds="True">
-          <ScrollViewer Name="PART_ScrollViewer"
-                        AllowAutoHide="{TemplateBinding (ScrollViewer.AllowAutoHide)}"
-                        BringIntoViewOnFocusChange="{TemplateBinding (ScrollViewer.BringIntoViewOnFocusChange)}"
-                        HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
-                        VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
-                        IsScrollChainingEnabled="{TemplateBinding (ScrollViewer.IsScrollChainingEnabled)}">
-            <ItemsPresenter Name="PART_ItemsPresenter" Margin="{TemplateBinding Padding}"
-                            ItemsPanel="{TemplateBinding ItemsPanel}" />
-          </ScrollViewer>
-        </Border>
+        <Panel>
+          <Border Name="PART_Shadow"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  IsHitTestVisible="False" />
+          <Border Name="PART_Container"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  ClipToBounds="True">
+            <ScrollViewer Name="PART_ScrollViewer"
+                          AllowAutoHide="{TemplateBinding (ScrollViewer.AllowAutoHide)}"
+                          BringIntoViewOnFocusChange="{TemplateBinding (ScrollViewer.BringIntoViewOnFocusChange)}"
+                          HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                          VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                          IsScrollChainingEnabled="{TemplateBinding (ScrollViewer.IsScrollChainingEnabled)}">
+              <ItemsPresenter Name="PART_ItemsPresenter" Margin="{TemplateBinding Padding}"
+                              ItemsPanel="{TemplateBinding ItemsPanel}" />
+            </ScrollViewer>
+          </Border>
+        </Panel>
       </ControlTemplate>
     </Setter>
+    <Style Selector="^:standard">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="^:standard /template/ Border#PART_Shadow">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel0Shadow}" />
+    </Style>
+    <Style Selector="^:modal">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceContainerLowBrush}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MaterialShapeLargeEndCornerRadius}" />
+    </Style>
+    <Style Selector="^:modal /template/ Border#PART_Shadow">
+      <Setter Property="BoxShadow" Value="{DynamicResource MaterialElevationLevel1Shadow}" />
+    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type controls:MaterialNavigationItem}" TargetType="controls:MaterialNavigationItem">
@@ -46,6 +68,7 @@
     <Setter Property="MinHeight" Value="56" />
     <Setter Property="MinWidth" Value="56" />
     <Setter Property="Padding" Value="16,16,24,16" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -77,6 +100,8 @@
                               LineHeight="{DynamicResource MaterialLabelLargeLineHeight}"
                               MaxLines="1" TextTrimming="CharacterEllipsis" />
             <TextBlock Name="Badge" Grid.Column="2" Margin="12,0,0,0"
+                       AutomationProperties.AccessibilityView="Raw"
+                       AutomationProperties.IsControlElementOverride="False"
                        Text="{TemplateBinding BadgeText}" VerticalAlignment="Center"
                        FontSize="{DynamicResource MaterialLabelLargeFontSize}"
                        FontWeight="{DynamicResource MaterialLabelLargeFontWeight}"
@@ -98,7 +123,7 @@
                                   HoverOpacity="{DynamicResource MaterialHoverStateLayerOpacity}"
                                   FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                   EnableDrag="False" />
-          <Border Name="FocusRing" Margin="2" CornerRadius="28" BorderThickness="3"
+          <Border Name="FocusRing" Margin="-5" CornerRadius="33" BorderThickness="3"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}"
                   IsVisible="False" IsHitTestVisible="False" />
         </Grid>
@@ -131,14 +156,20 @@
     <Style Selector="^:no-icon">
       <Setter Property="Padding" Value="24,16,24,16" />
     </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    </Style>
     <Style Selector="^:disabled /template/ Grid#ContentRoot">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
     <Style Selector="^:disabled /template/ theming|MaterialRipple#Ripple">
       <Setter Property="Opacity" Value="0" />
     </Style>
+    <Style Selector="^:disabled /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
     <Style Selector="^:selected:disabled /template/ Border#Surface">
-      <Setter Property="Background" Value="{DynamicResource MaterialDisabledOutlineBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MaterialDisabledSurface12Brush}" />
     </Style>
   </ControlTheme>
 
@@ -179,10 +210,12 @@
   <ControlTheme x:Key="{x:Type controls:MaterialDragHandle}" TargetType="controls:MaterialDragHandle">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
-    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="MinWidth" Value="48" />
+    <Setter Property="MinHeight" Value="48" />
     <Setter Property="Template">
       <ControlTemplate>
         <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
+                MinWidth="{TemplateBinding MinWidth}"
                 MinHeight="{TemplateBinding MinHeight}">
           <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
             <Border Name="PART_Handle" Width="4" Height="48" CornerRadius="24"

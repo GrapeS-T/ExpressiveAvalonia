@@ -86,6 +86,12 @@ public sealed class MaterialDragHandle : TemplatedControl
     private MaterialRipple? _stateLayer;
     private IDisposable? _backgroundBinding;
 
+    static MaterialDragHandle()
+    {
+        MinWidthProperty.OverrideDefaultValue<MaterialDragHandle>(48d);
+        MinHeightProperty.OverrideDefaultValue<MaterialDragHandle>(48d);
+    }
+
     public MaterialDragHandle()
     {
         Focusable = false;
@@ -93,15 +99,32 @@ public sealed class MaterialDragHandle : TemplatedControl
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
         AutomationProperties.SetControlTypeOverride(this, AutomationControlType.Custom);
         HorizontalAlignment = HorizontalAlignment.Stretch;
+        MinWidth = 48;
         MinHeight = 48;
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
+        _backgroundBinding?.Dispose();
+        _backgroundBinding = null;
         base.OnApplyTemplate(e);
         _handle = e.NameScope.Find<Border>("PART_Handle");
         _stateLayer = e.NameScope.Find<MaterialRipple>("PART_StateLayer");
-        ApplyHandleState(pressed: false);
+        ApplyHandleState(pressed: _dragging);
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_handle is not null && _backgroundBinding is null)
+            ApplyHandleState(pressed: _dragging);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _backgroundBinding?.Dispose();
+        _backgroundBinding = null;
+        base.OnDetachedFromVisualTree(e);
     }
 
     private void ApplyHandleState(bool pressed)

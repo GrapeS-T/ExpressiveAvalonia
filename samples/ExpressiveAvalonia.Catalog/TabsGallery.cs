@@ -132,11 +132,7 @@ internal sealed class TabsPlayground : Grid, IComponentPlayground
             var item = (TabItem)_tabs.Items[i]!;
             item.IsEnabled = !(_disabled.IsChecked == true && i == count - 1);
             if (layout != MaterialTabLayout.LabelOnly && item.Icon is null)
-            {
-                var icon = new Avalonia.Controls.Shapes.Path { Data = Icon, Width = 24, Height = 24, Stretch = Stretch.Uniform };
-                icon.Bind(Avalonia.Controls.Shapes.Shape.FillProperty, new Avalonia.Data.Binding(nameof(TabItem.Foreground)) { Source = item });
-                item.Icon = icon;
-            }
+                item.Icon = new PathIcon { Data = Icon, Width = 24, Height = 24 };
             if (layout == MaterialTabLayout.LabelOnly) item.Icon = null;
             MaterialTabs.SetLayout(item, layout);
             AutomationProperties.SetName(item, $"Tab {i + 1}");

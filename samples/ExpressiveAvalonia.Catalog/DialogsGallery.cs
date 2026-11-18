@@ -29,6 +29,7 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
     private enum DialogFamily { Basic, Icon, List, ScrollableList, Input, NonDismissible, FullScreen }
 
     private readonly MaterialDialog _preview;
+    private readonly Border _previewFrame;
     private readonly MaterialDialogList _list = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBox _field = new() { PlaceholderText = "Введите имя", Margin = new Thickness(0) };
     private readonly Control _dialogIcon = MaterialDialog.CreateIcon();
@@ -61,6 +62,8 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
     private readonly StackPanel _rowsSettings = new() { Spacing = 16 };
     private readonly StackPanel _threeLineSettings = new() { Spacing = 16 };
     private readonly StackPanel _scrollableSettings = new() { Spacing = 16 };
+    private readonly StackPanel _widthSettings = new() { Spacing = 8 };
+    private readonly StackPanel _secondarySettings = new() { Spacing = 8 };
     private readonly StackPanel _dismissibleSettings = new() { Spacing = 16 };
     private readonly StackPanel _scrimSettings = new() { Spacing = 16 };
     private bool _built;
@@ -95,6 +98,13 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
             Actions = new AvaloniaList<MaterialDialogAction> { _secondaryAction, _primaryAction },
         };
         AutomationProperties.SetName(_preview, "Предпросмотр диалога");
+        _previewFrame = new Border
+        {
+            Child = _preview,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _previewFrame.Bind(Border.BorderBrushProperty, this.GetResourceObservable("MaterialOutlineVariantBrush"));
 
         MaterialAssist.SetButtonVariant(_show, MaterialButtonVariant.Filled);
         MaterialAssist.SetControlSize(_show, MaterialControlSize.Small);
@@ -109,7 +119,7 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        stage.Children.Add(_preview);
+        stage.Children.Add(_previewFrame);
         stage.Children.Add(_show);
         stage.Children.Add(_readout);
         Children.Add(new ScrollViewer
@@ -144,9 +154,11 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
         _scrollable = Toggle(_scrollableSettings, "Прокручиваемый список", false);
         Settings.Children.Add(_scrollableSettings);
 
-        _width = Number(Settings, "Ширина диалога", 280, 560, 312, 8);
+        _width = Number(_widthSettings, "Ширина диалога", 280, 560, 312, 8);
+        Settings.Children.Add(_widthSettings);
         _primaryText = TextField(Settings, "Действие по умолчанию", "Сохранить");
-        _secondaryText = TextField(Settings, "Действие отмены", "Отмена");
+        _secondaryText = TextField(_secondarySettings, "Действие отмены", "Отмена");
+        Settings.Children.Add(_secondarySettings);
 
         _dismissible = Toggle(_dismissibleSettings, "Закрытие по Escape", true);
         Settings.Children.Add(_dismissibleSettings);
@@ -181,7 +193,7 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
             _syncing = true;
             var family = CurrentFamily;
             _icon.IsChecked = family is DialogFamily.Icon or DialogFamily.List or DialogFamily.ScrollableList;
-            _divider.IsChecked = family == DialogFamily.Icon;
+            _divider.IsChecked = family is DialogFamily.Icon or DialogFamily.FullScreen;
             _syncing = false;
             Apply();
         };
@@ -204,31 +216,44 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
         if (!_built || _syncing) return;
 
         var family = CurrentFamily;
+        var fullScreen = family == DialogFamily.FullScreen;
         var usesList = family is DialogFamily.List or DialogFamily.ScrollableList;
         var dismissible = family != DialogFamily.NonDismissible && _dismissible.IsChecked == true;
 
+        _icon.IsVisible = !fullScreen;
         _rowsSettings.IsVisible = usesList;
         _threeLineSettings.IsVisible = usesList;
         _scrollableSettings.IsVisible = family == DialogFamily.List;
+        _widthSettings.IsVisible = !fullScreen;
+        _secondarySettings.IsVisible = !fullScreen;
         _dismissibleSettings.IsVisible = family != DialogFamily.NonDismissible;
-        _scrimSettings.IsVisible = family != DialogFamily.NonDismissible && dismissible;
+        _scrimSettings.IsVisible = family != DialogFamily.NonDismissible && !fullScreen && dismissible;
+
+        _previewFrame.Width = fullScreen ? 360 : double.NaN;
+        _previewFrame.Height = fullScreen ? 460 : double.NaN;
+        _previewFrame.CornerRadius = fullScreen ? new CornerRadius(16) : default;
+        _previewFrame.BorderThickness = fullScreen ? new Thickness(1) : default;
+        _previewFrame.ClipToBounds = fullScreen;
 
         _preview.Title = string.IsNullOrWhiteSpace(_title.Text) ? "Заголовок диалога" : _title.Text;
         _preview.SupportingText = _supporting.Text;
-        _preview.Icon = _icon.IsChecked == true ? _dialogIcon : null;
+        _preview.Icon = !fullScreen && _icon.IsChecked == true ? _dialogIcon : null;
         _preview.ShowDivider = _divider.IsChecked == true;
-        _preview.Width = _width.Value;
+        _preview.IsFullScreen = fullScreen;
+        _preview.Width = fullScreen ? double.NaN : _width.Value;
+        _preview.HorizontalAlignment = fullScreen ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
+        _preview.VerticalAlignment = fullScreen ? VerticalAlignment.Stretch : VerticalAlignment.Center;
         _preview.IsDismissible = dismissible;
         _preview.CloseOnScrimClick = _scrim.IsChecked == true;
         _preview.List = usesList ? _list : null;
-        _preview.Content = family == DialogFamily.Input ? _field : null;
+        _preview.Content = family is DialogFamily.Input or DialogFamily.FullScreen ? _field : null;
 
         _list.IsScrollable = family == DialogFamily.ScrollableList || _scrollable.IsChecked == true;
         SyncList((int)Math.Round(_rows.Value), _threeLine.IsChecked == true);
 
         _secondaryAction.Text = string.IsNullOrWhiteSpace(_secondaryText.Text) ? "Отмена" : _secondaryText.Text;
         _primaryAction.Text = string.IsNullOrWhiteSpace(_primaryText.Text) ? "OK" : _primaryText.Text;
-        _primaryAction.CloseOnInvoke = family != DialogFamily.Input;
+        _primaryAction.CloseOnInvoke = family is not (DialogFamily.Input or DialogFamily.FullScreen);
     }
 
     private void SyncList(int count, bool threeLine)
@@ -281,14 +306,15 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
     private MaterialDialog BuildModalDialog()
     {
         var family = CurrentFamily;
+        var fullScreen = family == DialogFamily.FullScreen;
         var dialog = new MaterialDialog
         {
             Title = string.IsNullOrWhiteSpace(_title.Text) ? "Заголовок диалога" : _title.Text,
             SupportingText = _supporting.Text,
-            Icon = _icon.IsChecked == true ? MaterialDialog.CreateIcon() : null,
+            Icon = !fullScreen && _icon.IsChecked == true ? MaterialDialog.CreateIcon() : null,
             ShowDivider = _divider.IsChecked == true,
-            Width = family == DialogFamily.FullScreen ? double.NaN : _width.Value,
-            IsFullScreen = family == DialogFamily.FullScreen,
+            Width = fullScreen ? double.NaN : _width.Value,
+            IsFullScreen = fullScreen,
             IsDismissible = family != DialogFamily.NonDismissible && _dismissible.IsChecked == true,
             CloseOnScrimClick = _scrim.IsChecked == true,
         };
@@ -300,7 +326,7 @@ internal sealed class DialogPlayground : Grid, IComponentPlayground
         }
 
         TextBox? field = null;
-        if (family == DialogFamily.Input)
+        if (family is DialogFamily.Input or DialogFamily.FullScreen)
         {
             field = new TextBox { PlaceholderText = "Введите имя", Text = _field.Text };
             MaterialTextField.SetVariant(field, MaterialTextFieldVariant.Outlined);

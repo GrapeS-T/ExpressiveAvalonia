@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
 using Avalonia.Controls.Presenters;
@@ -13,6 +14,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Path = Avalonia.Controls.Shapes.Path;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ExpressiveAvalonia.Theming;
@@ -157,7 +159,9 @@ public class MaterialNavigationRail : ListBox
     private StackPanel? _itemsPanel;
     private Button? _fabButton;
     private Grid? _fabIconSlot;
+    private Path? _fabIconPath;
     private TextBlock? _fabLabel;
+    private IDisposable? _fabNameSubscription;
     private MaterialMotion.SpringAnimation? _progressSpring;
     private MaterialMotion.SpringAnimation? _widthSpring;
     private MaterialMotion.SpringAnimation? _spacingSpring;
@@ -173,15 +177,17 @@ public class MaterialNavigationRail : ListBox
 
     static MaterialNavigationRail()
     {
+        FocusableProperty.OverrideDefaultValue<MaterialNavigationRail>(false);
+        IsTabStopProperty.OverrideDefaultValue<MaterialNavigationRail>(false);
         ModeProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.OnModeChanged());
         IsExpandedProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.OnExpansionTargetChanged());
         RailAlignmentProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
         ItemIconPositionProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateItemStates());
         IsFloatingProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateVisualClasses());
-        FabTextProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateFabContent());
-        FabIconProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateFabContent());
-        ShowMenuButtonProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
-        ShowFabProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.UpdateLayoutGeometry());
+        FabTextProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => { rail.UpdateFabContent(); rail.ScheduleExpandedWidthUpdate(); });
+        FabIconProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => { rail.UpdateFabContent(); rail.ScheduleExpandedWidthUpdate(); });
+        ShowMenuButtonProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => { rail.UpdateLayoutGeometry(); rail.ScheduleExpandedWidthUpdate(); });
+        ShowFabProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => { rail.UpdateLayoutGeometry(); rail.ScheduleExpandedWidthUpdate(); });
         HeaderProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => { rail.UpdateLayoutGeometry(); rail.ScheduleExpandedWidthUpdate(); });
         HeaderTemplateProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => { rail.UpdateLayoutGeometry(); rail.ScheduleExpandedWidthUpdate(); });
         ExpansionSpringProperty.Changed.AddClassHandler<MaterialNavigationRail>((rail, _) => rail.RestartExpansionAnimation());
@@ -190,7 +196,6 @@ public class MaterialNavigationRail : ListBox
     public MaterialNavigationRail()
     {
         AddHandler(KeyDownEvent, OnRailKeyDown, RoutingStrategies.Tunnel);
-        AddHandler(GotFocusEvent, OnRailGotFocus, RoutingStrategies.Bubble);
         SizeChanged += (_, _) => ScheduleExpandedWidthUpdate();
     }
 
@@ -311,18 +316,25 @@ public class MaterialNavigationRail : ListBox
             navItem.Invoked += OnItemInvoked;
             navItem.RefreshRailState();
         }
+        UpdateRovingTabStop();
         ScheduleExpandedWidthUpdate();
     }
 
     protected override void ClearContainerForItemOverride(Control container)
     {
         if (container is MaterialNavigationRailItem navItem)
+        {
             navItem.Invoked -= OnItemInvoked;
+            navItem.IsTabStop = false;
+        }
         base.ClearContainerForItemOverride(container);
+        UpdateRovingTabStop();
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
+        _fabNameSubscription?.Dispose();
+        _fabNameSubscription = null;
         base.OnApplyTemplate(e);
         _headerHost = e.NameScope.Find<StackPanel>("PART_HeaderHost");
         _headerPresenter = e.NameScope.Find<ContentPresenter>("PART_HeaderPresenter");
@@ -330,6 +342,7 @@ public class MaterialNavigationRail : ListBox
         _itemsPresenter = e.NameScope.Find<ItemsPresenter>("PART_ItemsPresenter");
         _fabButton = e.NameScope.Find<Button>("PART_FabButton");
         _fabIconSlot = e.NameScope.Find<Grid>("PART_FabIconSlot");
+        _fabIconPath = e.NameScope.Find<Path>("PART_FabIcon");
         _fabLabel = e.NameScope.Find<TextBlock>("PART_FabLabel");
         _itemsPanel = null;
 
@@ -343,6 +356,7 @@ public class MaterialNavigationRail : ListBox
 
         UpdateVisualClasses();
         UpdateItemStates();
+        UpdateRovingTabStop();
         UpdateFabContent();
         UpdateLayoutGeometry();
         SnapExpansion();
@@ -353,14 +367,54 @@ public class MaterialNavigationRail : ListBox
         base.OnAttachedToVisualTree(e);
         UpdateVisualClasses();
         UpdateItemStates();
+        UpdateRovingTabStop();
+        UpdateFabContent();
         UpdateLayoutGeometry();
         SnapExpansion();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        _fabNameSubscription?.Dispose();
+        _fabNameSubscription = null;
         DisposeExpansionAnimations();
         base.OnDetachedFromVisualTree(e);
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == SelectedIndexProperty || change.Property == SelectedItemProperty)
+            UpdateRovingTabStop();
+    }
+
+    internal void UpdateRovingTabStop()
+    {
+        MaterialNavigationRailItem? active = null;
+        if (SelectedIndex >= 0 && ContainerFromIndex(SelectedIndex) is MaterialNavigationRailItem selected &&
+            selected.Focusable && selected.IsEffectivelyEnabled && selected.IsEffectivelyVisible)
+        {
+            active = selected;
+        }
+
+        if (active is null)
+        {
+            for (var i = 0; i < ItemCount; i++)
+            {
+                if (ContainerFromIndex(i) is MaterialNavigationRailItem candidate &&
+                    candidate.Focusable && candidate.IsEffectivelyEnabled && candidate.IsEffectivelyVisible)
+                {
+                    active = candidate;
+                    break;
+                }
+            }
+        }
+
+        foreach (var container in GetRealizedContainers())
+        {
+            if (container is MaterialNavigationRailItem item)
+                item.IsTabStop = ReferenceEquals(item, active);
+        }
     }
 
     private void OnModeChanged()
@@ -419,15 +473,41 @@ public class MaterialNavigationRail : ListBox
     {
         if (_fabIconSlot is not null)
             _fabIconSlot.IsVisible = FabIcon is not null;
+        ApplyFabIconViewport(_fabIconPath, FabIcon);
         if (_fabLabel is not null)
             _fabLabel.IsVisible = Mode == MaterialNavigationRailMode.Wide && IsExpanded &&
                 !string.IsNullOrEmpty(FabText);
+
+        _fabNameSubscription?.Dispose();
+        _fabNameSubscription = null;
         if (_fabButton is not null)
         {
-            var fallback = _fabButton.TryFindResource("MaterialNavigationRailFabText", out var value) && value is string text
-                ? text
-                : "Create";
-            AutomationProperties.SetName(_fabButton, string.IsNullOrEmpty(FabText) ? fallback : FabText);
+            _fabNameSubscription = !string.IsNullOrEmpty(FabText)
+                ? _fabButton.SetValue(AutomationProperties.NameProperty, FabText, BindingPriority.Style)
+                : _fabButton.Bind(AutomationProperties.NameProperty,
+                    _fabButton.GetResourceObservable("MaterialNavigationRailFabText"), BindingPriority.Style);
+        }
+    }
+
+    private static void ApplyFabIconViewport(Path? path, Geometry? geometry)
+    {
+        if (path is null)
+            return;
+
+        var bounds = geometry?.Bounds ?? default;
+        var fitsViewport = geometry is null ||
+            (bounds.X >= -0.5 && bounds.Y >= -0.5 && bounds.Right <= 24.5 && bounds.Bottom <= 24.5);
+        if (fitsViewport)
+        {
+            path.Stretch = Stretch.None;
+            path.ClearValue(WidthProperty);
+            path.ClearValue(HeightProperty);
+        }
+        else
+        {
+            path.Stretch = Stretch.Uniform;
+            path.Width = 24;
+            path.Height = 24;
         }
     }
 
@@ -584,25 +664,17 @@ public class MaterialNavigationRail : ListBox
             if (container is MaterialNavigationRailItem item)
                 widest = Math.Max(widest, item.MeasureExpandedWidth());
         }
+        if (_menuFab is not null && (ShowMenuButton || ShowFab))
+        {
+            _menuFab.Measure(new Size(320d, double.PositiveInfinity));
+            widest = Math.Max(widest, _menuFab.DesiredSize.Width + 40d);
+        }
         if (_headerHost is not null && Header is not null)
         {
-            _headerHost.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            widest = Math.Max(widest, _headerHost.DesiredSize.Width + 40);
+            _headerHost.Measure(new Size(320d, double.PositiveInfinity));
+            widest = Math.Max(widest, _headerHost.DesiredSize.Width + 40d);
         }
         return Math.Clamp(widest, 220d, 360d);
-    }
-
-    private void OnRailGotFocus(object? sender, FocusChangedEventArgs e)
-    {
-        if (e.NavigationMethod != NavigationMethod.Tab)
-            return;
-
-        if (FindItem(e.Source) is { } item)
-        {
-            var index = IndexFromContainer(item);
-            if (index >= 0 && index != SelectedIndex)
-                SelectedIndex = index;
-        }
     }
 
     private void OnRailKeyDown(object? sender, KeyEventArgs e)
@@ -685,7 +757,10 @@ public class MaterialNavigationRail : ListBox
     }
 
     private bool IsItemEnabled(int index) =>
-        ContainerFromIndex(index) is not Control container || container.IsEffectivelyEnabled;
+        ContainerFromIndex(index) is not Control container ||
+        (container.IsEffectivelyEnabled && container.IsEffectivelyVisible);
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new NavigationRailAutomationPeer(this);
 
     private void SelectAndFocus(int index)
     {
@@ -734,6 +809,23 @@ public class MaterialNavigationRail : ListBox
         item ??= ContainerFromIndex(index) as MaterialNavigationRailItem;
         if (item is not null)
             ItemInvoked?.Invoke(this, new MaterialNavigationRailItemInvokedEventArgs(item, index));
+    }
+
+    private sealed class NavigationRailAutomationPeer(MaterialNavigationRail owner) : ListBoxAutomationPeer(owner)
+    {
+        protected override string GetClassNameCore() => nameof(MaterialNavigationRail);
+
+        protected override AutomationLandmarkType? GetLandmarkTypeCore() => AutomationLandmarkType.Navigation;
+
+        protected override string? GetNameCore()
+        {
+            var name = base.GetNameCore();
+            if (!string.IsNullOrEmpty(name))
+                return name;
+            return owner.TryFindResource("MaterialNavigationRailName", out var value) && value is string text
+                ? text
+                : "Navigation rail";
+        }
     }
 }
 

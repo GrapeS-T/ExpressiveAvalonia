@@ -28,8 +28,11 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
     private const string DeleteIcon = "M6,19 C6,20.1 6.9,21 8,21 L16,21 C17.1,21 18,20.1 18,19 L18,7 L6,7 L6,19 Z M19,4 L15.5,4 L14.5,3 L9.5,3 L8.5,4 L5,4 L5,6 L19,6 L19,4 Z";
     private const string FavoriteIcon = "M12,21.35 L10.55,20.03 C5.4,15.36 2,12.28 2,8.5 C2,5.42 4.42,3 7.5,3 C9.24,3 10.91,3.81 12,5.09 C13.09,3.81 14.76,3 16.5,3 C19.58,3 22,5.42 22,8.5 C22,12.28 18.6,15.36 13.45,20.04 L12,21.35 Z";
     private const string CameraIcon = "M12,15.2 A3.2,3.2 0 1 0 12,8.8 A3.2,3.2 0 1 0 12,15.2 Z M9,2 L7.17,4 L4,4 C2.9,4 2,4.9 2,6 L2,18 C2,19.1 2.9,20 4,20 L20,20 C21.1,20 22,19.1 22,18 L22,6 C22,4.9 21.1,4 20,4 L16.83,4 L15,2 L9,2 Z";
+    private const string BookmarkIcon = "M17,3 L7,3 C5.9,3 5,3.9 5,5 L5,21 L12,18 L19,21 L19,5 C19,3.9 18.1,3 17,3 Z";
 
-    private static readonly string[] IconNames = ["Плюс", "Изменить", "Поделиться", "Удалить", "Избранное", "Съёмка"];
+    private static readonly string[] FabRoleNames = Enum.GetNames<MaterialFabColorRole>();
+    private static readonly string[] MenuRoleNames = ["Primary", "Secondary", "Tertiary"];
+    private static readonly string[] IconNames = ["Плюс", "Изменить", "Поделиться", "Удалить", "Избранное", "Съёмка", "Закладка"];
     private static readonly Geometry[] IconData =
     [
         Geometry.Parse(PlusIcon),
@@ -38,16 +41,18 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
         Geometry.Parse(DeleteIcon),
         Geometry.Parse(FavoriteIcon),
         Geometry.Parse(CameraIcon),
+        Geometry.Parse(BookmarkIcon),
     ];
 
-    private static readonly string[] SegmentLabels = ["Изменить", "Поделиться", "Удалить", "В избранное", "Съёмка"];
-    private static readonly Geometry[] SegmentIcons = [IconData[1], IconData[2], IconData[3], IconData[4], IconData[5]];
+    private static readonly string[] SegmentLabels = ["Изменить", "Поделиться", "Удалить", "В избранное", "Съёмка", "В закладки"];
+    private static readonly Geometry[] SegmentIcons = [IconData[1], IconData[2], IconData[3], IconData[4], IconData[5], IconData[6]];
 
     private readonly MaterialFab _fab = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly MaterialExtendedFab _extended = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly PathIcon[] _fabGlyphs = IconData.Select(data => new PathIcon { Data = data }).ToArray();
     private readonly MaterialFabMenu _menu = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
     private readonly Grid _menuHost;
+    private readonly Grid _stageContent;
     private readonly TextBlock _status = new()
     {
         Text = "Действий ещё не было.",
@@ -69,10 +74,13 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
     private readonly StackPanel _labelGroup;
     private readonly ToggleSwitch _expanded;
     private readonly ToggleSwitch _enabled;
+    private readonly ToggleSwitch _rtl;
     private readonly Slider _actions;
     private readonly StackPanel _actionsGroup;
     private readonly ToggleSwitch _openMenu;
     private int _lastKind = -1;
+    private int _colorFamily;
+    private bool _solidRole;
     private bool _syncing;
 
     public StackPanel Settings { get; } = new() { Spacing = 16 };
@@ -86,7 +94,7 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
             Margin = new Thickness(0, 0, 0, 16),
             Children = { _menu },
         };
-        var stageContent = new Grid { Children = { _fab, _extended, _menuHost } };
+        _stageContent = new Grid { Children = { _fab, _extended, _menuHost } };
         var stage = new Border
         {
             Height = 480,
@@ -95,7 +103,7 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
             CornerRadius = new CornerRadius(16),
             ClipToBounds = true,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Child = stageContent,
+            Child = _stageContent,
         };
         stage.Bind(Border.BackgroundProperty, stage.GetResourceObservable("MaterialSurfaceContainerBrush"));
 
@@ -118,12 +126,13 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
         _sizeGroup = new StackPanel { Spacing = 6 };
         _sizeGroup.Children.Add(new TextBlock { Text = "Размер" });
         _size = Group(_sizeGroup, ["40", "56", "80", "96"]);
+        _size.SelectedIndex = 1;
         Settings.Children.Add(_sizeGroup);
 
         Settings.Children.Add(new TextBlock { Text = "Цветовая роль" });
         _role = new ComboBox
         {
-            ItemsSource = Enum.GetNames<MaterialFabColorRole>(),
+            ItemsSource = FabRoleNames,
             SelectedIndex = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
@@ -154,10 +163,12 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
         Settings.Children.Add(_showIcon);
         _enabled = new ToggleSwitch { Content = "Доступен", IsChecked = true };
         Settings.Children.Add(_enabled);
+        _rtl = new ToggleSwitch { Content = "Справа налево (RTL)" };
+        Settings.Children.Add(_rtl);
 
         _actionsGroup = new StackPanel { Spacing = 6 };
         _actionsGroup.Children.Add(new TextBlock { Text = "Действий в меню: 3" });
-        _actions = new Slider { Minimum = 2, Maximum = 5, Value = 3, TickFrequency = 1, IsSnapToTickEnabled = true };
+        _actions = new Slider { Minimum = 2, Maximum = 6, Value = 3, TickFrequency = 1, IsSnapToTickEnabled = true };
         AutomationProperties.SetName(_actions, "Количество действий в меню");
         _actions.PropertyChanged += (_, e) =>
         {
@@ -197,11 +208,11 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
         };
 
         foreach (var choice in new[] { _kind, _mode, _size })
-            choice.SelectionChanged += (_, _) => Apply();
-        _role.SelectionChanged += (_, _) => Apply();
-        _icon.SelectionChanged += (_, _) => Apply();
-        _label.TextChanged += (_, _) => Apply();
-        foreach (var toggle in new[] { _expanded, _showIcon, _enabled, _openMenu })
+            choice.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _role.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _icon.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _label.TextChanged += (_, _) => { if (!_syncing) Apply(); };
+        foreach (var toggle in new[] { _expanded, _showIcon, _enabled, _rtl, _openMenu })
             toggle.IsCheckedChanged += (_, _) => { if (!_syncing) Apply(); };
 
         Apply();
@@ -210,7 +221,6 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
     private void Apply()
     {
         var kind = Math.Clamp(_kind.SelectedIndex, 0, 2);
-        var role = (MaterialFabColorRole)Math.Clamp(_role.SelectedIndex, 0, 5);
         var iconIndex = Math.Clamp(_icon.SelectedIndex, 0, IconData.Length - 1);
         var icon = IconData[iconIndex];
         var label = string.IsNullOrWhiteSpace(_label.Text) ? "Действие" : _label.Text!;
@@ -220,16 +230,38 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
 
         if (kind != _lastKind)
         {
-            // The regular FAB has four source sizes (40/56/80/96); the extended FAB has three
-            // (56/80/96). Selecting a family keeps the closest source height instead of reusing a
-            // numeric index, and the unused fourth segment leaves the connected row.
+            var wasMenu = _lastKind == 2;
+            var isMenu = kind == 2;
+            if (_lastKind >= 0 && wasMenu != isMenu)
+            {
+                _syncing = true;
+                if (isMenu)
+                {
+                    var selectedRole = Math.Clamp(_role.SelectedIndex, 0, 5);
+                    _colorFamily = selectedRole % 3;
+                    _solidRole = selectedRole >= 3;
+                    _role.ItemsSource = MenuRoleNames;
+                    _role.SelectedIndex = _colorFamily;
+                }
+                else
+                {
+                    _colorFamily = Math.Clamp(_role.SelectedIndex, 0, 2);
+                    _role.ItemsSource = FabRoleNames;
+                    _role.SelectedIndex = (_solidRole ? 3 : 0) + _colorFamily;
+                }
+                _syncing = false;
+            }
+
+            // The regular FAB has four source sizes (40/56/80/96); the extended FAB and FAB menu
+            // triggers use the three Expressive heights (56/80/96). Selecting a family keeps the
+            // closest source height instead of reusing a numeric index.
             var previousHeight = _lastKind switch
             {
-                1 => _size.SelectedIndex switch { 0 => 56, 1 => 80, _ => 96 },
                 0 => _size.SelectedIndex switch { 0 => 40, 1 => 56, 2 => 80, _ => 96 },
+                1 or 2 => _size.SelectedIndex switch { 0 => 56, 1 => 80, _ => 96 },
                 _ => 56,
             };
-            var labels = kind == 1 ? new[] { "56", "80", "96" } : new[] { "40", "56", "80", "96" };
+            var labels = kind == 0 ? new[] { "40", "56", "80", "96" } : new[] { "56", "80", "96" };
             for (var i = 0; i < _size.Items.Count; i++)
             {
                 if (_size.Items[i] is not MaterialButtonGroupItem item)
@@ -241,7 +273,7 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
             int mapped;
             if (_lastKind < 0)
                 mapped = Math.Clamp(_size.SelectedIndex, 0, labels.Length - 1);
-            else if (kind == 1)
+            else if (kind != 0)
                 mapped = previousHeight <= 56 ? 0 : previousHeight <= 80 ? 1 : 2;
             else
                 mapped = previousHeight <= 40 ? 0
@@ -249,18 +281,35 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
                     : previousHeight <= 80 ? 2
                     : 3;
             _lastKind = kind;
+            _syncing = true;
             _size.SelectedIndex = mapped;
+            _syncing = false;
         }
 
-        var size = Math.Clamp(_size.SelectedIndex, 0, kind == 1 ? 2 : 3);
+        MaterialFabColorRole role;
+        if (kind == 2)
+        {
+            _colorFamily = Math.Clamp(_role.SelectedIndex, 0, 2);
+            role = (MaterialFabColorRole)((_solidRole ? 3 : 0) + _colorFamily);
+        }
+        else
+        {
+            var selectedRole = Math.Clamp(_role.SelectedIndex, 0, 5);
+            _colorFamily = selectedRole % 3;
+            _solidRole = selectedRole >= 3;
+            role = (MaterialFabColorRole)selectedRole;
+        }
 
+        var size = Math.Clamp(_size.SelectedIndex, 0, kind == 0 ? 3 : 2);
+
+        _stageContent.FlowDirection = _rtl.IsChecked == true ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
         _fab.IsVisible = kind == 0;
         _extended.IsVisible = kind == 1;
         _menuHost.IsVisible = kind == 2;
-        _sizeGroup.IsVisible = kind != 2 && !(kind == 1 && mode == MaterialExtendedFabMode.Classic);
+        _sizeGroup.IsVisible = !(kind == 1 && mode == MaterialExtendedFabMode.Classic);
         _modeGroup.IsVisible = kind == 1;
         _labelGroup.IsVisible = kind == 1;
-        _expanded.IsVisible = kind == 1;
+        _expanded.IsVisible = kind == 1 && hasIcon;
         _showIcon.IsVisible = kind == 1;
         _actionsGroup.IsVisible = kind == 2;
         _openMenu.IsVisible = kind == 2;
@@ -276,14 +325,15 @@ internal sealed class FabPlayground : Grid, IComponentPlayground
         _extended.ColorRole = role;
         _extended.Icon = hasIcon ? icon : null;
         _extended.Label = label;
-        _extended.IsExpanded = _expanded.IsChecked == true;
+        _extended.IsExpanded = hasIcon && _expanded.IsChecked == true;
         _extended.IsEnabled = enabled;
 
-        _menu.ColorRole = role switch
+        _menu.ColorRole = (MaterialFabMenuColorRole)_colorFamily;
+        _menu.TriggerSize = size switch
         {
-            MaterialFabColorRole.Secondary or MaterialFabColorRole.SecondaryContainer => MaterialFabMenuColorRole.SecondaryContainer,
-            MaterialFabColorRole.Tertiary or MaterialFabColorRole.TertiaryContainer => MaterialFabMenuColorRole.TertiaryContainer,
-            _ => MaterialFabMenuColorRole.PrimaryContainer,
+            1 => MaterialFabSize.Medium,
+            2 => MaterialFabSize.Large,
+            _ => MaterialFabSize.Default,
         };
         _menu.TriggerIcon = icon;
         _menu.IsEnabled = enabled;

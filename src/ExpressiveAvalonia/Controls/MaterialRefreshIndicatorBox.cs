@@ -4,6 +4,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using ExpressiveAvalonia.Theming;
 
 namespace ExpressiveAvalonia.Controls;
@@ -66,12 +67,11 @@ public sealed class MaterialRefreshIndicatorBox : ContentControl
         HorizontalContentAlignment = HorizontalAlignment.Center;
         VerticalContentAlignment = VerticalAlignment.Center;
         Template = new FuncControlTemplate<MaterialRefreshIndicatorBox>((owner, _) => owner.Build());
-        AttachedToVisualTree += (_, _) =>
+        ResourcesChanged += (_, _) =>
         {
-            UpdateTranslation();
-            UpdateShape(Bounds.Size);
             _shadowLevel = -1;
             UpdateShadow();
+            InvalidateVisual();
         };
         ActualThemeVariantChanged += (_, _) =>
         {
@@ -79,6 +79,28 @@ public sealed class MaterialRefreshIndicatorBox : ContentControl
             UpdateShadow();
             InvalidateVisual();
         };
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (ContainerShape is { } shape)
+        {
+            shape.Changed -= OnShapeChanged;
+            shape.Changed += OnShapeChanged;
+        }
+        UpdateTranslation();
+        _fittedShape = null;
+        UpdateShape(Bounds.Size);
+        _shadowLevel = -1;
+        UpdateShadow();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        if (ContainerShape is { } shape)
+            shape.Changed -= OnShapeChanged;
+        base.OnDetachedFromVisualTree(e);
     }
 
     public double DistanceFraction { get => GetValue(DistanceFractionProperty); set => SetValue(DistanceFractionProperty, value); }
@@ -127,7 +149,7 @@ public sealed class MaterialRefreshIndicatorBox : ContentControl
         if (change.Property == ContainerShapeProperty)
         {
             if (change.OldValue is Geometry oldShape) oldShape.Changed -= OnShapeChanged;
-            if (change.NewValue is Geometry newShape) newShape.Changed += OnShapeChanged;
+            if (this.IsAttachedToVisualTree() && change.NewValue is Geometry newShape) newShape.Changed += OnShapeChanged;
         }
         if (change.Property == CornerRadiusProperty || change.Property == FlowDirectionProperty)
             UpdateShape(Bounds.Size);
@@ -248,7 +270,7 @@ public sealed class MaterialRefreshIndicatorBox : ContentControl
         var minDimension = Math.Min(bounds.Width, bounds.Height);
         var rightToLeft = FlowDirection == FlowDirection.RightToLeft;
         var shape = IsSet(CornerRadiusProperty)
-            ? MaterialAssist.CornerShape.FromCornerRadius(CornerRadius, rightToLeft)
+            ? MaterialAssist.CornerShape.FromCornerRadius(CornerRadius, rightToLeft: false)
             : MaterialAssist.CornerShape.Full;
         return shape.Resolve(shape, 1, minDimension, rightToLeft);
     }
@@ -259,7 +281,7 @@ public sealed class MaterialRefreshIndicatorBox : ContentControl
         if (level != _shadowLevel)
         {
             _shadowLevel = level;
-            _shadow = level > 0 && this.TryFindResource($"MaterialElevationLevel{level}Shadow", out var value) &&
+            _shadow = level > 0 && this.TryFindResource($"MaterialElevationLevel{level}Shadow", ActualThemeVariant, out var value) &&
                       value is BoxShadows shadows
                 ? shadows
                 : default;

@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.Media;
 
 namespace ExpressiveAvalonia.Controls;
 
@@ -29,22 +31,34 @@ public sealed class MaterialDatePickerResult
 
 /// <summary>
 /// Native modal host for a <see cref="MaterialDatePicker"/>. The picker keeps its own surface;
-/// the window supplies modal blocking, owner centering and focus restore.
+/// the window supplies modal blocking, scrim light-dismiss, owner centering and focus restore.
 /// </summary>
 /// <remarks>
 /// The picker instance is released from the window when the dialog closes so the same control
-/// can be shown again or reused elsewhere. The dialog owns the commit boundary: Escape, the
-/// platform close gesture and the picker's Cancel all discard the draft and restore the selection
-/// captured when the dialog opened; OK and Save confirm the current selection.
+/// can be shown again or reused elsewhere. The dialog owns the commit boundary: Escape, scrim
+/// click, the platform close gesture and the picker's Cancel all discard the draft and restore
+/// the selection captured when the dialog opened; OK and Save confirm the current selection.
 /// </remarks>
 public sealed class MaterialDatePickerDialog : Window
 {
+    private const double ShadowMargin = 16;
+    private const double ModalMargin = 24;
+
     private readonly MaterialDatePicker _picker;
+    private readonly Panel _root;
+    private readonly Border _scrim;
     private readonly DateTimeOffset? _committedStart;
     private readonly DateTimeOffset? _committedEnd;
     private readonly DateTimeOffset? _committedDisplay;
     private readonly MaterialDatePickerView _committedView;
     private readonly bool _committedInputMode;
+    private readonly Thickness _savedMargin;
+    private readonly HorizontalAlignment _savedHorizontalAlignment;
+    private readonly VerticalAlignment _savedVerticalAlignment;
+    private readonly double _savedWidth;
+    private readonly double _savedHeight;
+    private Window? _ownerWindow;
+    private IInputElement? _previousFocus;
     private MaterialDatePickerResult? _result;
     private bool _closed;
 
@@ -61,17 +75,37 @@ public sealed class MaterialDatePickerDialog : Window
         _committedDisplay = picker.DisplayDate;
         _committedView = picker.View;
         _committedInputMode = picker.IsInputMode;
+        _savedMargin = picker.Margin;
+        _savedHorizontalAlignment = picker.HorizontalAlignment;
+        _savedVerticalAlignment = picker.VerticalAlignment;
+        _savedWidth = picker.Width;
+        _savedHeight = picker.Height;
 
-        Title = picker.EffectiveLabel;
-        WindowDecorations = WindowDecorations.BorderOnly;
-        SizeToContent = SizeToContent.WidthAndHeight;
+        Title = ResolveTitle(picker);
+        WindowDecorations = WindowDecorations.None;
+        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
+        Background = Brushes.Transparent;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         CanResize = false;
         CanMinimize = false;
         CanMaximize = false;
         ShowInTaskbar = false;
         Padding = new Thickness(0);
-        Content = picker;
+
+        _scrim = new Border
+        {
+            IsVisible = false,
+            IsHitTestVisible = true,
+        };
+        _scrim.PointerPressed += OnScrimPointerPressed;
+
+        _root = new Panel { ClipToBounds = false };
+        KeyboardNavigation.SetTabNavigation(_root, KeyboardNavigationMode.Cycle);
+        _root.Children.Add(_scrim);
+        _root.Children.Add(picker);
+        Content = _root;
+
+        ApplyPresentation(owner: null);
 
         picker.Confirmed += OnPickerConfirmed;
         picker.Cancelled += OnPickerCancelled;
@@ -95,6 +129,7 @@ public sealed class MaterialDatePickerDialog : Window
                 "The date picker already has a parent. Create a picker for the dialog instead.");
 
         var dialog = new MaterialDatePickerDialog(picker);
+        dialog.AttachOwner(owner);
         var result = await dialog.ShowDialog<MaterialDatePickerResult?>(owner);
         return result ?? MaterialDatePickerResult.Cancelled;
     }
@@ -102,6 +137,11 @@ public sealed class MaterialDatePickerDialog : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
+        if (_ownerWindow is null && Owner is Window owner)
+            AttachOwner(owner);
+        else
+            ApplyPresentation(_ownerWindow);
+        Title = ResolveTitle(_picker);
         _picker.Focus(NavigationMethod.Unspecified);
     }
 
@@ -123,18 +163,154 @@ public sealed class MaterialDatePickerDialog : Window
         _picker.Confirmed -= OnPickerConfirmed;
         _picker.Cancelled -= OnPickerCancelled;
         _picker.PropertyChanged -= OnPickerPropertyChanged;
+        _scrim.PointerPressed -= OnScrimPointerPressed;
+        if (_ownerWindow is not null)
+            _ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
+
         // Any close that was not a confirmation discards the draft, like the source dialog where
         // the caller simply does not read the state after a cancel.
         if (_result is not { IsConfirmed: true })
             RestoreCommittedState();
+
+        _root.Children.Clear();
+        _picker.Margin = _savedMargin;
+        _picker.HorizontalAlignment = _savedHorizontalAlignment;
+        _picker.VerticalAlignment = _savedVerticalAlignment;
+        _picker.Width = _savedWidth;
+        _picker.Height = _savedHeight;
         Content = null;
         base.OnClosed(e);
+
+        if (_ownerWindow is { IsVisible: true } &&
+            _previousFocus is Control { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } target)
+        {
+            target.Focus();
+        }
+        _ownerWindow = null;
+        _previousFocus = null;
+    }
+
+    private void AttachOwner(Window owner)
+    {
+        if (ReferenceEquals(_ownerWindow, owner))
+            return;
+        if (_ownerWindow is not null)
+            _ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
+        _ownerWindow = owner;
+        _previousFocus ??= owner.FocusManager?.GetFocusedElement();
+        owner.PropertyChanged += OnOwnerPropertyChanged;
+        ApplyPresentation(owner);
+    }
+
+    private void OnOwnerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == ClientSizeProperty && !_closed)
+            ApplyPresentation(_ownerWindow);
+    }
+
+    private void ApplyPresentation(Window? owner)
+    {
+        var fullScreen = _picker.Mode == MaterialDatePickerMode.FullScreen;
+        if (owner is { ClientSize: { Width: > 0, Height: > 0 } size })
+        {
+            SizeToContent = SizeToContent.Manual;
+            Width = size.Width;
+            Height = size.Height;
+            _scrim.Background = ResolveScrimBrush();
+            _scrim.Opacity = ResolveScrimOpacity();
+            _scrim.IsVisible = !fullScreen;
+            if (fullScreen)
+            {
+                _picker.Width = double.NaN;
+                _picker.Height = double.NaN;
+                _picker.HorizontalAlignment = HorizontalAlignment.Stretch;
+                _picker.VerticalAlignment = VerticalAlignment.Stretch;
+                _picker.Margin = new Thickness(0);
+            }
+            else
+            {
+                _picker.Width = _savedWidth;
+                _picker.Height = _savedHeight;
+                _picker.HorizontalAlignment = HorizontalAlignment.Center;
+                _picker.VerticalAlignment = VerticalAlignment.Center;
+                _picker.Margin = new Thickness(ModalMargin);
+            }
+            return;
+        }
+
+        _scrim.IsVisible = false;
+        if (fullScreen)
+        {
+            SizeToContent = SizeToContent.Manual;
+            Width = double.IsNaN(_savedWidth) ? 420 : _savedWidth;
+            Height = double.IsNaN(_savedHeight) ? 560 : _savedHeight;
+            _picker.Width = double.NaN;
+            _picker.Height = double.NaN;
+            _picker.HorizontalAlignment = HorizontalAlignment.Stretch;
+            _picker.VerticalAlignment = VerticalAlignment.Stretch;
+            _picker.Margin = new Thickness(0);
+        }
+        else
+        {
+            ClearValue(WidthProperty);
+            ClearValue(HeightProperty);
+            SizeToContent = SizeToContent.WidthAndHeight;
+            _picker.Width = _savedWidth;
+            _picker.Height = _savedHeight;
+            _picker.HorizontalAlignment = HorizontalAlignment.Center;
+            _picker.VerticalAlignment = VerticalAlignment.Center;
+            _picker.Margin = new Thickness(ShadowMargin);
+        }
+    }
+
+    private IBrush ResolveScrimBrush() =>
+        this.TryFindResource("MaterialScrimBrush", out var value) && value is IBrush brush
+            ? brush
+            : (_picker.TryFindResource("MaterialScrimBrush", out var pickerValue) && pickerValue is IBrush pickerBrush
+                ? pickerBrush
+                : Brushes.Black);
+
+    private double ResolveScrimOpacity() =>
+        this.TryFindResource("MaterialDialogScrimOpacity", out var value) && value is double opacity
+            ? opacity
+            : (_picker.TryFindResource("MaterialDialogScrimOpacity", out var pickerValue) && pickerValue is double pickerOpacity
+                ? pickerOpacity
+                : 0.32);
+
+    private static string ResolveTitle(MaterialDatePicker picker)
+    {
+        if (picker.EffectiveLabel is { } effectiveLabel && !string.IsNullOrWhiteSpace(effectiveLabel))
+            return effectiveLabel;
+        if (picker.Label is { } label && !string.IsNullOrWhiteSpace(label))
+            return label;
+        var key = picker.IsInputMode
+            ? "MaterialDatePickerEnterDateText"
+            : "MaterialDatePickerSelectDateText";
+        if (picker.TryFindResource(key, out var value) && value is string text && !string.IsNullOrWhiteSpace(text))
+            return text;
+        return picker.IsInputMode ? "Enter date" : "Select date";
+    }
+
+    private void OnScrimPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!ReferenceEquals(e.Source, _scrim))
+            return;
+        e.Handled = true;
+        CancelDialog();
     }
 
     private void OnPickerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == MaterialDatePicker.EffectiveLabelProperty)
-            Title = _picker.EffectiveLabel;
+        if (e.Property == MaterialDatePicker.EffectiveLabelProperty ||
+            e.Property == MaterialDatePicker.LabelProperty ||
+            e.Property == MaterialDatePicker.IsInputModeProperty)
+        {
+            Title = ResolveTitle(_picker);
+        }
+        else if (e.Property == MaterialDatePicker.ModeProperty && !_closed)
+        {
+            ApplyPresentation(_ownerWindow);
+        }
     }
 
     private void CancelDialog()

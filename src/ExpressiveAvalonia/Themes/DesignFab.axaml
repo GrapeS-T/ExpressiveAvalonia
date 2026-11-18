@@ -12,7 +12,7 @@
        shared MaterialRipple; there is no separate state-layer border and no second pressed alpha.
        The 40 DIP Small container keeps the source InteractiveComponentSize 48 DIP target through
        ContainerInset, while the larger sizes already exceed the minimum.
-       Focus ring: surface radius + 2 on every corner, 3 unit stroke in the secondary role. -->
+       Focus ring: 2 DIP outside gap + 3 DIP secondary stroke (5 DIP outset, surface radius + 5). -->
   <x:String x:Key="MaterialFabMenuOpenText">Open actions menu</x:String>
   <x:String x:Key="MaterialFabMenuCloseText">Close actions menu</x:String>
 
@@ -23,6 +23,18 @@
         <Viewbox Stretch="Uniform">
           <Canvas Width="24" Height="24">
             <Path Data="{TemplateBinding Data}" Fill="{TemplateBinding Foreground}" Stretch="None" />
+          </Canvas>
+        </Viewbox>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+  <ControlTheme x:Key="MaterialFabIconTheme" TargetType="controls:MaterialIcon">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Viewbox Stretch="{TemplateBinding Stretch}">
+          <Canvas Width="24" Height="24">
+            <Path Name="PART_Glyph" Data="{TemplateBinding Geometry}" Stretch="None"
+                  Fill="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}, TargetNullValue=#1D1B20}" />
           </Canvas>
         </Viewbox>
       </ControlTemplate>
@@ -94,6 +106,7 @@
 
   <ControlTheme x:Key="{x:Type controls:MaterialFab}" TargetType="controls:MaterialFab"
                 BasedOn="{StaticResource MaterialFabBaseTheme}">
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
@@ -117,7 +130,7 @@
                                 HorizontalContentAlignment="Center"
                                 VerticalContentAlignment="Center" />
             </Border>
-            <Border Name="FocusRing" Margin="-2"
+            <Border Name="FocusRing" Margin="-5"
                     CornerRadius="{TemplateBinding FocusRingCornerRadius}"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}"
                     BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
@@ -158,6 +171,7 @@
 
   <ControlTheme x:Key="{x:Type controls:MaterialExtendedFab}" TargetType="controls:MaterialExtendedFab"
                 BasedOn="{StaticResource MaterialFabBaseTheme}">
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
@@ -193,7 +207,7 @@
                 </Border>
               </StackPanel>
             </Border>
-            <Border Name="FocusRing" Margin="-2"
+            <Border Name="FocusRing" Margin="-5"
                     CornerRadius="{TemplateBinding FocusRingCornerRadius}"
                     BorderBrush="{DynamicResource MaterialSecondaryBrush}"
                     BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
@@ -281,6 +295,7 @@
     <Setter Property="HorizontalContentAlignment" Value="Right" />
     <Setter Property="FontSize" Value="16" />
     <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="Transparent">
@@ -305,7 +320,7 @@
                          VerticalAlignment="Center" TextWrapping="NoWrap" />
             </StackPanel>
           </Border>
-          <Border Name="FocusRing" Margin="-2"
+          <Border Name="FocusRing" Margin="-5"
                   CornerRadius="{TemplateBinding FocusRingCornerRadius}"
                   BorderBrush="{DynamicResource MaterialSecondaryBrush}"
                   BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
@@ -328,13 +343,8 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Grid RowDefinitions="*,Auto" RowSpacing="8">
-          <Border Name="PART_MenuHost" HorizontalAlignment="Right" IsVisible="False">
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-              <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
-            </ScrollViewer>
-          </Border>
-          <controls:MaterialFab Name="PART_Trigger" Grid.Row="1" HorizontalAlignment="Right"
-                                CornerRadius="16" Size="Default">
+          <controls:MaterialFab Name="PART_Trigger" Grid.Row="1" TabIndex="0" HorizontalAlignment="Right"
+                                CornerRadius="16" Size="{TemplateBinding TriggerSize}">
             <Panel>
               <PathIcon Name="PART_TriggerIcon" Data="{TemplateBinding TriggerIcon}"
                         Theme="{StaticResource MaterialFabPathIconTheme}"
@@ -345,6 +355,13 @@
                         Data="M5,6.4 L6.4,5 L12,10.6 L17.6,5 L19,6.4 L13.4,12 L19,17.6 L17.6,19 L12,13.4 L6.4,19 L5,17.6 L10.6,12 Z" />
             </Panel>
           </controls:MaterialFab>
+          <Border Name="PART_MenuHost" Grid.Row="0" TabIndex="1" Margin="-6"
+                  HorizontalAlignment="Right" ClipToBounds="False" IsVisible="False">
+            <ScrollViewer Padding="6" ClipToBounds="False"
+                          HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+              <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+            </ScrollViewer>
+          </Border>
         </Grid>
       </ControlTemplate>
     </Setter>

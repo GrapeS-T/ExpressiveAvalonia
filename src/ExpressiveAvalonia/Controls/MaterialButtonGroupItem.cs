@@ -314,7 +314,7 @@ public class MaterialButtonGroupItem : ToggleButton
 
     private void UpdateSegmentedMetrics(bool iconVisible, bool check, bool animate)
     {
-        var offset = iconVisible || check ? 0d : -(SegmentedIconSlotWidth / 2);
+        var offset = iconVisible || check || Content is null ? 0d : -(SegmentedIconSlotWidth / 2);
         if (Math.Abs(SegmentedContentOffset - offset) > 0.01)
         {
             if (animate && this.IsAttachedToVisualTree())

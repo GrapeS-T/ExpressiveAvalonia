@@ -126,14 +126,19 @@ public class MaterialNavigationBar : ListBox
             navItem.Invoked += OnItemInvoked;
             navItem.RefreshBarState();
         }
+        UpdateRovingTabStop();
         InvalidateAutomationChildren();
     }
 
     protected override void ClearContainerForItemOverride(Control container)
     {
         if (container is MaterialNavigationBarItem navItem)
+        {
             navItem.Invoked -= OnItemInvoked;
+            navItem.IsTabStop = false;
+        }
         base.ClearContainerForItemOverride(container);
+        UpdateRovingTabStop();
         InvalidateAutomationChildren();
     }
 
@@ -147,18 +152,63 @@ public class MaterialNavigationBar : ListBox
     {
         base.OnApplyTemplate(e);
         UpdateBarState();
+        UpdateRovingTabStop();
     }
 
-    // The bar is the single tab stop; focus enters on the current (or first enabled) destination.
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        UpdateRovingTabStop();
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == SelectedIndexProperty || change.Property == SelectedItemProperty)
+            UpdateRovingTabStop();
+    }
+
+    // Programmatic Focus() on the bar enters on the current (or first enabled) destination.
     protected override void OnGotFocus(FocusChangedEventArgs e)
     {
         base.OnGotFocus(e);
         if (!ReferenceEquals(e.Source, this))
             return;
 
-        var index = SelectedIndex >= 0 && SelectedIndex < ItemCount ? SelectedIndex : FindEnabled(0, 1);
-        if (ContainerFromIndex(index) is Control container && container.Focus(NavigationMethod.Directional))
+        var index = SelectedIndex >= 0 && SelectedIndex < ItemCount && IsDestinationEnabled(SelectedIndex)
+            ? SelectedIndex
+            : FindEnabled(0, 1);
+        if (ContainerFromIndex(index) is Control container && container.Focus(e.NavigationMethod))
             e.Handled = true;
+    }
+
+    internal void UpdateRovingTabStop()
+    {
+        MaterialNavigationBarItem? active = null;
+        if (SelectedIndex >= 0 && ContainerFromIndex(SelectedIndex) is MaterialNavigationBarItem selected &&
+            selected.Focusable && selected.IsEffectivelyEnabled && selected.IsEffectivelyVisible)
+        {
+            active = selected;
+        }
+
+        if (active is null)
+        {
+            for (var i = 0; i < ItemCount; i++)
+            {
+                if (ContainerFromIndex(i) is MaterialNavigationBarItem candidate &&
+                    candidate.Focusable && candidate.IsEffectivelyEnabled && candidate.IsEffectivelyVisible)
+                {
+                    active = candidate;
+                    break;
+                }
+            }
+        }
+
+        foreach (var container in GetRealizedContainers())
+        {
+            if (container is MaterialNavigationBarItem item)
+                item.IsTabStop = ReferenceEquals(item, active);
+        }
     }
 
     private ITemplate<Panel?> CreateItemsPanel() => new FuncTemplate<Panel?>(() =>
@@ -305,7 +355,8 @@ public class MaterialNavigationBar : ListBox
     }
 
     private bool IsDestinationEnabled(int index) =>
-        ContainerFromIndex(index) is not Control container || container.IsEffectivelyEnabled;
+        ContainerFromIndex(index) is not Control container ||
+        (container.IsEffectivelyEnabled && container.IsEffectivelyVisible);
 
     private void SelectAndFocus(int index)
     {

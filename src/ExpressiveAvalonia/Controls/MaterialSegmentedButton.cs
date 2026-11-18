@@ -1,15 +1,16 @@
 namespace ExpressiveAvalonia.Controls;
 
-/// <summary>A Material segmented button: a connected row of outlined, single-select segments.</summary>
+/// <summary>A Material segmented button: a connected row of outlined single- or multi-select segments.</summary>
 /// <remarks>
 /// <para>Equivalent to a <see cref="MaterialButtonGroup"/> with
 /// <see cref="MaterialButtonGroup.Kind"/> = <see cref="MaterialButtonGroupKind.Segmented"/>,
-/// single selection, and the check mark replacing the leading icon of the selected segment,
-/// matching the source anatomy.</para>
-/// <para>The first segment is selected by default so the control always shows a current choice;
+/// single selection by default (set <see cref="MaterialButtonGroup.SelectionMode"/> =
+/// <see cref="MaterialButtonGroupSelectionMode.Multiple"/> for multi-select), and the check mark
+/// replacing the leading icon of the selected segment, matching the source anatomy.</para>
+/// <para>The first segment is selected by default so the control starts with an active choice;
 /// assign <see cref="MaterialButtonGroup.SelectedIndex"/> = -1 to start with no selection.
-/// <see cref="MaterialButtonGroup.Density"/> maps 0 to -3 onto the 48/44/40/36 DIP heights of the
-/// source segmented button.</para>
+/// <see cref="MaterialButtonGroup.Density"/> maps 0 to -3 onto the 40/36/32/28 DIP visual container
+/// heights while preserving a minimum 48-DIP interactive target.</para>
 /// </remarks>
 public sealed class MaterialSegmentedButton : MaterialButtonGroup
 {

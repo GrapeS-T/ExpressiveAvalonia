@@ -30,19 +30,21 @@
     <Setter Property="HorizontalAlignment" Value="Center" />
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Focusable" Value="True" />
+    <Setter Property="KeyboardNavigation.IsTabStop" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
         <Border Name="PART_Surface" CornerRadius="{TemplateBinding CornerRadius}"
                 BoxShadow="{DynamicResource MaterialElevationLevel3Shadow}">
           <Border Background="{TemplateBinding Background}"
                   CornerRadius="{TemplateBinding CornerRadius}" ClipToBounds="True">
-          <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="Auto,*,Auto">
+          <Grid Name="PART_LayoutRoot" RowDefinitions="Auto,*,Auto" ColumnDefinitions="Auto,*,Auto">
             <Grid Name="PART_FullScreenHeader" Grid.Row="0" Grid.ColumnSpan="2" Height="56" ColumnDefinitions="Auto,*">
-              <Button Name="PART_CloseButton" Width="48" Height="48"
+              <Button Name="PART_CloseButton" Width="48" Height="48" Margin="4,0,0,0"
                       theming:MaterialAssist.IsIconButton="True"
                       theming:MaterialAssist.ControlSize="Small"
                       theming:MaterialAssist.ButtonVariant="Standard"
                       theming:MaterialAssist.ButtonShape="Round"
+                      Foreground="{DynamicResource MaterialOnSurfaceBrush}"
                       AutomationProperties.Name="{DynamicResource MaterialDialogCloseText}">
                 <Grid Width="24" Height="24">
                   <Path Width="14" Height="14" Stretch="None"
@@ -51,9 +53,13 @@
                         Fill="{Binding $parent[Button].Foreground}" />
                 </Grid>
               </Button>
-              <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{TemplateBinding Title}" VerticalAlignment="Center"
+              <TextBlock Grid.Column="1" Margin="4,0,0,0" Text="{TemplateBinding Title}" VerticalAlignment="Center"
+                         AutomationProperties.HeadingLevel="2"
                          TextTrimming="CharacterEllipsis"
                          FontSize="{DynamicResource MaterialTitleLargeFontSize}"
+                         FontWeight="{DynamicResource MaterialTitleLargeFontWeight}"
+                         LineHeight="{DynamicResource MaterialTitleLargeLineHeight}"
+                         LetterSpacing="{DynamicResource MaterialTitleLargeLetterSpacing}"
                          Foreground="{DynamicResource MaterialOnSurfaceBrush}" />
             </Grid>
             <Panel Name="PART_BasicHeader" Grid.Row="0" Grid.ColumnSpan="3">
@@ -70,6 +76,7 @@
               </StackPanel.IsVisible>
               <ContentPresenter Name="PART_Icon" Width="24" Height="24" HorizontalAlignment="Center"
                                 Content="{TemplateBinding Icon}"
+                                TextElement.Foreground="{DynamicResource MaterialSecondaryBrush}"
                                 IsVisible="{Binding Icon, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
               <TextBlock Name="PART_Title" Text="{TemplateBinding Title}" TextWrapping="Wrap"
                          AutomationProperties.HeadingLevel="2"
@@ -80,7 +87,7 @@
                          Foreground="{DynamicResource MaterialOnSurfaceBrush}"
                          IsVisible="{Binding Title, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
               <TextBlock Name="PART_SupportingText" Text="{TemplateBinding SupportingText}" TextWrapping="Wrap"
-                         TextAlignment="Left"
+                         TextAlignment="Start"
                          FontSize="{DynamicResource MaterialBodyMediumFontSize}"
                          FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
                          LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
@@ -94,9 +101,13 @@
             <ScrollViewer Name="PART_BodyScroller" Grid.Row="1" Grid.ColumnSpan="3"
                           HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                           IsScrollChainingEnabled="True" AllowAutoHide="True">
-              <StackPanel>
+              <StackPanel Name="PART_BodyStack">
                 <TextBlock Name="PART_FullScreenSupportingText" Text="{TemplateBinding SupportingText}"
-                           Margin="24,24,24,0" TextWrapping="Wrap"
+                           Margin="24,24,24,0" TextWrapping="Wrap" TextAlignment="Start"
+                           FontSize="{DynamicResource MaterialBodyMediumFontSize}"
+                           FontWeight="{DynamicResource MaterialBodyMediumFontWeight}"
+                           LineHeight="{DynamicResource MaterialBodyMediumLineHeight}"
+                           LetterSpacing="{DynamicResource MaterialBodyMediumLetterSpacing}"
                            Foreground="{DynamicResource MaterialOnSurfaceVariantBrush}" />
                 <ContentPresenter Name="PART_ContentHost" Margin="24,24,24,0"
                                   Content="{TemplateBinding Content}"
@@ -109,7 +120,7 @@
                                   IsVisible="{Binding List, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
               </StackPanel>
             </ScrollViewer>
-            <Border Name="PART_Divider" Grid.Row="2" Grid.ColumnSpan="3" Height="1" VerticalAlignment="Top" Margin="0,16,0,0"
+            <Border Name="PART_Divider" Grid.ColumnSpan="3" Height="1"
                     Background="{DynamicResource MaterialOutlineVariantBrush}"
                     IsVisible="{TemplateBinding ShowDivider}" IsHitTestVisible="False" />
             <controls:MaterialDialogActionsPanel Name="PART_Actions" Grid.Column="2"
@@ -119,22 +130,38 @@
         </Border>
       </ControlTemplate>
     </Setter>
-    <!-- The source family left-aligns the heading without an icon and centers it when the
-         icon sits above it; the supporting text is left-aligned in both variants. -->
+    <!-- The source family start-aligns the heading without an icon and centers it when the
+         icon sits above it; the supporting text is start-aligned in both variants. -->
     <Style Selector="^ /template/ TextBlock#PART_Title">
-      <Setter Property="TextAlignment" Value="Left" />
+      <Setter Property="TextAlignment" Value="Start" />
     </Style>
     <Style Selector="^:icon /template/ TextBlock#PART_Title">
       <Setter Property="TextAlignment" Value="Center" />
     </Style>
+    <Style Selector="^ /template/ Border#PART_Divider">
+      <Setter Property="Grid.Row" Value="2" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="Margin" Value="0,16,0,0" />
+    </Style>
     <Style Selector="^ /template/ controls|MaterialDialogActionsPanel#PART_Actions">
       <Setter Property="Grid.Row" Value="2" />
-      <Setter Property="Margin" Value="24,20,24,24" />
+      <Setter Property="Margin" Value="24,20,24,20" />
+    </Style>
+    <Style Selector="^:no-actions:not(:full-screen) /template/ Grid#PART_LayoutRoot">
+      <Setter Property="Margin" Value="0,0,0,24" />
     </Style>
     <Style Selector="^:full-screen /template/ controls|MaterialDialogActionsPanel#PART_Actions">
       <Setter Property="Grid.Row" Value="0" />
       <Setter Property="Margin" Value="8,0,16,0" />
       <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="^:full-screen /template/ Border#PART_Divider">
+      <Setter Property="Grid.Row" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Bottom" />
+      <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="^:full-screen /template/ StackPanel#PART_BodyStack">
+      <Setter Property="Margin" Value="0,0,0,24" />
     </Style>
     <Style Selector="^ /template/ Grid#PART_FullScreenHeader">
       <Setter Property="IsVisible" Value="False" />
@@ -146,6 +173,7 @@
       <Setter Property="IsVisible" Value="{Binding SupportingText, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
     </Style>
     <Style Selector="^:full-screen">
+      <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
       <Setter Property="MaxWidth" Value="Infinity" />
       <Setter Property="MinWidth" Value="0" />
       <Setter Property="CornerRadius" Value="0" />
@@ -199,7 +227,7 @@
       <ControlTemplate>
         <Grid MinHeight="{TemplateBinding MinHeight}" Background="{TemplateBinding Background}">
           <Grid Name="ItemContent" ColumnDefinitions="Auto,*,Auto" Margin="{TemplateBinding Padding}">
-            <Border Name="Monogram" Width="40" Height="40" CornerRadius="9999"
+            <Border Name="Monogram" Width="40" Height="40" Margin="0,0,16,0" CornerRadius="9999"
                     VerticalAlignment="Center"
                     Background="{DynamicResource MaterialPrimaryContainerBrush}"
                     IsVisible="{Binding Initial, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
@@ -210,7 +238,7 @@
                          LetterSpacing="{DynamicResource MaterialTitleMediumLetterSpacing}"
                          Foreground="{DynamicResource MaterialOnPrimaryContainerBrush}" />
             </Border>
-            <StackPanel Name="TextContent" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+            <StackPanel Name="TextContent" Grid.Column="1" VerticalAlignment="Center">
               <TextBlock Name="Overline" Text="{TemplateBinding Overline}" MaxLines="1"
                          TextTrimming="CharacterEllipsis"
                          FontSize="{DynamicResource MaterialLabelMediumFontSize}"
@@ -248,6 +276,13 @@
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" Margin="16,0,0,0"
                         VerticalAlignment="Center">
+              <StackPanel.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                  <Binding Path="TrailingText" RelativeSource="{RelativeSource TemplatedParent}"
+                           Converter="{x:Static conv:StringConverters.IsNotNullOrEmpty}" />
+                  <Binding Path="ShowCheckBox" RelativeSource="{RelativeSource TemplatedParent}" />
+                </MultiBinding>
+              </StackPanel.IsVisible>
               <TextBlock Text="{TemplateBinding TrailingText}" VerticalAlignment="Center"
                          FontSize="{DynamicResource MaterialLabelSmallFontSize}"
                          FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
@@ -275,11 +310,11 @@
                                   FocusOpacity="{DynamicResource MaterialFocusStateLayerOpacity}"
                                   DraggedOpacity="{DynamicResource MaterialDraggedStateLayerOpacity}"
                                   IsHitTestVisible="False" />
-          <Border Name="Divider" Height="1" VerticalAlignment="Bottom" Margin="16,0,0,0"
+          <Border Name="Divider" Height="1" VerticalAlignment="Bottom" Margin="16,0,16,0"
                   Background="{DynamicResource MaterialOutlineVariantBrush}"
                   IsVisible="{TemplateBinding ShowDivider}" IsHitTestVisible="False" />
           <Border Name="FocusRing" BorderBrush="{DynamicResource MaterialSecondaryBrush}"
-                  BorderThickness="2" IsVisible="False" IsHitTestVisible="False" />
+                  BorderThickness="3" IsVisible="False" IsHitTestVisible="False" />
         </Grid>
       </ControlTemplate>
     </Setter>

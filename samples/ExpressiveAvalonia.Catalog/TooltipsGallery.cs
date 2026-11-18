@@ -47,6 +47,7 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         MaxWidth = 420,
     };
     private readonly MaterialButtonGroup _kind;
+    private readonly ComboBox _placement;
     private readonly ComboBox _plainType;
     private readonly TextBox _plainText;
     private readonly Slider _delay;
@@ -65,6 +66,7 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _showTitle;
     private readonly ToggleSwitch _showActions;
     private readonly ToggleSwitch _showSecondary;
+    private readonly ComboBox _persistence;
     private readonly ComboBox _mode;
     private readonly StackPanel _plainPanel = new() { Spacing = 16 };
     private readonly StackPanel _richPanel = new() { Spacing = 16 };
@@ -107,6 +109,18 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         Children.Add(stage);
 
         _kind = Choice("Тип подсказки", new[] { "Plain", "Rich" }, 0);
+
+        var placementPanel = new StackPanel { Spacing = 8 };
+        placementPanel.Children.Add(new TextBlock { Text = "Размещение (Placement)" });
+        _placement = new ComboBox
+        {
+            ItemsSource = new[] { "По умолчанию (Auto)", "Top", "Bottom", "Left", "Right" },
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_placement, "Размещение подсказки");
+        placementPanel.Children.Add(_placement);
+        Settings.Children.Add(placementPanel);
 
         _plainPanel.Children.Add(new TextBlock { Text = "Макет" });
         _plainType = new ComboBox
@@ -163,14 +177,31 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         _primaryPanel.Children.Add(new TextBlock { Text = "Основное действие" });
         _primary = new TextBox { Text = "Опубликовать", HorizontalAlignment = HorizontalAlignment.Stretch };
         MaterialTextField.SetVariant(_primary, MaterialTextFieldVariant.Outlined);
+        AutomationProperties.SetName(_primary, "Основное действие");
         _primaryPanel.Children.Add(_primary);
         _richPanel.Children.Add(_primaryPanel);
 
         _secondaryPanel.Children.Add(new TextBlock { Text = "Второе действие" });
         _secondary = new TextBox { Text = "Отмена", HorizontalAlignment = HorizontalAlignment.Stretch };
         MaterialTextField.SetVariant(_secondary, MaterialTextFieldVariant.Outlined);
+        AutomationProperties.SetName(_secondary, "Второе действие");
         _secondaryPanel.Children.Add(_secondary);
         _richPanel.Children.Add(_secondaryPanel);
+
+        _richPanel.Children.Add(new TextBlock { Text = "Удержание (IsPersistent)" });
+        _persistence = new ComboBox
+        {
+            ItemsSource = new[]
+            {
+                "По умолчанию (от действий)",
+                "Постоянная (IsPersistent = true)",
+                "Временная 1.5 с (IsPersistent = false)",
+            },
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        AutomationProperties.SetName(_persistence, "Удержание расширенной подсказки");
+        _richPanel.Children.Add(_persistence);
 
         _showTitle = Toggle(_richPanel, "Показывать заголовок", true);
         _showActions = Toggle(_richPanel, "Показывать действия (ShowActions)", true);
@@ -188,10 +219,12 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         });
 
         _kind.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _placement.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         _plainType.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         _plainText.TextChanged += (_, _) => { if (!_syncing) Apply(); };
         _delay.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_syncing) Apply(); };
         _actions.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
+        _persistence.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         _mode.SelectionChanged += (_, _) => { if (!_syncing) Apply(); };
         foreach (var box in new[] { _title, _body, _primary, _secondary })
             box.TextChanged += (_, _) => { if (!_syncing) Apply(); };
@@ -246,6 +279,10 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
             ? MaterialPlainToolTipType.MultiLine
             : MaterialPlainToolTipType.SingleLine;
         ToolTip.SetTip(_plainOwner, MaterialToolTip.CreateContent(text, type));
+        if (ResolvePlacement() is { } explicitPlacement)
+            ToolTip.SetPlacement(_plainOwner, explicitPlacement);
+        else
+            _plainOwner.ClearValue(ToolTip.PlacementProperty);
         MaterialToolTip.SetShowCaret(_plainOwner, _plainCaret.IsChecked == true);
         ToolTip.SetShowDelay(_plainOwner, (int)Math.Round(_delay.Value));
         ToolTip.SetShowOnDisabled(_plainOwner, _showOnDisabled.IsChecked == true);
@@ -270,10 +307,21 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         {
             Title = _title.Text,
             Content = _body.Text,
+            Placement = ResolvePlacement() ?? PlacementMode.Bottom,
             ShowTitle = _showTitle.IsChecked == true,
             ShowActions = _showActions.IsChecked == true,
             ShowCaret = _richCaret.IsChecked == true,
         };
+
+        switch (_persistence.SelectedIndex)
+        {
+            case 1:
+                tooltip.IsPersistent = true;
+                break;
+            case 2:
+                tooltip.IsPersistent = false;
+                break;
+        }
 
         switch (_actions.SelectedIndex)
         {
@@ -294,15 +342,32 @@ internal sealed class TooltipsPlayground : Grid, IComponentPlayground
         return tooltip;
     }
 
+    private PlacementMode? ResolvePlacement() => _placement.SelectedIndex switch
+    {
+        1 => PlacementMode.Top,
+        2 => PlacementMode.Bottom,
+        3 => PlacementMode.Left,
+        4 => PlacementMode.Right,
+        _ => null,
+    };
+
     private StackPanel BuildRatingActions(RichTooltip tooltip)
     {
-        var stars = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        var stars = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, ClipToBounds = false };
         for (var index = 1; index <= 5; index++)
         {
             var value = index;
-            var star = new Button { Content = $"{value}★", MinHeight = 40, Padding = new Thickness(12, 10) };
+            var star = new Button
+            {
+                Content = $"{value}★",
+                MinWidth = 48,
+                MinHeight = 48,
+                Margin = new Thickness(0, -6, 0, -6),
+                Padding = new Thickness(8, 8),
+                ClipToBounds = false,
+            };
             MaterialAssist.SetButtonVariant(star, MaterialButtonVariant.Text);
-            MaterialAssist.SetContainerInset(star, default);
+            MaterialAssist.SetContainerInset(star, new Thickness(0, 6));
             AutomationProperties.SetName(star, $"Оценка {value} из 5");
             star.Click += (_, _) =>
             {

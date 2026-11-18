@@ -69,6 +69,7 @@ public abstract class MaterialBarBase : TemplatedControl
             (bar, value) => bar.VisibleActionCount = value);
 
     private readonly AvaloniaList<MaterialBarAction> _actions = new();
+    private readonly List<MaterialBarAction> _subscribedActions = new();
     private readonly List<Control> _actionControls = new();
     private readonly MaterialAppBarMenuState _menuState = new();
     private MaterialBarActionsPanel? _actionsPanel;
@@ -92,7 +93,8 @@ public abstract class MaterialBarBase : TemplatedControl
     /// <summary>Main-axis direction used by the adaptive action layout.</summary>
     public static readonly StyledProperty<Orientation> OrientationProperty =
         AvaloniaProperty.Register<MaterialBarBase, Orientation>(
-            nameof(Orientation), Orientation.Horizontal);
+            nameof(Orientation), Orientation.Horizontal,
+            coerce: static (o, value) => ((MaterialBarBase)o).CoerceOrientation(value));
 
     /// <summary>The actions in declaration order. Mutations are observed immediately.</summary>
     public IList<MaterialBarAction> Actions => _actions;
@@ -192,6 +194,19 @@ public abstract class MaterialBarBase : TemplatedControl
 
     protected virtual PlacementMode GetOverflowPlacement() => OverflowPlacement;
 
+    /// <summary>Allows derived bars (such as docked toolbars) to restrict allowed orientations.</summary>
+    protected virtual Orientation CoerceOrientation(Orientation value) => value;
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_subscribedActions.Count == 0 && _actions.Count > 0)
+        {
+            SubscribeActions();
+            SyncActionControls();
+        }
+    }
+
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         base.OnApplyTemplate(e);
@@ -216,6 +231,7 @@ public abstract class MaterialBarBase : TemplatedControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        UnsubscribeActions();
         CloseOverflow(restoreFocus: false);
     }
 
@@ -234,7 +250,12 @@ public abstract class MaterialBarBase : TemplatedControl
 
         if (e.KeyModifiers != KeyModifiers.None)
             return;
-        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End))
+
+        var horizontal = Orientation == Orientation.Horizontal;
+        var isAxisArrow = horizontal
+            ? e.Key is Key.Left or Key.Right
+            : e.Key is Key.Up or Key.Down;
+        if (!isAxisArrow && e.Key is not (Key.Home or Key.End))
             return;
 
         var buttons = FocusableButtons();
@@ -254,6 +275,7 @@ public abstract class MaterialBarBase : TemplatedControl
         if (index < 0)
             return;
 
+        var rtl = FlowDirection == FlowDirection.RightToLeft;
         int next;
         if (e.Key == Key.Home)
             next = 0;
@@ -261,7 +283,9 @@ public abstract class MaterialBarBase : TemplatedControl
             next = buttons.Count - 1;
         else
         {
-            var forward = e.Key is Key.Right or Key.Down;
+            var forward = horizontal
+                ? (rtl ? e.Key == Key.Left : e.Key == Key.Right)
+                : e.Key == Key.Down;
             next = (index + (forward ? 1 : -1) + buttons.Count) % buttons.Count;
         }
 
@@ -381,6 +405,9 @@ public abstract class MaterialBarBase : TemplatedControl
         EnsureFocusNotHidden();
     }
 
+    private static readonly Geometry DefaultCheckGeometry =
+        Geometry.Parse("M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z");
+
     private void EnsureFocusNotHidden()
     {
         var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual;
@@ -393,15 +420,68 @@ public abstract class MaterialBarBase : TemplatedControl
             {
                 if (_overflowButton is { IsEffectivelyVisible: true } button)
                     button.Focus(NavigationMethod.Directional);
-                else if (_actionControls.Count > 0)
-                    _actionControls[0].Focus(NavigationMethod.Directional);
+                else if (FocusableButtons() is { Count: > 0 } buttons)
+                    buttons[0].Focus(NavigationMethod.Directional);
                 return;
             }
         }
     }
 
+    private void SubscribeActions()
+    {
+        UnsubscribeActions();
+        for (var i = 0; i < _actions.Count; i++)
+        {
+            var action = _actions[i];
+            action.PropertyChanged += OnBarActionPropertyChanged;
+            _subscribedActions.Add(action);
+        }
+    }
+
+    private void UnsubscribeActions()
+    {
+        for (var i = 0; i < _subscribedActions.Count; i++)
+            _subscribedActions[i].PropertyChanged -= OnBarActionPropertyChanged;
+        _subscribedActions.Clear();
+    }
+
+    private void SyncActionControls()
+    {
+        if (_actionControls.Count != _actions.Count)
+        {
+            RebuildActionControls();
+            return;
+        }
+
+        for (var i = 0; i < _actions.Count; i++)
+        {
+            var action = _actions[i];
+            var control = _actionControls[i];
+            var kindMatches = action.Kind switch
+            {
+                MaterialBarActionKind.Toggleable => control.GetType() == typeof(ToggleButton),
+                MaterialBarActionKind.Custom => control is ContentPresenter,
+                _ => control.GetType() == typeof(Button)
+            };
+            if (!kindMatches)
+            {
+                RebuildActionControls();
+                return;
+            }
+
+            if (control is Button button && action.Kind != MaterialBarActionKind.Custom)
+            {
+                ApplyInlineButtonMode(button, action);
+                button.Content = CreateActionGlyph(action);
+            }
+            ToolTip.SetTip(control, action.ToolTip ?? action.Text);
+        }
+    }
+
     private void RebuildActionControls()
     {
+        SubscribeActions();
+
         foreach (var control in _actionControls)
             control.PropertyChanged -= OnActionControlPropertyChanged;
         _actionControls.Clear();
@@ -417,12 +497,58 @@ public abstract class MaterialBarBase : TemplatedControl
         UpdateOverflowState();
     }
 
+    private void OnBarActionPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (sender is not MaterialBarAction action)
+            return;
+
+        if (e.Property == MaterialBarAction.KindProperty)
+        {
+            RebuildActionControls();
+            return;
+        }
+
+        var index = _actions.IndexOf(action);
+        if (index < 0 || index >= _actionControls.Count)
+            return;
+
+        var control = _actionControls[index];
+        if (e.Property == MaterialBarAction.IconProperty || e.Property == MaterialBarAction.TextProperty)
+        {
+            if (control is Button button && action.Kind != MaterialBarActionKind.Custom)
+            {
+                ApplyInlineButtonMode(button, action);
+                button.Content = CreateActionGlyph(action);
+            }
+            ToolTip.SetTip(control, action.ToolTip ?? action.Text);
+            _actionsPanel?.InvalidateMeasure();
+        }
+        else if (e.Property == MaterialBarAction.ToolTipProperty)
+        {
+            ToolTip.SetTip(control, action.ToolTip ?? action.Text);
+        }
+    }
+
     private void OnActionControlPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         // A custom item's requested size can change at any time; let the panel re-measure.
         if (e.Property == BoundsProperty || e.Property == DesiredSizeProperty)
             return;
         _actionsPanel?.InvalidateMeasure();
+    }
+
+    private static void ApplyInlineButtonMode(Button button, MaterialBarAction action)
+    {
+        if (action.Icon is not null || string.IsNullOrEmpty(action.Text))
+        {
+            MaterialAssist.SetIsIconButton(button, true);
+            button.ClearValue(MaterialAssist.ButtonVariantProperty);
+        }
+        else
+        {
+            MaterialAssist.SetIsIconButton(button, false);
+            MaterialAssist.SetButtonVariant(button, MaterialButtonVariant.Text);
+        }
     }
 
     private Control CreateActionControl(MaterialBarAction action)
@@ -433,13 +559,10 @@ public abstract class MaterialBarBase : TemplatedControl
             case MaterialBarActionKind.Toggleable:
                 var toggle = new ToggleButton
                 {
-                    Background = Brushes.Transparent,
-                    BorderThickness = new Thickness(0),
-                    Padding = new Thickness(0),
                     MinWidth = 48,
                     MinHeight = 48
                 };
-                MaterialAssist.SetIsIconButton(toggle, true);
+                ApplyInlineButtonMode(toggle, action);
                 toggle.Bind(ToggleButton.IsCheckedProperty,
                     new Binding(nameof(MaterialBarAction.IsChecked)) { Source = action, Mode = BindingMode.TwoWay });
                 toggle.Bind(Button.CommandProperty,
@@ -455,24 +578,23 @@ public abstract class MaterialBarBase : TemplatedControl
                 break;
 
             case MaterialBarActionKind.Custom:
-                control = new ContentPresenter
+                var presenter = new ContentPresenter
                 {
-                    Content = action.Content,
                     VerticalContentAlignment = VerticalAlignment.Center,
                     HorizontalContentAlignment = HorizontalAlignment.Center
                 };
+                presenter.Bind(ContentPresenter.ContentProperty,
+                    new Binding(nameof(MaterialBarAction.Content)) { Source = action });
+                control = presenter;
                 break;
 
             default:
                 var button = new Button
                 {
-                    Background = Brushes.Transparent,
-                    BorderThickness = new Thickness(0),
-                    Padding = new Thickness(0),
                     MinWidth = 48,
                     MinHeight = 48
                 };
-                MaterialAssist.SetIsIconButton(button, true);
+                ApplyInlineButtonMode(button, action);
                 button.Bind(Button.CommandProperty,
                     new Binding(nameof(MaterialBarAction.Command)) { Source = action });
                 button.Bind(Button.CommandParameterProperty,
@@ -487,7 +609,6 @@ public abstract class MaterialBarBase : TemplatedControl
         }
 
         ToolTip.SetTip(control, action.ToolTip ?? action.Text);
-        control.PropertyChanged += (_, _) => { };
         return control;
     }
 
@@ -516,53 +637,128 @@ public abstract class MaterialBarBase : TemplatedControl
             return;
         }
 
-        var content = new StackPanel
+        var row = new Grid
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 12,
+            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
             VerticalAlignment = VerticalAlignment.Center
         };
-        if (action.Icon is not null)
-            content.Children.Add(new PathIcon { Data = action.Icon, Width = 20, Height = 20 });
-        if (!string.IsNullOrEmpty(action.Text))
-            content.Children.Add(new TextBlock { Text = action.Text, VerticalAlignment = VerticalAlignment.Center });
 
-        var button = new Button
+        var iconTheme = this.TryFindResource("MaterialButtonPathIconTheme", out var iconThemeResource)
+            && iconThemeResource is ControlTheme resolvedIconTheme
+            ? resolvedIconTheme
+            : null;
+
+        if (action.Icon is not null)
         {
-            Content = content,
-            Command = action.Command,
-            CommandParameter = action.CommandParameter,
-            IsEnabled = action.IsEnabled,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-            MinHeight = 48,
-            Padding = new Thickness(12, 0),
-            Background = Brushes.Transparent
+            var leadingIcon = new PathIcon
+            {
+                Data = action.Icon,
+                Width = 24,
+                Height = 24,
+                Margin = new Thickness(0, 0, 12, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            leadingIcon.Classes.Add("leading-icon");
+            if (iconTheme is not null)
+                leadingIcon.Theme = iconTheme;
+            Grid.SetColumn(leadingIcon, 0);
+            row.Children.Add(leadingIcon);
+        }
+
+        var label = new TextBlock
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis
         };
+        label.Bind(TextBlock.TextProperty, new Binding(nameof(MaterialBarAction.Text)) { Source = action });
+        Grid.SetColumn(label, 1);
+        row.Children.Add(label);
+
+        Button item;
+        if (action.Kind == MaterialBarActionKind.Toggleable)
+        {
+            var checkGeo = this.TryFindResource("MaterialBarCheckIcon", out var g) && g is Geometry geo
+                ? geo
+                : DefaultCheckGeometry;
+            var checkIcon = new PathIcon
+            {
+                Data = checkGeo,
+                Width = 24,
+                Height = 24,
+                Margin = new Thickness(12, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            checkIcon.Classes.Add("trailing-check");
+            if (iconTheme is not null)
+                checkIcon.Theme = iconTheme;
+            checkIcon.Bind(IsVisibleProperty, new Binding(nameof(MaterialBarAction.IsChecked)) { Source = action });
+            Grid.SetColumn(checkIcon, 2);
+            row.Children.Add(checkIcon);
+
+            var toggle = new ToggleButton { Content = row };
+            toggle.Bind(ToggleButton.IsCheckedProperty,
+                new Binding(nameof(MaterialBarAction.IsChecked)) { Source = action, Mode = BindingMode.TwoWay });
+            if (this.TryFindResource("MaterialBarOverflowToggleItemTheme", out var toggleThemeObj)
+                && toggleThemeObj is ControlTheme toggleTheme)
+            {
+                toggle.Theme = toggleTheme;
+            }
+            item = toggle;
+        }
+        else
+        {
+            item = new Button { Content = row };
+            if (this.TryFindResource("MaterialBarOverflowItemTheme", out var itemThemeObj)
+                && itemThemeObj is ControlTheme itemTheme)
+            {
+                item.Theme = itemTheme;
+            }
+        }
+
+        item.Bind(Button.CommandProperty, new Binding(nameof(MaterialBarAction.Command)) { Source = action });
+        item.Bind(Button.CommandParameterProperty,
+            new Binding(nameof(MaterialBarAction.CommandParameter)) { Source = action });
+        item.Bind(IsEnabledProperty, new Binding(nameof(MaterialBarAction.IsEnabled)) { Source = action });
+        item.Bind(AutomationProperties.NameProperty,
+            new Binding(nameof(MaterialBarAction.EffectiveAutomationName)) { Source = action });
         if (action.ToolTip is { } tip)
-            ToolTip.SetTip(button, tip);
-        // Text treatment keeps the neutral label color while reusing the shared state layer,
-        // focus ring and disabled composition from the button theme.
-        MaterialAssist.SetButtonVariant(button, MaterialButtonVariant.Text);
-        AutomationProperties.SetName(button, action.EffectiveAutomationName ?? action.Text ?? string.Empty);
-        button.Click += (_, _) =>
-        {
-            // Toggleable menu items flip the shared state before the command runs, matching
-            // AppBarDsl's ToggleableAppBarItem.onCheckedChange(!checked).
-            if (action.Kind == MaterialBarActionKind.Toggleable)
-                action.IsChecked = !action.IsChecked;
-            CloseOverflow(restoreFocus: true);
-        };
-        panel.Children.Add(button);
+            ToolTip.SetTip(item, tip);
+
+        item.Click += (_, _) => CloseOverflow(restoreFocus: true);
+        panel.Children.Add(item);
     }
 
     private List<Control> FocusableButtons()
     {
         var buttons = new List<Control>();
-        foreach (var control in _actionControls)
+        var limit = _actionsPanel is not null
+            ? Math.Min(_actionControls.Count, _visibleActionCount)
+            : _actionControls.Count;
+        for (var i = 0; i < limit; i++)
         {
-            if (control.Focusable && control.IsEffectivelyEnabled && control.IsEffectivelyVisible)
+            var control = _actionControls[i];
+            if (!control.IsEffectivelyVisible || !control.IsEffectivelyEnabled || !control.IsHitTestVisible)
+                continue;
+
+            if (control.Focusable)
+            {
                 buttons.Add(control);
+                continue;
+            }
+
+            Control? currentRoot = null;
+            foreach (var descendant in control.GetVisualDescendants())
+            {
+                if (descendant is not Control candidate)
+                    continue;
+                if (currentRoot is not null && currentRoot.IsVisualAncestorOf(candidate))
+                    continue;
+                if (candidate is { Focusable: true, IsEffectivelyEnabled: true, IsEffectivelyVisible: true, IsHitTestVisible: true })
+                {
+                    buttons.Add(candidate);
+                    currentRoot = candidate;
+                }
+            }
         }
         if (_overflowButton is { Focusable: true, IsEffectivelyEnabled: true, IsEffectivelyVisible: true } overflow)
             buttons.Add(overflow);
@@ -579,7 +775,7 @@ public enum MaterialBarArrangement
     SpaceBetween,
     SpaceAround,
     SpaceEvenly,
-    /// <summary>Upstream <c>spacedBy(32, CenterHorizontally)</c> used by the flexible bottom bar.</summary>
+    /// <summary>Upstream <c>spacedBy(32, CenterHorizontally)</c> used by the docked toolbar.</summary>
     Fixed
 }
 
@@ -615,6 +811,16 @@ public sealed class MaterialBarActionsPanel : Panel
     public static readonly StyledProperty<MaterialBarArrangement> ArrangementProperty =
         AvaloniaProperty.Register<MaterialBarActionsPanel, MaterialBarArrangement>(nameof(Arrangement));
 
+    /// <summary>Minimum main-axis gap between inline items before overflowing.</summary>
+    public static readonly StyledProperty<double> MinItemSpacingProperty =
+        AvaloniaProperty.Register<MaterialBarActionsPanel, double>(
+            nameof(MinItemSpacing), 0d, validate: value => double.IsFinite(value) && value >= 0);
+
+    /// <summary>Maximum main-axis gap between inline items for <see cref="MaterialBarArrangement.Fixed"/>.</summary>
+    public static readonly StyledProperty<double> MaxItemSpacingProperty =
+        AvaloniaProperty.Register<MaterialBarActionsPanel, double>(
+            nameof(MaxItemSpacing), FixedSpacing, validate: value => double.IsFinite(value) && value >= 0);
+
     private const double FixedSpacing = 32;
 
     private readonly List<Control> _actions = new();
@@ -628,6 +834,8 @@ public sealed class MaterialBarActionsPanel : Panel
             panel.OnOverflowIndicatorChanged(args.GetOldValue<Control?>(), args.GetNewValue<Control?>()));
         OrientationProperty.Changed.AddClassHandler<MaterialBarActionsPanel>((panel, _) => panel.InvalidateMeasure());
         MaxItemCountProperty.Changed.AddClassHandler<MaterialBarActionsPanel>((panel, _) => panel.InvalidateMeasure());
+        MinItemSpacingProperty.Changed.AddClassHandler<MaterialBarActionsPanel>((panel, _) => panel.InvalidateMeasure());
+        MaxItemSpacingProperty.Changed.AddClassHandler<MaterialBarActionsPanel>((panel, _) => panel.InvalidateArrange());
         ArrangementProperty.Changed.AddClassHandler<MaterialBarActionsPanel>((panel, _) => panel.InvalidateArrange());
     }
 
@@ -656,6 +864,18 @@ public sealed class MaterialBarActionsPanel : Panel
     {
         get => GetValue(ArrangementProperty);
         set => SetValue(ArrangementProperty, value);
+    }
+
+    public double MinItemSpacing
+    {
+        get => GetValue(MinItemSpacingProperty);
+        set => SetValue(MinItemSpacingProperty, value);
+    }
+
+    public double MaxItemSpacing
+    {
+        get => GetValue(MaxItemSpacingProperty);
+        set => SetValue(MaxItemSpacingProperty, value);
     }
 
     /// <summary>Replaces the inline action controls.</summary>
@@ -721,76 +941,94 @@ public sealed class MaterialBarActionsPanel : Panel
         var vertical = Orientation == Orientation.Vertical;
         var availableMain = vertical ? availableSize.Height : availableSize.Width;
         var availableCross = vertical ? availableSize.Width : availableSize.Height;
-        var loose = double.IsInfinity(availableMain) && double.IsInfinity(availableCross)
-            ? new Size(double.PositiveInfinity, double.PositiveInfinity)
-            : new Size(
-                vertical ? availableCross : availableMain,
-                vertical ? availableMain : availableCross);
+        var minGap = Math.Max(0, MinItemSpacing);
+        var itemConstraint = vertical
+            ? new Size(availableCross, double.PositiveInfinity)
+            : new Size(double.PositiveInfinity, availableCross);
 
-        // Reserve the overflow indicator's main-axis size before fitting content.
         double reserved = 0;
         if (_overflowIndicator is not null)
         {
-            _overflowIndicator.Measure(loose);
+            _overflowIndicator.Measure(itemConstraint);
             reserved = MainSize(_overflowIndicator.DesiredSize, vertical);
         }
 
-        var remaining = availableMain;
-        if (!double.IsInfinity(remaining))
-            remaining = Math.Max(0, remaining - reserved);
-
-        var visible = 0;
-        double used = 0;
-        var cross = 0d;
-        var needsOverflow = false;
-        for (var i = 0; i < _actions.Count; i++)
+        var count = _actions.Count;
+        var actionMains = new double[count];
+        var actionCrosses = new double[count];
+        var allMain = 0d;
+        var allCross = 0d;
+        for (var i = 0; i < count; i++)
         {
             var child = _actions[i];
-            child.Measure(loose);
-            var isLast = i == _actions.Count - 1;
-            if (!isLast && i == MaxItemCount - 1)
-            {
-                needsOverflow = true;
-                break;
-            }
-
-            var childMain = MainSize(child.DesiredSize, vertical);
-            var fits = childMain <= remaining ||
-                       (isLast && childMain <= remaining + reserved);
-            if (!fits)
-            {
-                needsOverflow = true;
-                break;
-            }
-
-            visible++;
-            used += childMain;
-            cross = Math.Max(cross, CrossSize(child.DesiredSize, vertical));
-            remaining = Math.Max(0, remaining - childMain);
+            child.Measure(itemConstraint);
+            actionMains[i] = MainSize(child.DesiredSize, vertical);
+            actionCrosses[i] = CrossSize(child.DesiredSize, vertical);
+            allMain += actionMains[i] + (i > 0 ? minGap : 0);
+            allCross = Math.Max(allCross, actionCrosses[i]);
         }
 
-        if (visible != _actions.Count)
+        int visible;
+        double used;
+        double cross;
+        bool needsOverflow;
+
+        if (count == 0)
+        {
+            visible = 0;
+            used = 0;
+            cross = 0;
+            needsOverflow = false;
+        }
+        else if (count <= MaxItemCount && allMain <= availableMain + 1e-4)
+        {
+            visible = count;
+            used = allMain;
+            cross = allCross;
+            needsOverflow = false;
+        }
+        else
+        {
             needsOverflow = true;
+            visible = 0;
+            used = 0;
+            cross = 0;
+            var maxInline = MaxItemCount == 0 ? 0 : Math.Min(count - 1, MaxItemCount - 1);
+            var overflowReserve = _overflowIndicator is not null ? minGap + reserved : 0;
+            for (var i = 0; i < maxInline; i++)
+            {
+                var gapBefore = visible > 0 ? minGap : 0;
+                if (used + gapBefore + actionMains[i] + overflowReserve > availableMain + 1e-4)
+                    break;
+
+                used += gapBefore + actionMains[i];
+                cross = Math.Max(cross, actionCrosses[i]);
+                visible++;
+            }
+        }
 
         double overflowMain = 0;
         if (needsOverflow && _overflowIndicator is not null)
         {
-            var overflowConstraint = remaining + reserved;
+            var overflowGap = visible > 0 ? minGap : 0;
+            var overflowConstraint = double.IsInfinity(availableMain)
+                ? double.PositiveInfinity
+                : Math.Max(0, availableMain - used - overflowGap);
             var constrained = vertical
                 ? new Size(availableCross, overflowConstraint)
                 : new Size(overflowConstraint, availableCross);
             _overflowIndicator.Measure(constrained);
-            overflowMain = MainSize(_overflowIndicator.DesiredSize, vertical);
+            overflowMain = overflowGap + MainSize(_overflowIndicator.DesiredSize, vertical);
             cross = Math.Max(cross, CrossSize(_overflowIndicator.DesiredSize, vertical));
         }
 
         _visibleCount = visible;
         _overflowVisible = needsOverflow;
-        OverflowStateChanged?.Invoke(_actions.Count, visible);
+        OverflowStateChanged?.Invoke(count, visible);
         ApplyChildVisibility();
 
-        var main = Math.Min(double.IsInfinity(availableMain) ? used + overflowMain : availableMain,
-            used + overflowMain);
+        var desiredMain = used + overflowMain;
+        var main = double.IsInfinity(availableMain) ? desiredMain : Math.Min(availableMain, desiredMain);
         var desiredCross = double.IsInfinity(availableCross) ? cross : Math.Min(availableCross, cross);
         return vertical ? new Size(desiredCross, main) : new Size(main, desiredCross);
     }
@@ -799,6 +1037,8 @@ public sealed class MaterialBarActionsPanel : Panel
     {
         var vertical = Orientation == Orientation.Vertical;
         var finalMain = vertical ? finalSize.Height : finalSize.Width;
+        var minGap = Math.Max(0, MinItemSpacing);
+        var maxGap = Math.Max(minGap, MaxItemSpacing);
 
         // Collect the controls that actually participate: visible actions then the overflow.
         var items = new List<Control>(_visibleCount + 1);
@@ -815,54 +1055,52 @@ public sealed class MaterialBarActionsPanel : Panel
             total += sizes[i];
         }
 
-        var extra = Math.Max(0, finalMain - total);
+        var gaps = Math.Max(0, items.Count - 1);
+        var minTotal = total + minGap * gaps;
+        var extra = Math.Max(0, finalMain - minTotal);
         double offset;
         double gap;
         switch (Arrangement)
         {
             case MaterialBarArrangement.Center:
                 offset = extra / 2;
-                gap = 0;
+                gap = minGap;
                 break;
             case MaterialBarArrangement.End:
                 offset = extra;
-                gap = 0;
+                gap = minGap;
                 break;
             case MaterialBarArrangement.SpaceBetween:
                 offset = 0;
-                gap = items.Count > 1 ? extra / (items.Count - 1) : 0;
+                gap = gaps > 0 ? minGap + extra / gaps : 0;
                 break;
             case MaterialBarArrangement.SpaceAround:
-                gap = items.Count > 0 ? extra / items.Count : 0;
-                offset = gap / 2;
+                gap = items.Count > 0 ? Math.Max(minGap, Math.Max(0, finalMain - total) / items.Count) : 0;
+                offset = Math.Max(0, finalMain - (total + gap * gaps)) / 2;
                 break;
             case MaterialBarArrangement.SpaceEvenly:
-                gap = extra / (items.Count + 1);
-                offset = gap;
+                gap = Math.Max(minGap, Math.Max(0, finalMain - total) / (items.Count + 1));
+                offset = Math.Max(0, finalMain - (total + gap * gaps)) / 2;
                 break;
             case MaterialBarArrangement.Fixed:
-                gap = FixedSpacing;
-                offset = items.Count > 1
-                    ? Math.Max(0, (extra - FixedSpacing * (items.Count - 1)) / 2)
-                    : extra / 2;
+                gap = gaps > 0 ? Math.Clamp((finalMain - total) / gaps, minGap, maxGap) : 0;
+                offset = Math.Max(0, (finalMain - (total + gap * gaps)) / 2);
                 break;
             default:
                 offset = 0;
-                gap = 0;
+                gap = minGap;
                 break;
         }
 
-        var rtl = FlowDirection == FlowDirection.RightToLeft;
+        // Avalonia mirrors the X-coordinate plane in RTL, so logical 0..finalSize.Width places
+        // inline actions from start (physical right) to end (physical left) without manual flipping.
         for (var i = 0; i < items.Count; i++)
         {
-            var size = items[i].DesiredSize;
             var main = sizes[i];
             var pos = offset;
             var rect = vertical
                 ? new Rect(0, pos, finalSize.Width, main)
                 : new Rect(pos, 0, main, finalSize.Height);
-            if (!vertical && rtl)
-                rect = new Rect(finalSize.Width - pos - main, 0, main, finalSize.Height);
             items[i].Arrange(rect);
             offset += main + gap;
         }
@@ -887,7 +1125,10 @@ public sealed class MaterialBarActionsPanel : Panel
             // interaction and accessibility instead; the overflow flyout exposes them.
             control.Opacity = hidden ? 0 : 1;
             control.IsHitTestVisible = !hidden;
-            control.Focusable = !hidden;
+            if (control is not ContentPresenter)
+                control.Focusable = !hidden;
+            KeyboardNavigation.SetTabNavigation(
+                control, hidden ? KeyboardNavigationMode.None : KeyboardNavigationMode.Continue);
             AutomationProperties.SetAccessibilityView(
                 control, hidden ? AccessibilityView.Raw : AccessibilityView.Content);
         }

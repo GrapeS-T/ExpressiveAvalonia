@@ -110,6 +110,8 @@ public class MaterialCarouselItem : ListBoxItem, ICustomHitTest
     private string? _assignedAutomationName;
     private readonly TranslateTransform _parallaxTransform = new();
     private Control? _parallaxContent;
+    private Border? _selectionRing;
+    private Border? _focusRing;
 
     internal void SetParallax(double translation) => _parallaxTransform.X = translation;
 
@@ -121,6 +123,9 @@ public class MaterialCarouselItem : ListBoxItem, ICustomHitTest
         _parallaxContent = e.NameScope.Find<Control>("PART_Card");
         if (_parallaxContent is not null)
             _parallaxContent.RenderTransform = _parallaxTransform;
+        _selectionRing = e.NameScope.Find<Border>("PART_SelectionRing");
+        _focusRing = e.NameScope.Find<Border>("PART_FocusRing");
+        UpdateRings();
     }
 
     static MaterialCarouselItem()
@@ -165,6 +170,7 @@ public class MaterialCarouselItem : ListBoxItem, ICustomHitTest
         SetAndRaise(MinItemSizeProperty, ref _minItemSize, minItemSize);
         SetAndRaise(MaxItemSizeProperty, ref _maxItemSize, maxItemSize);
         SetAndRaise(MaskRectProperty, ref _maskRect, maskRect);
+        UpdateRings();
     }
 
     /// <summary>
@@ -228,6 +234,47 @@ public class MaterialCarouselItem : ListBoxItem, ICustomHitTest
         base.OnPropertyChanged(change);
         if (change.Property == ContentProperty)
             UpdateAutomationName();
+        else if (change.Property == BoundsProperty || change.Property == CornerRadiusProperty)
+            UpdateRings();
+    }
+
+    private void UpdateRings()
+    {
+        if (_selectionRing is null && _focusRing is null)
+            return;
+
+        var rect = _maskRect.Width > 0 && _maskRect.Height > 0 ? _maskRect : new Rect(Bounds.Size);
+        var maxOuter = Math.Max(0d, Math.Min(rect.Width, rect.Height) / 2d);
+        var raw = CornerRadius;
+        var outer = new CornerRadius(
+            Math.Clamp(raw.TopLeft, 0d, maxOuter),
+            Math.Clamp(raw.TopRight, 0d, maxOuter),
+            Math.Clamp(raw.BottomRight, 0d, maxOuter),
+            Math.Clamp(raw.BottomLeft, 0d, maxOuter));
+
+        if (_selectionRing is not null)
+        {
+            _selectionRing.Margin = new Thickness(rect.X, rect.Y, 0, 0);
+            _selectionRing.Width = Math.Max(0d, rect.Width);
+            _selectionRing.Height = Math.Max(0d, rect.Height);
+            _selectionRing.CornerRadius = outer;
+        }
+
+        if (_focusRing is not null)
+        {
+            var inset = Math.Min(3d, Math.Max(0d, (Math.Min(rect.Width, rect.Height) - 6d) / 2d));
+            var focusWidth = Math.Max(0d, rect.Width - (inset * 2d));
+            var focusHeight = Math.Max(0d, rect.Height - (inset * 2d));
+            var maxFocus = Math.Max(0d, Math.Min(focusWidth, focusHeight) / 2d);
+            _focusRing.Margin = new Thickness(rect.X + inset, rect.Y + inset, 0, 0);
+            _focusRing.Width = focusWidth;
+            _focusRing.Height = focusHeight;
+            _focusRing.CornerRadius = new CornerRadius(
+                Math.Clamp(outer.TopLeft - inset, 0d, maxFocus),
+                Math.Clamp(outer.TopRight - inset, 0d, maxFocus),
+                Math.Clamp(outer.BottomRight - inset, 0d, maxFocus),
+                Math.Clamp(outer.BottomLeft - inset, 0d, maxFocus));
+        }
     }
 
     private void UpdateOverlayState()

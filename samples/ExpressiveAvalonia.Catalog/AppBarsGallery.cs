@@ -100,7 +100,12 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
     private readonly Grid _bottomBarStage;
     private readonly ScrollViewer _toolbarScroll;
     private readonly Grid _toolbarStage;
-    private readonly MaterialToolbar _toolbar = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly MaterialToolbar _toolbar = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Bottom,
+        Margin = new Thickness(16),
+    };
     private readonly MaterialSectionHeader _sectionHeader = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly MaterialPageHeader _pageHeader = new() { VerticalAlignment = VerticalAlignment.Center };
 
@@ -165,7 +170,8 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
     private readonly Slider _toolbarActions;
     private readonly ToggleSwitch _toolbarFabToggle;
     private readonly ToggleSwitch _toolbarExpandedToggle;
-    private readonly ToggleSwitch _toolbarScrollToggle;
+    private readonly ToggleSwitch _toolbarCollapseScrollToggle;
+    private readonly ToggleSwitch _toolbarExitScrollToggle;
 
     private readonly StackPanel _sectionGroup;
     private readonly TextBox _sectionLabel;
@@ -183,6 +189,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
     private readonly ToggleSwitch _scaffoldConsumedToggle;
 
     private int _invocations;
+    private bool _applying;
     private MaterialBarScrollMode? _appBarMode;
     private MaterialFloatingToolbarExitDirection? _toolbarExit;
 
@@ -205,7 +212,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _bottomFab = new MaterialFab
         {
             Content = new PathIcon { Data = Add },
-            ColorRole = MaterialFabColorRole.PrimaryContainer,
+            ColorRole = MaterialFabColorRole.SecondaryContainer,
             Command = Command("Создать"),
         };
         AutomationProperties.SetName(_bottomFab, "Создать");
@@ -213,7 +220,7 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _toolbarFab = new MaterialFab
         {
             Content = new PathIcon { Data = Add },
-            ColorRole = MaterialFabColorRole.PrimaryContainer,
+            ColorRole = MaterialFabColorRole.SecondaryContainer,
             Command = Command("Создать в toolbar"),
         };
         AutomationProperties.SetName(_toolbarFab, "Создать в toolbar");
@@ -399,7 +406,8 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         _toolbarActions = Number(_toolbarGroup, "Действий", 0, 6, 6);
         _toolbarFabToggle = Toggle(_toolbarGroup, "FAB рядом", true);
         _toolbarExpandedToggle = Toggle(_toolbarGroup, "Развёрнут", true);
-        _toolbarScrollToggle = Toggle(_toolbarGroup, "Сворачивать при прокрутке", true);
+        _toolbarCollapseScrollToggle = Toggle(_toolbarGroup, "Сворачивать при прокрутке", true);
+        _toolbarExitScrollToggle = Toggle(_toolbarGroup, "Скрывать при прокрутке", false);
         Settings.Children.Add(_toolbarGroup);
 
         _sectionGroup = new StackPanel { Spacing = 12 };
@@ -439,6 +447,21 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
 
         _appBar.SearchSubmitted += (_, _) => _status.Text = $"Поиск: «{_appBar.SearchText}»";
         _appBar.SearchDismissed += (_, _) => _status.Text = "Поиск закрыт (Escape)";
+        _toolbar.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == MaterialToolbar.IsExpandedProperty && !_applying)
+            {
+                _applying = true;
+                try
+                {
+                    _toolbarExpandedToggle.IsChecked = _toolbar.IsExpanded;
+                }
+                finally
+                {
+                    _applying = false;
+                }
+            }
+        };
 
         _component.SelectionChanged += (_, _) => Apply();
         _appBarConfiguration.SelectionChanged += (_, _) => Apply();
@@ -462,8 +485,8 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
         foreach (var toggle in new[]
                  {
                      _appBarLeading, _appBarImage, _bottomFabToggle, _bottomScrollToggle, _toolbarFabToggle,
-                     _toolbarExpandedToggle, _toolbarScrollToggle, _sectionLeading, _sectionTrailing,
-                     _pageDivider, _scaffoldInsetsToggle, _scaffoldConsumedToggle,
+                     _toolbarExpandedToggle, _toolbarCollapseScrollToggle, _toolbarExitScrollToggle,
+                     _sectionLeading, _sectionTrailing, _pageDivider, _scaffoldInsetsToggle, _scaffoldConsumedToggle,
                  })
             toggle.IsCheckedChanged += (_, _) => Apply();
 
@@ -472,27 +495,37 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
 
     private void Apply()
     {
-        var component = Math.Clamp(_component.SelectedIndex, 0, ComponentNames.Length - 1);
+        if (_applying)
+            return;
+        _applying = true;
+        try
+        {
+            var component = Math.Clamp(_component.SelectedIndex, 0, ComponentNames.Length - 1);
 
-        _appBarStage.IsVisible = component == 0;
-        _bottomBarStage.IsVisible = component == 1;
-        _toolbarStage.IsVisible = component == 2;
-        _sectionHeader.IsVisible = component == 3;
-        _pageHeader.IsVisible = component == 4;
-        _scaffold.IsVisible = component == 5;
+            _appBarStage.IsVisible = component == 0;
+            _bottomBarStage.IsVisible = component == 1;
+            _toolbarStage.IsVisible = component == 2;
+            _sectionHeader.IsVisible = component == 3;
+            _pageHeader.IsVisible = component == 4;
+            _scaffold.IsVisible = component == 5;
 
-        _appBarGroup.IsVisible = component == 0;
-        _bottomGroup.IsVisible = component == 1;
-        _toolbarGroup.IsVisible = component == 2;
-        _sectionGroup.IsVisible = component == 3;
-        _pageGroup.IsVisible = component == 4;
-        _scaffoldGroup.IsVisible = component == 5;
+            _appBarGroup.IsVisible = component == 0;
+            _bottomGroup.IsVisible = component == 1;
+            _toolbarGroup.IsVisible = component == 2;
+            _sectionGroup.IsVisible = component == 3;
+            _pageGroup.IsVisible = component == 4;
+            _scaffoldGroup.IsVisible = component == 5;
 
-        ApplyAppBar();
-        ApplyBottomBar();
-        ApplyToolbar();
-        ApplyHeaders();
-        ApplyScaffold();
+            ApplyAppBar();
+            ApplyBottomBar();
+            ApplyToolbar();
+            ApplyHeaders();
+            ApplyScaffold();
+        }
+        finally
+        {
+            _applying = false;
+        }
     }
 
     private void ApplyAppBar()
@@ -567,34 +600,83 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
             ? MaterialToolbarConfiguration.Floating
             : MaterialToolbarConfiguration.Docked;
         var floating = configuration == MaterialToolbarConfiguration.Floating;
-        var orientation = _toolbarOrientation.SelectedIndex == 1 ? Orientation.Vertical : Orientation.Horizontal;
+        if (!floating && _toolbarOrientation.SelectedIndex != 0)
+            _toolbarOrientation.SelectedIndex = 0;
+        _toolbarOrientation.IsEnabled = floating;
+
+        var orientation = floating && _toolbarOrientation.SelectedIndex == 1
+            ? Orientation.Vertical
+            : Orientation.Horizontal;
+        var vibrant = _toolbarColor.SelectedIndex == 1;
         var exitIndex = Math.Clamp(_toolbarExitDirection.SelectedIndex, 0, ToolbarExitDirections.Length - 1);
         var exit = ToolbarExitDirections[exitIndex];
+        var collapseOnScroll = floating && _toolbarCollapseScrollToggle.IsChecked == true;
+        var exitOnScroll = floating && _toolbarExitScrollToggle.IsChecked == true;
+
+        _toolbarFabToggle.IsEnabled = floating;
+        _toolbarExpandedToggle.IsEnabled = floating;
+        _toolbarCollapseScrollToggle.IsEnabled = floating;
+        _toolbarExitScrollToggle.IsEnabled = floating;
+        _toolbarExitDirection.IsEnabled = floating && exitOnScroll;
 
         _toolbar.Configuration = configuration;
         _toolbar.Orientation = orientation;
-        _toolbar.HorizontalAlignment = configuration == MaterialToolbarConfiguration.Docked && orientation == Orientation.Horizontal
-            ? HorizontalAlignment.Stretch
-            : HorizontalAlignment.Center;
-        _toolbar.Color = _toolbarColor.SelectedIndex == 1 ? MaterialToolbarColor.Vibrant : MaterialToolbarColor.Standard;
+        if (!floating)
+        {
+            _toolbar.HorizontalAlignment = HorizontalAlignment.Stretch;
+            _toolbar.VerticalAlignment = VerticalAlignment.Bottom;
+            _toolbar.Margin = default;
+        }
+        else if (orientation == Orientation.Vertical)
+        {
+            _toolbar.HorizontalAlignment = exit == MaterialFloatingToolbarExitDirection.Start
+                ? HorizontalAlignment.Left
+                : HorizontalAlignment.Right;
+            _toolbar.VerticalAlignment = exit switch
+            {
+                MaterialFloatingToolbarExitDirection.Top => VerticalAlignment.Top,
+                MaterialFloatingToolbarExitDirection.Bottom => VerticalAlignment.Bottom,
+                _ => VerticalAlignment.Center
+            };
+            _toolbar.Margin = new Thickness(16);
+        }
+        else
+        {
+            _toolbar.HorizontalAlignment = exit switch
+            {
+                MaterialFloatingToolbarExitDirection.Start => HorizontalAlignment.Left,
+                MaterialFloatingToolbarExitDirection.End => HorizontalAlignment.Right,
+                _ => HorizontalAlignment.Center
+            };
+            _toolbar.VerticalAlignment = exit == MaterialFloatingToolbarExitDirection.Top
+                ? VerticalAlignment.Top
+                : VerticalAlignment.Bottom;
+            _toolbar.Margin = new Thickness(16);
+        }
+
+        _toolbar.Color = vibrant ? MaterialToolbarColor.Vibrant : MaterialToolbarColor.Standard;
+        _toolbarFab.ColorRole = vibrant
+            ? MaterialFabColorRole.TertiaryContainer
+            : MaterialFabColorRole.SecondaryContainer;
         _toolbar.Fab = floating && _toolbarFabToggle.IsChecked == true ? _toolbarFab : null;
         _toolbar.IsExpanded = !floating || _toolbarExpandedToggle.IsChecked == true;
-        _toolbar.ExpandOnScroll = floating && _toolbarScrollToggle.IsChecked == true;
+        _toolbar.ExpandOnScroll = collapseOnScroll;
 
-        if (floating && _toolbarScrollToggle.IsChecked == true)
+        if (exitOnScroll)
         {
             if (_toolbarExit != exit || _toolbar.ScrollBehavior is null)
             {
                 _toolbar.ScrollBehavior = MaterialAppBarScrollBehavior.FloatingToolbar(exitDirection: exit);
                 _toolbarExit = exit;
             }
-            _toolbar.ScrollSource = _toolbarScroll;
         }
         else
         {
             _toolbar.ScrollBehavior = null;
             _toolbarExit = null;
         }
+
+        _toolbar.ScrollSource = collapseOnScroll || exitOnScroll ? _toolbarScroll : null;
 
         FillActions(_toolbar, (int)Math.Round(_toolbarActions.Value));
     }
@@ -624,9 +706,19 @@ internal sealed class AppBarsPlayground : Grid, IComponentPlayground
 
     private void FillActions(MaterialBarBase bar, int count)
     {
-        bar.Actions.Clear();
-        for (var i = 0; i < count && i < ActionLabels.Length; i++)
-            bar.Actions.Add(new MaterialBarAction(ActionLabels[i], ActionIcons[i], Command(ActionLabels[i])));
+        var targetCount = Math.Clamp(count, 0, ActionLabels.Length);
+        while (bar.Actions.Count > targetCount)
+            bar.Actions.RemoveAt(bar.Actions.Count - 1);
+        while (bar.Actions.Count < targetCount)
+        {
+            var index = bar.Actions.Count;
+            var label = ActionLabels[index];
+            var icon = ActionIcons[index];
+            var action = index is 1 or 5
+                ? MaterialBarAction.Toggleable(label, icon, isChecked: index == 1, Command(label))
+                : MaterialBarAction.Clickable(label, icon, Command(label));
+            bar.Actions.Add(action);
+        }
     }
 
     private ICommand Command(string label) => new ActionCommand(() => Report(label));

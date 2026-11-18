@@ -392,6 +392,8 @@ public class MaterialCarousel : ListBox
         {
             card.Invoked -= OnCardInvoked;
             card.PropertyChanged -= OnCardPropertyChanged;
+            card.SetParallax(0);
+            card.UpdateItemInfo(0, 0, 0, default);
             if (_inheritedAspectCards.Remove(card))
                 card.ClearValue(MaterialCarouselItem.AspectRatioProperty);
         }
@@ -759,6 +761,20 @@ public class MaterialCarousel : ListBox
             InvalidateStripMeasure();
         else if (change.Property == PaddingProperty || change.Property == MaterialMotion.IsReducedProperty)
             InvalidateStripMeasure();
+        else if (change.Property == FlingBehaviorProperty && !_updatingFlingDefault)
+        {
+            if (change.Priority == Avalonia.Data.BindingPriority.Unset)
+            {
+                _flingBehaviorExplicit = false;
+                _updatingFlingDefault = true;
+                SetCurrentValue(FlingBehaviorProperty, DefaultFlingBehavior(Layout));
+                _updatingFlingDefault = false;
+            }
+            else
+            {
+                _flingBehaviorExplicit = true;
+            }
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -1036,8 +1052,6 @@ public class MaterialCarousel : ListBox
 
     private void OnFlingBehaviorChanged()
     {
-        if (!_updatingFlingDefault)
-            _flingBehaviorExplicit = true;
         UpdateSnapType();
         UpdateVisualClasses();
     }
@@ -1095,6 +1109,12 @@ public class MaterialCarousel : ListBox
 
     private void OnCardPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
+        if (e.Property == TemplatedControl.CornerRadiusProperty)
+        {
+            _panel?.InvalidateArrange();
+            return;
+        }
+
         if (e.Property != MaterialCarouselItem.AspectRatioProperty || _assigningAspectRatio ||
             sender is not MaterialCarouselItem card)
             return;

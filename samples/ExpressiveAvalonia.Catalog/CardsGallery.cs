@@ -48,6 +48,7 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
     private readonly TextBox _title;
     private readonly TextBox _supporting;
     private readonly Button _headerButton;
+    private readonly Button _slotButton;
     private readonly StackPanel _slotContent;
     private int _clicks;
     private int _commands;
@@ -90,9 +91,9 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
             FontSize = 14,
             TextWrapping = TextWrapping.Wrap,
         });
-        var slotButton = new Button { Content = "Действие в слоте", HorizontalAlignment = HorizontalAlignment.Left };
-        slotButton.Click += (_, _) => SetStatus("Нажато действие в слоте; карточка не активировалась.");
-        _slotContent.Children.Add(slotButton);
+        _slotButton = new Button { Content = "Действие в слоте", HorizontalAlignment = HorizontalAlignment.Left };
+        _slotButton.Click += (_, _) => SetStatus("Нажато действие в слоте; карточка не активировалась.");
+        _slotContent.Children.Add(_slotButton);
 
         // N01.4 badge placement: dot/labeled and RTL mirroring of the source BadgedBox.
         var badgeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 32 };
@@ -124,7 +125,8 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
         Settings.Children.Add(new TextBlock
         {
             Text = "Интерактивная карточка получает фокус, состояния hover/pressed/focused/dragged, " +
-                   "активацию Enter/Space и команду. Вложенные кнопки сохраняют собственный ввод. " +
+                   "активацию Enter/Space и команду без вложенных кнопок действий (по гайдлайнам M3). " +
+                   "В неинтерактивном режиме карточка служит контейнером для самостоятельных кнопок. " +
                    "Layout=Slot заменяет анатомию слотом содержимого.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
@@ -169,6 +171,7 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
     {
         var anatomy = _anatomy.SelectedIndex;
         var slot = anatomy == 2;
+        var interactive = _interactive.IsChecked == true;
         _card.Variant = (MaterialCardVariant)Math.Clamp(_variant.SelectedIndex, 0, 2);
         _card.Orientation = anatomy == 1 ? MaterialCardOrientation.Horizontal : MaterialCardOrientation.Stacked;
         _card.Layout = slot ? MaterialCardLayout.Slot : MaterialCardLayout.MediaText;
@@ -176,18 +179,19 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
         _card.CornerRadius = new CornerRadius(_radius.Value);
         _card.Padding = slot ? new Thickness(16) : new Thickness(0);
         _card.Content = slot ? _slotContent : null;
+        _slotButton.IsVisible = !interactive;
 
         _card.Header = _header.Text;
         _card.Subhead = "Подзаголовок";
         _card.AvatarInitial = "A";
         _card.ShowAvatar = _avatar.IsChecked == true;
-        _card.HeaderAction = _headerAction.IsChecked == true ? _headerButton : null;
+        _card.HeaderAction = !interactive && _headerAction.IsChecked == true ? _headerButton : null;
         _card.Title = _title.Text;
         _card.Subtitle = anatomy == 1 ? null : "Subtitle";
         _card.SupportingText = _supporting.Text;
         _card.Media = slot ? null : Media(anatomy == 1 ? null : "Медиа 188");
-        _card.PrimaryAction = slot ? null : "Основное";
-        _card.SecondaryAction = slot ? null : "Второе";
+        _card.PrimaryAction = slot || interactive ? null : "Основное";
+        _card.SecondaryAction = slot || interactive ? null : "Второе";
         _card.ShowSecondaryAction = _secondary.IsChecked == true;
         _card.PrimaryActionCommand = new DelegateCommand(_ =>
         {
@@ -199,14 +203,16 @@ internal sealed class CardsPlayground : Grid, IComponentPlayground
             _actions++;
             UpdateStatus();
         });
-        _card.IsInteractive = _interactive.IsChecked == true;
+        _card.IsInteractive = interactive;
         _card.ShowFocusIndicator = _focus.IsChecked == true;
-        _card.DragData = _interactive.IsChecked == true && _drag.IsChecked == true
+        _card.DragData = interactive && _drag.IsChecked == true
             ? TextTransfer("Material card")
             : null;
         _card.IsEnabled = _enabled.IsChecked == true;
-        _drag.IsEnabled = _interactive.IsChecked == true;
-        _focus.IsEnabled = _interactive.IsChecked == true;
+        _headerAction.IsEnabled = !slot && !interactive;
+        _secondary.IsEnabled = !slot && !interactive;
+        _drag.IsEnabled = interactive;
+        _focus.IsEnabled = interactive;
 
         var name = slot ? "Slot" : anatomy == 1 ? "Horizontal card" : "Stacked card";
         AutomationProperties.SetName(_card, name);

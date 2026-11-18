@@ -569,9 +569,8 @@ public sealed class MaterialSelectionBox : Control
 /// leaves the Off state snaps its gravitation (the source's <c>initialState == Off -> snap()</c>).
 /// Leaving to Off is <c>snap(delayMillis = SnapAnimationDelay)</c>: the control keeps painting the
 /// last silhouette for the source 100 ms constant and then snaps to the target, so there is no
-/// reverse fade. The delay is a source constant, not a motion token, so reduced motion zeroes the
-/// spring but keeps the delay. Retargeting during either phase preserves the painted position and
-/// velocity.</para>
+/// reverse fade. Reduced motion skips both springs and the exit hold, snapping immediately.
+/// Retargeting during either phase preserves the painted position and velocity.</para>
 /// <para><see cref="StrokeColor"/> follows the source's <c>animatedCheckboxColor</c>
 /// (<c>animateColorAsState(checkmarkColor, colorAnimationSpecForState(state))</c>): the style
 /// supplies <see cref="ColorSpring"/>, FastEffects while the target state is Off and DefaultEffects
@@ -631,7 +630,8 @@ public sealed class MaterialCheckMark : Control
     static MaterialCheckMark()
     {
         AffectsRender<MaterialCheckMark>(
-            ProgressProperty, GravitationProperty, StrokeColorProperty, StrokeThicknessProperty);
+            ProgressProperty, GravitationProperty, StrokeColorProperty, StrokeThicknessProperty,
+            FlowDirectionProperty);
         ProgressProperty.Changed.AddClassHandler<MaterialCheckMark>(
             (mark, args) => mark.OnProgressTarget(args.GetNewValue<double>()));
         GravitationProperty.Changed.AddClassHandler<MaterialCheckMark>(
@@ -640,6 +640,8 @@ public sealed class MaterialCheckMark : Control
             (mark, args) => mark.OnStrokeColorTarget(args.GetNewValue<Color>()));
         ColorSpringProperty.Changed.AddClassHandler<MaterialCheckMark>(
             (mark, _) => mark._colorAnimation.Set(mark._colorTarget, mark.ColorSpring, mark._hasRendered));
+        MaterialMotion.IsReducedProperty.Changed.AddClassHandler<MaterialCheckMark>(
+            (mark, _) => mark.OnReducedMotionChanged());
     }
 
     public double Progress
@@ -700,12 +702,28 @@ public sealed class MaterialCheckMark : Control
         InvalidateVisual();
     }
 
+    private void OnReducedMotionChanged()
+    {
+        if (!MaterialMotion.GetIsReduced(this))
+            return;
+        CancelExitHold();
+        StopSprings();
+        _snapNextGravitation = false;
+        _renderedProgress = Math.Clamp(Progress, 0, 1);
+        _renderedGravitation = Math.Clamp(Gravitation, 0, 1);
+        InvalidateVisual();
+    }
+
     private void OnProgressTarget(double target)
     {
         target = Math.Clamp(target, 0, 1);
-        if (!_hasRendered)
+        if (!_hasRendered || MaterialMotion.GetIsReduced(this))
         {
+            CancelExitHold();
+            StopSprings();
+            _snapNextGravitation = false;
             _renderedProgress = target;
+            _renderedGravitation = Math.Clamp(Gravitation, 0, 1);
             InvalidateVisual();
             return;
         }
@@ -733,8 +751,12 @@ public sealed class MaterialCheckMark : Control
     private void OnGravitationTarget(double target)
     {
         target = Math.Clamp(target, 0, 1);
-        if (!_hasRendered)
+        if (!_hasRendered || MaterialMotion.GetIsReduced(this))
         {
+            CancelExitHold();
+            _gravitationSpring?.Dispose();
+            _gravitationSpring = null;
+            _snapNextGravitation = false;
             _renderedGravitation = target;
             InvalidateVisual();
             return;
@@ -872,10 +894,13 @@ public sealed class MaterialCheckMark : Control
             return;
         var gravity = _renderedGravitation;
         // Checkbox.kt drawCheck: the cross gravitates from (0.4, 0.7) to (0.5, 0.5),
-        // while the right point moves onto the same horizontal centre line.
-        var left = new Point(size * 0.2, size * 0.5);
-        var cross = new Point(size * (0.4 + 0.1 * gravity), size * (0.7 - 0.2 * gravity));
-        var right = new Point(size * 0.8, size * (0.3 + 0.2 * gravity));
+        // while the right point moves onto the same horizontal centre line. Counter-mirror in RTL
+        // so the non-directional checkmark remains upright under Avalonia's visual mirror.
+        var rtl = FlowDirection == FlowDirection.RightToLeft;
+        var crossX = 0.4 + 0.1 * gravity;
+        var left = new Point(size * (rtl ? 0.8 : 0.2), size * 0.5);
+        var cross = new Point(size * (rtl ? 1 - crossX : crossX), size * (0.7 - 0.2 * gravity));
+        var right = new Point(size * (rtl ? 0.2 : 0.8), size * (0.3 + 0.2 * gravity));
 
         var first = Distance(left, cross);
         var second = Distance(cross, right);
@@ -1171,6 +1196,8 @@ public sealed class MaterialSwitchKnobTrack : Canvas
                 RoutingStrategies.Tunnel, handledEventsToo: true);
             owner.AddHandler(InputElement.PointerReleasedEvent, OnPointerReleasedTunnel,
                 RoutingStrategies.Tunnel, handledEventsToo: true);
+            owner.AddHandler(InputElement.PointerCaptureLostEvent, OnPointerCaptureLost,
+                RoutingStrategies.Tunnel, handledEventsToo: true);
         }
 
         if (_knobs is not null)
@@ -1209,6 +1236,7 @@ public sealed class MaterialSwitchKnobTrack : Canvas
             _toggle.PropertyChanged -= OnTogglePropertyChanged;
             _toggle.RemoveHandler(InputElement.PointerPressedEvent, OnPointerPressedTunnel);
             _toggle.RemoveHandler(InputElement.PointerReleasedEvent, OnPointerReleasedTunnel);
+            _toggle.RemoveHandler(InputElement.PointerCaptureLostEvent, OnPointerCaptureLost);
             _toggle = null;
         }
         if (_knobs is not null)
@@ -1267,6 +1295,16 @@ public sealed class MaterialSwitchKnobTrack : Canvas
             UpdateSize(animate: _hasArranged && !_pointerDown && !_pressed);
             return;
         }
+        if (e.Property == InputElement.IsEffectivelyEnabledProperty && _toggle is { IsEffectivelyEnabled: false })
+        {
+            _pointerDown = false;
+            _pressed = false;
+            _pointerReleaseInProgress = false;
+            _offsetTarget = ReadOffsetTarget();
+            _offsetAnimation.Set(_offsetTarget, MaterialSpring.SpatialFast, animate: false);
+            UpdateSize(animate: false);
+            return;
+        }
         if (e.Property == ToggleSwitch.IsCheckedProperty
             || e.Property == ToggleSwitch.OnContentProperty
             || e.Property == ToggleSwitch.OffContentProperty
@@ -1281,7 +1319,9 @@ public sealed class MaterialSwitchKnobTrack : Canvas
     private void OnPointerPressedTunnel(object? sender, PointerPressedEventArgs e)
     {
         EnsureBound();
-        if (_pointerDown)
+        if (_pointerDown || _toggle is not { IsEffectivelyEnabled: true })
+            return;
+        if (!e.GetCurrentPoint(_toggle).Properties.IsLeftButtonPressed)
             return;
         _pointerDown = true;
         _pointerReleaseInProgress = false;
@@ -1292,13 +1332,24 @@ public sealed class MaterialSwitchKnobTrack : Canvas
 
     private void OnPointerReleasedTunnel(object? sender, PointerReleasedEventArgs e)
     {
-        if (!_pointerDown)
+        if (!_pointerDown || e.InitialPressMouseButton != MouseButton.Left)
             return;
         // Runs before the native release handler: the following Canvas.Left/IsChecked changes are
         // release targets and must animate with the FastSpatial spring. Button.IsPressed turns
         // false after the native release, which starts the thumb-size release spring.
         _pointerDown = false;
         _pointerReleaseInProgress = true;
+        UpdateSize(animate: _hasArranged && !_pressed);
+    }
+
+    private void OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (!_pointerDown && !_pointerReleaseInProgress)
+            return;
+        _pointerDown = false;
+        _pointerReleaseInProgress = false;
+        _offsetTarget = ReadOffsetTarget();
+        _offsetAnimation.Set(_offsetTarget, MaterialSpring.SpatialFast, animate: _hasArranged && !_pressed);
         UpdateSize(animate: _hasArranged && !_pressed);
     }
 
@@ -1312,9 +1363,11 @@ public sealed class MaterialSwitchKnobTrack : Canvas
         if (_toggle.IsChecked == true)
             return SelectedHandleSize;
 
-        var hasContent = _toggle.OnContent is not null || _toggle.OffContent is not null
-                         || _toggle.OnContentTemplate is not null || _toggle.OffContentTemplate is not null;
-        if (hasContent || MaterialSelection.GetShowSwitchIcons(_toggle))
+        var hasAnyContent = _toggle.OnContent is not null || _toggle.OffContent is not null
+                            || _toggle.OnContentTemplate is not null || _toggle.OffContentTemplate is not null;
+        var hasOffIcon = _toggle.OffContent is not null || _toggle.OffContentTemplate is not null
+                         || (MaterialSelection.GetShowSwitchIcons(_toggle) && !hasAnyContent);
+        if (hasOffIcon)
             return SelectedHandleSize;
         return UnselectedHandleSize;
     }

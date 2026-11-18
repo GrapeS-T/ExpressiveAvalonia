@@ -96,7 +96,7 @@ public class MaterialMenuTextField : TemplatedControl
     public static readonly StyledProperty<string?> LabelProperty =
         AvaloniaProperty.Register<MaterialMenuTextField, string?>(nameof(Label));
     public static readonly StyledProperty<string?> PlaceholderTextProperty =
-        AvaloniaProperty.Register<MaterialMenuTextField, string?>(nameof(PlaceholderText), "Search");
+        AvaloniaProperty.Register<MaterialMenuTextField, string?>(nameof(PlaceholderText));
     public static readonly StyledProperty<string?> SupportingTextProperty =
         AvaloniaProperty.Register<MaterialMenuTextField, string?>(nameof(SupportingText));
     public static readonly StyledProperty<string?> TextProperty =
@@ -128,6 +128,7 @@ public class MaterialMenuTextField : TemplatedControl
     private ListBox? _list;
     private TextBlock? _empty;
     private IDisposable? _leadingSubscription;
+    private IDisposable? _placeholderSubscription;
     private bool _updatingSelection;
 
     public MaterialMenuTextField()
@@ -177,7 +178,29 @@ public class MaterialMenuTextField : TemplatedControl
             _list.AddHandler(PointerReleasedEvent, OnListPointerReleased, RoutingStrategies.Bubble, handledEventsToo: true);
         }
         UpdateLeadingIcon();
+        UpdatePlaceholder();
         ApplyFilter();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_input is not null)
+        {
+            if (ShowSearchIcon && _leadingSubscription is null)
+                UpdateLeadingIcon();
+            if (PlaceholderText is null && _placeholderSubscription is null)
+                UpdatePlaceholder();
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _leadingSubscription?.Dispose();
+        _leadingSubscription = null;
+        _placeholderSubscription?.Dispose();
+        _placeholderSubscription = null;
+        base.OnDetachedFromVisualTree(e);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -187,6 +210,8 @@ public class MaterialMenuTextField : TemplatedControl
             ApplyFilter();
         else if (change.Property == ShowSearchIconProperty)
             UpdateLeadingIcon();
+        else if (change.Property == PlaceholderTextProperty)
+            UpdatePlaceholder();
         else if (change.Property == SelectedItemProperty && !_updatingSelection)
             SyncSelectionToList();
     }
@@ -217,9 +242,29 @@ public class MaterialMenuTextField : TemplatedControl
         }
         _leadingSubscription?.Dispose();
         _leadingSubscription = null;
+        _placeholderSubscription?.Dispose();
+        _placeholderSubscription = null;
         _input = null;
         _list = null;
         _empty = null;
+    }
+
+    private void UpdatePlaceholder()
+    {
+        if (_input is null)
+            return;
+
+        _placeholderSubscription?.Dispose();
+        _placeholderSubscription = null;
+        if (PlaceholderText is not null)
+        {
+            _input.PlaceholderText = PlaceholderText;
+            return;
+        }
+
+        _placeholderSubscription = _input.Bind(
+            TextBox.PlaceholderTextProperty,
+            _input.GetResourceObservable("MaterialSearchPlaceholderText"));
     }
 
     private void UpdateLeadingIcon()

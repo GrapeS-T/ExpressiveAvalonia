@@ -22,6 +22,20 @@
        StateTokens (not an 8% design-snapshot overlay), and the short linear hover/focus tweens.
        The header content is tinted only by the selected/unselected content-colour transition,
        owned by MaterialTabs; hover and press deliberately do not add a third foreground. -->
+  <ControlTheme x:Key="MaterialTabPathIconTheme" TargetType="PathIcon">
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Viewbox Stretch="Uniform">
+          <Canvas Width="24" Height="24">
+            <Path Data="{TemplateBinding Data}" Fill="{TemplateBinding Foreground}" Stretch="None" />
+          </Canvas>
+        </Viewbox>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
   <ControlTheme x:Key="DesignTabItem" TargetType="TabItem">
     <Setter Property="MinHeight" Value="48" />
     <Setter Property="MinWidth" Value="48" />
@@ -31,6 +45,7 @@
     <Setter Property="FontSize" Value="{DynamicResource MaterialTitleSmallFontSize}" />
     <Setter Property="FontWeight" Value="{DynamicResource MaterialTitleSmallFontWeight}" />
     <Setter Property="TextElement.LetterSpacing" Value="{DynamicResource MaterialTitleSmallLetterSpacing}" />
+    <Setter Property="IsTabStop" Value="False" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Template">
@@ -44,16 +59,24 @@
                 <StackPanel Grid.Column="0" Name="LabelGroup" Orientation="Horizontal" Spacing="8"
                             HorizontalAlignment="Center"
                             VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
-                  <Grid Name="IconHost" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center"
+                  <Grid Name="IconHost" Width="24" Height="24" ClipToBounds="False"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
                         IsVisible="False">
-                    <ContentPresenter Name="IconPresenter" Content="{TemplateBinding Icon}"
-                                      ContentTemplate="{TemplateBinding IconTemplate}"
-                                      Width="24" Height="24"
-                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    <controls:MaterialBadge Name="IconBadge" Size="Small"
-                                            Text="{TemplateBinding (md:MaterialTabs.BadgeText)}"
-                                            HorizontalAlignment="Right" VerticalAlignment="Top"
-                                            IsVisible="False" IsHitTestVisible="False" />
+                    <controls:MaterialBadgeAnchorPanel ClipToBounds="False">
+                      <ContentPresenter Name="IconPresenter" Content="{TemplateBinding Icon}"
+                                        ContentTemplate="{TemplateBinding IconTemplate}"
+                                        Width="24" Height="24"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ContentPresenter.Styles>
+                          <Style Selector="PathIcon">
+                            <Setter Property="Theme" Value="{StaticResource MaterialTabPathIconTheme}" />
+                          </Style>
+                        </ContentPresenter.Styles>
+                      </ContentPresenter>
+                      <controls:MaterialBadge Name="IconBadge" Size="Small"
+                                              Text="{TemplateBinding (md:MaterialTabs.BadgeText)}"
+                                              IsVisible="False" IsHitTestVisible="False" />
+                    </controls:MaterialBadgeAnchorPanel>
                   </Grid>
                   <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
                                     ContentTemplate="{TemplateBinding HeaderTemplate}"
@@ -65,15 +88,22 @@
                      PART_Indicator in the TabControl template. -->
               </Grid>
               <Border Name="TrailingBadge" Width="6" Height="6" CornerRadius="3"
+                      AutomationProperties.AccessibilityView="Raw"
+                      AutomationProperties.IsControlElementOverride="False"
                       Background="{DynamicResource MaterialErrorBrush}"
                       Margin="-4,0,0,0" VerticalAlignment="Center"
                       IsVisible="False" IsHitTestVisible="False">
                 <TextBlock Name="TrailingBadgeText" IsVisible="False"
+                           AutomationProperties.AccessibilityView="Raw"
+                           AutomationProperties.IsControlElementOverride="False"
                            Text="{TemplateBinding (md:MaterialTabs.BadgeText)}"
+                           FontFamily="{DynamicResource MaterialFontFamily}"
                            FontSize="{DynamicResource MaterialLabelSmallFontSize}"
-                           FontWeight="Medium"
+                           FontWeight="{DynamicResource MaterialLabelSmallFontWeight}"
+                           LetterSpacing="{DynamicResource MaterialLabelSmallLetterSpacing}"
                            LineHeight="{DynamicResource MaterialLabelSmallLineHeight}"
                            Foreground="{DynamicResource MaterialOnErrorBrush}"
+                           TextWrapping="NoWrap"
                            HorizontalAlignment="Center" VerticalAlignment="Center" />
               </Border>
             </StackPanel>
@@ -140,7 +170,6 @@
     </Style>
     <Style Selector="^.md-badge-text /template/ controls|MaterialBadge#IconBadge">
       <Setter Property="Size" Value="Large" />
-      <Setter Property="Margin" Value="0,-2,-4,0" />
     </Style>
     <Style Selector="^.md-has-badge.md-label-only /template/ Border#TrailingBadge">
       <Setter Property="IsVisible" Value="True" />
@@ -167,20 +196,21 @@
                     ^[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
       <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}" />
     </Style>
-    <!-- Primary: 3x20 edge marker for side strips. -->
+    <!-- Primary: 3x20 edge marker for side strips with 3 DIP inner corners. -->
     <Style Selector="^.md-primary[TabStripPlacement=Left] /template/ Border#IndicatorSecondary,
                     ^.md-primary[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
       <Setter Property="Width" Value="3" />
       <Setter Property="Height" Value="20" />
-      <Setter Property="CornerRadius" Value="0" />
     </Style>
     <Style Selector="^.md-primary[TabStripPlacement=Left] /template/ Border#IndicatorSecondary">
       <Setter Property="HorizontalAlignment" Value="Right" />
       <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="CornerRadius" Value="3,0,0,3" />
     </Style>
     <Style Selector="^.md-primary[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
       <Setter Property="HorizontalAlignment" Value="Left" />
       <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="CornerRadius" Value="0,3,3,0" />
     </Style>
     <Style Selector="^.md-primary:selected[TabStripPlacement=Left] /template/ Border#IndicatorSecondary,
                     ^.md-primary:selected[TabStripPlacement=Right] /template/ Border#IndicatorSecondary">
@@ -222,8 +252,8 @@
     <Style Selector="^:focus-visible /template/ Border#FocusRing">
       <Setter Property="IsVisible" Value="True" />
     </Style>
-    <Style Selector="^[(md|MaterialTabs.ShowFocusIndicator)=False] /template/ Border#FocusRing">
-      <Setter Property="IsVisible" Value="False" />
+    <Style Selector="^[(md|MaterialTabs.ShowFocusIndicator)=True] /template/ Border#FocusRing">
+      <Setter Property="IsVisible" Value="True" />
     </Style>
 
     <Style Selector="^:disabled">
@@ -232,7 +262,7 @@
     <Style Selector="^:disabled /template/ StackPanel#HeaderContent">
       <Setter Property="Opacity" Value="0.38" />
     </Style>
-    <Style Selector="^:disabled /template/ Border#Indicator, ^:disabled /template/ Border#IndicatorSecondary">
+    <Style Selector="^:disabled /template/ Border#IndicatorSecondary">
       <Setter Property="Background" Value="{DynamicResource MaterialOnSurfaceBrush}" />
       <Setter Property="Opacity" Value="0.38" />
     </Style>
@@ -247,6 +277,7 @@
   <ControlTheme x:Key="DesignTabControl" TargetType="TabControl">
     <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource MaterialOnSurfaceBrush}" />
+    <Setter Property="IsTabStop" Value="False" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="VerticalContentAlignment" Value="Stretch" />
     <Setter Property="ItemContainerTheme" Value="{StaticResource DesignTabItem}" />
@@ -272,7 +303,7 @@
                        MaterialTabs positions and springs it; the per-tab side markers remain only
                        for the Avalonia-only Left/Right strip extension. -->
                   <Canvas Name="PART_IndicatorLayer" IsHitTestVisible="False">
-                    <Border Name="PART_Indicator" Height="3" CornerRadius="3"
+                    <Border Name="PART_Indicator" Height="3" CornerRadius="3,3,0,0"
                             Background="{DynamicResource MaterialPrimaryBrush}"
                             IsVisible="False" />
                   </Canvas>

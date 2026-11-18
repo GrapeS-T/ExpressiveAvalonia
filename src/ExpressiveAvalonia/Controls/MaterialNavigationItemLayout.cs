@@ -21,7 +21,7 @@ public enum MaterialNavigationItemIconPosition
 /// <summary>The source layout family used by a navigation item.</summary>
 public enum MaterialNavigationItemLayoutKind
 {
-    /// <summary>Classic <c>NavigationBarItem</c>: 80 DIP slot, 56x32 indicator, icon above label.</summary>
+    /// <summary>Classic <c>NavigationBarItem</c>: 80 DIP slot, 64x32 indicator, icon above label.</summary>
     Bar,
 
     /// <summary><c>ShortNavigationBarItem</c>: 64 DIP bar, top or start icon, 56x32 top indicator.</summary>
@@ -104,7 +104,6 @@ public sealed class MaterialNavigationItemLayout : Panel
             validate: static value => double.IsFinite(value) && value >= 0);
 
     private bool _measureAtEndPosition;
-    private double _arrangeWidth;
 
     static MaterialNavigationItemLayout()
     {
@@ -114,7 +113,7 @@ public sealed class MaterialNavigationItemLayout : Panel
         AffectsArrange<MaterialNavigationItemLayout>(
             KindProperty, IconPositionProperty, IconPositionProgressProperty, AlwaysShowLabelProperty,
             IndicatorProgressProperty, IndicatorAlphaProperty, LabelOpacityProperty,
-            HasLabelProperty, IconSizeProperty, MinimumItemHeightProperty, FlowDirectionProperty);
+            HasLabelProperty, IconSizeProperty, MinimumItemHeightProperty);
     }
 
     public MaterialNavigationItemLayoutKind Kind
@@ -241,7 +240,6 @@ public sealed class MaterialNavigationItemLayout : Panel
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        _arrangeWidth = finalSize.Width;
         var iconSize = IconSize;
         var hasLabel = HasLabel && Child(3) is { DesiredSize.Height: > 0 };
         var labelSize = hasLabel ? Child(3)!.DesiredSize : default;
@@ -264,7 +262,7 @@ public sealed class MaterialNavigationItemLayout : Panel
         if (topLayout)
         {
             var verticalPadding = hasLabel ? 4d : Kind is MaterialNavigationItemLayoutKind.Rail ? 16d : 4d;
-            var indicatorWidth = iconSize + 32d;
+            var indicatorWidth = iconSize + (Kind is MaterialNavigationItemLayoutKind.Bar ? 40d : 32d);
             var indicatorHeight = iconSize + (verticalPadding * 2);
             if (!hasLabel)
             {
@@ -348,12 +346,14 @@ public sealed class MaterialNavigationItemLayout : Panel
     private void ArrangeTop(Size finalSize, double iconSize, Size labelSize, bool hasLabel)
     {
         var verticalPadding = hasLabel ? 4d : Kind is MaterialNavigationItemLayoutKind.Rail ? 16d : 4d;
-        var totalIndicatorWidth = iconSize + 32d;
+        var totalIndicatorWidth = iconSize + (Kind is MaterialNavigationItemLayoutKind.Bar ? 40d : 32d);
         var indicatorHeight = iconSize + (verticalPadding * 2);
         var progress = Clamp01(IndicatorProgress);
         var indicatorWidth = totalIndicatorWidth * progress;
 
-        double iconX, iconY, labelY = 0, indicatorY;
+        double iconX, iconY, indicatorY;
+        var label = Child(3);
+        ClearLabelClip(label);
         if (!hasLabel)
         {
             iconX = (finalSize.Width - iconSize) / 2;
@@ -373,21 +373,21 @@ public sealed class MaterialNavigationItemLayout : Panel
             iconX = (finalSize.Width - iconSize) / 2;
             iconY = selectedIconY + offset;
             indicatorY = Math.Max(0, selectedIconY - verticalPadding + offset);
-            labelY = selectedIconY + iconSize + verticalPadding + 4d + offset;
-            Place(Child(3), (finalSize.Width - Math.Min(labelSize.Width, finalSize.Width)) / 2, labelY,
+            var labelY = selectedIconY + iconSize + verticalPadding + 4d + offset;
+            Place(label, (finalSize.Width - Math.Min(labelSize.Width, finalSize.Width)) / 2, labelY,
                 Math.Min(labelSize.Width, finalSize.Width), labelSize.Height);
-            Child(3)?.SetValue(OpacityProperty, Clamp01(LabelOpacity));
+            label?.SetValue(OpacityProperty, Clamp01(LabelOpacity));
         }
 
-        PlaceIndicator(Child(0), (finalSize.Width - indicatorWidth) / 2, indicatorY, indicatorWidth, indicatorHeight);
-        Place(Child(1), (finalSize.Width - totalIndicatorWidth) / 2, (finalSize.Height - indicatorHeight) / 2,
+        Place(Child(0), (finalSize.Width - indicatorWidth) / 2, indicatorY, indicatorWidth, indicatorHeight);
+        Place(Child(1), (finalSize.Width - totalIndicatorWidth) / 2, indicatorY,
             totalIndicatorWidth, indicatorHeight);
         Place(Child(2), iconX, iconY, iconSize, iconSize);
-        Place(Child(4), (finalSize.Width - totalIndicatorWidth) / 2, (finalSize.Height - indicatorHeight) / 2,
+        Place(Child(4), (finalSize.Width - totalIndicatorWidth) / 2, indicatorY,
             totalIndicatorWidth, indicatorHeight);
         Child(0)?.SetValue(OpacityProperty, Clamp01(IndicatorAlpha));
         if (!hasLabel)
-            Place(Child(3), 0, 0, 0, 0);
+            Place(label, 0, 0, 0, 0);
     }
 
     private void ArrangeStart(Size finalSize, double iconSize, Size labelSize)
@@ -399,40 +399,43 @@ public sealed class MaterialNavigationItemLayout : Panel
         var rowWidth = iconSize + 4d + labelSize.Width;
         var rowX = (finalSize.Width - rowWidth) / 2;
         var rowY = (finalSize.Height - Math.Max(iconSize, labelSize.Height)) / 2;
+        var label = Child(3);
+        ClearLabelClip(label);
 
-        PlaceIndicator(Child(0), (finalSize.Width - indicatorWidth) / 2,
+        Place(Child(0), (finalSize.Width - indicatorWidth) / 2,
             (finalSize.Height - indicatorHeight) / 2, indicatorWidth, indicatorHeight);
         Place(Child(1), (finalSize.Width - indicatorWidthTotal) / 2,
             (finalSize.Height - indicatorHeight) / 2, indicatorWidthTotal, indicatorHeight);
         Place(Child(2), rowX, rowY, iconSize, iconSize);
-        Place(Child(3), rowX + iconSize + 4d, rowY, Math.Min(labelSize.Width, Math.Max(0, finalSize.Width - rowX)), labelSize.Height);
+        Place(label, rowX + iconSize + 4d, rowY, Math.Min(labelSize.Width, Math.Max(0, finalSize.Width - rowX)), labelSize.Height);
         Place(Child(4), (finalSize.Width - indicatorWidthTotal) / 2,
             (finalSize.Height - indicatorHeight) / 2, indicatorWidthTotal, indicatorHeight);
         Child(0)?.SetValue(OpacityProperty, Clamp01(IndicatorAlpha));
-        Child(3)?.SetValue(OpacityProperty, Clamp01(LabelOpacity));
+        label?.SetValue(OpacityProperty, Clamp01(LabelOpacity));
     }
 
     private void ArrangeWide(Size finalSize, double iconSize, Size labelSize, double positionProgress)
     {
         var hasLabel = HasLabel && labelSize.Height > 0;
         const double startPadding = 20d;
-        var endPadding = !hasLabel || IconPosition != MaterialNavigationItemIconPosition.Start ? startPadding : 0d;
         const double horizontalIndicatorPadding = 16d;
         var verticalIndicatorPadding = Lerp(4d, 16d, positionProgress);
         var indicatorProgress = Math.Max(0d, IndicatorProgress);
+        var label = Child(3);
 
         if (!hasLabel)
         {
+            ClearLabelClip(label);
             var total = iconSize + 32d;
             var x = (finalSize.Width - total) / 2;
             var y = (finalSize.Height - total) / 2;
             Place(Child(0), x, y, total * indicatorProgress, total);
             Place(Child(1), x, y, total, total);
             Place(Child(2), (finalSize.Width - iconSize) / 2, (finalSize.Height - iconSize) / 2, iconSize, iconSize);
-            Place(Child(3), 0, 0, 0, 0);
+            Place(label, 0, 0, 0, 0);
             Place(Child(4), x, y, total, total);
             Child(0)?.SetValue(OpacityProperty, Clamp01(IndicatorAlpha));
-            Child(3)?.SetValue(OpacityProperty, 0d);
+            label?.SetValue(OpacityProperty, 0d);
             return;
         }
 
@@ -463,12 +466,36 @@ public sealed class MaterialNavigationItemLayout : Panel
         Place(Child(0), startPadding, indicatorY, indicatorWidth, indicatorHeightProgress);
         Place(Child(1), startPadding, indicatorY, indicatorWidthProgress, indicatorHeightProgress);
         Place(Child(2), iconX, iconY, iconSize, iconSize);
-        // Keep the measured text box intact; the item root clips the moving label.
-        // Re-arranging it to the shrinking viewport makes TextBlock reflow mid-frame.
-        Place(Child(3), labelX, labelY, labelSize.Width, labelSize.Height);
+        // Keep the measured text box intact and clip only the label slot horizontally while the
+        // rail width is mid-morph, so outer focus rings and badges on the item root stay unclipped.
+        Place(label, labelX, labelY, labelSize.Width, labelSize.Height);
+        ApplyWideLabelClip(label, labelX, labelSize, finalSize.Width);
         Place(Child(4), startPadding, indicatorY, indicatorWidthProgress, indicatorHeightProgress);
         Child(0)?.SetValue(OpacityProperty, Clamp01(IndicatorAlpha));
-        Child(3)?.SetValue(OpacityProperty, Clamp01(LabelOpacity));
+        label?.SetValue(OpacityProperty, Clamp01(LabelOpacity));
+    }
+
+    private static void ApplyWideLabelClip(Control? label, double labelX, Size labelSize, double availableWidth)
+    {
+        if (label is null)
+            return;
+
+        if (labelX >= -0.5 && labelX + labelSize.Width <= availableWidth + 0.5)
+        {
+            ClearLabelClip(label);
+            return;
+        }
+
+        var clipLeft = Math.Max(0, -labelX);
+        var clipRight = Math.Max(clipLeft, Math.Min(labelSize.Width, availableWidth - labelX));
+        label.SetCurrentValue(ClipProperty,
+            new RectangleGeometry(new Rect(clipLeft, 0, clipRight - clipLeft, Math.Max(0, labelSize.Height))));
+    }
+
+    private static void ClearLabelClip(Control? label)
+    {
+        if (label?.Clip is not null)
+            label.SetCurrentValue(ClipProperty, null);
     }
 
     private void MeasureIndicator(double width, double height)
@@ -486,25 +513,13 @@ public sealed class MaterialNavigationItemLayout : Panel
 
     private double MinWidthForKind() => Kind is MaterialNavigationItemLayoutKind.Rail ? 80d : 0d;
 
-    private bool IsMirrored => FlowDirection == Avalonia.Media.FlowDirection.RightToLeft;
-
     private Control? Child(int index) => Children.Count > index ? Children[index] : null;
 
-    private void Place(Control? child, double x, double y, double width, double height)
+    private static void Place(Control? child, double x, double y, double width, double height)
     {
         if (child is null)
             return;
 
-        width = Math.Max(0, width);
-        height = Math.Max(0, height);
-        var physicalX = IsMirrored ? Math.Max(0, _arrangeWidth - x - width) : x;
-        child.Arrange(new Rect(physicalX, y, width, height));
-    }
-
-    private static void PlaceIndicator(Control? child, double x, double y, double width, double height)
-    {
-        if (child is null)
-            return;
         child.Arrange(new Rect(x, y, Math.Max(0, width), Math.Max(0, height)));
     }
 

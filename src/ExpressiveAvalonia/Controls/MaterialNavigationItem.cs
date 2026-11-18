@@ -43,6 +43,7 @@ public sealed class MaterialNavigationItem : Button
 
     private bool _syncingSelection;
     private IDisposable? _iconColorBinding;
+    private IDisposable? _badgeStatusValue;
 
     static MaterialNavigationItem()
     {
@@ -181,10 +182,16 @@ public sealed class MaterialNavigationItem : Button
 
     private void UpdatePseudoClasses()
     {
+        var hasBadge = ShowBadge && !string.IsNullOrWhiteSpace(BadgeText);
         PseudoClasses.Set(":icon", Icon is not null);
         PseudoClasses.Set(":no-icon", Icon is null);
-        PseudoClasses.Set(":badge", ShowBadge && !string.IsNullOrEmpty(BadgeText));
+        PseudoClasses.Set(":badge", hasBadge);
         PseudoClasses.Set(":selected", IsSelected);
+
+        _badgeStatusValue?.Dispose();
+        _badgeStatusValue = hasBadge
+            ? SetValue(AutomationProperties.ItemStatusProperty, BadgeText, BindingPriority.Style)
+            : null;
     }
 
     /// <summary>
@@ -239,9 +246,14 @@ public sealed class MaterialNavigationItem : Button
 
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.ListItem;
 
-        protected override string? GetItemStatusCore() =>
-            Owner.ShowBadge && !string.IsNullOrEmpty(Owner.BadgeText)
+        protected override string? GetItemStatusCore()
+        {
+            var status = base.GetItemStatusCore();
+            if (!string.IsNullOrEmpty(status))
+                return status;
+            return Owner.ShowBadge && !string.IsNullOrWhiteSpace(Owner.BadgeText)
                 ? Owner.BadgeText
-                : base.GetItemStatusCore();
+                : null;
+        }
     }
 }

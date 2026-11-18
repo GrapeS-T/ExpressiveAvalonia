@@ -29,14 +29,17 @@
     <Setter Property="FontWeight" Value="{DynamicResource MaterialBodyMediumFontWeight}" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="VerticalContentAlignment" Value="Top" />
+    <Setter Property="ClipToBounds" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Panel>
+        <Panel ClipToBounds="False">
           <Border Name="PART_Surface" Margin="{TemplateBinding SurfaceMargin}"
+                  ClipToBounds="False"
                   Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
                   BoxShadow="{DynamicResource MaterialElevationLevel2Shadow}">
             <ContentPresenter Name="PART_ContentPresenter" Padding="{TemplateBinding Padding}"
+                              ClipToBounds="False"
                               Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
                               HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                               VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />

@@ -68,10 +68,11 @@ public enum MaterialNavigationDrawerVariant
 /// trapping and slide motion.
 /// </para>
 /// </remarks>
-[PseudoClasses(":empty")]
+[PseudoClasses(":empty", ":standard", ":modal")]
 [TemplatePart("PART_ItemsPresenter", typeof(ItemsPresenter))]
 public sealed class MaterialNavigationDrawer : ItemsControl
 {
+    public MaterialNavigationDrawer() => ApplyVariant();
     /// <summary>Defines the <see cref="SelectedItem"/> property.</summary>
     public static readonly StyledProperty<MaterialNavigationItem?> SelectedItemProperty =
         AvaloniaProperty.Register<MaterialNavigationDrawer, MaterialNavigationItem?>(
@@ -215,12 +216,6 @@ public sealed class MaterialNavigationDrawer : ItemsControl
         base.OnPropertyChanged(change);
 
         if (change.Property == VariantProperty)
-        {
-            ApplyVariant();
-            return;
-        }
-
-        if (change.Property == FlowDirectionProperty)
         {
             ApplyVariant();
             return;
@@ -402,15 +397,6 @@ public sealed class MaterialNavigationDrawer : ItemsControl
         var modal = Variant == MaterialNavigationDrawerVariant.Modal;
         PseudoClasses.Set(":modal", modal);
         PseudoClasses.Set(":standard", !modal);
-
-        // Source CornerLargeEnd is the end edge; mirror it for right-to-left reading.
-        var key = FlowDirection == Avalonia.Media.FlowDirection.RightToLeft
-            ? "MaterialShapeLargeStartCornerRadius"
-            : "MaterialShapeLargeEndCornerRadius";
-        var radius = this.TryFindResource(key, out var value) && value is CornerRadius corners
-            ? corners
-            : default;
-        SetCurrentValue(CornerRadiusProperty, radius);
     }
 
     private sealed class MaterialNavigationDrawerAutomationPeer(MaterialNavigationDrawer owner)
@@ -422,6 +408,19 @@ public sealed class MaterialNavigationDrawer : ItemsControl
 
         public bool IsSelectionRequired => false;
 
+        protected override string GetClassNameCore() => nameof(MaterialNavigationDrawer);
+
+        protected override AutomationLandmarkType? GetLandmarkTypeCore() => AutomationLandmarkType.Navigation;
+
+        protected override string? GetNameCore()
+        {
+            var name = base.GetNameCore();
+            if (!string.IsNullOrEmpty(name))
+                return name;
+            return Owner.TryFindResource("MaterialNavigationDrawerName", out var value) && value is string text
+                ? text
+                : "Navigation drawer";
+        }
 
         public IReadOnlyList<AutomationPeer> GetSelection()
         {

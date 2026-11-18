@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
@@ -118,6 +120,11 @@ public class MaterialFabMenu : ItemsControl
         AvaloniaProperty.Register<MaterialFabMenu, MaterialFabMenuColorRole>(
             nameof(ColorRole), MaterialFabMenuColorRole.PrimaryContainer);
 
+    /// <summary>Defines the <see cref="TriggerSize"/> property.</summary>
+    public static readonly StyledProperty<MaterialFabSize> TriggerSizeProperty =
+        AvaloniaProperty.Register<MaterialFabMenu, MaterialFabSize>(
+            nameof(TriggerSize), MaterialFabSize.Default);
+
     private static readonly Geometry DefaultTriggerIcon = Geometry.Parse(
         "M11,5 L13,5 L13,11 L19,11 L19,13 L13,13 L13,19 L11,19 L11,13 L5,13 L5,11 L11,11 Z");
 
@@ -147,6 +154,7 @@ public class MaterialFabMenu : ItemsControl
     private TopLevel? _topLevel;
     private MaterialMotion.SpringAnimation? _revealCountSpring;
     private MaterialMotion.SpringAnimation? _triggerProgressSpring;
+    private MaterialFabMenuAutomationPeer? _peer;
     private double _revealCount;
     private double _triggerProgress;
     private int? _pendingFocusIndex;
@@ -169,6 +177,8 @@ public class MaterialFabMenu : ItemsControl
         {
             var expanded = (bool)e.NewValue!;
             menu.ApplyExpandedState(expanded);
+            menu._peer?.NotifyExpandedStateChanged(expanded);
+            menu._trigger?.NotifyMenuExpandedStateChanged(expanded);
             if (menu._detached)
                 return;
             if (expanded)
@@ -177,6 +187,7 @@ public class MaterialFabMenu : ItemsControl
                 menu.Collapsed?.Invoke(menu, EventArgs.Empty);
         });
         ColorRoleProperty.Changed.AddClassHandler<MaterialFabMenu>((menu, _) => menu.ApplyColorRoles());
+        TriggerSizeProperty.Changed.AddClassHandler<MaterialFabMenu>((menu, _) => menu.ApplyTriggerProgress(menu._triggerProgress));
         TriggerIconProperty.Changed.AddClassHandler<MaterialFabMenu>((menu, _) => menu.UpdateTriggerIcon());
     }
 
@@ -187,6 +198,7 @@ public class MaterialFabMenu : ItemsControl
         AddHandler(Button.ClickEvent, OnDescendantClick, RoutingStrategies.Bubble);
         // The checked progress interpolates role colors, which change with the theme.
         ActualThemeVariantChanged += (_, _) => ApplyTriggerProgress(_triggerProgress);
+        ResourcesChanged += (_, _) => UpdateTriggerName(IsExpanded);
     }
 
     /// <summary>Raised after the action list becomes visible.</summary>
@@ -207,6 +219,13 @@ public class MaterialFabMenu : ItemsControl
     {
         get => GetValue(ColorRoleProperty);
         set => SetValue(ColorRoleProperty, value);
+    }
+
+    /// <summary>Gets or sets the resting size of the trigger FAB before morphing into the 56 DIP close button.</summary>
+    public MaterialFabSize TriggerSize
+    {
+        get => GetValue(TriggerSizeProperty);
+        set => SetValue(TriggerSizeProperty, value);
     }
 
     /// <summary>Gets or sets the trigger icon; the default is the source's plus glyph.</summary>
@@ -255,6 +274,7 @@ public class MaterialFabMenu : ItemsControl
             _trigger.Click -= OnTriggerClick;
             _trigger.KeyDown -= OnTriggerKeyDown;
             _trigger.PropertyChanged -= OnTriggerPropertyChanged;
+            _trigger.OwnerMenu = null;
         }
 
         base.OnApplyTemplate(e);
@@ -265,6 +285,7 @@ public class MaterialFabMenu : ItemsControl
 
         if (_trigger is not null)
         {
+            _trigger.OwnerMenu = this;
             _trigger.Click += OnTriggerClick;
             _trigger.KeyDown += OnTriggerKeyDown;
             _trigger.PropertyChanged += OnTriggerPropertyChanged;
@@ -296,6 +317,7 @@ public class MaterialFabMenu : ItemsControl
         base.OnAttachedToVisualTree(e);
         _detached = false;
         ApplyExpandedState(IsExpanded);
+        UpdateTriggerName(IsExpanded);
         // Theme resources are guaranteed reachable now; re-apply the current progress if the
         // template ran before the resource scope was ready.
         ApplyTriggerProgress(_triggerProgress);
@@ -614,36 +636,50 @@ public class MaterialFabMenu : ItemsControl
     {
         progress = Math.Clamp(progress, 0, 1);
 
+        var activeSize = _trigger?.Size ?? TriggerSize;
         if (_trigger is not null)
         {
             // ToggleFloatingActionButtonDefaults.containerSize/CornerRadius: lerp the size's
-            // initial geometry to the 56 DIP full-round close button.
-            var initialSize = _trigger.Size switch
+            // initial geometry, padding, and container inset to the 56 DIP full-round close button.
+            var initialSize = activeSize switch
             {
                 MaterialFabSize.Small => 48d,
                 MaterialFabSize.Medium => 80d,
                 MaterialFabSize.Large => 96d,
                 _ => 56d,
             };
-            var initialRadius = _trigger.Size switch
+            var initialRadius = activeSize switch
             {
                 MaterialFabSize.Small => 12d,
                 MaterialFabSize.Medium => 20d,
                 MaterialFabSize.Large => 28d,
                 _ => 16d,
             };
+            var initialPadding = activeSize switch
+            {
+                MaterialFabSize.Small => 8d,
+                MaterialFabSize.Medium => 26d,
+                MaterialFabSize.Large => 30d,
+                _ => 16d,
+            };
+            var initialInset = activeSize == MaterialFabSize.Small ? 4d : 0d;
+
             var containerSize = initialSize + (56d - initialSize) * progress;
             _trigger.SetCurrentValue(WidthProperty, containerSize);
             _trigger.SetCurrentValue(HeightProperty, containerSize);
             _trigger.SetCurrentValue(TemplatedControl.CornerRadiusProperty,
                 new CornerRadius(initialRadius + (28d - initialRadius) * progress));
+            _trigger.SetCurrentValue(TemplatedControl.PaddingProperty,
+                new Thickness(initialPadding + (16d - initialPadding) * progress));
+            _trigger.SetCurrentValue(MaterialAssist.ContainerInsetProperty,
+                new Thickness(initialInset * (1d - progress)));
 
             ApplyTriggerColors(progress);
         }
 
         // The icon size interpolates to the 20 DIP close icon. The centered template slot keeps
         // both glyphs aligned as their dimensions change; the glyph switches at 50% progress.
-        var initialIconSize = _trigger?.Size switch
+        var initialIconSize = activeSize switch
         {
             MaterialFabSize.Medium => 28d,
             MaterialFabSize.Large => 36d,
@@ -959,5 +995,49 @@ public class MaterialFabMenu : ItemsControl
         }
 
         return segments;
+    }
+
+    protected override AutomationPeer OnCreateAutomationPeer() =>
+        _peer = new MaterialFabMenuAutomationPeer(this);
+
+    internal void ExpandFromAutomation()
+    {
+        if (!IsEffectivelyEnabled)
+            throw new ElementNotEnabledException();
+        SetCurrentValue(IsExpandedProperty, true);
+    }
+
+    internal void CollapseFromAutomation()
+    {
+        if (!IsEffectivelyEnabled)
+            throw new ElementNotEnabledException();
+        if (IsKeyboardFocusWithin)
+            CollapseAndRestoreFocus();
+        else
+            SetCurrentValue(IsExpandedProperty, false);
+    }
+
+    private sealed class MaterialFabMenuAutomationPeer(MaterialFabMenu owner)
+        : ControlAutomationPeer(owner), IExpandCollapseProvider
+    {
+        public ExpandCollapseState ExpandCollapseState =>
+            owner.IsExpanded ? ExpandCollapseState.Expanded : ExpandCollapseState.Collapsed;
+
+        public bool ShowsMenu => true;
+
+        public void Expand() => owner.ExpandFromAutomation();
+
+        public void Collapse() => owner.CollapseFromAutomation();
+
+        public void NotifyExpandedStateChanged(bool expanded) =>
+            RaisePropertyChangedEvent(
+                ExpandCollapsePatternIdentifiers.ExpandCollapseStateProperty,
+                expanded ? ExpandCollapseState.Collapsed : ExpandCollapseState.Expanded,
+                expanded ? ExpandCollapseState.Expanded : ExpandCollapseState.Collapsed);
+
+        protected override AutomationControlType GetAutomationControlTypeCore() =>
+            AutomationControlType.Menu;
+
+        protected override string GetClassNameCore() => nameof(MaterialFabMenu);
     }
 }

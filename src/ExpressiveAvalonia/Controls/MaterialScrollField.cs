@@ -299,8 +299,8 @@ public sealed class MaterialScrollField : Control
 {
     private const double DefaultHeight = 120;
     private const double DefaultWidth = 120;
-    private const double FocusRingThickness = 2;
-    private const double FocusRingGap = 2;
+    private const double FocusRingThickness = 3;
+    private const double FocusRingOffset = 3.5;
     private const double DragThreshold = 3;
 
     /// <summary>Identifies the <see cref="State"/> property.</summary>
@@ -422,6 +422,7 @@ public sealed class MaterialScrollField : Control
         SetCurrentValue(StateProperty, new MaterialScrollFieldState(10));
         // Colour roles are resolved on each render. Observe live palette/theme changes so the
         // per-slot colour springs retarget while retaining their current position and velocity.
+        Classes.CollectionChanged += (_, _) => InvalidateVisual();
         ResourcesChanged += (_, _) => InvalidateVisual();
         ActualThemeVariantChanged += (_, _) => InvalidateVisual();
     }
@@ -497,7 +498,7 @@ public sealed class MaterialScrollField : Control
         set => SetValue(DisabledSelectedContentBrushProperty, value);
     }
 
-    /// <summary>Focus ring colour. Falls back to the primary role.</summary>
+    /// <summary>Focus ring colour. Falls back to the secondary role.</summary>
     public IBrush? FocusRingBrush
     {
         get => GetValue(FocusRingBrushProperty);
@@ -883,7 +884,8 @@ public sealed class MaterialScrollField : Control
 
         if (disabled)
         {
-            var disabledContainer = ResolveBrush(DisabledContainerBrush, "MaterialScrollFieldDisabledContainerBrush");
+            var disabledContainer = ResolveBrush(DisabledContainerBrush, "MaterialScrollFieldDisabledContainerBrush")
+                ?? ResolveBrush(null, "MaterialTimePickerDisabledContainerBrush");
             if (disabledContainer is not null)
                 context.DrawRectangle(disabledContainer, null, rounded);
             else if (container is not null)
@@ -903,15 +905,15 @@ public sealed class MaterialScrollField : Control
             }
         }
 
-        if (IsFocused && ResolveBrush(FocusRingBrush, "MaterialPrimaryBrush") is { } focusBrush)
+        if (IsFocused && !disabled && Classes.Contains(":focus-visible") &&
+            ResolveBrush(FocusRingBrush, "MaterialSecondaryBrush") is { } focusBrush)
         {
-            var gap = FocusRingGap;
-            var ringRect = rect.Inflate(gap);
+            var ringRect = rect.Inflate(FocusRingOffset);
             var ringRadius = new CornerRadius(
-                Math.Max(0, CornerRadius.TopLeft + gap),
-                Math.Max(0, CornerRadius.TopRight + gap),
-                Math.Max(0, CornerRadius.BottomRight + gap),
-                Math.Max(0, CornerRadius.BottomLeft + gap));
+                CornerRadius.TopLeft + FocusRingOffset,
+                CornerRadius.TopRight + FocusRingOffset,
+                CornerRadius.BottomRight + FocusRingOffset,
+                CornerRadius.BottomLeft + FocusRingOffset);
             context.DrawRectangle(null, GetFocusPen(focusBrush),
                 new RoundedRect(ringRect, ringRadius));
         }
@@ -953,9 +955,11 @@ public sealed class MaterialScrollField : Control
         if (disabled)
         {
             disabledSelectedBrush = ResolveBrush(DisabledSelectedContentBrush,
-                "MaterialScrollFieldDisabledSelectedContentBrush");
+                "MaterialScrollFieldDisabledSelectedContentBrush")
+                ?? ResolveBrush(null, "MaterialTimePickerDisabledContentBrush");
             disabledBrush = ResolveBrush(DisabledContentBrush,
-                "MaterialScrollFieldDisabledContentBrush");
+                "MaterialScrollFieldDisabledContentBrush")
+                ?? ResolveBrush(null, "MaterialTimePickerDisabledContentBrush");
             useDisabledOpacity = disabledSelectedBrush is null && disabledBrush is null;
             disabledSelectedBrush ??= disabledBrush ?? selectedBrush;
             disabledBrush ??= disabledSelectedBrush ?? baseBrush;
@@ -1039,7 +1043,9 @@ public sealed class MaterialScrollField : Control
     {
         if (brush is ISolidColorBrush solid)
         {
-            color = solid.Color;
+            color = solid.Opacity < 1
+                ? WithOpacity(solid.Color, solid.Opacity)
+                : solid.Color;
             return true;
         }
         color = default;

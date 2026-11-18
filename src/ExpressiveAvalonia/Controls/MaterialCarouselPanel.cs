@@ -33,8 +33,8 @@ namespace ExpressiveAvalonia.Controls;
 /// the list, not as extra scroll extent or as a constant offset of every item. The container itself
 /// uses the full viewport for the keyline geometry, which is what
 /// <c>CarouselPageSize.calculateMainAxisPageSize</c> passes to the strategy.
-/// Right-to-left flow mirrors the content slots and negates the keyline translation while
-/// <see cref="ScrollViewer"/> offsets stay physical.
+/// Right-to-left flow is mirrored once at the flow-direction boundary by Avalonia's
+/// <c>Visual.HasMirrorTransform</c>, so slots, offsets and keylines stay in logical coordinates.
 /// </para>
 /// <para>
 /// <see cref="MaterialCarouselLayout.MultiAspectRatio"/> uses variable-width slots with the pinned
@@ -143,18 +143,16 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
 
     private double PhysicalEndPadding => Owner?.Padding.Right ?? 0;
 
-    private double BeforeContentPadding =>
-        Owner is null ? 0 : IsRightToLeft ? Owner.Padding.Right : Owner.Padding.Left;
+    private double BeforeContentPadding => Owner?.Padding.Left ?? 0;
 
-    private double AfterContentPadding =>
-        Owner is null ? 0 : IsRightToLeft ? Owner.Padding.Left : Owner.Padding.Right;
+    private double AfterContentPadding => Owner?.Padding.Right ?? 0;
 
     private double CrossPaddingStart => Owner?.Padding.Top ?? 0;
 
     private double CrossPaddingEnd => Owner?.Padding.Bottom ?? 0;
 
     /// <summary>
-    /// Physical left edge of the first item slot. The pinned strategy layouts have no physical
+    /// Logical start edge of the first item slot. The pinned strategy layouts have no physical
     /// main-axis inset (the content padding lives in the shifted keyline steps); the aspect-ratio
     /// extension, which has no strategy, keeps the padding as a real inset.
     /// </summary>
@@ -164,16 +162,6 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
     private double MainAxisExtent => IsAspectLayout
         ? PhysicalStartPadding + _contentWidth + PhysicalEndPadding
         : _contentWidth;
-
-    /// <summary>
-    /// Width the logical arrangement is mirrored around for right-to-left flow. When the strip is
-    /// narrower than the viewport the empty space belongs before the content (on the left), so the
-    /// viewport is the mirror; otherwise the content itself is. The aspect-ratio extension keeps a
-    /// physical main-axis inset, so it mirrors inside the padded box.
-    /// </summary>
-    private double MirrorWidth => IsAspectLayout
-        ? Math.Max(_contentWidth, Math.Max(0, _viewportWidth - PhysicalStartPadding - PhysicalEndPadding))
-        : Math.Max(_contentWidth, _strategy.AvailableSpace);
 
     /// <summary>Maximum scroll offset of the current arrangement, never negative.</summary>
     internal double MaxScrollOffset
@@ -246,21 +234,13 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
         return Math.Clamp((logical - _aspectStarts[index]) / width, -0.5, 0.5);
     }
 
-    /// <summary>Physical offset for a logical offset, mirrored for right-to-left flow.</summary>
-    internal double ToPhysicalOffset(double logicalOffset)
-    {
-        var max = MaxScrollOffset;
-        var clamped = Math.Clamp(logicalOffset, 0, max);
-        return IsRightToLeft ? Math.Max(0, max - clamped) : clamped;
-    }
+    /// <summary>ScrollViewer offset for a logical offset.</summary>
+    internal double ToPhysicalOffset(double logicalOffset) =>
+        Math.Clamp(logicalOffset, 0, MaxScrollOffset);
 
-    /// <summary>Logical offset for a physical <see cref="ScrollViewer"/> offset.</summary>
-    internal double ToLogicalOffset(double physicalOffset)
-    {
-        var max = MaxScrollOffset;
-        var clamped = Math.Clamp(physicalOffset, 0, max);
-        return IsRightToLeft ? Math.Max(0, max - clamped) : clamped;
-    }
+    /// <summary>Logical offset for a <see cref="ScrollViewer"/> offset.</summary>
+    internal double ToLogicalOffset(double physicalOffset) =>
+        Math.Clamp(physicalOffset, 0, MaxScrollOffset);
 
     /// <summary>The item index closest to its snap position at the current offset.</summary>
     internal int GetCurrentItem()
@@ -464,7 +444,6 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
             return finalSize;
 
         var logicalOffset = ResolveLogicalOffset(count);
-        var rtl = IsRightToLeft;
         var contentStart = ContentStart;
 
         if (IsAspectLayout)
@@ -476,13 +455,13 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
             {
                 var width = GetAspectItemWidth(item.Index);
                 var start = item.Index < _aspectStarts.Length ? _aspectStarts[item.Index] : 0;
-                var left = rtl ? contentStart + MirrorWidth - start - width : contentStart + start;
+                var left = contentStart + start;
                 item.Container.Arrange(IsVertical ? new Rect(0, start, _crossSize, width) :
                     new Rect(left, CrossPaddingStart, width, _crossSize));
                 var effect = IsReduced || IsVertical ? (Start: 0d, End: width, Translation: 0d) :
                     CarouselParallax.Calculate(width, _crossSize,
                         start - logicalOffset + ContentStart, 0, _viewportWidth);
-                var maskStart = rtl ? width - effect.End : effect.Start;
+                var maskStart = effect.Start;
                 var mask = IsVertical ? new Rect(0, 0, _crossSize, width) :
                     new Rect(maskStart, 0, Math.Max(0, effect.End - effect.Start), _crossSize);
                 ApplyItemVisuals(item.Container, 0, mask, clip: !IsVertical && mask.Width < width,
@@ -490,7 +469,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
                     item.Container is MaterialCarouselItem rounded ? rounded.CornerRadius.TopLeft : 0);
                 if (item.Container is MaterialCarouselItem aspectItem)
                 {
-                    aspectItem.SetParallax(rtl ? -effect.Translation : effect.Translation);
+                    aspectItem.SetParallax(effect.Translation);
                     aspectItem.UpdateItemInfo(IsVertical ? width : mask.Width, width, width, mask);
                 }
             }
@@ -515,9 +494,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
             // The strip is arranged end-to-end in unadjusted content coordinates; the scroll viewer
             // applies the scroll offset to the whole panel, and the translation pins each item to
             // its interpolated keyline (exactly the pinned modifier's placement + translation).
-            var slotLeft = rtl
-                ? contentStart + MirrorWidth - (index * slot) - itemMainSize
-                : contentStart + (index * slot);
+            var slotLeft = contentStart + (index * slot);
 
             var unadjustedCenter = (index * slot) + (itemMainSize / 2) - logicalOffset;
             var keylineBefore = keylines.GetKeylineBefore(unadjustedCenter);
@@ -540,14 +517,13 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
                 translation += (unadjustedCenter - interpolated.UnadjustedOffset) / interpolated.Size;
             }
 
-            if (rtl)
-                translation = -translation;
-
             container.Arrange(new Rect(slotLeft, CrossPaddingStart, itemMainSize, _crossSize));
 
             var clipRect = new Rect(maskLeft, 0, Math.Max(0, maskRight - maskLeft), _crossSize);
             var shouldClip = Math.Abs(maskLeft) > 0.01 || Math.Abs(maskRight - itemMainSize) > 0.01;
-            ApplyItemVisuals(container, translation, clipRect, shouldClip, 1 / (1 + Math.Abs(index - currentItem)));
+            var radius = container is MaterialCarouselItem rounded ? rounded.CornerRadius.TopLeft : 0;
+            ApplyItemVisuals(container, translation, clipRect, shouldClip,
+                1 / (1 + Math.Abs(index - currentItem)), radius);
 
             if (container is MaterialCarouselItem carouselItem)
             {
@@ -1121,7 +1097,7 @@ public sealed class MaterialCarouselPanel : VirtualizingPanel, IScrollSnapPoints
                 size = 0;
             }
 
-            var point = IsRightToLeft ? Math.Max(0, maxScroll - logical) : logical;
+            var point = logical;
             nextNear[i] = point;
             nextCenter[i] = point + (size / 2);
             nextFar[i] = point + size;

@@ -814,7 +814,8 @@ public class MaterialSearchAppBar : MaterialBarBase
         else if (change.Property == ScrolledBackgroundProperty ||
                  change.Property == SearchBarBackgroundProperty ||
                  change.Property == ScrolledSearchBarBackgroundProperty ||
-                 change.Property == SearchBarForegroundProperty)
+                 change.Property == SearchBarForegroundProperty ||
+                 change.Property == IsEffectivelyEnabledProperty)
         {
             UpdateSearchAppearance();
         }
@@ -937,6 +938,13 @@ public class MaterialSearchAppBar : MaterialBarBase
     private void OnSearchBarPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (_hookedBar is not { } bar || !ReferenceEquals(sender, bar))
+            return;
+        if (e.Property == IsEffectivelyEnabledProperty)
+        {
+            UpdateSearchBarColors();
+            return;
+        }
+        if (!bar.IsEffectivelyEnabled)
             return;
         if (e.Property == BackgroundProperty && _searchBarBackgroundOwned)
         {
@@ -1200,6 +1208,11 @@ public class MaterialSearchAppBar : MaterialBarBase
     {
         if (SearchBar is not { } bar)
             return;
+        if (!bar.IsEffectivelyEnabled)
+        {
+            RestoreSearchBarChannels(bar);
+            return;
+        }
 
         if (SearchBarBackground is not null || ScrolledSearchBarBackground is not null)
         {
